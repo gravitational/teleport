@@ -1,0 +1,42 @@
+kind: role
+metadata:
+  name: featurehiding-limited
+spec:
+  allow:
+    app_labels:
+      "*": "*"
+    node_labels:
+      "*": "*"
+    logins:
+      - root
+    rules:
+      # Grant access to Applications and SSH Resources.
+      - resources:
+          - app_server
+        verbs:
+          - list
+          - read
+      - resources:
+          - node
+        verbs:
+          - list
+          - read
+      - resources:
+          - access_list
+        verbs:
+          - list
+          - read
+  deny:
+    # Deny access to databases, Kubernetes, desktops and git servers.
+    rules:
+      - resources:
+          - db_server
+          - kube_server
+          - windows_desktop
+          - git_server
+        verbs:
+          - list
+          - read
+  options:
+    max_session_ttl: 8h0m0s
+version: v3

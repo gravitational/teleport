@@ -1,0 +1,466 @@
+package identitycenter
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/calculator"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
+	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
+	icscim "github.com/gravitational/teleport/e/lib/aws/identitycenter/scim"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	"github.com/gravitational/teleport/e/lib/provisioning"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	// IdentityCenterDownstreamID indicates the downstream ID to be used by the
+	// Identity Center integration when storing provisioning records.
+	IdentityCenterDownstreamID = services.DownstreamID("identitycenter")
+
+	scimAuthErrorMessage = "The credentials configured in Teleport for the AWS IAM Identity Center SCIM API are invalid. Teleport can't provision users or groups to AWS. Please rotate the SCIM access token by following https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/maintenance/#rotating-the-token"
+)
+
+// Service is the configuration for the Identity Center service
+type Service struct {
+	accessListSvc              services.AccessLists
+	accessListMatchesPredicate provisioning.AccessListPredicate
+	accessListSvcCache         provisioning.AccessListsService
+	accessRequestSvc           services.AccessRequestGetter
+	icClient                   icsdk.Client
+	clock                      clockwork.Clock
+	icSvc                      services.IdentityCenter
+	log                        *slog.Logger
+	provisioner                *provisioning.Service
+	rolesSvc                   RolesService
+	usersSvc                   UsersService
+	userMatchesPredicate       func(types.User) bool
+	assignmentSyncInterval     time.Duration
+	awsSyncInterval            time.Duration
+	ssoRegion                  string
+	importConfig               ImportConfig
+	pluginStatusSink           common.StatusSink
+	pluginsService             pluginsService
+	resourceMonitor            *monitor.ResourceMonitor
+	principalEventCh           chan *monitor.PrincipalEvent
+	assignmentCalculator       *calculator.AssignmentCalculator
+	assignmentProvisioner      *icprov.AssignmentProvisioner
+	emitter                    apievents.Emitter
+	rolesSyncMode              RolesSyncMode
+	eventBatchDuration         time.Duration
+}
+
+// NewService creates a new Identity Center Service instance from the supplied
+// config.
+func NewService(config ServiceConfig) (svc *Service, err error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	aclPredicate := makeAccessListAssignmentPredicate(config.RolesSvc)
+
+	assignmentProvisioner, err := icprov.NewAssignmentProvisioner(icprov.ProvisionerConfig{
+		Assignment: config.IdentityCenterDataSvc,
+		Log:        config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentProvisioner),
+		SDKClient:  config.ICClient,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Events from the resource monitor will end up being queued for handling in
+	// this buffered channel. The channel is buffered because recalculating and
+	// provisioning a principal can take some time (especially while creating or
+	// deleting the downstream Identity Center account assignments, which can
+	// sometimes take *minutes*), and using a buffered channel gives us a bit of
+	// breathing space to keep queueing up PrincipalEvents for later processing
+	// without unduly blocking the Resource Monitor.
+	principalEventCh := make(chan *monitor.PrincipalEvent, config.EventBufferSize)
+	defer func() {
+		// Ensure the channel is closed if we return with error after this point
+		if err != nil {
+			close(principalEventCh)
+		}
+	}()
+
+	svc = &Service{
+		accessListSvc:              config.AccessListsSvc,
+		accessListSvcCache:         config.Provisioning.AccessListsSvcCache,
+		accessRequestSvc:           config.AccessRequestsSvc,
+		clock:                      config.Clock,
+		icSvc:                      config.IdentityCenterDataSvc,
+		icClient:                   config.ICClient,
+		log:                        config.Log,
+		rolesSvc:                   config.RolesSvc,
+		usersSvc:                   config.UsersSvc,
+		userMatchesPredicate:       config.UserPredicate,
+		accessListMatchesPredicate: aclPredicate,
+		awsSyncInterval:            config.AWSSyncInterval,
+		ssoRegion:                  config.SSORegion,
+		assignmentSyncInterval:     config.AssignmentSyncInterval,
+		importConfig:               config.ImportConfig,
+		pluginStatusSink:           config.PluginStatusSink,
+		pluginsService:             config.PluginsService,
+		principalEventCh:           principalEventCh,
+		assignmentProvisioner:      assignmentProvisioner,
+		emitter:                    config.Emitter,
+		rolesSyncMode:              config.RolesSyncMode,
+		eventBatchDuration:         config.EventBatchDuration,
+	}
+
+	// Wrap the provided SCIM client so that we can intercept calls from the
+	// User & Group provisioner to add Identity Center specific behavior, like
+	// listing group memberships and cleaning up Account Assignments on delete.
+	wrappedSCIMClient, err := icscim.NewClient(icscim.ClientConfig{
+		SCIMClient:  config.Provisioning.SCIMClient,
+		APIClient:   config.ICClient,
+		Provisioner: svc.assignmentProvisioner,
+		Log:         svc.log,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
+		DownstreamID:              IdentityCenterDownstreamID,
+		SCIMClient:                wrappedSCIMClient,
+		HealthCheckSCIMClient:     config.Provisioning.HealthCheckSCIMClient,
+		StateSvc:                  config.Provisioning.StateSvc,
+		StateSvcCache:             config.Provisioning.StateSvcCache,
+		UsersCache:                config.Provisioning.UsersSvcCache,
+		AccessListsCache:          config.Provisioning.AccessListsSvcCache,
+		Locks:                     config.Provisioning.LocksSvc,
+		EventsClient:              config.EventsClient,
+		UserPredicate:             config.UserPredicate,
+		AccessListPredicate:       aclPredicate,
+		OnExternalIDUpdated:       svc.onExternalIDUpdated,
+		OnPrincipalProvisioning:   svc.onPrincipalProvisioning,
+		OnPrincipalProvisioned:    svc.onPrincipalProvisioned,
+		OnPrincipalDeprovisioning: svc.onPrincipalDeprovisioning,
+		Logger:                    config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICPrincipalProvisioner),
+		StateRefreshInterval:      config.Provisioning.StateRefreshInterval,
+		UserProvisioningMode:      config.Provisioning.UserProvisioningMode,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating provisioner")
+	}
+
+	svc.assignmentCalculator, err = calculator.New(calculator.Config{
+		AccessRequestsSvc:       config.AccessRequestsSvc,
+		Clock:                   config.Clock,
+		ExternalIDGetter:        svc.provisioner,
+		PrincipalAssignmentsSvc: config.IdentityCenterDataSvc,
+		AccountAssignmentCache:  config.IdentityCenterDataSvcCache,
+		RolesGetter:             config.RolesSvc,
+		Logger:                  config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICAssignmentCalculator),
+		LocksGetter:             config.Provisioning.LocksSvc,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svc.resourceMonitor, err = monitor.New(monitor.Config{
+		AccessListsSvcCache: config.Provisioning.AccessListsSvcCache,
+		UsersSvcCache:       config.Provisioning.UsersSvcCache,
+		Events:              config.EventsClient,
+		Clock:               config.Clock,
+		Logger:              config.Log.With(teleport.ComponentKey, eteleport.ComponentAWSICResourceMonitor),
+		OnEvent:             svc.onResourceMonitorEvent,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating resource monitor")
+	}
+
+	return svc, nil
+}
+
+// Run the Identity Center service, blocking until the supplied context is
+// canceled
+func (svc *Service) Run(ctx context.Context) error {
+	if err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := svc.maybeImportGroupAndGroupMembers(ctx); err != nil {
+		svc.log.ErrorContext(ctx,
+			"Group import service exited with error",
+			"error", err)
+		return trace.Wrap(err)
+	}
+
+	go svc.runProvisioner(ctx)
+	go svc.runAWSSyncService(ctx)
+	go svc.runResourceMonitor(ctx)
+
+	svc.runResourceEventHandler(ctx)
+
+	return nil
+}
+
+func (svc *Service) runProvisioner(ctx context.Context) {
+	svc.log.InfoContext(ctx, "Starting SCIM provisioning service")
+	if err := svc.provisioner.Run(ctx); err != nil {
+		svc.log.ErrorContext(ctx, "Provisioning service exited with error",
+			"error", err)
+	}
+}
+
+func (svc *Service) runAWSSyncService(ctx context.Context) {
+	svc.log.DebugContext(ctx, "Starting Identity Center sync service...")
+	if err := svc.awsSyncService(ctx); err != nil {
+		svc.log.ErrorContext(ctx, "Identity Center sync service exited with error",
+			"error", err)
+	}
+}
+
+func (svc *Service) runResourceMonitor(ctx context.Context) {
+	svc.resourceMonitor.Watch(ctx)
+}
+
+func (svc *Service) runResourceEventHandler(ctx context.Context) {
+	svc.log.DebugContext(ctx, "Starting resource event handler...")
+	if err := svc.resourceEventLoop(ctx); err != nil {
+		svc.log.ErrorContext(ctx, "Identity Center resource event handler exited with error",
+			"error", err)
+	}
+}
+
+func (svc *Service) queueResourceEvent(ctx context.Context, event *monitor.PrincipalEvent) error {
+	select {
+	case svc.principalEventCh <- event:
+		return nil
+
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.PrincipalEvent) {
+	if err := svc.queueResourceEvent(ctx, event); err != nil {
+		svc.log.ErrorContext(ctx,
+			"Unable to queue resource event. event dropped")
+	}
+}
+
+// onExternalIDUpdated is invoked by the user & group provisioning subsystem
+// when it has detected a change in the principal's ExternalID
+func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioningv1.PrincipalState) {
+	log := svc.log.With("principal_id", state.GetMetadata().GetName())
+	log.DebugContext(ctx, "Updating ExternalID")
+
+	principalAssignmentID, err := assignmentIDForProvisioningState(state)
+	if err != nil {
+		log.ErrorContext(ctx, "Malformed provisioning state", "error", err)
+		return
+	}
+
+	principalAssignment, err := svc.icSvc.GetPrincipalAssignment(ctx, principalAssignmentID)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			log.WarnContext(ctx, "No such Principal Assignment record. May not have been created yet.")
+			return
+		}
+		log.ErrorContext(ctx, "Unable to load Principal Assignment record", "error", err)
+		return
+	}
+
+	log = log.With(principalAssignmentAttr(principalAssignment))
+	log.DebugContext(ctx, "Resetting ExternalID and Account Assignments")
+
+	externalID := state.GetStatus().GetExternalId()
+	_, err = principal.Update(ctx, svc.icSvc, principalAssignment,
+		func(asmt *identitycenterv1.PrincipalAssignment) error {
+			// Abort the update if the new external ID has written to the record.
+			if asmt.GetSpec().GetExternalId() == externalID {
+				return principal.ErrNoUpdateRequired
+			}
+			// Set the new ExternalID and reset the principal's assignment set.
+			// This will force a difference between the principal's computed
+			// account assignment set and their existing assignments when their
+			// assignment list is next recalculated.
+			//
+			// Without this difference the provisioner would see no change in
+			// the principal's assignment set and not provision the assignments
+			// to the principal's new ID.
+			asmt.GetSpec().SetExternalId(externalID)
+			asmt.GetStatus().SetAssignments(nil)
+			return nil
+		})
+	if err != nil {
+		log.ErrorContext(ctx, "Failed resetting ExternalID", "error", err)
+		return
+	}
+}
+
+// assignmentIDForProvisioningState generates a [services.PrincipalAssignmentID]
+// representing the same principal as the supplied provisioning state record.
+func assignmentIDForProvisioningState(state *provisioningv1.PrincipalState) (services.PrincipalAssignmentID, error) {
+	spec := state.GetSpec()
+	principalID := spec.GetPrincipalId()
+
+	switch spec.GetPrincipalType() {
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		return principal.GetIDForUserName(principalID), nil
+
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		return principal.GetIDForAccessListName(principalID), nil
+	}
+
+	return "", trace.BadParameter("unsupported principal type %v", spec.GetPrincipalType())
+}
+
+func provisioningPrincipalType(state *identitycenterv1.PrincipalAssignment) (provisioningv1.PrincipalType, error) {
+	switch state.GetSpec().GetPrincipalType() {
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		return provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER, nil
+
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		return provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST, nil
+	}
+	return 0, trace.BadParameter("unsupported principal type %v", state.GetSpec().GetPrincipalType())
+}
+
+// onPrincipalProvisioned is invoked by the user & group provisioning subsystem
+// when it has (re-)provisioned a principal.
+func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) {
+	log := svc.log.With(
+		"principal_id", principal.GetMetadata().GetName())
+	log.Log(ctx, logutils.TraceLevel, "Handling SCIM provisioning event")
+
+	event := &monitor.PrincipalEvent{
+		Verb: monitor.VerbCalculate,
+	}
+	switch principal.GetSpec().GetPrincipalType() {
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		username := principal.GetSpec().GetPrincipalId()
+		user, err := svc.usersSvc.GetUser(ctx, username, false)
+		if err != nil {
+			log.ErrorContext(ctx,
+				"Failed looking up provisioned user",
+				"user", username,
+				"error", err.Error())
+			return
+		}
+		event.Principal = user
+
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		aclName := principal.GetSpec().GetPrincipalId()
+		acl, err := svc.accessListSvc.GetAccessList(ctx, aclName)
+		if err != nil {
+			log.ErrorContext(ctx,
+				"Failed looking up provisioned access list",
+				"access_list", aclName,
+				"error", err.Error())
+			return
+		}
+		event.Principal = acl
+
+	default:
+		log.ErrorContext(ctx,
+			"Unexpected principal type",
+			"principal_type", principal.GetSpec().GetPrincipalType())
+		return
+	}
+
+	if err := svc.queueResourceEvent(ctx, event); err != nil {
+		// Swallowing internal error because there is nothing that the external
+		// event source can do to fix it.
+		log.ErrorContext(ctx, "Failed to queue resource event", "error", err)
+	}
+}
+
+func (svc *Service) onPrincipalProvisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
+	svc.log.DebugContext(ctx, "onPrincipalProvisioning invoked", "principal", state.GetMetadata().GetName())
+	if state.GetMetadata().GetLabels()[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+		return trace.Wrap(provisioning.ErrDoNotProvision)
+	}
+	return nil
+}
+
+func (svc *Service) onPrincipalDeprovisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
+	svc.log.DebugContext(ctx, "onPrincipalDeprovisioning invoked", "principal", state.GetMetadata().GetName())
+	if state.GetMetadata().GetLabels()[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+		return trace.Wrap(provisioning.ErrDoNotProvision)
+	}
+	return nil
+}
+
+func (svc *Service) isTargetedResource(ctx context.Context, resource types.Resource) (bool, error) {
+	switch r := resource.(type) {
+	case *types.UserV2:
+		return svc.userMatchesPredicate(r), nil
+	case *accesslist.AccessList:
+		return svc.accessListMatchesPredicate(ctx, r)
+	default:
+		return false, nil
+	}
+}
+
+// emitSyncEvent emits resource sync audit event.
+func (svc *Service) emitSyncEvent(ctx context.Context, in *apievents.AWSICResourceSync, success bool) {
+	in.Metadata.Type = events.AWSICResourceSyncSuccessEvent
+	in.Metadata.Code = events.AWSICResourceSyncSuccessCode
+	in.Status.Success = true
+	if !success {
+		in.Metadata.Type = events.AWSICResourceSyncFailureEvent
+		in.Metadata.Code = events.AWSICResourceSyncFailureCode
+		in.Status.Success = false
+	}
+	if err := svc.emitter.EmitAuditEvent(ctx, in); err != nil {
+		svc.log.ErrorContext(ctx, "Failed to emit resource sync event", "error", err)
+	}
+}
+
+func (svc *Service) setSCIMAuthError(ctx context.Context) {
+	if svc.scimAuthStatusMatches(ctx, types.PluginStatusCode_UNAUTHORIZED, scimAuthErrorMessage) {
+		return
+	}
+
+	err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code:         types.PluginStatusCode_UNAUTHORIZED,
+		ErrorMessage: scimAuthErrorMessage,
+	})
+	if err != nil {
+		svc.log.ErrorContext(ctx, "Failed to emit SCIM auth error status", "error", err)
+	}
+}
+
+func (svc *Service) clearSCIMAuthError(ctx context.Context) {
+	if svc.scimAuthStatusMatches(ctx, types.PluginStatusCode_RUNNING, "") {
+		return
+	}
+
+	err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+	})
+	if err != nil {
+		svc.log.ErrorContext(ctx, "Failed to clear SCIM auth error status", "error", err)
+	}
+}
+
+func (svc *Service) scimAuthStatusMatches(ctx context.Context, code types.PluginStatusCode, message string) bool {
+	plugin, err := svc.pluginsService.GetPlugin(ctx, types.PluginTypeAWSIdentityCenter, false)
+	if err != nil {
+		svc.log.WarnContext(ctx, "Failed to load current plugin status before SCIM auth status update", "error", err)
+		return false
+	}
+
+	status := plugin.GetStatus()
+	return status.GetCode() == code && status.GetErrorMessage() == message
+}

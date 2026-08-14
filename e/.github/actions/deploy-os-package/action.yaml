@@ -1,0 +1,303 @@
+---
+name: Deploy auto updates version
+description: Deploys a package to the OS package repositories
+inputs:
+  repo-type:
+    description: "The type of OS package repo that the package should be deployed to"
+    required: true
+  environment:
+    description: 'What environment the package should be deployed to. Valid values are "development" and "production".'
+    required: true
+  package-name-filter:
+    description: "Filter that limits what packages will be deployed. This is evaluated in a shell context, applied following the s3 sync include rules."
+    required: false
+  artifact-tag:
+    description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
+    required: true
+  version-channel:
+    description: 'The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: "v1.2.3" (truncated to "v1"), "cloud".'
+    required: true
+  release-channel:
+    description: "The release channel that the artifact should be deployed to"
+    required: true
+    default: "stable"
+  package-to-test:
+    description: "The package to install and test during the smoke test"
+    required: false
+    default: teleport-ent
+  do-teleport-package-tests:
+    description: "True if Teleport-specific smoke tests should be run, false otherwise"
+    required: true
+    default: "true"
+  # This is primarily used for development and testing
+  workflow-git-reference:
+    description: "Git reference to the version of the workflow that should be run."
+    required: true
+    default: "refs/heads/master"
+  github-token:
+    description: >
+      The Github token used to call the Github API on the `gravitational/teleport.e` repo. 
+      Must have `actions: write` permission.
+    default: ${{ github.token }}
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies for workflow trigger script
+      run: npm install uuid@9.0.0
+      shell: bash
+    - name: Deploy package to `stable/cloud` ${{ inputs.repo-type }} repos
+      uses: actions/github-script@v8
+      # Composite actions specifically don't get input env vars populated, so
+      # they must be populated here so that Github's action library can
+      # parse them correctly
+      env:
+        INPUT_REPO-TYPE: ${{ inputs.repo-type }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        INPUT_PACKAGE-NAME-FILTER: ${{ inputs.package-name-filter }}
+        INPUT_ARTIFACT-TAG: ${{ inputs.artifact-tag }}
+        INPUT_VERSION-CHANNEL: ${{ inputs.version-channel }}
+        INPUT_RELEASE-CHANNEL: ${{ inputs.release-channel }}
+        INPUT_PACKAGE-TO-TEST: ${{ inputs.package-to-test }}
+        INPUT_DO-TELEPORT-PACKAGE-TESTS: ${{ inputs.do-teleport-package-tests }}
+        INPUT_WORKFLOW-GIT-REFERENCE: ${{ inputs.workflow-git-reference }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          // Validate the input environment
+          function getWorkflowEnvironment() {
+            const workflowEnvironment = core.getInput("environment", { required: true });
+
+            // Legacy compatibility to avoid breaking existing workflows
+            if (workflowEnvironment == "development") {
+              return "stage/publish";
+            }
+
+            if (workflowEnvironment == "production") {
+              return "prod/publish";
+            }
+
+            if (workflowEnvironment == "publish-stage") {
+              return "stage/publish";
+            }
+
+            if (workflowEnvironment == "publish-prod") {
+              return "prod/publish";
+            }
+
+            // Input logic for actual environments
+            const validWorkflowEnvironments = ["stage/publish", "prod/publish"];
+            if (!validWorkflowEnvironments.includes(workflowEnvironment)) {
+              throw new Error(`Provided environment ${workflowEnvironment} is invalid. Valid values are: ${JSON.stringify(validWorkflowEnvironments)}`);
+            }
+
+            return workflowEnvironment;
+          }
+
+          // Used to uniquely identify the workflow that this action started
+          function generateWorkflowRunUniqueIdentifier() {
+            const uuid = require("uuid");
+            // UUID v1 is used to be reasonably sure that the value is unique
+            const workflowRunUniqueIdentifier = `Workflow run identifier step: ${uuid.v4()}`
+            process.stdout.write(`Generated workflow unique ID ${workflowRunUniqueIdentifier}\n`);
+            return workflowRunUniqueIdentifier;
+          }
+
+          function buildWorkflowInputs(workflowRunUniqueIdentifier) {
+            return {
+              "repo-type": core.getInput("repo-type", { required: true }),
+              "environment": getWorkflowEnvironment(),
+              "package-name-filter": core.getInput("package-name-filter", { required: false }),
+              "artifact-tag": core.getInput("artifact-tag", { required: true }),
+              "version-channel": core.getInput("version-channel", { required: true }),
+              "release-channel": core.getInput("release-channel", { required: true }),
+              "package-to-test": core.getInput("package-to-test", { required: false }),
+              "do-teleport-package-tests": core.getInput("do-teleport-package-tests", { required: true }),
+              "workflow-tag": workflowRunUniqueIdentifier
+            };
+          }
+
+          // Call the Github API to trigger the workflow in teleport.e
+          async function triggerWorkflow(workflowInputs) {
+            process.stdout.write(`Starting workflow with inputs: ${JSON.stringify(workflowInputs, null, 2)}\n`);
+            await github.rest.actions.createWorkflowDispatch({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              ref: core.getInput("workflow-git-reference", { required: true }),
+              inputs: workflowInputs
+            });
+          }
+
+          function sleep(milliseconds) {
+            return new Promise(resolve => setTimeout(resolve, milliseconds));
+          }
+
+          async function doesRunHaveStepWithName(runId, name) {
+            const workflowJobs = (await github.rest.actions.listJobsForWorkflowRun({
+              owner: "gravitational",
+              repo: "teleport.e",
+              run_id: runId,
+            })).data;
+
+            for (job of workflowJobs.jobs) {
+              for (step of job.steps) {
+                if (step.name === name) {
+                  return true;
+                }
+              }
+            }
+
+            return false;
+          }
+
+          async function areAllMatchingWorkflowsCompleted(workflowInputs) {
+            const concurrencyGroupStepName = `${workflowInputs["repo-type"]}-${workflowInputs["environment"]}`
+            const workflowRuns = (await github.rest.actions.listWorkflowRuns({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              per_page: 100
+            })).data;
+
+            for (workflowRun of workflowRuns.workflow_runs) {
+              if (workflowRun.status === "completed") {
+                continue;
+              }
+
+              // Check to see if the job matches the new job's concurrency group
+              if (!(await doesRunHaveStepWithName(workflowRun.id, concurrencyGroupStepName))) {
+                process.stdout.write(`Workflow ${workflowRun.id} is in progress but does not match concurrency group ${concurrencyGroupStepName}\n`)
+                continue;
+              }
+
+              process.stdout.write(`Workflow ${workflowRun.id} with concurrency group ${concurrencyGroupStepName} is not yet complete\n`)
+              return false;
+            }
+
+            return true;
+          }
+
+          // This is to deal with GHA's inconsistently-queueing concurrency
+          // implementation
+          async function waitForIncompleteWorkflows(workflowInputs) {
+            while (!(await areAllMatchingWorkflowsCompleted(workflowInputs))) {
+              await sleep(10 * 1000);
+            }
+          }
+
+          // Get the Github-assigned identifier for the run based off of the 
+          // unique value provided upon run creation
+          async function getWorkflowRunId(workflowRunUniqueIdentifier) {
+            // TODO handle pagination
+            const workflowRuns = (await github.rest.actions.listWorkflowRuns({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              per_page: 100
+            })).data;
+
+            for (workflowRun of workflowRuns.workflow_runs) {
+              if (workflowRun.status === "pending") {
+                process.stdout.write(`Skipping pending workflow with ID ${workflowRun.id}`)
+                continue;
+              }
+
+              if (!(await doesRunHaveStepWithName(workflowRun.id, workflowRunUniqueIdentifier))) {
+                continue;
+              }
+
+              process.stdout.write(`::group::Found matching workflow run (${workflowRun.id}) for ${workflowRunUniqueIdentifier}:\n`);
+              process.stdout.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+              process.stdout.write("::endgroup::\n");
+
+              return workflowRun.id;
+            }
+
+            throw new Error(`Failed to find matching workflow run for ${workflowRunUniqueIdentifier}`);
+          }
+
+          async function getWorkflowRunIdWithRetry(workflowRunUniqueIdentifier, retryLimit, waitTimeSeconds) {
+            for (let tryCount = 1; tryCount <= retryLimit; tryCount++) {
+              // Don't try to catch errors the last time
+              if (tryCount === retryLimit) {
+                return await getWorkflowRunId(workflowRunUniqueIdentifier);
+              }
+
+              try {
+                return await getWorkflowRunId(workflowRunUniqueIdentifier);
+              }
+              catch {
+                process.stderr.write(`Failed ${tryCount} time(s) to find workflow run for ${workflowRunUniqueIdentifier}, waiting ${waitTimeSeconds}s and trying again\n`);
+                await sleep(waitTimeSeconds * 1000);
+              }
+            }
+          }
+
+          function elapsedTimeToString(elapsedTimeSeconds) {
+            const hours = Math.floor(elapsedTimeSeconds / 60 / 60);
+            const minutes = Math.floor(elapsedTimeSeconds / 60 % 60);
+            const seconds = Math.floor(elapsedTimeSeconds % 60);
+            
+            return `${hours}h${minutes}m${seconds}s`;
+          }
+
+          function findArrayIntersection(firstArray, secondArray) {
+            return firstArray.some(firstArrayVal => secondArray.includes(firstArrayVal));
+          }
+
+          async function waitForWorkflowCompletion(workflowRunUniqueIdentifier) {
+            // Wait up to 5 minutes for the workflow to 
+            const workflowRunId = await getWorkflowRunIdWithRetry(workflowRunUniqueIdentifier, 30, 10);
+            const sleepTimeMilliseconds = 10000;
+            let iterationCount = 0;
+            while (true) {
+                const workflowRun = (await github.rest.actions.getWorkflowRun({
+                  owner: "gravitational",
+                  repo: "teleport.e",
+                  run_id: workflowRunId
+                })).data;
+
+                const elapsedTimeSeconds = iterationCount * sleepTimeMilliseconds / 1000;
+
+                const runStatusFields = [workflowRun.status, workflowRun.conclusion];
+
+                // Case where workflow is not yet done
+                if (findArrayIntersection(runStatusFields, ["action_required", "neutral", "in_progress", "queued", "requested", "waiting", "pending"])) {
+                  if (iterationCount === 0) {
+                    process.stdout.write(`Workflow ${workflowRunId} started\n`)
+                  } else {
+                    process.stdout.write(`Workflow still in progress (${elapsedTimeToString(elapsedTimeSeconds)} elappsed), waiting another ${sleepTimeMilliseconds / 1000}s...\n`);
+                  }
+
+                  await sleep(sleepTimeMilliseconds);
+                  iterationCount++;
+                  continue;
+                }
+
+                // Case where workflow has failed
+                if (findArrayIntersection(runStatusFields, ["cancelled", "failure", "skipped", "timed_out", "stale"])) {
+                  throw new Error(`Workflow run ${workflowRunId} failed with status ${workflowRun.status} and conclusion "${workflowRun.conclusion}"! Workflow details: ${JSON.stringify(workflowRun, null, 2)}`);
+                }
+
+                // Case where there is some new status code that isn't accounted for here
+                if (!["success", "completed"].includes(workflowRun.status)) {
+                  throw new Error(`Unknown workflow status: ${workflowRun.status}. Workflow details: ${JSON.stringify(workflowRun, null, 2)}`);
+                }
+
+                // Case where workflow has ran, and the conclusion is not a failure state
+                process.stdout.write(`Workflow run ${workflowRunId} succeeded with status ${workflowRun.status} and conclusion in ${elapsedTimeSeconds} seconds!\n`)
+                process.stderr.write("::group::Workflow details:\n");
+                process.stderr.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+                process.stderr.write("::endgroup::");
+                return;
+              }
+          }
+
+          const workflowRunUniqueIdentifier = generateWorkflowRunUniqueIdentifier();
+          const workflowInputs = buildWorkflowInputs(workflowRunUniqueIdentifier);
+
+          await waitForIncompleteWorkflows(workflowInputs);
+          await triggerWorkflow(workflowInputs);
+          await sleep(5000); // Wait a moment for the workflow to start
+          await waitForWorkflowCompletion(workflowRunUniqueIdentifier);

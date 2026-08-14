@@ -1,0 +1,17 @@
+# kind: bot does not work in --bootstrap so we use --apply-on-startup instead
+kind: bot
+version: v1
+metadata:
+  name: workload
+spec:
+  # The bot itself gets all persona roles. Each tbot output narrows
+  # down to a single role via its own `roles:` field.
+  roles:
+    - resource-admin
+    - resource-deny-all
+    - resource-read-only
+    - node-admin
+    - node-deny
+    - app-admin
+    - app-mint
+    - app-deny

@@ -1,0 +1,689 @@
+# This workflow builds a Teleport release on a Linux-based buildbox using the
+# release-* targets defined in build.assets/Makefile of the OSS Teleport
+# repository. Both the OSS and Enterprise release tarballs will be built.
+
+name: Build Release on Linux
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
+      oss-teleport-ref:
+        description: "Git SHA, tag or branch of the revision of OSS teleport to build"
+        required: true
+        type: string
+
+      release:
+        description: "Release level to build. Currently supports `oss` and `enterprise`"
+        required: true
+        type: string
+
+      release-target:
+        description: "Release target to run from build.assets/Makefile."
+        required: true
+        type: string
+
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+
+      build-connect:
+        description: "Should Teleport Connect be built"
+        required: false
+        type: boolean
+        default: false
+
+      build-deb:
+        description: "Should a Debian package of the release be built"
+        required: false
+        type: boolean
+        default: false
+
+      build-rpm:
+        description: "Should a RPM package of the release be built"
+        required: false
+        type: boolean
+        default: false
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+      managed-updates-signing-key:
+        description: "Which managed updates signing key to use for artifact signing (`primary` or `backup`)."
+        required: false
+        type: string
+        default: primary
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      release:
+        type: string
+        required: true
+      release-target:
+        type: string
+        required: true
+      release-version:
+        type: string
+      build-connect:
+        type: boolean
+        default: false
+      build-deb:
+        type: boolean
+        default: false
+      build-rpm:
+        type: boolean
+        default: false
+      environment:
+        type: string
+        default: stage/build
+      managed-updates-signing-key:
+        type: string
+        default: primary
+
+run-name: "Linux build ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      arch: ${{ steps.determine-arch.outputs.arch }}
+      builder: ${{ steps.select-builder.outputs.builder }}
+    steps:
+      - name: Select builder
+        id: select-builder
+        env:
+          BUILD_CONNECT: ${{ inputs.build-connect }}
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        # arm64 needs an arm64 runner, which we self-host.
+        # Teleport Connect builds need to use a GitHub runner as they use UID 1000 which
+        # is needed for the Teleport Connect builder image. Self-hosted runners use 1001.
+        # TODO(camscale): Make the connect builder work with UID 1001 as well as 1000.
+        run: |
+          if [[ "$RELEASE_TARGET" == *-arm64* ]]; then
+            echo 'builder={"group": "prod", "labels": ["self-hosted", "linux", "arm64"]}'
+          else
+            echo 'builder="ubuntu-22.04-16core"'
+          fi >> "${GITHUB_OUTPUT}"
+      - name: Determine architecture
+        id: determine-arch
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        run: |
+          case "${RELEASE_TARGET}" in
+          *amd64*) echo 'arch=amd64' ;;
+          *arm64*) echo 'arch=arm64' ;;
+          *arm*) echo 'arch=arm' ;;
+          *386*) echo 'arch=386' ;;
+          esac >> "${GITHUB_OUTPUT}"
+
+  build-release-artifacts:
+    permissions:
+      contents: read
+      id-token: write # required for aws-actions/configure-aws-credentials for OIDC
+
+    runs-on: ${{ fromJSON(needs.setup.outputs.builder) }}
+
+    environment: ${{ inputs.environment }}
+
+    needs: setup
+
+    env:
+      # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
+      # ARC runners, as these runners set up these vars for us. We still need
+      # these though for the GitHub runners (ubuntu).
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Ensure required packages are installed
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
+
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: ${{ inputs.release }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_LINUX_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-linux-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: |
+            gpg-signing
+            auto-updates
+          environments-directory: e/.environments
+
+      - name: Determine FIPS
+        id: determine-fips
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        run: |
+          case "$RELEASE_TARGET" in
+          *-fips) echo 'is-fips=true' ;;
+          *) echo 'is-fips=false' ;;
+          esac >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver: docker
+
+      # Log into Docker Hub to increase rate limits
+      - name: Login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Assume AWS role log into ECR
+      - name: Assume teleport build user AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
+          role-session-name: "gha-build-linux-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
+      # image used for building .deb and .rpm files.
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        with:
+          registry-type: public
+        env:
+          # GetAuthorizationToken command is only supported in us-east-1.
+          AWS_REGION: us-east-1
+
+      # The step can be removed when we commit to the self-hosted ARC runners,
+      # as it runs with a consistent UID/GID and creates the directories with
+      # the correct ownership. We still need this for the GitHub runners though.
+      - name: Create cache directories with correct owner/group
+        run: |
+          sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
+          sudo chown -Rf "$(id -u):$(id -g)" "$GOCACHE" "$GOMODCACHE"
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: 'go.mod'
+
+      # FIPS and Teleport Connect builds need VERSION set in the environment as those
+      # builds do not go through the top-level teleport Makefile, which sets it for
+      # other builds.
+      - name: Set Version
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+        run: |
+          VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
+          echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
+
+      - name: Assume primary managed updates signing role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-primary-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch primary managed updates signing public key
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+        run: |
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-primary-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-primary-signing-key.der \
+            -out /tmp/teleport-managed-updates-primary-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-primary-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume backup managed updates signing role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-backup-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch backup managed updates signing public key
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-backup-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-backup-signing-key.der \
+            -out /tmp/teleport-managed-updates-backup-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-backup-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume additional primary managed updates signing role
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE != ''
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-additional-primary-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch additional primary managed updates signing public key
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE != ''
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE }}
+        run: |
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-additional-primary-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-additional-primary-signing-key.der \
+            -out /tmp/teleport-managed-updates-additional-primary-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-additional-primary-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume additional backup managed updates signing role
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE != ''
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-additional-backup-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch additional backup managed updates signing public key
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE != ''
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-additional-backup-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-additional-backup-signing-key.der \
+            -out /tmp/teleport-managed-updates-additional-backup-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-additional-backup-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Re-assume teleport build user AWS role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
+          role-session-name: "gha-build-linux-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Select managed updates signing key
+        id: select-managed-updates-signing-key
+        env:
+          MANAGED_UPDATES_SIGNING_KEY: ${{ inputs.managed-updates-signing-key }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          case "${MANAGED_UPDATES_SIGNING_KEY}" in
+          primary)
+            echo "active_signing_key_arn=${AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_aws_role=${AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_public_key_pem=/tmp/teleport-managed-updates-primary-signing-key.pem" >> "$GITHUB_OUTPUT"
+            ;;
+          backup)
+            echo "active_signing_key_arn=${AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_aws_role=${AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_public_key_pem=/tmp/teleport-managed-updates-backup-signing-key.pem" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "Unknown managed updates signing key selection: ${MANAGED_UPDATES_SIGNING_KEY}" >&2
+            exit 1
+            ;;
+          esac
+
+      - name: Build Release
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+          RELEASE_DIR: ${{ github.workspace }}/build/artifacts
+        run: |
+          mkdir -p "$RELEASE_DIR" # TODO(camscale): Move -p to Makefile
+
+          make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
+
+          # FIPS builds put the build archives in e/build/artifacts. If there are
+          # any files in there, move them to the top-level build/artifacts dir.
+          # TODO(camscale): Remove this when the Makefile puts all artifacts in $RELEASE_DIR
+          if [[ -d e/build/artifacts && -n "$(find e/build/artifacts -maxdepth 0 ! -empty)" ]]; then
+            mv e/build/artifacts/* "$RELEASE_DIR"
+          fi
+
+      - name: Build Teleport Connect
+        if: inputs.build-connect
+        run: |
+          make -C build.assets teleterm VERSION="$VERSION"
+          cp web/packages/teleterm/build/release/teleport-connect* build/artifacts
+
+      - name: Build Debian package
+        if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'false'
+        env:
+          ARCH: ${{ needs.setup.outputs.arch }}
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          RELEASE: ${{ inputs.release }}
+        run: |
+          make deb VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp build/*.deb build/artifacts
+          if [ "$RELEASE" = 'enterprise' ]; then
+            cp e/build/*.deb build/artifacts
+          fi
+
+      - name: Build FIPS Debian package
+        if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'true'
+        env:
+          ARCH: ${{ needs.setup.outputs.arch }}
+          FIPS: yes
+          RUNTIME: fips
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+        run: |
+          make -C e deb VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp e/build/*.deb build/artifacts
+
+      # TODO(camscale): Convert this step to use ./github/actions/load-gpg-key
+      - name: Extract RPM Signing Archive
+        if: inputs.build-rpm
+        env:
+          GNUPG_DIR: /tmp/gnupg
+        run: |
+          if [ -z "$GPG_SIGNING_ARCHIVE" ]; then
+            echo "GPG signing archive is unset or empty, aborting"
+            exit 1
+          fi
+          mkdir -m 0700 "$GNUPG_DIR"
+          echo "$GPG_SIGNING_ARCHIVE" | base64 -d | tar -xzf - --no-same-owner --no-overwrite-dir -C "$GNUPG_DIR"
+          chown -Rv "$(id -un):$(id -gn)" "$GNUPG_DIR"
+
+      - name: Build RPM package
+        if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'false'
+        env:
+          ARCH: ${{ needs.setup.outputs.arch }}
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          RELEASE: ${{ inputs.release }}
+          GNUPG_DIR: /tmp/gnupg
+        run: |
+          make rpm VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp build/*.rpm build/artifacts
+          if [ "$RELEASE" = 'enterprise' ]; then
+            cp e/build/*.rpm build/artifacts
+          fi
+
+      - name: Build FIPS RPM package
+        if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'true'
+        env:
+          ARCH: ${{ needs.setup.outputs.arch }}
+          FIPS: yes
+          RUNTIME: fips
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          RELEASE: ${{ inputs.release }}
+          GNUPG_DIR: /tmp/gnupg
+        run: |
+          make -C e rpm VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp e/build/*.rpm build/artifacts
+
+      - name: Assume AWS ECR pull role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: ${{ env.RELCLI_IMAGE_REGION }}
+          role-to-assume: ${{ env.RELCLI_IMAGE_PULL_ROLE_ARN }}
+          role-session-name: "pull-relcli-build-linux-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Install cosign prerequisites
+        run: |
+          if ! command -v envsubst &>/dev/null; then
+            sudo apt-get install -y gettext-base
+          fi
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Generate release server manifests
+        working-directory: build/artifacts
+        env:
+          RELCLI_IMAGE: ${{ env.RELCLI_IMAGE }}
+        run: |
+          docker pull "${RELCLI_IMAGE}"
+
+          ls -lah
+
+          rhel='RHEL/CentOS 7.x compatible'
+          fips='FedRAMP/FIPS'
+          tc64='Teleport Connect 64-bit'
+          both=(teleport teleport-ent)
+          declare -A archDesc=([amd64]='64-bit' [386]='32-bit' [arm64]='ARM64/ARMv8 (64-bit)' [arm]='ARMv7 (32-bit)')
+
+          for file in *; do
+            # Checksums are still created via Makefile for tarballs. This should be removed eventually.
+            [[ "${file##*.}" == sha256 ]] && continue
+            [[ "${file##*.}" == sha512 ]] && continue
+            # Detached signatures are published alongside artifacts but are not release assets.
+            [[ "${file##*.}" == sig ]] && continue
+            # Don't treat existing manifest files as artifacts.
+            [[ "${file##*.}" == manifest ]] && continue
+            # Skip files if a manifest for them already exists.
+            [[ -f "${file}.manifest" ]] && continue
+
+            # Classify products, OS, architecture, description, variants and pkg type for each file.
+            p=''; os=''; a=''; d='' v='' pkg=''
+            case "$file" in
+              # Teleport connect
+              teleport-connect-*-x64.tar.gz) p=("${both[@]}"); os=linux; a=amd64; d="$tc64" ;;
+              teleport-connect-*.x86_64.rpm) p=("${both[@]}"); os=linux; a=amd64; pkg=RPM; d="$tc64 RPM" ;;
+              teleport-connect_*_amd64.deb) p=("${both[@]}"); os=linux; a=amd64; pkg=DEB; d="$tc64 DEB" ;;
+
+              # tarballs: teleport-ent-* must be before teleport-*
+              teleport-ent-*-linux-386-bin.tar.gz) p=(teleport-ent); os=linux; a=386 ;;
+              teleport-ent-*-linux-amd64-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64 ;;
+              teleport-ent-*-linux-amd64-centos7-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$rhel" ;;
+              teleport-ent-*-linux-amd64-centos7-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$rhel, $fips" ;;
+              teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$fips" ;;
+              teleport-ent-*-linux-arm-bin.tar.gz) p=(teleport-ent); os=linux; a=arm ;;
+              teleport-ent-*-linux-arm64-bin.tar.gz) p=(teleport-ent); os=linux; a=arm64 ;;
+              teleport-ent-*-linux-arm64-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=arm64; v="$fips" ;;
+
+              teleport-*-linux-386-bin.tar.gz) p=(teleport); os=linux; a=386 ;;
+              teleport-*-linux-amd64-bin.tar.gz) p=(teleport); os=linux; a=amd64 ;;
+              teleport-*-linux-amd64-centos7-bin.tar.gz) p=(teleport); os=linux; a=amd64; v="$rhel" ;;
+              teleport-*-linux-arm-bin.tar.gz) p=(teleport); os=linux; a=arm ;;
+              teleport-*-linux-arm64-bin.tar.gz) p=(teleport); os=linux; a=arm64 ;;
+
+              # rpm: teleport-ent-* must be before teleport-*
+              teleport-ent-*-fips.x86_64.rpm) p=(teleport-ent); os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*-fips.arm64.rpm) p=(teleport-ent); os=linux; a=arm64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*.arm.rpm) p=(teleport-ent); os=linux; a=arm; pkg=RPM ;;
+              teleport-ent-*.arm64.rpm) p=(teleport-ent); os=linux; a=arm64; pkg=RPM ;;
+              teleport-ent-*.i386.rpm) p=(teleport-ent); os=linux; a=386; pkg=RPM ;;
+              teleport-ent-*.x86_64.rpm) p=(teleport-ent); os=linux a=amd64; pkg=RPM ;;
+
+              teleport-*.arm.rpm) p=(teleport); os=linux; a=arm; pkg=RPM ;;
+              teleport-*.arm64.rpm) p=(teleport); os=linux; a=arm64; pkg=RPM ;;
+              teleport-*.i386.rpm) p=(teleport); os=linux; a=386; pkg=RPM ;;
+              teleport-*.x86_64.rpm) p=(teleport); os=linux a=amd64; pkg=RPM ;;
+
+              # deb: teleport-ent-* must be before teleport-*
+              teleport-ent_*-fips_amd64.deb) p=(teleport-ent); os=linux; a=amd64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*-fips_arm64.deb) p=(teleport-ent); os=linux; a=arm64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*_amd64.deb) p=(teleport-ent); os=linux; a=amd64; pkg=DEB ;;
+              teleport-ent_*_arm.deb) p=(teleport-ent); os=linux; a=arm; pkg=DEB ;;
+              teleport-ent_*_arm64.deb) p=(teleport-ent); os=linux; a=arm64; pkg=DEB ;;
+              teleport-ent_*_i386.deb) p=(teleport-ent); os=linux; a=386; pkg=DEB ;;
+
+              teleport_*_amd64.deb) p=(teleport); os=linux; a=amd64; pkg=DEB ;;
+              teleport_*_arm.deb) p=(teleport); os=linux; a=arm; pkg=DEB ;;
+              teleport_*_arm64.deb) p=(teleport); os=linux; a=arm64; pkg=DEB ;;
+              teleport_*_i386.deb) p=(teleport); os=linux; a=386; pkg=DEB ;;
+
+              *) echo "Unknown filename: $file"; exit 1 ;;
+            esac
+
+            # Use a default description if none given
+            if [[ -z "${d:-}" ]]; then
+              d="${os^} ${archDesc[$a]}${pkg:+ $pkg}${v:+ ($v)}"
+            fi
+
+            # Generate the manifest
+            docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
+              "${RELCLI_IMAGE}" generate-manifest \
+              --path "/assets/$file" "${p[@]/#/--products=}" --os "$os" --architecture "$a" \
+                --description "$d"
+          done
+
+          ls -lah
+
+      - name: Configure AWS credentials for managed updates signing
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          role-session-name: managed-updates-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Sign managed updates Linux tarballs
+        working-directory: build/artifacts
+        env:
+          ACTIVE_SIGNING_KEY_ARN: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_key_arn }}
+          ACTIVE_SIGNING_AWS_ROLE: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          ACTIVE_SIGNING_PUBLIC_KEY_PEM: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_public_key_pem }}
+        run: |
+          if [ -z "$ACTIVE_SIGNING_AWS_ROLE" ]; then
+            echo "ACTIVE_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_KEY_ARN" ]; then
+            echo "ACTIVE_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" ]; then
+            echo "ACTIVE_SIGNING_PUBLIC_KEY_PEM is unset or empty, aborting"
+            exit 1
+          fi
+          for file in ./teleport-*-linux-*-bin.tar.gz; do
+            [[ -e "$file" ]] || continue
+            cosign sign-blob --yes \
+              --key "awskms:///${ACTIVE_SIGNING_KEY_ARN}" \
+              --tlog-upload=false \
+              --use-signing-config=false \
+              --output-signature "${file}.sig" \
+              "$file"
+
+            cosign verify-blob \
+              --key "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" \
+              --insecure-ignore-tlog \
+              --signature "${file}.sig" \
+              "$file"
+          done
+
+          ls -lah ./*.sig
+
+      - name: Configure AWS credentials for artifact upload
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${VERSION#v}/"

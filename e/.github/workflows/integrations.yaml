@@ -1,0 +1,139 @@
+---
+name: Integration Tests
+
+on:
+  workflow_call:
+    inputs:
+      repo-type:
+        description: "The package repo type to test."
+        type: string
+        required: true
+      environment:
+        description: "The test environment. Either test-stage, or test-prod"
+        type: string
+        required: true
+      package-to-test:
+        description: "The package to test."
+        type: string
+        required: true
+      release-channel:
+        description: "The package release channel."
+        type: string
+        required: true
+      version-channel:
+        description: "The package version channel."
+        type: string
+        required: true
+      artifact-tag:
+        description: "The artifact tag."
+        type: string
+        required: true
+      auto-updates-domain-name:
+        description: "The auto updates domain name."
+        type: string
+        required: true
+      test-case:
+        description: "The test case to run."
+        type: string
+        required: true
+
+jobs:
+  test-deb:
+    name: Run deb tests
+    if: inputs.repo-type == 'apt'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - {image: "ubuntu:24.04", package-manager: "apt"}
+          - {image: "ubuntu:22.04", package-manager: "apt"}
+          - {image: "ubuntu:20.04", package-manager: "apt"}
+          # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "ubuntu:18.04", package-manager: "apt"}
+          - {image: "debian:11", package-manager: "apt"}
+          - {image: "debian:12", package-manager: "apt"}
+          - {image: "debian:13", package-manager: "apt"}
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "${{ inputs.environment == 'test-prod' && 'releases.teleport.dev' || 'releases.development.teleport.dev' }}"
+      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
+      PACKAGE_TO_TEST: "${{ inputs.package-to-test }}"
+      RELEASE_CHANNEL: "${{ inputs.release-channel }}"
+      VERSION_CHANNEL: "${{ inputs.version-channel }}"
+      ARTIFACT_TAG: "${{ inputs.artifact-tag }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      - name: Checkout repo
+        # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
+        uses: actions/checkout@v6
+      - name: Install test dependencies
+        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        run: |
+          source run.sh
+          install_dependencies
+      - name: Run test
+        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        run: |
+          source run.sh
+          ${{ inputs.test-case }}
+
+  test-rpm:
+    name: Run rpm tests
+    if: inputs.repo-type == 'yum'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          # centos:7 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "centos:7", package-manager: "yum"}
+          # These are the closest we can easily get to rhel 7/8/9
+          # ubi7:7.9 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "registry.access.redhat.com/ubi7:7.9", package-manager: "yum"}
+          - {image: "registry.access.redhat.com/ubi8:8.7", package-manager: "yum"}
+          - {image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum"}
+
+          # The other tags are too specific so latest is used instead
+          # sles12sp5 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "registry.suse.com/suse/sles12sp5:latest", package-manager: "zypper", is-sles: true}
+          - {image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper", is-sles: false}
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "${{ inputs.environment == 'test-prod' && 'releases.teleport.dev' || 'releases.development.teleport.dev' }}"
+      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
+      PACKAGE_TO_TEST: "${{ inputs.package-to-test }}"
+      RELEASE_CHANNEL: "${{ inputs.release-channel }}"
+      VERSION_CHANNEL: "${{ inputs.version-channel }}"
+      ARTIFACT_TAG: "${{ inputs.artifact-tag }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      # sles12 specific setup
+      - name: Initialize sle12 package repo
+        if: ${{ matrix.container.is-sles }}
+        run: |
+          # Required for git checkout
+          zypper addrepo --refresh http://download.opensuse.org/update/leap/15.4/sle/ sle
+          zypper -n -q install tar gzip
+
+      - name: Checkout repo
+        # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
+        uses: actions/checkout@v6
+      - name: Install test dependencies
+        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        run: |
+          source run.sh
+          install_dependencies
+      - name: Run test
+        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        run: |
+          source run.sh
+          ${{ inputs.test-case }}

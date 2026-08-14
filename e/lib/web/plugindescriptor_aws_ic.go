@@ -1,0 +1,619 @@
+package web
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+
+	crewjamsamlsp "github.com/crewjam/saml/samlsp"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/samlsp"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	cloudaws "github.com/gravitational/teleport/e/lib/cloud/aws"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/lib/web/ui"
+	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
+	samlidpui "github.com/gravitational/teleport/e/lib/web/ui/samlidp"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/web"
+)
+
+// awsICPluginDescriptor implements the AWS Identity Center specific
+// version of the pluginDescriptor interface
+type awsICPluginDescriptor struct {
+	// HTTPClient is used in tests.
+	HTTPClient *http.Client
+	// ICSDKClient is used in tests.
+	ICSDKClient icsdk.Client
+}
+
+// HandleInstallRequest implements pluginDescriptor.
+// Creates SAML service provider first and then creates the plugin.
+func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	if err := a.ensurePermissions(ctx, sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sessCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	inputs, err := a.awsICPluginInputs(ctx, r.Form, authClient, p.GetProxyClient() /* proxy client required to fetch oidc credential */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSP, err := samlidpui.TransformToProtoType(samlidpui.CreateSAMLIdPServiceProviderRequest{
+		Name:             types.PluginTypeAWSIdentityCenter,
+		EntityDescriptor: inputs.samlServiceProviderMetadata,
+		Labels: map[string]string{
+			types.OriginLabel: common.OriginAWSIdentityCenter,
+		},
+		Preset: samlsp.AWSIdentityCenter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = authClient.CreateSAMLIdPServiceProvider(ctx, samlSP)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := pluginspb.CreatePluginRequest_builder{
+		Plugin: &types.PluginV1{
+			Metadata: types.Metadata{
+				Name: types.PluginTypeAWSIdentityCenter,
+				Labels: map[string]string{
+					types.HostedPluginLabel: "true",
+				},
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_AwsIc{
+					AwsIc: &types.PluginAWSICSettings{
+						IntegrationName:         inputs.oidcIntegrationName,
+						Region:                  inputs.region,
+						Arn:                     inputs.arn,
+						AccessListDefaultOwners: inputs.accessListDefaultOwners,
+						ProvisioningSpec: &types.AWSICProvisioningSpec{
+							BaseUrl: inputs.scimBaseURL,
+						},
+						SamlIdpServiceProviderName: samlSP.GetName(),
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"aws-ic/scim-api-endpoint": inputs.scimBaseURL,
+					},
+					Name: types.PluginTypeAWSIdentityCenter,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: inputs.scimAccessToken,
+				},
+			},
+		},
+	}.Build()
+
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, req)
+	if err != nil {
+		// The install flow creates the SAML provider before the plugin resource,
+		// so undo it when plugin creation fails.
+		rollbackErr := authClient.DeleteSAMLIdPServiceProvider(ctx, samlSP.GetName())
+		switch {
+		case rollbackErr == nil, trace.IsNotFound(rollbackErr):
+			return nil, trace.Wrap(err)
+		default:
+			return nil, trace.NewAggregate(
+				trace.Wrap(err),
+				trace.Wrap(rollbackErr, "rolling back AWS Identity Center SAML IdP service provider %q", samlSP.GetName()),
+			)
+		}
+	}
+
+	uiPlugin, err := ui.NewPlugin(req.GetPlugin())
+	return uiPlugin, trace.Wrap(err)
+}
+
+const (
+	pluginConfigAWSICValidateSAML                   = "validateSAML"
+	pluginConfigAWSICValidateSCIM                   = "validateSCIM"
+	pluginConfigAWSICValidateResourceSyncCredential = "ValidateResourceSyncCredential"
+	pluginConfigAWSICValidatePermissions            = "validatePermissions"
+)
+
+// HandleValidateConfigRequest handles requests for "/enterprise/plugins/validate" path.
+func (a awsICPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
+	// we query external APIs to validate AWS credentials during
+	// credential validation. Only users who have access to create
+	// integration should be allowed to connect to such external systems.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return trace.Wrap(err)
+	}
+	client, err := sessCtx.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resourceToValidate := form.Get("resourceToValidate")
+	if resourceToValidate == "" {
+		return trace.BadParameter("name of the resource to validate cannot be empty")
+	}
+	switch resourceToValidate {
+	case pluginConfigAWSICValidatePermissions:
+		return a.ensurePermissions(ctx, sessCtx)
+	case pluginConfigAWSICValidateSAML:
+		return a.validateSAMLServiceProvider(ctx, client, form.Get(awsICPluginSAMLServiceProviderMetadataField))
+	case pluginConfigAWSICValidateSCIM:
+		return a.validateSCIM(ctx, form.Get(awsICPluginSCIMBaseURLField), form.Get(awsICPluginSCIMAccessTokenField))
+	case pluginConfigAWSICValidateResourceSyncCredential:
+		return a.validateResourceSyncCredential(ctx, p.GetProxyClient(), awsicui.FetchICResourceRequest{
+			IntegrationName: form.Get(awsICPluginOIDCIntegrationNameField),
+			Region:          form.Get(awsICPluginICRegionField),
+			Arn:             form.Get(awsICPluginICARNField),
+		})
+	default:
+		return trace.NotImplemented("validation for %q is not implemented for AWS IC plugin", resourceToValidate)
+	}
+}
+
+// TranslateCallbackCookie implements pluginDescriptor.
+func (awsICPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *pluginOnboardingCookie) error {
+	// This always returns not implemented, since AWS IC plugin onboarding does not use the OAuth2 web flow.
+	return trace.NotImplemented("TranslateCallbackCookie is not implemented for AWS IC")
+}
+
+// HandleOAuthStart implements PluginDescriptor for awsICPluginDescriptor, always
+// returning "Not Implemented".
+func (awsICPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
+}
+
+type awsICPluginFormData struct {
+	name                        string
+	region                      string
+	arn                         string
+	oidcIntegrationName         string
+	accessListDefaultOwners     []string
+	samlServiceProviderMetadata string
+	scimBaseURL                 string
+	scimAccessToken             string
+}
+
+const (
+	awsICPluginNameField                        = "name"
+	awsICPluginOIDCIntegrationNameField         = "oidcIntegrationName"
+	awsICPluginAccessListDefaultOwnersField     = "accessListDefaultOwners"
+	awsICPluginICRegionField                    = "region"
+	awsICPluginICARNField                       = "arn"
+	awsICPluginSAMLServiceProviderNameField     = "samlServiceProviderName"
+	awsICPluginSAMLServiceProviderMetadataField = "samlServiceProviderMetadata"
+	awsICPluginSCIMBaseURLField                 = "scimBaseURL"
+	awsICPluginSCIMAccessTokenField             = "scimAccessToken"
+)
+
+func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.Values, userClient, proxyClient authclient.ClientI) (*awsICPluginFormData, error) {
+	var accessListDefaultOwners []string
+	if err := json.Unmarshal([]byte(form.Get(awsICPluginAccessListDefaultOwnersField)), &accessListDefaultOwners); err != nil {
+		return nil, trace.Wrap(err, "cannot unmarshal accessListDefaultOwners")
+	}
+
+	parsedInputs := &awsICPluginFormData{
+		name:                        form.Get(awsICPluginNameField),
+		oidcIntegrationName:         form.Get(awsICPluginOIDCIntegrationNameField),
+		accessListDefaultOwners:     accessListDefaultOwners,
+		region:                      form.Get(awsICPluginICRegionField),
+		arn:                         form.Get(awsICPluginICARNField),
+		samlServiceProviderMetadata: form.Get(awsICPluginSAMLServiceProviderMetadataField),
+		scimBaseURL:                 form.Get(awsICPluginSCIMBaseURLField),
+		scimAccessToken:             form.Get(awsICPluginSCIMAccessTokenField),
+	}
+
+	if err := parsedInputs.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateOIDCIntegrationExists(ctx, userClient, parsedInputs.oidcIntegrationName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateResourceSyncCredential(ctx, proxyClient, awsicui.FetchICResourceRequest{
+		IntegrationName: parsedInputs.oidcIntegrationName,
+		Region:          parsedInputs.region,
+		Arn:             parsedInputs.arn,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateSAMLServiceProvider(ctx, userClient, parsedInputs.samlServiceProviderMetadata); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.validateSCIM(ctx, parsedInputs.scimBaseURL, parsedInputs.scimAccessToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return parsedInputs, nil
+}
+
+func (e *awsICPluginFormData) check() error {
+	if e.name == "" {
+		return trace.BadParameter("plugin name is required")
+	}
+
+	if e.oidcIntegrationName == "" {
+		return trace.BadParameter("integration name is required")
+	}
+
+	if len(e.accessListDefaultOwners) == 0 {
+		return trace.BadParameter("access list default owners is required")
+	}
+
+	if e.region == "" {
+		return trace.BadParameter("Identity Center region is required")
+	}
+
+	if e.arn == "" {
+		return trace.BadParameter("Identity Center instance ARN is required")
+	}
+
+	return nil
+}
+
+// ValidateResourceSyncCredential verifies that the credential set up for resource sync is valid.
+func (a awsICPluginDescriptor) validateResourceSyncCredential(ctx context.Context, proxyClient authclient.ClientI, req awsicui.FetchICResourceRequest) error {
+	icClient, err := a.awsICPluginIdentityCenterClient(ctx, proxyClient, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := icClient.ValidateResourceSyncCredential(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// validateSCIM validates SCIM credential by querying ServiceProviderConfig endpoint.
+// https://docs.aws.amazon.com/singlesignon/latest/developerguide/serviceproviderconfig.html
+// should always return a hardcoded error to prevent
+// users from abusing this validation service for SSRF.
+func (a awsICPluginDescriptor) validateSCIM(ctx context.Context, baseURL, accessToken string) error {
+	if baseURL == "" {
+		return trace.BadParameter("AWS Identity Center SCIM base URL is required")
+	}
+	if accessToken == "" {
+		return trace.BadParameter("AWS Identity Center SCIM access token is required")
+	}
+
+	httpClient, err := a.getHTTPClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	scimClient, err := scimsdk.New(&scimsdk.Config{
+		HTTPClient:      httpClient,
+		Endpoint:        baseURL,
+		Token:           accessToken,
+		IntegrationType: types.PluginTypeAWSIdentityCenter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scimClient.Ping(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateSAMLServiceProvider is used to pre-validate SAML service provider metadata file
+// configured for AWS Identity Center. It specifically performs validations listed below:
+// - the SAML service provider name is unique in Teleport cluster.
+// - the SAML service provider entity ID is unique in Teleport cluster.
+// - the metadata XML file is a valid SAML IdP service provider entity descriptor XML format.
+// - the metadata XML does not contain unsupported ACS binding values.
+func (a awsICPluginDescriptor) validateSAMLServiceProvider(ctx context.Context, client authclient.ClientI, metadata string) error {
+	if metadata == "" {
+		return trace.BadParameter("AWS Identity Center SAML service provider service provider metadata is required")
+	}
+	sp, err := client.GetSAMLIdPServiceProvider(ctx, types.PluginTypeAWSIdentityCenter)
+	if err == nil && sp != nil {
+		return trace.AlreadyExists("SAML IdP service provider with name %q already exists", sp.GetName())
+	}
+
+	// TransformToProtoType performs basic spec validation
+	_, err = samlidpui.TransformToProtoType(samlidpui.CreateSAMLIdPServiceProviderRequest{
+		Name:             types.PluginTypeAWSIdentityCenter,
+		EntityDescriptor: metadata,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ed, err := crewjamsamlsp.ParseMetadata([]byte(metadata))
+	if err != nil {
+		return trace.BadParameter("invalid metadata for AWS Identity Center SAML service provider: %v", err)
+	}
+
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		return trace.BadParameter("metadata for AWS Identity Center SAML service provider contains unsupported ACS bindings: %v", err)
+	}
+
+	if err := a.ensureEntityIDIsUnique(ctx, client, ed.EntityID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ensureEntityIDIsUnique loops through existing SAML service providers to find duplicate enity ID.
+// TODO(sshah): expose this method in the RPC so it function can be reused.
+func (a awsICPluginDescriptor) ensureEntityIDIsUnique(ctx context.Context, authClient authclient.ClientI, entityID string) error {
+	var nextToken string
+	for {
+		var sps []types.SAMLIdPServiceProvider
+		var err error
+		sps, nextToken, err = authClient.ListSAMLIdPServiceProviders(ctx, 100, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, sp := range sps {
+			if sp.GetEntityID() == entityID {
+				return trace.AlreadyExists("%s %q has the same entity ID %q", types.KindSAMLIdPServiceProvider, sp.GetName(), sp.GetEntityID())
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return nil
+}
+
+// ensurePermissions checks user permission to create all the resources related to
+// AWS Identity Center plugin. RBAC error messages are customized to be UI friendly,
+// aggregated and return at last as AccessDenied error.
+// Non-AccessDenied errors are returned immediately.
+func (a awsICPluginDescriptor) ensurePermissions(ctx context.Context, sessCtx *web.SessionContext) error {
+	accessChecker, err := sessCtx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var rbacError error
+	for _, kind := range []string{types.KindIntegration, types.KindPlugin, types.KindSAMLIdPServiceProvider} {
+		if err := accessChecker.CheckAccessToRule(&services.Context{}, apidefaults.Namespace, kind, types.VerbCreate); err != nil {
+			if !trace.IsAccessDenied(err) {
+				return trace.Wrap(err)
+			}
+			rbacError = errors.Join(rbacError, fmt.Errorf("- Verb %q on resource kind %q", types.VerbCreate, kind))
+		}
+	}
+
+	clt, err := sessCtx.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authPref, err := clt.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// We are only interested in checking if user has a v8 role
+	// with app_labels matching "teleport.dev/origin:aws-identity-center".
+	// The resource name and label value matches with the
+	// actual resource created in the guided installation.
+	samlApp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindSAMLIdPServiceProvider,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: types.PluginTypeAWSIdentityCenter,
+				Labels: map[string]string{
+					types.OriginLabel: common.OriginAWSIdentityCenter,
+				},
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{},
+	}
+	if err := accessChecker.CheckAccessToSAMLIdP(
+		samlApp,
+		authPref,
+		// MFA, should it be required will be checked when creating a resource.
+		services.AccessState{MFAVerified: true},
+	); err != nil {
+		if !trace.IsAccessDenied(err) {
+			return trace.Wrap(err)
+		}
+		// Missing app_labels matching identity center origin is the only
+		// expected error we want to properly communicate to the user.
+		if strings.Contains(err.Error(), "app_labels") {
+			rbacError = errors.Join(rbacError, fmt.Errorf(`- Version 8 role allowing "app_labels" matching label "%s : %s"`, types.OriginLabel, common.OriginAWSIdentityCenter))
+		} else {
+			rbacError = errors.Join(rbacError, err)
+		}
+	}
+
+	if rbacError != nil {
+		return trace.AccessDenied("You are missing the following permissions to install this plugin:\n%s", rbacError.Error())
+	}
+
+	return nil
+}
+
+func (a awsICPluginDescriptor) validateOIDCIntegrationExists(ctx context.Context, client authclient.ClientI, integrationName string) error {
+	if integrationName == "" {
+		return trace.BadParameter("OIDC integration name is required")
+	}
+
+	// TODO(sshah): validate audience value once https://github.com/gravitational/teleport/pull/47725
+	// is available
+	_, err := client.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a awsICPluginDescriptor) getHTTPClient() (*http.Client, error) {
+	client := a.HTTPClient
+	if client == nil {
+		client, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	return client, nil
+}
+
+// awsICPluginIdentityCenterClient creates a new Identity Center SDK client.
+func (a awsICPluginDescriptor) awsICPluginIdentityCenterClient(ctx context.Context, proxyClient authclient.ClientI, req awsicui.FetchICResourceRequest) (icsdk.Client, error) {
+	if a.ICSDKClient == nil {
+		cfg, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+			Region:                req.Region,
+			IntegrationName:       req.IntegrationName,
+			IntegrationGetter:     proxyClient,
+			AWSOIDCTokenGenerator: proxyClient,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		a.ICSDKClient, err = icsdk.New(icsdk.Config{
+			AWSConfig:   cfg,
+			InstanceARN: req.Arn,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return a.ICSDKClient, nil
+}
+
+// awsICPluginListPermissionSets lists Identity Center permissions sets.
+func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	permSet, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.PermissionSets(permSet), nil
+}
+
+// awsICPluginAccountsWithAssignedPermSets lists Identity Center accounts with assigned permission sets.
+func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accountWithPermSetARNs, err := identitycenter.ListAccountsWithAssignedPermissionSetARNs(r.Context(), icClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	psermSets, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.AccountWithPermissionSets(accountWithPermSetARNs, icsdk.ToPermissionSetMap(psermSets)), nil
+}
+
+// awsICPluginGroupsWithAssignment lists Identity Center groups with assigned accounts and permission sets.
+func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssignment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
+	// Only users who have access to create integration
+	// should be allowed to use OIDC credential and fetch AWS resources.
+	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	icPD := awsICPluginDescriptor{}
+	icClient, err := icPD.awsICPluginIdentityCenterClient(r.Context(), p.GetProxyClient(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	groupWithAssignments, err := identitycenter.ListGroupsWithAccountAndPermAssignment(r.Context(), icClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	psermSets, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accounts, err := icClient.ListAccounts(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.GroupAccountAndPermAssignments(groupWithAssignments, icsdk.ToAccountMap(accounts), icsdk.ToPermissionSetMap(psermSets)), nil
+}
+
+func checkIntegrationCreateAccess(sessCtx *web.SessionContext) error {
+	accessChecker, err := sessCtx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := accessChecker.CheckAccessToRule(&services.Context{}, apidefaults.Namespace, types.KindIntegration, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}

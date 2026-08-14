@@ -1,0 +1,27 @@
+--name teleport-ent-updater
+--input-type dir
+--architecture all
+--exclude *.md
+--exclude .fpm
+--force
+--after-install install.sh
+--after-upgrade upgrade.sh
+--maintainer "info@goteleport.com"
+--depends teleport-ent
+--description "Teleports new version of Teleport to your system"
+--license Apache-2.0
+--url https://goteleport.com/docs
+--verbose
+--vendor Gravitational
+--workdir /tmp
+-C rootfs/
+--debug
+--log debug
+--verbose
+
+--deb-priority extra
+
+--rpm-os linux
+--rpm-digest sha256
+
+.

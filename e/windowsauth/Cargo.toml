@@ -1,0 +1,58 @@
+[package]
+name = "teleport-auth-package"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+# Empty workspace list to prevent this from being
+# included in Teleport's cargo workspace.
+[workspace]
+
+[profile.release]
+lto = "thin"
+strip = true
+panic = "abort"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+chrono = { version = "0.4.44", default-features = false, features = ["now"] }
+embed-resource = "3.0.9"
+regex = "1.12.3"
+
+[dependencies]
+log = "0.4.30"
+rand = { version = "0.8.6", default-features = false, features = [
+    "getrandom",
+    "alloc",
+] }
+serde_json = "1.0.150"
+serde = { version = "1.0.219", features = ["derive"] }
+anyhow = "1.0.102"
+humantime = "2.3.0"
+include-flate = { version = "0.2.0", features = ["stable"] }
+itertools = "0.15.0"
+windows-core = "0.62.2"
+
+[dependencies.windows]
+version = "0.62.2"
+features = [
+    "Foundation",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_NetworkManagement_NetManagement",
+    "Win32_Security",
+    "Win32_Security_Credentials",
+    "Win32_Security_Authentication_Identity",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_System_Com",
+    "Win32_System_Kernel",
+    "Win32_System_Memory",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Shell",
+]

@@ -1,0 +1,209 @@
+package registry
+
+import (
+	"bytes"
+	"context"
+	"encoding/hex"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport.e/tooling/plugins/internal/filename"
+)
+
+// FileNames describes the location of a registry-compatible zipfile and its
+// associated sidecar files
+type FileNames struct {
+	Zip string
+	Sum string
+	Sig string
+}
+
+// IsProviderTarball tests if  a given string is a Houston-compatible filename
+// indicating a terraform-provider plugin type
+//
+// Variant selects a specific variant of the provider, e.g. "mwi" for the MWI
+// terraform provider or an empty string for the standard Teleport provider.
+func IsProviderTarball(fn string, variant string) bool {
+	info, err := filename.Parse(fn)
+	if err != nil {
+		return false
+	}
+
+	return info.Type == "terraform-provider" && info.Variant == variant
+}
+
+func makeFileNames(dstDir string, info filename.Info) FileNames {
+	zipFileName := filepath.Join(dstDir, info.Filename(".zip"))
+	return FileNames{
+		Zip: zipFileName,
+		Sum: zipFileName + ".sums",
+		Sig: zipFileName + ".sums.sig",
+	}
+}
+
+// RepackResult describes a fully-repacked provider and all of its sidecar files
+type RepackResult struct {
+	filename.Info
+	FileNames
+	Sha256        []byte
+	SigningEntity *openpgp.Entity
+}
+
+// Sha256String formats the binary SHA256 as a hex string
+func (r *RepackResult) Sha256String() string {
+	return hex.EncodeToString(r.Sha256)
+}
+
+// RepackProvider takes a provider tarball and repacks it as a zipfile compatible
+// with a terraform provider registry, generating all the required sidecar files
+// as well. Returns a `RepackResult` instance containing the location of the
+// generated files and information about the packed plugin
+//
+// For more information on the output files, see the Terraform Provider Registry
+// Protocol documentation:
+//
+//	https://developer.hashicorp.com/terraform/internals/provider-registry-protocol
+func RepackProvider(ctx context.Context, dstDir string, srcFileName string, signingEntity *openpgp.Entity) (*RepackResult, error) {
+	info, err := filename.Parse(srcFileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "bad filename %q", srcFileName)
+	}
+
+	slog.DebugContext(ctx, "Provider platform", "version", info.Version, "os", info.OS, "arch", info.Arch)
+
+	src, err := os.Open(srcFileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed opening source file")
+	}
+	defer src.Close()
+
+	// Create a temporary zipfile to repack the tarball into, which will be moved
+	// into place at the end of a successful repack.
+	//
+	// Note that we want to create the temporary zip file in the same directory
+	// where the final zip file will end up, otherwise moving the completed
+	// zipfile into place may fail due to the source and destination files being
+	// on different devices.
+	tmpZipFile, err := os.CreateTemp(dstDir, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed creating tempfile for zip archive")
+	}
+	defer func() {
+		// we will only want to clean up the tmp file in the failure case,
+		// because if RepackProvider has succeeded then the temp file has
+		// already been closed and moved into place in the output directory.
+		if err != nil {
+			tmpZipFile.Close()
+			os.Remove(tmpZipFile.Name())
+		}
+	}()
+
+	slog.DebugContext(ctx, "Repacking into zipfile", "file", tmpZipFile.Name())
+	err = repack(tmpZipFile, src)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed repacking provider")
+	}
+
+	result := &RepackResult{
+		Info:          info,
+		FileNames:     makeFileNames(dstDir, info),
+		SigningEntity: signingEntity,
+	}
+
+	// compute sha256 and format the SHA file as per sha256sum
+	_, err = tmpZipFile.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed rewinding temp zipfile for summing")
+	}
+
+	var sums bytes.Buffer
+	result.Sha256, err = sha256Sum(&sums, result.Zip, tmpZipFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// we're done with the temp archive for now, and we'll need the file to be
+	// closed to move it into place anyway...
+	tmpZipFileName := tmpZipFile.Name()
+	err = tmpZipFile.Close()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed closing temp zipfile")
+	}
+
+	// sign the sums with our private key and generate a signature
+	var sig bytes.Buffer
+	err = openpgp.DetachSign(&sig, signingEntity, bytes.NewReader(sums.Bytes()), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Write everything out to the dstdir
+	err = writeOutput(ctx, result, tmpZipFileName, sums.Bytes(), sig.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return result, nil
+}
+
+// WriteMasterManifest generates the master SHA256SUMS file and its cryptographic signature.
+//
+// It takes a reader containing the aggregated checksum lines and simultaneously writes the content
+// to the manifestWriter while generating a detached PCP signature written to the signatureWriter. This ensures
+// that the manifest and the signature are generated from the exact byte stream in a single pass.
+//
+// Params:
+// - sums: an io.Reader providing the raw checksum text (e.g. "hash" filename\n").
+// - signingEntity: private key used to sign the manifest.
+// - manifestWriter: the destination for the plain text SHA256SUMS file.
+// - signatureWriter: the destination for the binary PCP detached signature (.sig).
+func WriteMasterManifest(
+	ctx context.Context,
+	sums io.Reader,
+	signingEntity *openpgp.Entity,
+	manifestWriter io.Writer,
+	signatureWriter io.Writer,
+) error {
+	slog.InfoContext(ctx, "Generating and writing master manifest")
+
+	// TeeReader copies everything read from `sums` into `manifestWriter`
+	tee := io.TeeReader(sums, manifestWriter)
+
+	// DetachSign will read the entire string once.
+	// While it reads, TeeReader ensures the sames bytes are written to the manifest.
+	if err := openpgp.DetachSign(signatureWriter, signingEntity, tee, nil); err != nil {
+		return trace.Wrap(err, "failed signing master manifest")
+	}
+
+	return nil
+}
+
+// writeOutput writes the in-memory signature data to file, and moves the temporary
+// zip file into place
+func writeOutput(ctx context.Context, entry *RepackResult, zipFilePath string, sums, sig []byte) error {
+	slog.DebugContext(ctx, "Writing sum file", "path", entry.Sum)
+	err := os.WriteFile(entry.Sum, sums, 0644)
+	if err != nil {
+		return trace.Wrap(err, "writing sumfile failed")
+	}
+
+	slog.DebugContext(ctx, "Writing signature file", "path", entry.Sig)
+	err = os.WriteFile(entry.Sig, sig, 0644)
+	if err != nil {
+		return trace.Wrap(err, "writing sumfile failed")
+	}
+
+	// Do this _last_, as we want the temp file cleaned up if any of the above fails.
+	slog.DebugContext(ctx, "Moving tmp zipfile into place", "temp_file", zipFilePath, "destination", entry.Zip)
+	err = os.Rename(zipFilePath, entry.Zip)
+	if err != nil {
+		return trace.Wrap(err, "moving zipfile into place")
+	}
+
+	return nil
+}

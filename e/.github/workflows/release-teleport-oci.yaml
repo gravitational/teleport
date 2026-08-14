@@ -1,0 +1,60 @@
+name: Release OCI
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout.
+        required: false
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build.
+        required: true
+        type: string
+
+      release-version:
+        description: |
+          The semver version of Teleport that we're building for. If not set
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z. Use this override
+          to specify the version when oss-teleport-ref is not a formal semver
+          release tag.
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.config.outputs.teleport-version }}
+    steps:
+      - name: Configure vars
+        id: config
+        env:
+          ref: ${{ inputs.release-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "teleport-version=${ref#v}" >> "$GITHUB_OUTPUT"
+
+  build-operator:
+    name: Build operator OCI
+    needs: setup
+    secrets: inherit
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+    uses: ./.github/workflows/build-operator-oci.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.teleport-version }}
+      architectures: "amd64 arm64 arm"
+      environment: ${{ inputs.environment }}

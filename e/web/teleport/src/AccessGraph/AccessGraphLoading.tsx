@@ -1,0 +1,75 @@
+import styled, { keyframes } from 'styled-components';
+
+import { Text } from 'design';
+
+const animate = keyframes`
+    0% {
+        background-position: 200% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+`;
+
+const Edges = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to right,
+    #35353a 68%,
+    rgba(255, 255, 255, 0.8) 70%,
+    #35353a 72%
+  );
+  animation: ${animate} 8s linear infinite forwards;
+  background-size: 200% 100%;
+  mask: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGRhdGEtbmFtZT0iTGF5ZXIgMSIgdmlld0JveD0iMCAwIDE0MDEgMjQ2Ij48cGF0aCBmaWxsPSJub25lIiBzdHJva2U9IiMyZDJkMzEiIGQ9Ik0yNDggMjcuNWM2OCAwIDY4IDk2IDEzNiA5Nm0tMTM2LTk2YzY4IDAgNjggOTYgMTM2IDk2bS0xMzYgMGgxMzZtLTEzNiAwaDEzNm0tMTM2IDk2YzY4IDAgNjgtOTYgMTM2LTk2bS0xMzYgOTZjNjggMCA2OC05NiAxMzYtOTZtMjQ4IDBoMTM2bS0xMzYgMGgxMzZtMjQ4IDBjNjggMCA2OC05NiAxMzYtOTZtLTEzNiA5NmM2OCAwIDY4LTk2IDEzNi05Nm0tMTM2IDk2aDEzNm0tMTM2IDBoMTM2bS0xMzYgMGM2OCAwIDY4IDk2IDEzNiA5Nm0tMTM2LTk2YzY4IDAgNjggOTYgMTM2IDk2bS01MTkuNS0xMTFjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRjLTYuNiAwLTEyIDUuNC0xMiAxMnYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgMGMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMzg0IDBjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRjLTYuNiAwLTEyIDUuNC0xMiAxMnYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgMGMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMzg0LTk2YzAtNi42LTUuNC0xMi0xMi0xMmgtMjI0Yy02LjYgMC0xMiA1LjQtMTIgMTJ2MjljMCA2LjYgNS40IDEyIDEyIDEyaDIyNGM2LjYgMCAxMi01LjQgMTItMTJ2LTI5Wm0wIDBjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRjLTYuNiAwLTEyIDUuNC0xMiAxMnYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgOTZjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRjLTYuNiAwLTEyIDUuNC0xMiAxMnYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgMGMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMCA5NmMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMCAwYzAtNi42LTUuNC0xMi0xMi0xMmgtMjI0Yy02LjYgMC0xMiA1LjQtMTIgMTJ2MjljMCA2LjYgNS40IDEyIDEyIDEyaDIyNGM2LjYgMCAxMi01LjQgMTItMTJ2LTI5Wm0tMTE1Mi0xOTJjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRDNS45LjUuNSA1LjkuNSAxMi41djI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMCAwYzAtNi42LTUuNC0xMi0xMi0xMmgtMjI0QzUuOS41LjUgNS45LjUgMTIuNXYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgOTZjMC02LjYtNS40LTEyLTEyLTEyaC0yMjRjLTYuNiAwLTEyIDUuNC0xMiAxMnYyOWMwIDYuNiA1LjQgMTIgMTIgMTJoMjI0YzYuNiAwIDEyLTUuNCAxMi0xMnYtMjlabTAgMGMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMCA5NmMwLTYuNi01LjQtMTItMTItMTJoLTIyNGMtNi42IDAtMTIgNS40LTEyIDEydjI5YzAgNi42IDUuNCAxMiAxMiAxMmgyMjRjNi42IDAgMTItNS40IDEyLTEydi0yOVptMCAwYzAtNi42LTUuNC0xMi0xMi0xMmgtMjI0Yy02LjYgMC0xMiA1LjQtMTIgMTJ2MjljMCA2LjYgNS40IDEyIDEyIDEyaDIyNGM2LjYgMCAxMi01LjQgMTItMTJ2LTI5WiIvPjwvc3ZnPg==)
+    no-repeat;
+  z-index: 2;
+  filter: ${p => (p.theme.type === 'light' ? 'none' : 'contrast(0.6)')};
+`;
+
+const Nodes = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  background: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJMYXllcl8xIiBkYXRhLW5hbWU9IkxheWVyIDEiIHZpZXdCb3g9IjAgMCAxNDAxIDI0NiI+PGRlZnM+PHN0eWxlPi5jbHMtMntzdHJva2U6IzJkMmQzMTtzdHJva2UtbWl0ZXJsaW1pdDoxMH0uY2xzLTN7ZmlsbDojMWMxYzFlfS5jbHMtMntmaWxsOm5vbmV9LmNscy0ze3N0cm9rZS13aWR0aDowfTwvc3R5bGU+PC9kZWZzPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9IjM4NC41IiB5PSI5Ni41IiBjbGFzcz0iY2xzLTMiIHJ4PSIxMiIgcnk9IjEyIi8+PHJlY3Qgd2lkdGg9IjI0OCIgaGVpZ2h0PSI1MyIgeD0iMzg0LjUiIHk9Ijk2LjUiIGNsYXNzPSJjbHMtMiIgcng9IjEyIiByeT0iMTIiLz48cmVjdCB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjUzIiB4PSI3NjguNSIgeT0iOTYuNSIgY2xhc3M9ImNscy0zIiByeD0iMTIiIHJ5PSIxMiIvPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9Ijc2OC41IiB5PSI5Ni41IiBjbGFzcz0iY2xzLTIiIHJ4PSIxMiIgcnk9IjEyIi8+PHJlY3Qgd2lkdGg9IjI0OCIgaGVpZ2h0PSI1MyIgeD0iMTE1Mi41IiB5PSIuNSIgY2xhc3M9ImNscy0zIiByeD0iMTIiIHJ5PSIxMiIvPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9IjExNTIuNSIgeT0iLjUiIGNsYXNzPSJjbHMtMiIgcng9IjEyIiByeT0iMTIiLz48cmVjdCB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjUzIiB4PSIxMTUyLjUiIHk9Ijk2LjUiIGNsYXNzPSJjbHMtMyIgcng9IjEyIiByeT0iMTIiLz48cmVjdCB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjUzIiB4PSIxMTUyLjUiIHk9Ijk2LjUiIGNsYXNzPSJjbHMtMiIgcng9IjEyIiByeT0iMTIiLz48cmVjdCB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjUzIiB4PSIxMTUyLjUiIHk9IjE5Mi41IiBjbGFzcz0iY2xzLTMiIHJ4PSIxMiIgcnk9IjEyIi8+PHJlY3Qgd2lkdGg9IjI0OCIgaGVpZ2h0PSI1MyIgeD0iMTE1Mi41IiB5PSIxOTIuNSIgY2xhc3M9ImNscy0yIiByeD0iMTIiIHJ5PSIxMiIvPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9Ii41IiB5PSIuNSIgZmlsbD0iIzFjMWMxZSIgc3Ryb2tlPSIjMmQyZDMxIiBzdHJva2UtbWl0ZXJsaW1pdD0iMTAiIHJ4PSIxMiIgcnk9IjEyIi8+PHJlY3Qgd2lkdGg9IjI0OCIgaGVpZ2h0PSI1MyIgeD0iLjUiIHk9Ii41IiBjbGFzcz0iY2xzLTIiIHJ4PSIxMiIgcnk9IjEyIi8+PHJlY3Qgd2lkdGg9IjI0OCIgaGVpZ2h0PSI1MyIgeD0iLjUiIHk9Ijk2LjUiIGNsYXNzPSJjbHMtMyIgcng9IjEyIiByeT0iMTIiLz48cmVjdCB3aWR0aD0iMjQ4IiBoZWlnaHQ9IjUzIiB4PSIuNSIgeT0iOTYuNSIgY2xhc3M9ImNscy0yIiByeD0iMTIiIHJ5PSIxMiIvPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9Ii41IiB5PSIxOTIuNSIgY2xhc3M9ImNscy0zIiByeD0iMTIiIHJ5PSIxMiIvPjxyZWN0IHdpZHRoPSIyNDgiIGhlaWdodD0iNTMiIHg9Ii41IiB5PSIxOTIuNSIgY2xhc3M9ImNscy0yIiByeD0iMTIiIHJ5PSIxMiIvPjwvc3ZnPg==)
+    no-repeat;
+  filter: ${p => (p.theme.type === 'light' ? 'invert(1)' : 'brightness(0.1)')};
+`;
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+`;
+
+const Content = styled.div`
+  width: 1200px;
+  height: 280px;
+  position: relative;
+  opacity: 0.4;
+`;
+
+export function AccessGraphLoading() {
+  return (
+    <Container aria-busy="true">
+      <Content>
+        <Edges />
+        <Nodes />
+      </Content>
+
+      <Text typography="h2">Launching Identity Security…</Text>
+    </Container>
+  );
+}

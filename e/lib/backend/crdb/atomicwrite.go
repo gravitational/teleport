@@ -1,0 +1,158 @@
+package crdb
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype/zeronull"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
+	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
+)
+
+func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error) {
+	if err := backend.ValidateAtomicWrite(condacts); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	newRevision := newRevision()
+
+	type batchItem struct {
+		query     string
+		arguments []any
+	}
+	var condBatchItems, actBatchItems []batchItem
+	var actBatchIncludesPut bool
+
+	for _, ca := range condacts {
+		switch ca.Condition.Kind {
+		case backend.KindWhatever:
+			// no comparison to assert
+		case backend.KindExists:
+			condBatchItems = append(condBatchItems, batchItem{
+				"SELECT EXISTS (SELECT * FROM kv WHERE key = $1 AND (expires IS NULL OR expires >= now()))",
+				[]any{nonNilKey(ca.Key)},
+			})
+		case backend.KindNotExists:
+			condBatchItems = append(condBatchItems, batchItem{
+				"SELECT NOT EXISTS (SELECT * FROM kv WHERE key = $1 AND (expires IS NULL OR expires >= now()))",
+				[]any{nonNilKey(ca.Key)},
+			})
+		case backend.KindRevision:
+			expectedRevision, ok := revisionFromString(ca.Condition.Revision)
+			if !ok {
+				return "", trace.Wrap(backend.ErrConditionFailed)
+			}
+			condBatchItems = append(condBatchItems, batchItem{
+				"SELECT EXISTS (SELECT * FROM kv WHERE key = $1 AND revision = $2 AND (expires IS NULL OR expires >= now()))",
+				[]any{nonNilKey(ca.Key), expectedRevision},
+			})
+		default:
+			// condacts was already checked for validity
+			return "", trace.BadParameter("unexpected condition kind %v in conditional action against key %q (this is a bug)", ca.Condition.Kind, ca.Key)
+		}
+
+		switch ca.Action.Kind {
+		case backend.KindNop:
+			// no action to be taken
+		case backend.KindPut:
+			actBatchIncludesPut = true
+			actBatchItems = append(actBatchItems, batchItem{
+				// cockroachdb-specific syntax
+				"UPSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)",
+				[]any{nonNilKey(ca.Key), nonNil(ca.Action.Item.Value), zeronull.Timestamptz(ca.Action.Item.Expires.UTC()), newRevision},
+			})
+		case backend.KindDelete:
+			actBatchItems = append(actBatchItems, batchItem{
+				"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())",
+				[]any{nonNilKey(ca.Key)},
+			})
+		default:
+			// condacts was already checked for validity
+			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %q (this is a bug)", ca.Action.Kind, ca.Key)
+		}
+	}
+
+	var success bool
+	querySuccess := func(row pgx.Row) error {
+		if !success {
+			return nil
+		}
+		return trace.Wrap(row.Scan(&success))
+	}
+
+	var attempts int
+	_, err = pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
+		attempts++
+		err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+			// Timers can be expensive at scale. To mitigate this allocate the
+			// timeout context after a connection has been acquired. This limits
+			// the number of timers to at most the size of the connection pool.
+			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+			defer cancel()
+
+			err := pgx.BeginTxFunc(ctx, c, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				var condBatch, actBatch pgx.Batch
+				for _, bi := range condBatchItems {
+					condBatch.Queue(bi.query, bi.arguments...).QueryRow(querySuccess)
+				}
+				for _, bi := range actBatchItems {
+					actBatch.Queue(bi.query, bi.arguments...)
+				}
+
+				success = true
+				if condBatch.Len() > 0 {
+					if err := tx.SendBatch(ctx, &condBatch).Close(); err != nil {
+						return trace.Wrap(err)
+					}
+					if !success {
+						return nil
+					}
+				}
+
+				if err := tx.SendBatch(ctx, &actBatch).Close(); err != nil {
+					return trace.Wrap(err)
+				}
+				return nil
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return struct{}{}, trace.Wrap(err)
+		}
+		return struct{}{}, nil
+	})
+
+	if attempts > 1 {
+		backendmetrics.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
+	}
+
+	if attempts > 2 {
+		// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
+		// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.
+		b.log.WarnContext(ctx,
+			"AtomicWrite was retried several times due to transaction contention. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.",
+			"attempts", attempts,
+		)
+	}
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !success {
+		return "", trace.Wrap(backend.ErrConditionFailed)
+	}
+
+	if !actBatchIncludesPut {
+		return "", nil
+	}
+
+	return revisionToString(newRevision), nil
+}

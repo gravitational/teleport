@@ -1,0 +1,165 @@
+---
+name: Lint
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.changes.outputs.go }}
+      workflows: ${{ steps.changes.outputs.workflows }}
+      workflow_files: ${{ steps.changes.outputs.workflows_files }}
+    steps:
+      - name: Checkout
+        # Only checkout if not a pull request. dorny/paths-filter accesses changed files
+        # on a PR via the API and does not need a checked-out repo.
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          list-files: escape
+          filters: |
+            go:
+              - '.github/workflows/lint.yaml'
+              - 'Makefile'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'lib/auth/summarizer/schema/generated/**'
+            workflows:
+              - added|modified:
+                - '.github/workflows/*.yaml'
+                - '.github/workflows/*.yml'
+
+  lint-go:
+    name: Lint (Go)
+    runs-on: ubuntu-22.04-16core
+    needs: changes
+    if: ${{ needs.changes.outputs.go == 'true' }}
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/teleport # This may need to be updated
+          # base_ref is only available for pull_request triggers
+          # for merge_group triggers we need to pull from the event payload
+          ref: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+
+      - name: Set linter version
+        run: |
+          echo "GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version)" >> "${GITHUB_ENV}"
+      - name: Print linter version
+        run: |
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v6
+        with:
+          path: e
+
+      - name: Check for untidy go modules
+        shell: bash
+        run: |
+          find e/ -name go.mod -print | while read -r f; do
+            echo "checking $f"
+            pushd "$(dirname "$f")" > /dev/null;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
+            popd > /dev/null;
+          done
+
+      - name: Check if test symbols are included in binaries
+        run: make -C e lint-test-symbols
+
+      - name: Check generated summarizer schemas
+        run: make -C e lint-schemagen
+
+      - name: Mark paths as safe
+        run: git config --global --add safe.directory "$( realpath . )"
+
+      # Prevent any new uses of the Open API from being added until OSS is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./e/...
+          if ! git -C e diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git -C e diff --stat -- '*.go'
+            git -C e diff -- '*.go'
+            exit 1
+          fi
+
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          skip-cache: true
+
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          verify: false
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          skip-cache: true
+          working-directory: e/tests/antithesis/workloads
+          args: --config ../../../../.golangci.yml
+
+  lint-workflows:
+    name: Lint (GHA workflows)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.workflows == 'true' }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v6
+
+      - name: Run actionlint
+        env:
+          IMAGE_TAG: 'rhysd/actionlint:1.7.5'
+        run: |
+          docker run --rm \
+            -v "$(pwd):/workflows" -w '/workflows' \
+            "${IMAGE_TAG}" \
+            -ignore 'label ".+" is unknown' \
+            ${{ needs.changes.outputs.workflow_files }}
+
+  # This is called "lint" for now to prevent existing workflow checks from breaking
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs:
+      - lint-go
+      - lint-workflows
+    if: always()
+    steps:
+      - name: Coalesce outputs that ran
+        env:
+          PASSED_GO: ${{ contains(fromJSON('["success", "skipped"]'), needs.lint-go.result) }}
+          PASSED_WORKFLOWS: ${{ contains(fromJSON('["success", "skipped"]'), needs.lint-workflows.result) }}
+        run: |
+          if [[ "${PASSED_GO}" != 'true' ]] || [[ "${PASSED_WORKFLOWS}" != 'true' ]]; then
+            exit 1
+          fi

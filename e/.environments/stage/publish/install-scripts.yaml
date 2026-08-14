@@ -1,0 +1,3 @@
+---
+PUBLISH_INSTALL_SCRIPTS_ROLE_ARN: arn:aws:iam::146628656107:role/publish-install-scripts-stage
+CDN_BUCKET: tp-146628656107-us-west-2-releases-published-stage

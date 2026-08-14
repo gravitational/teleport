@@ -1,0 +1,37 @@
+# This workflow is run whenever a pull request is opened, re-opened, or taken
+# out of draft (ready for review).
+#
+# NOTE: Unlike the OSS branch, pull_request_target is not necessary here
+# because there are no forks possible from the enterprise branch.
+name: Assign
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the assign workflow only needs to be able
+# to update the assigned reviewers, so it needs write access to
+# "pull-requests", nothing else.
+permissions:
+    pull-requests: write
+
+jobs:
+  auto-request-review:
+    name: Auto Request Review
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: .github/shared-workflows/bot/go.mod
+          # Run "assign" subcommand on bot.
+      - name: Assigning reviewers
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=assign -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"

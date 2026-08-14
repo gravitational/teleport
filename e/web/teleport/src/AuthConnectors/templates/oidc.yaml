@@ -1,0 +1,19 @@
+#
+# Example resource for an OIDC connector
+# We recommend using OIDC for Google Workspace, Auth0 and Keycloak
+#
+kind: oidc
+version: v2
+metadata:
+  name: new_oidc_connector
+spec:
+  redirect_url: "https://<cluster-url>/v1/webapi/oidc/callback"
+  client_id: <client id>
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
+  display: Google
+  client_secret: <client secret>
+  issuer_url: https://<issuer-url>
+  scope: [<scope value>]
+  claims_to_roles:
+    - {claim: "hd", value: "example.com", roles: ["editor", "auditor", "access"]}

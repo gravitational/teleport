@@ -1,0 +1,34 @@
+name: "Windows Authentication Package Build"
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'windowsauth/**'
+  merge_group:
+jobs:
+  Build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'windowsauth/installer/go.mod'
+      - name: Setup Rust
+        # this uses the version of rust in rust-toolchain.toml but sets the
+        # global rustup config to use the -gnu toolchain rather than the -msvc
+        # one because of cross-compilation problems with the embedded-resource
+        # crate
+        run: |
+          rustup set default-host x86_64-pc-windows-gnu
+          cd windowsauth
+          rustup install
+          rustup show
+      - name: Build all
+        run: make -C windowsauth all
+      - name: Test
+        run: make -C windowsauth test

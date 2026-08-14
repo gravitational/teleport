@@ -1,0 +1,37 @@
+---
+name: Load GPG key
+description: Loads the provided GPG key(s) from a tar'd, base 64 encoded format to the local system
+inputs:
+  gpg-signing-archive:
+    description: >
+      A GNUPGHOME directory that has been tarchived and base64 encoded.
+    required: true
+  gnupghome:
+    description: The value of the GNUPGHOME environment variable where the GPG key should be loaded.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup GPG signing key
+      shell: bash
+      env:
+        GPG_SIGNING_ARCHIVE: ${{ inputs.gpg-signing-archive }}
+        GNUPGHOME: ${{ inputs.gnupghome }}
+      run: |
+        # Load the GPG key from the input archive
+        [ -n "$GNUPGHOME" ] || { echo "GNUPGHOME input is unset or empty, aborting"; exit 1; }
+        [ -n "$GPG_SIGNING_ARCHIVE" ] || { echo "GPG signing archive input is unset or empty, aborting"; exit 1; }
+
+        echo "Extracting the GPG signing key to GNUPGHOME at $GNUPGHOME"
+        mkdir -pv -m0700 "$GNUPGHOME"
+        echo "$GPG_SIGNING_ARCHIVE" | base64 -d | tar --no-same-owner --no-overwrite-dir -xzvf - -C "$GNUPGHOME"
+        echo "Setting file ownership"
+        chown -Rv "$(id -un)":"$(id -gn)" "$GNUPGHOME"
+        echo
+        echo "GPG home directory contents:"
+        ls -lah "$GNUPGHOME"
+
+        echo
+        echo "Loaded GPG keys:"
+        gpg -v --list-secret-keys

@@ -1,0 +1,109 @@
+---
+name: Smoke Test Plugin Container Images
+description: |
+  Download and run smoke tests on plugins after a build.
+
+inputs:
+  version:
+    required: true
+    description: |
+      Teleport semver to smoke test against. Must not have leading 'v'.
+      As an example "17.0.0-dev"
+  container-images:
+    required: true
+    description: |
+      A list of container images to verify.
+  ecr-registry:
+    required: true
+    description: |
+      The ECR registry base URL where teleport plugin containers are located.
+  aws-role-to-assume:
+    required: true
+    description: |
+      The AWS role to assume that grants permissions to read, list, and pull containers
+      from the given ecr-registry.
+  target:
+    required: true
+    description: |
+      The target OS-ARCH to test for. Valid targets are 'linux-amd64', 'linux-arm64'
+
+runs:
+  using: composite
+  steps:
+    - name: Inputs Check
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        TARGET: ${{ inputs.target }}
+        CONTAINER_IMAGES: ${{ inputs.container-images }}
+        AWS_ROLE_TO_ASSUME: ${{ inputs.aws-role-to-assume }}
+        ECR_REGISTRY: ${{ inputs.ecr-registry }}
+      run: |
+        # Checking environment variables are set
+        CODE=0
+        if [[ -z "$VERSION" ]]; then
+            echo "::error title=Bad Parameter::input.version was not set"
+            CODE=1
+        fi
+        if [[ -z "$TARGET" ]]; then
+            echo "::error title=Bad Parameter::input.target was not set"
+            CODE=1
+        fi
+        if [[ -z "$CONTAINER_IMAGES" ]]; then
+            echo "::error title=Bad Parameter::input.container-images was not set"
+            CODE=1
+        fi
+        if [[ -z "$ECR_REGISTRY" ]]; then
+            echo "::error title=Bad Parameter::input.ecr-registry was not set"
+            CODE=1
+        fi
+        if [[ -z "$AWS_ROLE_TO_ASSUME" ]]; then
+            echo "::error title=Bad Parameter::input.aws-role-to-assume was not set"
+            CODE=1
+        fi
+        exit $CODE
+
+    - name: Assume Read AWS role
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+      with:
+        aws-region: us-west-2
+        role-to-assume: ${{ inputs.aws-role-to-assume }}
+        role-session-name: "smoke-test-containers-${{ github.run_number }}"
+        role-duration-seconds: 3600
+
+    - name: Login to Pending ECR Registry
+      uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+      with:
+        registry: ${{ inputs.ecr-registry }}
+
+    - name: Verify Container Images
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.ecr-registry }}
+        CONTAINER_IMAGES: ${{ inputs.container-images }}
+        ARTIFACT_TAG: ${{ inputs.version }}
+        TARGET: ${{ inputs.target }}
+      run: |
+        echo "## $ARTIFACT_TAG-$TARGET Container Images" >> "$GITHUB_STEP_SUMMARY"
+
+        CODE=0
+        PLATFORM="${TARGET/linux-/linux/}"
+
+        read -ra plugins <<<"${CONTAINER_IMAGES}"
+        for image in "${plugins[@]}"; do
+          IMAGE_REPO="$REGISTRY/$image:$ARTIFACT_TAG"
+
+          # Construct expected output pattern and run the version command on the container image
+          PATTERN="^${image/teleport-plugin/teleport}" # expect teleport-plugin-$NAME to output teleport-$NAME
+          DOCKER_RUN_OUTPUT="$(docker run -i --rm --platform $PLATFORM $IMAGE_REPO version)"
+          echo "$DOCKER_RUN_OUTPUT"
+          if [[  $DOCKER_RUN_OUTPUT =~ $PATTERN ]]; then
+            echo "$image was verified"
+            echo "* :white_check_mark: $image" >> "$GITHUB_STEP_SUMMARY"
+          else
+            CODE=1
+            echo "::error title=Smoke Container $image::$image:$ARTIFACT_TAG verify failed. Output '$DOCKER_RUN_OUTPUT' did not match pattern '$PATTERN'"
+            echo "* :x: $image" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        done
+        exit $CODE

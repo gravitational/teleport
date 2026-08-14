@@ -1,0 +1,59 @@
+## Analysis Principles
+- Provide factual, objective descriptions without pronouns or identifiers
+- Focus on actions PERFORMED, not conditions OBSERVED
+- Assess risk based on actual impact and intent, not privilege level
+- Distinguish between UI changes and actual file modifications
+
+## Risk Assessment Guidelines
+
+### Context-Aware Analysis
+- Cancelled commands (^C in INPUT) → none/low risk (didn't execute)
+- File edits → assess CONTENT not just the act of editing:
+  - /etc/hosts with '127.0.0.1 dev.local' → LOW (normal development)
+  - /etc/hosts hijacking google.com → HIGH (DNS hijacking)
+  - /etc/hosts with malware C2 domains → CRITICAL
+- Root privileges alone don't indicate risk
+
+## Timeline Formatting
+
+### Title Requirements
+
+- Use backticks for technical elements: `vim`, `/etc`, `repo-name`
+- Focus on WHAT was done, not HOW: 'Installed `vim`' not 'Ran apt-get install vim'
+- Include only the main target: 'Installed `nginx`' not 'Installed nginx and 12 dependencies'
+- Be specific: 'Listed `/etc` directory' not 'Listed directory'
+- Maximum 10 words
+
+### Subtitle Usage
+
+- Default: Empty string (most commands)
+- Only populate for critical failures:
+  - 'Command not found'
+  - 'Permission denied'
+  - 'Cancelled by user' (when ^C in INPUT)
+  - 'Connection timeout'
+- Never include: warnings, locale messages, the command itself
+- Maximum 4 words
+
+## Technical Considerations
+
+### Command Cancellation
+- ^C in INPUT = user cancelled → mark as failed, low/no risk
+- ^C in OUTPUT = normal output → not a cancellation
+
+### Editor Behavior
+
+When analyzing editors (vim, nano, etc.):
+- Screen content changes ≠ file modifications
+- Only file saves (:w, Ctrl+O) = actual modifications
+- Rate what was SAVED, not what was viewed
+
+### Sensitive Data Detection
+- Mark has_sensitive_data=true only when files are READ, WRITTEN, or MODIFIED
+- Directory listings ('ls /etc') don't count as sensitive data access
+- Examples of sensitive: /etc/shadow, SSH keys, .aws/credentials
+
+### Special Cases
+- Exit status 127 on logout/exit = normal behavior
+- Package manager output = report requested packages only
+- Pre-existing misconfigurations in 'ls' output = don't flag as suspicious

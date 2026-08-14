@@ -1,0 +1,100 @@
+# Unit tests for ../actions/parse-version
+name: Test parse version action
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/actions/parse-version/**'
+      - '.github/actions/test-parse-version/**'
+      - '.github/workflows/test-parse-version-action.yaml'
+jobs:
+  test-parse-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: basic
+          ref: 1.2.3
+          expect-full: 1.2.3
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-labels: "1.2.3 1.2 1"
+
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: leading-v
+          ref: v1.2.3
+          expect-full: 1.2.3
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-labels: "1.2.3 1.2 1"
+
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: override
+          ref: 3.2.1
+          version: 1.2.3
+          expect-full: 1.2.3
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-labels: "1.2.3 1.2 1"
+
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: prerelease
+          ref: 1.2.3-rc1
+          expect-full: 1.2.3-rc1
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-pre-release: rc1
+          expect-labels: "1.2.3-rc1"
+
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: build
+          ref: 1.2.3+1001
+          expect-full: 1.2.3+1001
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-build: 1001
+          expect-labels: "1.2.3 1.2 1"
+
+      - uses: ./.github/actions/test-parse-version
+        with:
+          name: all
+          ref: 1.2.3-rc.1+1001
+          expect-full: 1.2.3-rc.1+1001
+          expect-major: 1
+          expect-minor: 2
+          expect-patch: 3
+          expect-pre-release: rc.1
+          expect-build: 1001
+          expect-labels: "1.2.3-rc.1"
+
+      - uses: ./.github/actions/test-parse-version
+        continue-on-error: true
+        with:
+          name: bad
+          ref: 1
+          expect-failure: true
+
+      - uses: ./.github/actions/test-parse-version
+        continue-on-error: true
+        with:
+          name: leading-zero
+          ref: 1.02.3
+          expect-failure: true
+
+      - uses: ./.github/actions/test-parse-version
+        continue-on-error: true
+        with:
+          name: bad-pre-release
+          ref: 1.2.3-rc$2
+          expect-failure: true

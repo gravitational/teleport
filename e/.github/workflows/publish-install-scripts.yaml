@@ -1,0 +1,61 @@
+---
+name: Publish install scripts
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to use for publishing.
+        type: environment
+        default: stage/publish
+      oss-teleport-ref:
+        description: "Git SHA, tag or branch of the revision of OSS teleport to use. Ignored for production releases."
+        default: master
+        type: string
+
+env:
+  ASSETS_PATH: assets/install-scripts/shim
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          # Only master branch can publish to production
+          ref: ${{ inputs.environment == 'prod/publish' && 'master' || inputs.oss-teleport-ref }}
+          repository: gravitational/teleport
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.environments
+            /${{ env.ASSETS_PATH }}/*.sh
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: install-scripts
+          environments-directory: e/.environments
+      - name: List files to upload
+        run: ls -lah "${ASSETS_PATH}"
+      - name: Authenticate with AWS
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.PUBLISH_INSTALL_SCRIPTS_ROLE_ARN }}
+          role-session-name: "publish-install-scripts-${{ github.run_number }}"
+          role-duration-seconds: 3600
+      - name: Upload to S3
+        env:
+          CDN_BUCKET: ${{ env.CDN_BUCKET }}
+        run: >-
+          aws s3 cp 
+          "${ASSETS_PATH}" "s3://${CDN_BUCKET}/public/"
+          --recursive
+          --sse AES256
+          --content-type application/x-sh
+          --metadata-directive REPLACE

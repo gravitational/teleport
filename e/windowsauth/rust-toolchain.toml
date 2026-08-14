@@ -1,0 +1,3 @@
+[toolchain]
+channel = "1.94.0"
+targets = [ "x86_64-pc-windows-gnu" ]

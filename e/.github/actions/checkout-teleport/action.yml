@@ -1,0 +1,172 @@
+# This is a GitHub Action to checkout Teleport. It can checkout just
+# the OSS repository (either the public repo or any private repo such
+# as teleport-private), and supports Enterprise code either embedded in
+# that repository or referenced by the e submodule.
+
+# Maintainers: this must be compatible with Linux, MacOS, and Windows.
+
+name: Checkout Teleport
+description: Checkout a Teleport or Teleport+Enterprise repository
+
+inputs:
+  oss-teleport-repo:
+    description: "The name of the OSS teleport repo to checkout"
+    default: "gravitational/teleport"
+
+  oss-teleport-ref:
+    description: "Git SHA, tag or branch of the revision of OSS Teleport to build"
+    required: true
+
+  oss-fetch-depth:
+    description: Number of commits to fetch. 0 indicates all history for all branches and tags.
+    required: false
+    default: 1
+
+  edition:
+    description: "Edition of Teleport to check out. Either 'oss' or 'enterprise'"
+    required: true
+
+  ent-teleport-ref:
+    description: |
+      Git SHA, tag or branch of the revision of Enterprise Teleport to build.
+      If the checked-out Teleport repository references Enterprise Teleport
+      as a submodule and no value is supplied, the submodule reference will
+      be used. This input is ignored when Enterprise Teleport is embedded in
+      the checked-out repository.
+
+      This should not be used for release or other security-critical workflows.
+
+  ent-fetch-depth:
+    description: Number of commits to fetch. 0 indicates all history for all branches and tags.
+    required: false
+    default: 1
+
+  path:
+    description: "Directory path into which to checkout Teleport"
+
+  repo-access-app-id:
+    description: |
+      The GitHub App ID used to retrieve an application installation token for
+      access to the repositories.
+
+  repo-access-app-key:
+    description: |
+      The private key of the GitHub App used to retrieve an application installation
+      token for access to the repositories.
+
+runs:
+  using: "composite"
+  steps:
+    # Composite actions do not validate required inputs. We need to do it manually.
+    # https://github.com/actions/runner/issues/1070
+    - name: Validate and Setup
+      id: setup
+      env:
+        # INPUT_* env vars are not set on composite actions. Do so explicitly.
+        # https://github.com/actions/runner/issues/665
+        INPUT_OSS-TELEPORT-REF: ${{ inputs.oss-teleport-ref }}
+        INPUT_OSS-TELEPORT-REPO: ${{ inputs.oss-teleport-repo }}
+        INPUT_EDITION: ${{ inputs.edition }}
+      uses: actions/github-script@v8
+      with:
+        script: |
+          // Validate required inputs
+          core.getInput("oss-teleport-ref", {required: true})
+          const edition = core.getInput("edition", {required: true})
+          if (edition !== "oss" && edition !== "enterprise") {
+            throw new Error(`edition input must be 'oss' or 'enterprise': ${edition}`)
+          }
+
+          // Extract repo name from org/repo input for use with fetch-token
+          const orgRepo = core.getInput("oss-teleport-repo")
+          parts = orgRepo.split("/")
+          if (parts.length !== 2) {
+            throw new Error(`repo input must be of the form 'org/repo': ${orgRepo}`)
+          }
+          core.setOutput("repo-name", parts[1])
+
+    # Attempt to fetch a token from the GitHub App we use to broker
+    # access to private repositories. If this fails, we are in one of two
+    # situations:
+    #
+    # 1. The App is not installed on the target repo (e.g. public Teleport), or
+    # 2. Something is wrong with GitHub
+    #
+    # In either case, the workflow will carry on and attempt to use the
+    # default workflow token to check out the target repo, which will be
+    # fine if that repo is public.
+    #
+    # If the oss repo is "gravitational/teleport", don't try to get a token
+    # as we know it is not needed. This is the common case and by eliding this
+    # step, we stop outselves emitting a spurious but ignored error on each
+    # workflow run. Let's not train people to ignore errors.
+    #
+    - id: fetch-token
+      if: inputs.repo-access-app-id && inputs.repo-access-app-key && inputs.oss-teleport-repo != 'gravitational/teleport'
+      name: Fetch installation token
+      uses: actions/create-github-app-token@v3
+      continue-on-error: true
+      with:
+        app-id: ${{ inputs.repo-access-app-id }}
+        private-key: ${{ inputs.repo-access-app-key }}
+        repositories: ${{ steps.setup.outputs.repo-name }}
+
+    - id: select-access-token
+      name: Select access token
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        APP_TOKEN: ${{ steps.fetch-token.outputs.token }}
+      run: |
+        echo token=${APP_TOKEN:-${GITHUB_TOKEN}} >> $GITHUB_OUTPUT
+
+    - id: checkout-oss
+      name: Checkout OSS Teleport
+      uses: actions/checkout@v6.0.2
+      with:
+        repository: ${{ inputs.oss-teleport-repo }}
+        ref: ${{ inputs.oss-teleport-ref }}
+        token: ${{ steps.select-access-token.outputs.token }}
+        path: ${{ inputs.path }}
+        fetch-depth: ${{ inputs.oss-fetch-depth }}
+
+    - id: mark-workspace-safe
+      name: Mark workspace as git safe.directory
+      shell: bash
+      env:
+        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
+      run: |
+        git config --global --add safe.directory "${CHECKOUT_DIR}"
+
+    - id: determine-enterprise-ref
+      if: inputs.edition == 'enterprise'
+      name: Determine Enterprise Teleport ref
+      shell: bash
+      env:
+        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
+        ENTERPRISE_REF: ${{ inputs.ent-teleport-ref }}
+      run: |
+        read -r mode type ref entry_path <<< "$(git -C "${CHECKOUT_DIR}" ls-tree HEAD -- e)"
+        case "${mode} ${type}" in
+          "160000 commit")
+            echo "is_submodule=true" >> "${GITHUB_OUTPUT}"
+            echo "ref=${ENTERPRISE_REF:-${ref}}" >> "${GITHUB_OUTPUT}"
+            ;;
+          "040000 tree")
+            echo "is_submodule=false" >> "${GITHUB_OUTPUT}"
+            ;;
+          *)
+            echo "::error::Expected e to be either a Git submodule or directory, got '${mode} ${type}'"
+            exit 1
+            ;;
+        esac
+
+    - id: checkout-enterprise
+      if: inputs.edition == 'enterprise' && steps.determine-enterprise-ref.outputs.is_submodule == 'true'
+      name: Checkout Enterprise Teleport
+      uses: actions/checkout@v6.0.2
+      with:
+        repository: gravitational/teleport.e
+        ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
+        path: ${{ inputs.path || '.' }}/e
+        fetch-depth: ${{ inputs.ent-fetch-depth }}

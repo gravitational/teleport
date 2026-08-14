@@ -1,0 +1,75 @@
+# Terraform config for creating an Access List that grants members direct
+# access to Teleport resources defined in the associated roles.
+
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 0.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = ""
+}
+
+resource "teleport_access_list" "acl-test-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "test-access-list"
+      labels = {
+        "teleport.dev/iac-tool"                = "terraform"
+        "teleport.internal/access-list-preset" = "long-term"
+      }
+    }
+  }
+
+  spec = {
+    owners = [{
+      description     = "some description"
+      membership_kind = "1"
+      name            = "llama"
+    }]
+    title = "Test Access List"
+  }
+}
+
+resource "teleport_access_list_member" "acl-member-llama_836e2c96" {
+  depends_on = [teleport_access_list.acl-test-access-list]
+
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "llama"
+    }
+  }
+
+  spec = {
+    access_list     = "test-access-list"
+    name            = "llama"
+    membership_kind = "1"
+  }
+}
+
+resource "teleport_access_list_member" "acl-member-alpaca_fe256c33" {
+  depends_on = [teleport_access_list.acl-test-access-list]
+
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "alpaca"
+    }
+  }
+
+  spec = {
+    access_list     = "test-access-list"
+    name            = "alpaca"
+    reason          = "some reason"
+    membership_kind = "1"
+  }
+}

@@ -1,0 +1,98 @@
+name: Build Tbot Distroless Images
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        required: true
+        type: string
+
+      source-tag:
+        description: |
+          The semver version of Teleport that we're building for. If not set
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z.
+        type: string
+      
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      source-tag:
+        type: string
+      environment:
+        type: string
+        default: stage/build
+
+run-name: Build Tbot OCI Images for ${{ inputs.source-tag }}
+
+jobs:
+  configure:
+    name: Configure Build
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.version.outputs.full }}
+    steps:
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.source-tag }}
+  build-docker-images:
+    name: Build OCI container images
+    needs: configure
+    permissions:
+      actions: read
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      matrix:
+        release: ['oss', 'fips']
+        include:
+          - architectures: |
+              amd64
+              arm
+              arm64
+          # FIPS release is currently amd64 and arm64-only
+          - release: 'fips'
+            repo-infix: '-fips'
+            dockerfile-suffix: '-fips'
+            architectures: |
+              amd64
+              arm64
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: ${{ matrix.release }}
+      base-image: 'gcr.io/distroless/cc-debian12:latest'
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      source-tag: ${{ inputs.source-tag }}
+      teleport-version: ${{ needs.configure.outputs.teleport-version }}
+      dest-image-repo: tbot${{ matrix.repo-infix }}-distroless
+      dest-image-tags: ${{ needs.configure.outputs.teleport-version }}
+      architectures: ${{ matrix.architectures }}
+      image-build-args: |
+        TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
+      image-build-dockerfile: Dockerfile-tbot-distroless${{ matrix.dockerfile-suffix }}
+      allow-overwrites: false
+      environment: ${{ inputs.environment }}
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

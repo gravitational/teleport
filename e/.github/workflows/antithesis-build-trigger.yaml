@@ -1,0 +1,181 @@
+# This workflow builds containers and triggers Antithesis runs
+name: Antithesis build & trigger
+
+on:
+  workflow_dispatch:
+    inputs:
+      sut:
+        description: "SUT name"
+        required: true
+        default: "core"
+        type: choice
+        options:
+          - core
+      oss-teleport-ref:
+        description: "Teleport OSS git ref to build (SHA, tag, or branch)"
+        required: false
+        default: "master"
+      ent-teleport-ref:
+        description: "Teleport Enterprise git ref to build (SHA, tag, or branch), when not set defaults to what OSS is set to."
+        required: false
+        default: ""
+      description:
+        description: "Description shown in the Antithesis report"
+        required: false
+        default: ""
+      email_recipients:
+        description: "Semicolon-separated list of report recipients"
+        required: false
+        default: ""
+      antithesis_duration:
+        description: "Antithesis simulation duration in minutes"
+        required: false
+        default: 60
+
+  schedule:
+    # At 21:00 UTC on every day-of-week from Monday through Friday.
+    - cron: '0 21 * * 1-5'
+
+env:
+  ANTITHESIS_TENANT: teleport
+  # This is the only launcher/notebook we have at the moment. If needed we can move this to matrix params.
+  ANTITHESIS_LAUNCHER: teleport
+
+jobs:
+  params:
+    name: Resolve job parameters
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - name: Resolve params
+        id: resolve
+        # Note that push event is included here, this is handy for debugging when iterating.
+        run: |
+          case "${{ github.event_name }}" in
+            schedule)
+              MATRIX=$(jq -cn '
+                {
+                  include: [
+                    { "sut": "core", "oss-teleport-ref": "master", "ent-teleport-ref": "" }
+                  ]
+                }
+              ')
+              ;;
+            push)
+              MATRIX=$(jq -cn \
+                --arg oss_teleport_ref "master" \
+                --arg ent_teleport_ref "${{ github.sha }}" \
+                '{include: [{"sut": "core", "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
+              ;;
+            workflow_dispatch)
+              MATRIX=$(jq -cn \
+                --arg sut "${{ inputs.sut }}" \
+                --arg oss_teleport_ref "${{ inputs.oss-teleport-ref }}" \
+                --arg ent_teleport_ref "${{ inputs.ent-teleport-ref }}" \
+                '{include: [{"sut": $sut, "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
+              ;;
+          esac
+
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.sut }} ${{ matrix.oss-teleport-ref }}
+    needs: params
+    runs-on: ubuntu-22.04-16core
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.params.outputs.matrix) }}
+    env:
+      SUT: ${{ matrix.sut }}
+      REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/teleport
+          ref: ${{ matrix.oss-teleport-ref }}
+          submodules: recursive
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v4
+        if: ${{ matrix.ent-teleport-ref != '' }}
+        with:
+          path: e
+          ref: ${{ matrix.ent-teleport-ref }}
+
+      - name: Compute tag
+        id: tag
+        working-directory: e/tests/antithesis
+        env:
+          REPO_PATH: ${{ github.workspace }}
+        run: ./scripts/find_tag.sh
+
+      - name: Set up Docker QEMU integration
+        # Antithesis only supports amd64, we build containers as multiarch so they can easily
+        # be used for local debug flows on arm64.
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          driver: docker-container
+
+      - name: Login to registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: _json_key
+          password: ${{ secrets.ANTITHESIS_GCP_SA_KEY }}
+
+      - name: Build and push all images
+        working-directory: e/tests/antithesis
+        run: |
+          make build-all build-config \
+            SUT="${SUT}" \
+            REGISTRY="${REGISTRY}" \
+            TAG="${{ steps.tag.outputs.tag }}" \
+            PUSH=1
+
+      - name: Resolve image references
+        id: images
+        working-directory: e/tests/antithesis
+        env:
+          TAG: "${{ steps.tag.outputs.tag }}"
+          REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
+        run: ./sut/"${SUT}"/images.sh
+
+      - name: Load base parameters
+        id: params
+        working-directory: e/tests/antithesis
+        run: |
+          params=$(jq -r 'to_entries[] | "\(.key)=\(.value)"' "sut/${SUT}/params.json")
+          {
+            echo "params<<EOF"
+            echo "$params"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Antithesis run
+        uses: antithesishq/antithesis-trigger-action@80a5e9be591d303bf3c83e3ecbdc00102ad9de90 # v0.12
+        with:
+          notebook_name: teleport
+          tenant: teleport
+          username: ${{ secrets.ANTITHESIS_USERNAME }}
+          password: ${{ secrets.ANTITHESIS_PASSWORD }}
+          config_image: ${{ steps.images.outputs.config_image }}
+          images: ${{steps.images.outputs.images }}
+          description: >-
+            ${{ inputs.description
+                || format('{0} {1} @ {2} ({3})',
+                     matrix.sut, matrix.oss-teleport-ref,
+                     steps.tag.outputs.tag,
+                     github.event_name == 'schedule' && 'nightly' || 'manual') }}
+          email_recipients: ${{ inputs.email_recipients }}
+          test_name: teleport-${{ matrix.sut }}-${{ matrix.oss-teleport-ref }}
+          additional_parameters: |
+            antithesis.duration=${{ inputs.antithesis_duration || 60 }}
+            ${{ steps.params.outputs.params  }}

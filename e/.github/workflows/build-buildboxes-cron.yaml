@@ -1,0 +1,58 @@
+name: Build Buildboxes (scheduled)
+on:
+  schedule:
+    # Scheduled jobs only run from master. If you are reading this on a branch,
+    # this event does not fire there.
+    # Run daily at 6am UTC which is about 23:00 PST (plus/minus DST).
+    # The minute offset of 33 is a "random" offset to not run at the top of the hour.
+    - cron: '33 6 * * *'
+
+env:
+  REGISTRY: ghcr.io
+
+# Each job depends on the last so that we do not run too many build jobs
+# in parallel so as to not require too many self-hosted runners which
+# are used for the ARM64 builds. We use `if: always()` so even if a job
+# fails, it will continue on to the next, as there are not likely to be
+# any reasons for failures in common.
+jobs:
+  build-master:
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@master
+    with:
+      branch: master
+    permissions:
+      contents: read
+      packages: write
+
+  build-current:
+    needs: [build-master]
+    if: always()
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v18
+    with:
+      branch: branch/v18
+    permissions:
+      contents: read
+      packages: write
+
+  build-stable:
+    needs: [build-current]
+    if: always()
+    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v17
+    with:
+      branch: branch/v17
+    permissions:
+      contents: read
+      packages: write
+
+  # build-prerelease is to build the buildboxes for a freshly cut teleport
+  # version that is still alpha, beta or rc. Once released, this job should be
+  # updated to the next branch number and disabled.
+  # build-prerelease:
+  #   needs: [build-stable]
+  #   if: always()
+  #   uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v19
+  #   with:
+  #     branch: branch/v19
+  #   permissions:
+  #     contents: read
+  #     packages: write

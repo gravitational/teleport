@@ -1,0 +1,98 @@
+# This action splits a teleport version into its component parts, taking
+# both a ref (tag usually) and an optional version to override the ref.
+#
+# It it custom to our use at Teleport as opposed to a general semver
+# version parser in that it:
+# * Accepts an override version for when the `ref` parameter is not a
+#   version tag but some other ref. The `version` input takes precedence
+#   if provided
+# * Allows a leading `v` which is not semver compliant, and outputs a
+#   semver compliant version
+# * Produces a label list of versions common for labelling images that
+#   get labelled with "major", "major.minor" and "major.minor.patch",
+#   but only if the input version is not a pre-release version. Build
+#   metadata is not included in the labels.
+#
+# See https://semver.org for a specification of semantic versions.
+name: Parse Version
+description: Parse Teleport tag/version into components and label list
+inputs:
+  ref:
+    description: |
+      Teleport ref of commit being built/released. This is typically a
+      tag in semver format with an optional leading `v`, but may be a
+      a non-tag ref that is not a version. In that case, the `version`
+      input must be provided with the actual version.
+  version:
+    description: |
+      Teleport semver with optional leading `v`, to override the `ref`
+      input for when that ref is not a tag in semver format. In all cases,
+      this input supersedes the `ref` input when this is non-empty.
+outputs:
+  full:
+    description: |
+      Full version, same as version input value but with optional leading `v` removed.
+    value: ${{ steps.split.outputs.full }}
+  major:
+    description: Major version component of input version
+    value: ${{ steps.split.outputs.major }}
+  minor:
+    description: Minor version component of input version
+    value: ${{ steps.split.outputs.minor }}
+  patch:
+    description: Patch version component of input version
+    value: ${{ steps.split.outputs.patch }}
+  pre-release:
+    description: Pre-release component of input version
+    value: ${{ steps.split.outputs.pre-release }}
+  build:
+    description: Build metadata component of input version
+    value: ${{ steps.split.outputs.build }}
+  labels:
+    description: |
+      Labels that should apply for the version. If there is a pre-release
+      component on the input version, this will contain just the full version
+      without any leading `v`. If there is no pre-release component, then
+      this will contain the full version, the major version and the
+      major.minor version separated by spaces.
+      e.g. "1.2.3" will have the labels "1.2.3 1.2 1". "1.2.3-pre1" will just
+      have "1.2.3-pre1".
+    value: ${{ steps.split.outputs.labels }}
+runs:
+  using: composite
+  steps:
+    - name: Split
+      id: split
+      uses: actions/github-script@v8
+      env:
+        # Action inputs are not made available as env vars. Do so explicitly with standard naming.
+        # https://github.com/actions/runner/issues/665
+        INPUT_REF: ${{ inputs.ref }}
+        INPUT_VERSION: ${{ inputs.version }}
+      with:
+        script: |
+          const ref = core.getInput("ref")
+          const version = core.getInput("version")
+          const v = version || ref // version supersedes ref
+          if (!v) {
+            throw new Error("At least one of 'ref' or 'version' input parameter must be provided")
+          }
+          // This terrible terrible regex comes from the bottom of the semver.org page
+          const semverRx = /^v?(?<full>(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?<build>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)$/
+          const match = v.match(semverRx)
+          if (!match) {
+            throw new Error(`Could not parse semver version: ${v}`)
+          }
+          let labels = `${match.groups.major}.${match.groups.minor}.${match.groups.patch}`
+          if (match.groups.prerelease === undefined) {
+            labels += ` ${match.groups.major}.${match.groups.minor} ${match.groups.major}`
+          } else {
+            labels += `-${match.groups.prerelease}`
+          }
+          core.setOutput('full', match.groups.full)
+          core.setOutput('major', match.groups.major)
+          core.setOutput('minor', match.groups.minor)
+          core.setOutput('patch', match.groups.patch)
+          core.setOutput('pre-release', match.groups.prerelease)
+          core.setOutput('build', match.groups.build)
+          core.setOutput('labels', labels)

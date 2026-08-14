@@ -1,0 +1,1 @@
+export { accessMonitoringRuleService } from './accessmonitoringrule';

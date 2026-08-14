@@ -1,0 +1,7 @@
+# Path-specific configurations.
+paths:
+  # This pattern only matches '.github/workflows/integrations.yaml' file.
+  .github/workflows/integrations.yaml:
+    ignore:
+      # Ignore errors from the old runner check. This may be useful for (outdated) self-hosted runner environment.
+      - 'the runner of "actions/checkout@v3" action is too old to run on GitHub Actions'

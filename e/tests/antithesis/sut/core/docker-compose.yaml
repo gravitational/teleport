@@ -1,0 +1,187 @@
+services:
+  pki:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/pki:${TAG:-latest}
+    environment:
+      OUT: /certs
+      PUBLIC_ADDR: antithesis.teleport.local
+      SANS: localhost 127.0.0.1 antithesis.teleport.local proxy1 proxy2 app-alpha.antithesis.teleport.local app-alpha-tcp.antithesis.teleport.local
+      GENERATE_PG_CERTS: "1"
+      PG_CERT_DIR: /certs
+    volumes:
+      - certs:/certs
+    restart: "no"
+
+  pg:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/pg:${TAG:-latest}
+    hostname: pg
+    container_name: pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    depends_on:
+      pki:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - certs:/certs:ro
+      - pg-data:/var/lib/postgresql
+
+  auth1:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
+    hostname: auth1
+    container_name: auth1
+    depends_on:
+      pg:
+        condition: service_healthy
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/auth.yaml:/etc/teleport.yaml:ro
+      - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
+      - ./teleport/startup.yaml:/etc/teleport/startup.yaml
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    networks:
+      default:
+        aliases:
+          - auth
+
+  auth2:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
+    hostname: auth2
+    container_name: auth2
+    depends_on:
+      pg:
+        condition: service_healthy
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/auth.yaml:/etc/teleport.yaml:ro
+      - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
+      - ./teleport/startup.yaml:/etc/teleport/startup.yaml
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    networks:
+      default:
+        aliases:
+          - auth
+
+  proxy1:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    hostname: proxy1
+    container_name: proxy1
+    depends_on:
+      auth1:
+        condition: service_healthy
+      auth2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/proxy.yaml:/etc/teleport.yaml:ro
+
+  proxy2:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    hostname: proxy2
+    container_name: proxy2
+    depends_on:
+      auth1:
+        condition: service_healthy
+      auth2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/proxy.yaml:/etc/teleport.yaml:ro
+
+  proxy-lb:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}
+    hostname: antithesis.teleport.local
+    container_name: proxy-lb
+    depends_on:
+      proxy1:
+        condition: service_healthy
+      proxy2:
+        condition: service_healthy
+    ports:
+      - "3080:3080"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      default:
+        aliases:
+          - antithesis.teleport.local
+
+  app-alpha:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}
+    container_name: app-alpha
+    hostname: app-alpha
+    volumes:
+      - ./app/alpha/:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  agent:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    hostname: agent
+    container_name: agent
+    depends_on:
+      - proxy-lb
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/agent.yaml:/etc/teleport.yaml:ro
+
+  workload:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}
+    hostname: workload
+    container_name: workload
+    depends_on:
+      proxy-lb:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    volumes:
+      - ./tbot/tbot.yaml:/etc/tbot/tbot.yaml:ro
+      - machine-id:/opt/machine-id
+      - certs:/certs
+
+volumes:
+  certs:
+  pg-data:
+  machine-id:

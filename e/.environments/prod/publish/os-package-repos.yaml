@@ -1,0 +1,16 @@
+---
+# APT vars
+APT_REPO_DOMAIN_NAME: apt.releases.teleport.dev
+APT_S3_BUCKET: apt.releases.teleport.dev
+APT_DEPLOYMENT_AWS_ROLE: arn:aws:iam::146628656107:role/apt-repo-hosting-teleport.e-gha-role
+APT_CLOUDFRONT_DISTRIBUTION: E3C4UJ05YZ1NFV
+
+# YUM vars
+YUM_REPO_DOMAIN_NAME: yum.releases.teleport.dev
+YUM_S3_BUCKET: yum.releases.teleport.dev
+YUM_REPO_BASE_DOMAIN_NAME: releases.teleport.dev
+YUM_DEPLOYMENT_AWS_ROLE: arn:aws:iam::146628656107:role/yum-repo-hosting-teleport.e-gha-role
+YUM_CLOUDFRONT_DISTRIBUTION: E3VV8TKV47BRMD
+
+# OPRT vars
+LEADERSHIP_ELECTION_NAMESPACE: gha-runners

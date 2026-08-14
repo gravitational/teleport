@@ -1,0 +1,139 @@
+---
+name: Get GHA environment variables
+description: |
+  Gets the environment variables for the specified environment, regardless of
+  current context.
+inputs:
+  repository:
+    description: |
+      The full name of the repository that hosts the environment. Defaults to
+      github.repository.
+    default: ${{ github.repository }}
+  environment:
+    description: The environment that vars should be loaded from.
+    required: true
+  prefix:
+    description: |
+      A prefix for the name of each loaded environment variable, to namespace
+      the variables in shell environments. For example, this would convert a
+      variable `SOME_VAR_NAME` to `<prefix>SOME_VAR_NAME`.
+  variables:
+    description: |
+      A list of variables to pull in as environment variables, with one variable
+      name per line. If omitted, all variables will be loaded.
+  # If this action ever needs to allow for a token as an alternative auth input,
+  # then the implementing engineer should refer to here:
+  # https://github.com/gravitational/teleport.e/pull/4047/commits/8b7bcc1cb8948272a16863ef6cfda911296cb069
+  # This contains a full implementation, including coalescing auth values.
+  github-app-id:
+    description: |
+      The Github App ID for the app that has environment permissions for the
+      specified environment. Either this and the corresponding private key,
+      or a token, must be provided.
+  github-app-private-key:
+    description: |
+      The Github App private key for the app that has environment permissions
+      for the specified environment. Either this and the corresponding app ID,
+      or a token, must be provided.
+runs:
+  using: composite
+  steps:
+    - name: Generate a token
+      id: generate-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ inputs.github-app-id }}
+        private-key: ${{ inputs.github-app-private-key }}
+    - name: Extract vars via API calls
+      uses: actions/github-script@v7
+      # Composite actions specifically don't get input env vars populated, so
+      # they must be populated here so that Github's action library can
+      # parse them correctly
+      env:
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        INPUT_PREFIX: ${{ inputs.prefix }}
+        INPUT_VARIABLES: ${{ inputs.variables }}
+      id: extract-vars
+      with:
+        github-token: ${{ steps.generate-token.outputs.token }}
+        script: |
+          const fullRepoName = core.getInput("repository", { required: true });
+          const environment_name =
+            core.getInput("environment", { required: true });
+
+          function getRepoNameParts() {
+            const splitRepoName = fullRepoName.split("/");
+
+            // This can be used directly in API calls
+            return {
+              owner: splitRepoName[0],
+              // It should be safe to assume that index 1 is the repo name as
+              // GitHub does not allow org/user names to contain a slash
+              // It should be safe to ignore index >= 2 as GitHub does not allow
+              // repo names to contain a slash
+              repo: splitRepoName[1]
+            };
+          }
+
+          function getVariablesFilterList() {
+            const variablesAsString = core.getInput("variables");
+            if (!variablesAsString) {
+              return null;
+            }
+
+            return variablesAsString.split(/[\r\n]/)
+                  .map(variableLine => variableLine.trim())
+                  .filter(variableLine => variableLine !== "");
+          }
+
+          async function getGHEnvVars() {
+            const varList = await github.paginate(
+              "GET /repos/{owner}/{repo}/environments/{environment_name}/variables",
+              {
+                ...getRepoNameParts(),
+                environment_name,
+                per_page: 30 // 30 is max per docs
+              }
+            );
+
+            // Transform the response to a name/value object
+            return varList.reduce((builtObject, arrayEntry, index) => {
+              builtObject[arrayEntry.name] = arrayEntry.value;
+              return builtObject;
+            }, {});
+          }
+
+          function setVariable(name, value) {
+            const prefixedName = core.getInput("prefix") + name;
+            core.info(`Setting job env var "${prefixedName}=${value}"`);
+            core.exportVariable(prefixedName, value);
+          }
+
+          function setJobEnvVars(ghEnvVars) {
+            const variablesFilter = getVariablesFilterList();
+
+            if (!variablesFilter) {
+              core.info("Variable filter not provided, loading all vars");
+              Object.entries(ghEnvVars).forEach(([name, value]) => {
+                setVariable(name, value);
+              });
+
+              return;
+            }
+
+            variablesFilter.forEach(name => {
+              const value = ghEnvVars[name];
+              if (!value) {
+                core.warning(`Variable ${name} not found in the Github environment!`);
+                return;
+              }
+
+              setVariable(name, value);
+            });
+          }
+
+          core.info(`Running against environment "${environment_name}" in "${fullRepoName}"`);
+          const ghEnvVars = await getGHEnvVars();
+          setJobEnvVars(ghEnvVars);
+          core.info(`Successfully set ${ghEnvVars.length} vars`);

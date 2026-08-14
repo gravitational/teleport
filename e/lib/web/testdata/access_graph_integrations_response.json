@@ -1,0 +1,121 @@
+{
+    "integrations": [
+        {
+            "kind": "discovery_config",
+            "subKind": "",
+            "version": "v1",
+            "metadata": {
+                "name": "discovery-config-1",
+                "labels": null
+            },
+            "spec": {
+                "aws": [
+                    {
+                        "accountID": "123456789012",
+                        "regions": [
+                            "us-west-1"
+                        ]
+                    }
+                ],
+                "discoveryGroup": "discovery-group-1"
+            },
+            "status": {
+                "state": "DISCOVERY_CONFIG_STATE_UNSPECIFIED",
+                "discovered_resources": 0,
+                "last_sync_time": "0001-01-01T00:00:00Z"
+            }
+        },
+        {
+            "kind": "discovery_config",
+            "subKind": "",
+            "version": "v1",
+            "metadata": {
+                "name": "discovery-config-2",
+                "labels": null
+            },
+            "spec": {
+                "aws": [
+                    {
+                        "accountID": "0987654321",
+                        "regions": [
+                            "us-west-1"
+                        ]
+                    }
+                ],
+                "discoveryGroup": "discovery-group-1"
+            },
+            "status": {
+                "state": "DISCOVERY_CONFIG_STATE_UNSPECIFIED",
+                "discovered_resources": 0,
+                "last_sync_time": "0001-01-01T00:00:00Z"
+            }
+        },
+        {
+            "kind": "plugin",
+            "subKind": "",
+            "version": "v1",
+            "metadata": {
+                "name": "entra-id",
+                "labels": null
+            },
+            "spec": {
+                "type": "entra-id",
+                "endpoint": ""
+            },
+            "status": {
+                "state": "running",
+                "last_error_message":"fake error",
+                "last_sync_time":"1984-04-04T00:00:00Z",
+                "details":{
+                    "entra":{
+                        "imported_users":200,
+                        "imported_groups":100
+                    }
+                }
+            }
+        },
+        {
+            "kind": "plugin",
+            "subKind": "accessgraph",
+            "version": "v1",
+            "metadata": {
+                "name": "gitlab",
+                "labels": null
+            },
+            "spec": {
+                "type": "gitlab",
+                "endpoint": "https://gitlab.com"
+            },
+            "status": {
+                "state": "running",
+                "last_error_message":"fake error",
+                "last_raw_error": "fake raw error",
+                "last_sync_time":"1984-04-04T00:00:00Z",
+                "details":{
+                    "gitlab":{
+                        "imported_users":200,
+                        "imported_groups":100,
+                        "imported_projects":500
+                    }
+                }
+            }
+        },
+        {
+            "kind": "plugin",
+            "subKind": "",
+            "version": "v1",
+            "metadata": {
+                "name": "okta",
+                "labels": null
+            },
+            "spec": {
+                "type": "okta",
+                "endpoint": "https://ultraorg.okta.com"
+            },
+            "status": {
+                "state": "running",
+                "last_sync_time": "1984-04-04T00:00:00Z"
+            }
+        }
+    ]
+}

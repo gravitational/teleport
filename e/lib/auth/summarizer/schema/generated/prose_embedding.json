@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/gravitational/teleport/e/lib/auth/summarizer/schema/prose-embedding","properties":{"condensed_text":{"type":"string","description":"The generated text used for embedding generation."}},"additionalProperties":false,"type":"object","required":["condensed_text"]}

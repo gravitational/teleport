@@ -1,0 +1,222 @@
+---
+name: Run govulncheck
+
+on:
+  workflow_dispatch:
+    inputs:
+      slack-channel-id:
+        description: 'The slack channel ID to send the report to.'
+        type: string
+        required: false
+        # We default this to #testing-noise as manually invoking this workflow
+        # is only expected to be done for testing purposes.
+        default: 'C05BHLD737B' # #testing-noise channel
+  schedule:
+    - cron: '0 10 * * *' # At 1000 UTC every day (2am/3am PST/PDT)
+  pull_request:
+    paths:
+      - .github/workflows/nightly-govulncheck.yaml
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      branches-json: ${{ steps.branches.outputs.branches-json }}
+    steps:
+      - name: Get the latest release version
+        uses: gravitational/teleport.e/.github/actions/latest-version@master
+        id: latest-version
+      - name: Parse the latest version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ steps.latest-version.outputs.latest-version }}
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Get all branches
+          sparse-checkout: non-existant-directory # Don't actually pull files in, only history
+      - name: Get a list of branches to run against
+        id: branches
+        env:
+          LATEST_RELEASE_VERSION: ${{ steps.version.outputs.major }}
+        run: |
+          MAJOR_VERSIONS_TO_CHECK=(
+            "${LATEST_RELEASE_VERSION}"
+            "$(( LATEST_RELEASE_VERSION - 1 ))"
+          )
+
+          # Check if a new branch has been cut, but not released yet
+          NEXT_MAJOR_VERSION="$(( LATEST_RELEASE_VERSION + 1 ))"
+          if git rev-parse --verify "origin/branch/v${NEXT_MAJOR_VERSION}" >/dev/null 2>&1; then
+            echo "Found unreleased version ${NEXT_MAJOR_VERSION}"
+            MAJOR_VERSIONS_TO_CHECK+=("${NEXT_MAJOR_VERSION}")
+          fi
+
+          BRANCHES_TO_CHECK=("master")
+          BRANCHES_TO_CHECK+=("${MAJOR_VERSIONS_TO_CHECK[@]/#/'branch/v'}")
+
+          BRANCHES_JSON="$(jq -cn '$ARGS.positional' --args -- "${BRANCHES_TO_CHECK[@]}")"
+          echo "branches-json=${BRANCHES_JSON}" | tee -a "${GITHUB_OUTPUT}"
+
+  run:
+    runs-on: ubuntu-22.04-32core
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.setup.outputs.branches-json) }}
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-ref: ${{ matrix.branch }}
+          edition: enterprise
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Install govulncheck-report
+        run: go -C ./build.assets/tooling/cmd/govulncheck-report install .
+
+      - name: Run govulncheck on all Go modules
+        env:
+          BRANCH: ${{ matrix.branch }}
+        run: |
+          set -o pipefail
+          readarray -d '' MODULE_DIRECTORY_PATHS < \
+            <(find . -name '_*' -prune -o -name go.mod -printf '%h\0')
+
+          declare -A MOD_GOOS=(
+            [./e/windowsauth/installer]=windows
+            [./e/windowsauth]=windows
+          )
+          DEFAULT_GOOS=$(go env GOOS)
+
+          declare -a FAILING_MODULES=()
+          for MODULE_DIRECTORY_PATH in "${MODULE_DIRECTORY_PATHS[@]}"; do
+            MODULE_NAME=$(go list -C "${MODULE_DIRECTORY_PATH}" -m)
+            echo "::group::${MODULE_NAME}"
+            echo "Checking ${MODULE_NAME} at '${MODULE_DIRECTORY_PATH}'..."
+
+            set +e  # Ignore errors for this part
+            GOOS=${MOD_GOOS[${MODULE_DIRECTORY_PATH}]:-${DEFAULT_GOOS}} \
+            govulncheck-report \
+                --ignore=GO-2022-0635 \
+                --ignore=GO-2022-0646 \
+                --ignore=GO-2025-3763 \
+                --ignore=GO-2026-5064 \
+                --ignore=GO-2026-5298 \
+                --ignore=GO-2026-5338 \
+                --ignore=GO-2026-5622 \
+                --ignore=GO-2026-5932 \
+                -- \
+                -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... tool 2>&1; \
+              EXIT_CODE=$?
+            set -e
+
+            if [[ "${EXIT_CODE}" == 0 ]]; then
+              echo "Vuln check passed."
+            else
+              echo "::error::Vuln check failed!"
+              FAILING_MODULES+=("$MODULE_NAME")
+            fi
+
+            printf "\n\n::endgroup::\n"
+          done
+
+          # Fail if any vulnerabilities were found
+          if [[ "${#FAILING_MODULES[@]}" != 0 ]]; then
+            {
+              echo
+              echo "${#FAILING_MODULES[@]} modules failed on ${BRANCH}:"
+              printf '*  %s\n' "${FAILING_MODULES[@]}"
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          fi
+
+          echo "All checks passed"
+  report:
+    runs-on: ubuntu-latest
+    needs: run
+    if: always()
+    permissions:
+      actions: read
+    steps:
+      - name: Set slack channel
+        id: slack-config
+        env:
+          DISPATCH_CHANNEL_ID: ${{ inputs.slack-channel-id }}
+          PULL_REQUEST_CHANNEL_ID: C05BHLD737B # #testing-noise channel
+          SCHEDULE_CHANNEL_ID: C0DF0TPMY # #dev-teleport channel
+        run: |
+          case "${GITHUB_EVENT_NAME}" in
+          workflow_dispatch) echo "channel-id=${DISPATCH_CHANNEL_ID}" ;;
+          pull_request) echo "channel-id=${PULL_REQUEST_CHANNEL_ID}" ;;
+          schedule) echo "channel-id=${SCHEDULE_CHANNEL_ID}" ;;
+          *) echo "Unsupported event ${GITHUB_EVENT_NAME}"; exit 1 ;;
+          esac | tee -a "$GITHUB_OUTPUT"
+      - name: Fetch report data
+        id: fetch
+        if: needs.run.result != 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch link to logs on CI
+          URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${URL}" \
+            | jq -r '"logurl=\(.html_url)"' >> "$GITHUB_OUTPUT"
+      - name: Send failure report to slack
+        if: needs.run.result != 'success'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+          errors: true
+          payload: |
+            {
+              "channel": "${{ steps.slack-config.outputs.channel-id }}",
+              "username": "Vulnerability Reporter",
+              "text": "*Go Vulnerability Check Daily Report*",
+              "mrkdwn": true,
+              "parse": "none",
+              "unfurl_links": false,
+              "unfurl_media": false,
+              "attachments": [
+                {
+                  "color": "danger",
+                  "title": "Go vulnerabilities detected - click here to investigate",
+                  "title_link": "${{ steps.fetch.outputs.logurl }}"
+                }
+              ]
+            }
+
+      - name: Send success report to slack
+        if: needs.run.result == 'success'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+          errors: true
+          payload: |
+            {
+              "channel": "${{ steps.slack-config.outputs.channel-id }}",
+              "username": "Vulnerability Reporter",
+              "text": "*Go Vulnerability Check Daily Report*",
+              "mrkdwn": true,
+              "attachments": [
+                {
+                  "color": "good",
+                  "text": "No Go vulnerabilities detected. Yay!"
+                }
+              ]
+            }

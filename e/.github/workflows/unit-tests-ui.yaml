@@ -1,0 +1,72 @@
+name: Unit Tests UI
+run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+  merge_group:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        # Only checkout if not a pull request. dorny/paths-filter accesses changed files
+        # on a PR via the API and does not need a checked-out repo.
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/unit-tests-ui.yaml'
+              - 'web/**'
+
+  test:
+    name: Test UI
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      # See https://github.com/gravitational/teleport/blob/2aaa3ec9a129213db8a18083d5b4681f86328d34/web/packages/teleterm/src/agentCleanupDaemon/agentCleanupDaemon.test.ts#L82-L89
+      # for the original impetus for adding --init.
+      options: --init
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/teleport
+          # base_ref is only available for pull_request triggers
+          # for merge_group triggers we need to pull from the event payload
+          ref: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v6
+        with:
+          path: e
+
+      - name: Print Node version
+        run: |
+          node --version
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Run tests
+        run: pnpm test

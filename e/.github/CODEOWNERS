@@ -1,0 +1,27 @@
+# GHA workflows and custom actions control merging and CI/CD processes.
+# Protect the `.github` directory using CODEOWNERS.
+/.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy @marcin-je @jacobboykin
+/.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+
+# E2E Tests
+/.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy @ryanclark @avatus @ravicious
+
+# Internal Tools files
+/tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+/.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+/scripts/check-unencrypted-sops.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+/scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+/scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+
+# Session Summaries
+/tooling/obfuscate-prompts/ @ryanclark @tigrato
+/tooling/schemagen/ @ryanclark @tigrato
+
+# Owners for Rust dependency updates.
+/windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
+
+# Owners for Go dependency updates.
+**/go.mod @russjones @r0mant @zmb3 @rosstimothy
+**/go.sum @russjones @r0mant @zmb3 @rosstimothy
+/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin
+/tooling/os-package-repo-tool/go.sum @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev @marcin-je @jacobboykin

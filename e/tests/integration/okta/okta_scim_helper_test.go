@@ -1,0 +1,355 @@
+package okta
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"maps"
+	"net/http"
+	"net/url"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/e/tests/common"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+func scimBaseURL(sut *common.SUT) string {
+	u := url.URL{
+		Scheme: "https",
+		Path:   "/v1/webapi/scim/okta",
+		Host:   sut.ProxyAddr,
+	}
+	return u.String()
+}
+
+func newInsecureHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+}
+
+func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.Client {
+	t.Helper()
+	scimClient, err := scimsdk.New(&scimsdk.Config{
+		Endpoint:        scimBaseURL(sut),
+		Token:           scimToken,
+		IntegrationType: "okta",
+		HTTPClient:      newInsecureHTTPClient(),
+	})
+	require.NoError(t, err)
+	return scimClient
+}
+
+type scimIntegrationOptions struct {
+	ApiCredentials           *oktav1.OktaAPICredentials
+	AccessListSettings       *oktav1.AccessListSettings
+	EnableFullSync           bool
+	DisableBidirectionalSync bool
+	TimeBetweenImports       time.Duration
+}
+
+type oktaIntegrationOption func(*scimIntegrationOptions)
+
+func withAccessListDisabled() oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.AccessListSettings = nil
+	}
+}
+
+func withAccessListSettings(config *oktav1.AccessListSettings) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.AccessListSettings = config
+	}
+}
+
+func withEnableFullSync() oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.EnableFullSync = true
+	}
+}
+
+// withAccessListSyncEnabledNoBidirectional enables access-list and user sync (so the
+// Okta -> Teleport import runs and creates PENDING OktaAssignment records) but
+// leaves bidirectional sync disabled. This prevents the assignment processor
+// from running and processing the OktaAssignment records and syncing
+// Teleport -> Okta changes to Okta upstream.
+func withAccessListSyncEnabledNoBidirectional() oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.EnableFullSync = true
+		opts.DisableBidirectionalSync = true
+	}
+}
+
+// withTimeBetweenImports allows to conform the Teleport Okta sync interval.
+func withTimeBetweenImports(d time.Duration) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.TimeBetweenImports = d
+	}
+}
+
+// createAndWaitForOktaIntegration creates Okta integration and waits for the plugin to be running.
+func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, options ...oktaIntegrationOption) string {
+	t.Helper()
+	opts := scimIntegrationOptions{
+		ApiCredentials:     oktav1.OktaAPICredentials_builder{SswsBearerToken: proto.String("12345")}.Build(),
+		AccessListSettings: oktav1.AccessListSettings_builder{DefaultOwner: []string{"alice"}}.Build(),
+		TimeBetweenImports: time.Second,
+	}
+	for _, v := range options {
+		v(&opts)
+	}
+	scimToken := uuid.NewString()
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+
+	for _, u := range fakeOkta.ListUsers("") {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
+	}
+
+	req := oktav1.CreateIntegrationRequest_builder{
+		OktaOrganizationUrl: fakeOkta.URL(),
+		ScimToken:           scimToken,
+		ApiCredentials:      opts.ApiCredentials,
+		AccessListSettings:  opts.AccessListSettings,
+		ReuseConnector:      "okta-pre-created-test",
+	}.Build()
+	if opts.EnableFullSync {
+		req.SetEnableBidirectionalSync(!opts.DisableBidirectionalSync)
+		req.SetEnableAppGroupSync(true)
+		req.SetEnableUserSync(true)
+		req.SetDisableAssignDefaultRoles(false)
+		req.SetEnableAccessListSync(true)
+	}
+
+	_, err := oktaClient.CreateIntegration(t.Context(), req)
+	require.NoError(t, err)
+
+	w := sut.NewResourceWatcher(t, types.KindPlugin)
+	defer w.Close()
+
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                opts.TimeBetweenImports,
+		timeBetweenAssignmentProcessLoops: 1 * time.Second,
+	})
+
+	waitForResource(t, w, func(r types.Plugin) bool {
+		return r.GetName() == types.PluginTypeOkta && r.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+	})
+	return scimToken
+}
+
+func provisionSCIMUsers(t *testing.T, scimClient scimsdk.Client, ids ...string) []*scimsdk.User {
+	t.Helper()
+	ctx := context.Background()
+	var users []*scimsdk.User
+	for _, userID := range ids {
+		userName := fmt.Sprintf("test-user-%s@example.com", userID)
+		u, err := scimClient.CreateUser(ctx, &scimsdk.User{ExternalID: userID, ID: userName, UserName: userName, Active: true})
+		require.NoError(t, err)
+		users = append(users, u)
+	}
+	return users
+}
+
+func provisionSCIMGroups(t *testing.T, scimClient scimsdk.Client, groups []*scimsdk.Group) []*scimsdk.Group {
+	t.Helper()
+	ctx := context.Background()
+	var out []*scimsdk.Group
+	for _, v := range groups {
+		group, err := scimClient.CreateGroup(ctx, v)
+		require.NoError(t, err)
+		out = append(out, group)
+	}
+	return out
+}
+
+func assertSCIMUserSchema(t *testing.T, user *scimsdk.User) {
+	t.Helper()
+	require.NotEmpty(t, user.ID)
+	require.NotEmpty(t, user.ExternalID)
+	require.NotEmpty(t, user.UserName)
+	require.NotEmpty(t, user.Meta.Created)
+	require.NotEmpty(t, user.Meta.Location)
+	require.Len(t, user.Schemas, 1)
+	require.Equal(t, "urn:ietf:params:scim:schemas:core:2.0:User", user.Schemas[0])
+}
+
+func assertSCIMGroupSchema(t *testing.T, group *scimsdk.Group) {
+	t.Helper()
+	require.NotEmpty(t, group.ID)
+	require.NotEmpty(t, group.DisplayName)
+	require.NotEmpty(t, group.Meta.Version)
+	require.NotEmpty(t, group.Meta.Location)
+	require.Len(t, group.Schemas, 1)
+	require.Equal(t, "urn:ietf:params:scim:schemas:core:2.0:Group", group.Schemas[0])
+}
+
+func mustNewSAMLLikeUser(t *testing.T, name, connectorID string) types.User {
+	t.Helper()
+	now := time.Now()
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetExpiry(now.Add(48 * time.Hour))
+	user.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			ID:       connectorID,
+			Identity: name,
+			Type:     "saml",
+		},
+		Time: now,
+		User: types.UserRef{
+			Name: "system",
+		},
+	})
+	user.SetRoles([]string{
+		"okta-requester",
+	})
+	user.SetSAMLIdentities([]types.ExternalIdentity{
+		{
+			ConnectorID: connectorID,
+			Username:    name,
+		},
+	})
+	return user
+}
+
+func mustListOktaUsers(t *testing.T, identity services.Identity) []types.User {
+	t.Helper()
+	ctx := t.Context()
+
+	var res []types.User
+	listFn := func(ctx context.Context, limit int, pageToken string) ([]*types.UserV2, string, error) {
+		resp, err := identity.ListUsers(ctx, usersv1.ListUsersRequest_builder{PageSize: int32(limit), PageToken: pageToken}.Build())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.GetUsers(), resp.GetNextPageToken(), nil
+	}
+	for u, err := range clientutils.Resources(ctx, listFn) {
+		require.NoError(t, err)
+		if _, ok := u.GetLabel(eteleport.OktaUserIDLabel); ok {
+			res = append(res, u)
+		}
+	}
+
+	return res
+}
+
+func copyWithExtraVal(m map[string]any, k string, v any) map[string]any {
+	dst := make(map[string]any, len(m)+1)
+	maps.Copy(dst, m)
+	dst[k] = v
+	return dst
+}
+
+func mustGetUser(t *testing.T, authServer *auth.Server, name string) types.User {
+	t.Helper()
+	ctx := t.Context()
+
+	u, err := authServer.Services.GetUser(ctx, name, false)
+	require.NoError(t, err)
+
+	return u
+}
+
+func requireUserNotExists(t *testing.T, authServer *auth.Server, name string) {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := authServer.GetUser(ctx, name, false)
+	require.True(t, trace.IsNotFound(err), "user %q exists", name)
+}
+
+func mustGetUserIDLabelValue(t *testing.T, user types.User) string {
+	t.Helper()
+	id, ok := user.GetLabel(eteleport.OktaUserIDLabel)
+	require.True(t, ok)
+	require.NotEmpty(t, id)
+	return id
+}
+
+func withAPICredentials(apiCredentials *oktav1.OktaAPICredentials) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.ApiCredentials = apiCredentials
+	}
+}
+
+// mustConvertToOktaSCIMOnlyAPICredential converts the regular Okta SSWS API token to a legacy
+// SCIM-only API token. This is to simulate the legacy setup where the Okta API token was created
+// before SCIM support was added. In that case the credential has a "scim-only" purpose label,
+// meaning it was created only for SCIM and the Okta sync is disabled. Such credential is using
+// during SCIM User resource operations to pull groups from Okta and populate the user's "groups"
+// trait.
+func mustConvertToOktaSCIMOnlyAPICredential(t *testing.T, sut *common.SUT) {
+	t.Helper()
+	ctx := t.Context()
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	plugin, err := authServer.GetPlugin(ctx, types.PluginTypeOkta, true)
+	require.NoError(t, err)
+
+	credsRef := plugin.GetCredentials().GetStaticCredentialsRef()
+	require.NotEmpty(t, credsRef)
+
+	allCreds, err := oktaplugin.GetStaticCredentials(ctx, authServer, credsRef)
+	require.NoError(t, err)
+
+	credsByName := make(map[string]types.PluginStaticCredentials, len(allCreds))
+	for _, cred := range allCreds {
+		credsByName[cred.GetName()] = cred
+	}
+
+	require.Len(t, credsByName, 2)
+	require.Contains(t, credsByName, "okta")
+	require.Contains(t, credsByName, "okta-scim-token")
+
+	authCred := credsByName["okta"]
+	require.NotEmpty(t, authCred.GetAPIToken(), "expected API token credential")
+	authCred.GetStaticLabels()[types.OktaCredPurposeLabel] = types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+
+	_, err = authServer.UpdatePluginStaticCredentials(ctx, authCred)
+	require.NoError(t, err)
+}
+
+func mustDeleteOktaAPICredential(t *testing.T, sut *common.SUT) {
+	t.Helper()
+	ctx := t.Context()
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	err := authServer.DeletePluginStaticCredentials(ctx, "okta")
+	require.NoError(t, err)
+}
+
+func requireTraitsEqual(t *testing.T, traitsA, traitsB map[string][]string) {
+	t.Helper()
+	traitsA = copyWithSortedValues(traitsA)
+	traitsB = copyWithSortedValues(traitsB)
+	require.Empty(t, cmp.Diff(traitsA, traitsB))
+}
+
+func copyWithSortedValues(m map[string][]string) map[string][]string {
+	res := make(map[string][]string, len(m))
+	for k, v := range m {
+		vCopy := slices.Clone(v)
+		slices.Sort(vCopy)
+		res[k] = vCopy
+	}
+	return res
+}

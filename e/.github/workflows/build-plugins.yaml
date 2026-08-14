@@ -1,0 +1,497 @@
+---
+name: Build Teleport Plugins
+
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      teleport-version:
+        type: string
+      environment:
+        type: string
+        default: stage/build
+
+jobs:
+  build-plugins:
+    strategy:
+      matrix:
+        target:
+          - os: linux
+            runs-on: ubuntu-22.04-16core
+          - os: darwin
+            runs-on: macos-15-xlarge
+          - os: windows
+            runs-on: ubuntu-22.04-16core # Perform cross-compile on a Linux runner
+    runs-on: ${{ matrix.target.runs-on }}
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARTIFACT_DIRECTORY: /tmp/build
+      OS: ${{ matrix.target.os }}
+    steps:
+      # Setup
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          oss-fetch-depth: 0  # This is required by some of the commands in the makefiles
+
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_PLUGINS_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-plugins-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          # Mac signing secrets are needed for signing the macOS plugins
+          value-sets: mac-signing
+          environments-directory: e/.environments
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "./go.mod"
+          check-latest: true
+          cache: false
+
+      - name: Set environment variables for Makefiles
+        env:
+          VERSION_TAG: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "VERSION=${VERSION_TAG##v}" >> "$GITHUB_ENV"
+
+      # File artifacts
+      - name: Download Go dependencies once
+        run: go mod download
+
+      # Build access plugins
+      # Note: we only distribute access plugins for Linux, so skip
+      # macOS and Windows builds to save time.
+      - name: Build the access plugins release tarballs
+        if: ${{ matrix.target.os == 'linux' }}
+        env:
+          ACCESS_SUBDIRECTORIES: >-
+            discord
+            pagerduty
+            msteams
+            jira
+            slack
+            mattermost
+            email
+            datadog
+        run: |
+          read -ra plugins <<<"${ACCESS_SUBDIRECTORIES}"
+          for plugin in "${plugins[@]}"; do
+            make -C "integrations/access/$plugin/" OS=linux ARCH=amd64 release
+            make -C "integrations/access/$plugin/" OS=linux ARCH=arm64 release
+          done
+
+      # Setup Keychain for macOS plugin builds only for signing and notarizing
+      - name: Setup keychain
+        if: ${{ matrix.target.os == 'darwin' }}
+        env:
+          APP_KEY: ${{ env.APPLE_APPLICATION_PRIVATE_KEY }}
+          APP_KEY_PASSWORD: ${{ env.APPLE_APPLICATION_PRIVATE_KEY_PASSWORD }}
+          INST_KEY: ${{ env.APPLE_INSTALLER_PRIVATE_KEY }}
+          INST_KEY_PASSWORD: ${{ env.APPLE_INSTALLER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
+
+      - name: Build the terraform module tarballs
+        # Note: module tarballs only contain HCL source code, which does not
+        # depend on OS, so skip macOS and Windows.
+        if: ${{ matrix.target.os == 'linux' }}
+        run: |
+          make -C integrations/terraform-modules release
+
+      - name: Build the terraform provider release tarballs / cross compile for windows
+        env:
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
+        run: |
+          if [[ "$OS" == "linux" || "$OS" == "darwin" ]]; then
+            make -C integrations/terraform release ARCH=amd64
+            make -C integrations/terraform release ARCH=arm64
+          fi
+          if [[ "$OS" == "darwin" ]]; then
+            make -C integrations/terraform release ARCH=universal
+          fi
+          if [[ "$OS" == "windows" ]]; then
+            make -C integrations/terraform OS=windows ARCH=amd64 release
+          fi
+
+      - name: Build the MWI terraform provider release tarballs
+        if: ${{ matrix.target.os != 'windows' }}
+        env:
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
+        run: |
+          make -C integrations/terraform-mwi release ARCH=amd64
+          make -C integrations/terraform-mwi release ARCH=arm64
+          if [[ "$OS" == "darwin" ]]; then
+            make -C integrations/terraform-mwi release ARCH=universal
+          fi
+
+      - name: Build the event handler release tarballs
+        if: ${{ matrix.target.os != 'windows' }}
+        env:
+          APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.OS == 'darwin' && env.APPLE_APPLICATION_PASSWORD }}
+        run: |
+          make -C integrations/event-handler release ARCH=amd64
+          make -C integrations/event-handler release ARCH=arm64
+
+      - name: Collect the build files
+        run: |
+          mkdir -pv "$ARTIFACT_DIRECTORY"
+          find . -type f \( -name "*.tar.gz" -o -name "*.exe" \) \
+            ! -name "terraform-provider-teleport.exe" \
+            -exec cp {} "$ARTIFACT_DIRECTORY" \;
+
+      - name: Generate release server manifests
+        shell: bash
+        env:
+          # Important: This path must not include any spaces, or it will break the downstream invocation.
+          RELCLI_PATH: /tmp/relcli
+          RELCLI_VERSION: ${{ env.RELCLI_VERSION }}
+          OS: ${{ env.OS == 'darwin' && 'macos' || 'linux' }} # relcli uses macos instead of darwin
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        run: |
+          # Download the release server CLI tool
+          URL="https://cdn.teleport.dev/relcli-${RELCLI_VERSION}-${OS}-$(go env GOARCH)"
+
+          echo "Downloading relcli from '$URL'"
+          curl -fsSL -o "${RELCLI_PATH}" "${URL}"
+          chmod +x "${RELCLI_PATH}"
+          ls -lh "${RELCLI_PATH}"
+
+          ls -lah
+
+          shopt -s nullglob
+          for file in *; do
+            # Skip manifest for terraform modules.
+            # Modules will be published to our Terraform module registry rather than the release server.
+            [[ "${file##*/}" == terraform-module* ]] && continue
+            # Don't treat existing manifest files as artifacts.
+            [[ "${file##*.}" == manifest ]] && continue
+            # Skip files if a manifest for them already exists.
+            [[ -f "${file}.manifest" ]] && continue
+            
+            # Trim parts off the filename to get the plugin name
+            # File names are typically written as:
+            # teleport-access-<plugin name>-<tag>-<os>-<arch>-bin.tar.gz
+            # or
+            # teleport-event-handler-<tag>-<os>-<arch>-bin.tar.gz
+            
+            # Normalize filename so .exe and .manifest don't break parsing
+            normalized_file="${file%.manifest}"
+            normalized_file="${normalized_file%.exe}"
+            normalized_file="${normalized_file%-bin.tar.gz}"
+
+            PLUGIN_ARCH="${normalized_file##*-}" # last dash-separated field
+            PLUGIN_OS="${normalized_file%-*}" # remove last field
+            PLUGIN_OS="${PLUGIN_OS##*-}" # last field of remaining
+
+            PLUGIN_NAME="${normalized_file#teleport-}"
+            PLUGIN_NAME="${PLUGIN_NAME#access-}" # This is a noop for event-handler
+            PLUGIN_NAME="${PLUGIN_NAME%-v*}"
+            PLUGIN_NAME="${PLUGIN_NAME%-teleport*}" # This is a noop for everything but the Terraform provider
+
+            # Clean up the plugin name for the description
+            case "${PLUGIN_NAME}" in
+              msteams) PLUGIN_NAME="Microsoft Teams" ;;
+              pagerduty) PLUGIN_NAME="PagerDuty" ;;
+              *)
+                # The mac runners have an old version of bash that does not support ${PLUGIN_NAME^}, so
+                # we need to captialize the first character this way.
+                PLUGIN_NAME=$(tr '[:lower:]' '[:upper:]' <<< "${PLUGIN_NAME:0:1}")"${PLUGIN_NAME:1}"
+                PLUGIN_NAME="${PLUGIN_NAME/-/ }" # Replace '-' with ' '
+              ;;
+            esac
+
+            "${RELCLI_PATH}" generate-manifest \
+              --path "${PWD}/$file" --os "${PLUGIN_OS}" --architecture "${PLUGIN_ARCH}" \
+              --description "${PLUGIN_NAME} plugin for Teleport"
+          done
+
+          ls -laht
+
+      # Upload artifacts
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "tag-build-artifact-upload-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Upload artifacts to S3
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        env:
+          PENDING_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --no-progress
+
+  # Container artifacts
+  build-docker-images:
+    name: Build OCI container images
+    permissions:
+      actions: read
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      fail-fast: false
+      matrix:
+        plugins:
+          # Access plugins
+          - name: discord
+            artifact-name: access-discord
+            dockerfile-path: integrations/access/Dockerfile
+          - name: email
+            artifact-name: access-email
+            dockerfile-path: integrations/access/Dockerfile
+          - name: jira
+            artifact-name: access-jira
+            dockerfile-path: integrations/access/Dockerfile
+          - name: mattermost
+            artifact-name: access-mattermost
+            dockerfile-path: integrations/access/Dockerfile
+          - name: msteams
+            artifact-name: access-msteams
+            dockerfile-path: integrations/access/Dockerfile
+          - name: pagerduty
+            artifact-name: access-pagerduty
+            dockerfile-path: integrations/access/Dockerfile
+          - name: slack
+            artifact-name: access-slack
+            dockerfile-path: integrations/access/Dockerfile
+          - name: datadog
+            artifact-name: access-datadog
+            dockerfile-path: integrations/access/Dockerfile
+          # Event handler
+          - name: event-handler
+            artifact-name: event-handler
+            dockerfile-path: integrations/event-handler/Dockerfile
+        image-type:
+          - name: production  # The `name` field is just here for documentation
+            repo-suffix: ''
+            base-image-tag: latest
+          - name: debug
+            repo-suffix: '-debug'
+            base-image-tag: debug
+    needs: build-plugins
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: oss
+      base-image: 'gcr.io/distroless/static-debian12:${{ matrix.image-type.base-image-tag }}'
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      source-tag: ${{ inputs.teleport-version }}
+      teleport-version: ${{ inputs.teleport-version }}
+      dest-image-repo: teleport-plugin-${{ matrix.plugins.name }}${{ matrix.image-type.repo-suffix }}
+      dest-image-tags: ${{ inputs.teleport-version }}
+      architectures: |
+        amd64
+        arm64
+      # Used to reconstruct tarball name
+      image-build-args: |
+        ARTIFACT_NAME=${{ matrix.plugins.artifact-name }}
+        TELEPORT_VERSION=${{ inputs.teleport-version }}
+      s3-file-name-override: |-
+        teleport-plugins/tag/${{ inputs.teleport-version }}/teleport-${{ matrix.plugins.artifact-name }}-v${{ inputs.teleport-version }}-linux-{arch}-bin.tar.gz
+      image-build-context: ./teleport/. # Teleport repo directory
+      image-build-dockerfile: ${{ matrix.plugins.dockerfile-path }}
+      allow-overwrites: false
+      environment: ${{ inputs.environment }}
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+  smoke-test-linux-amd64:
+    needs: [build-plugins, build-docker-images]
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runs-on: ubuntu-22.04
+          - arch: arm64
+            runs-on: generic-arm64-runner
+    name: Smoke Test Linux ${{ matrix.arch }} Artifacts
+    runs-on: ${{ matrix.runs-on }}
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+
+      # generic-arm64 may need a bit of setup before using
+      - name: Ensure required packages are installed
+        if: ${{ matrix.runs-on == 'generic-arm64-runner' }}
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: linux-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          access-plugins: >-
+            teleport-access-discord
+            teleport-access-email
+            teleport-access-jira
+            teleport-access-mattermost
+            teleport-access-msteams
+            teleport-access-pagerduty
+            teleport-access-slack
+            teleport-access-datadog
+            teleport-event-handler
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-containers@master
+        # Run even if the previous step failed
+        if: ${{ !cancelled() && (needs.build-docker-images.result == 'success') }}
+        with:
+          target: linux-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          ecr-registry: ${{ env.ECR_PENDING_REPO_BASE }}
+          aws-role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
+          container-images: >-
+            teleport-plugin-discord
+            teleport-plugin-email
+            teleport-plugin-jira
+            teleport-plugin-mattermost
+            teleport-plugin-msteams
+            teleport-plugin-pagerduty
+            teleport-plugin-slack
+            teleport-plugin-datadog
+            teleport-plugin-event-handler
+
+  smoke-test-darwin-amd64:
+    needs: build-plugins
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runs-on: macos-15
+          - arch: arm64
+            runs-on: macos-15-xlarge
+    name: Smoke Test Darwin ${{ matrix.arch }} Artifacts
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: darwin-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          access-plugins: >-
+            teleport-event-handler
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: darwin-universal
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          version: ${{ inputs.teleport-version }}
+
+  smoke-test-windows-amd64:
+    needs: build-plugins
+    name: Smoke Test Windows amd64 Artifacts
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+
+      - name: Checkout env files
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+
+      - name: Smoke-test Windows AMD64 plugin
+        uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: windows-amd64
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}

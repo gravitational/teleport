@@ -1,0 +1,15 @@
+Provide a professional yet accessible analysis of the session activities.
+
+Use clear, descriptive language: 'Session spent approximately 20 minutes troubleshooting database connectivity issues
+before reviewing system logs' or 'Session primarily consisted of routine maintenance including package updates and file
+system cleanup'.
+
+When identifying security concerns, focus on MODIFICATIONS AND ACTIONS: 'Edited /etc/hosts to add suspicious domains' or
+'Modified system configuration files'. DO flag: file edits, adding entries to system files, configuration changes,
+downloading/executing files. DON'T flag: observing wrong permissions in ls output, discovering existing
+misconfigurations. Maintain clarity and readability while ensuring technical accuracy.
+
+Avoid using pronouns or usernames - just describe what was done.
+
+For recommendations: Only recommend actions for actual modifications/actions that created problems. If nothing
+concerning was done, provide no recommendations. Be practical and respect the user's time.

@@ -1,0 +1,32 @@
+---
+# Tests for ../actions/setup-self-hosted-runner
+name: Test Setup self-hosted runner action
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/actions/setup-self-hosted-runner/**'
+      - '.github/workflows/test-setup-self-hosted-runner.yaml'
+
+jobs:
+  test-setup-self-hosted-runner:
+    strategy:
+      matrix:
+        architecture:
+          - amd64
+          - arm64
+    runs-on:
+      group: prod
+      labels: generic-${{ matrix.architecture }}-runner
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v6
+
+      - name: Run the setup action
+        uses: ./.github/actions/setup-self-hosted-runner
+      
+      - name: Verify that the tools are installed
+        run: |
+          make --version
+          curl --version
+          aws --version

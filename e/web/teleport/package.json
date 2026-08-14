@@ -1,0 +1,16 @@
+{
+  "name": "@gravitational/teleport.e",
+  "version": "1.0.0",
+  "description": "Enterprise version of Gravitational Teleport Web UI",
+  "main": "index.js",
+  "scripts": {
+    "start": "pnpm build-wasm && vite",
+    "build": "pnpm build-wasm && vite build",
+    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "generate-mitre-lookup": "pnpm dlx tsx src/SessionRecordings/summary/generate-mitre-lookup.ts"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "//": "when adding e-only depenedencies, do not update this file. Add them to the root package.json.",
+  "private": true
+}

@@ -1,0 +1,1 @@
+export { AwsIcConfigureIdentitySource } from './IdentitySource';

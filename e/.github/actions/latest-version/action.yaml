@@ -1,0 +1,96 @@
+---
+name: Get latest release version
+description: |
+  Get the latest release version and optionally report if the provided version
+  is newer
+
+inputs:
+  check-version:
+    description: |
+      This version will be checked against the latest version to determine if
+      it is newer.
+    required: false
+  release-server-domain-name:
+    description: |
+      The domain name of the release server. Defaults to the production release
+      server, which is usually what's desired to obtain the actual current
+      release state. Staging is available at rlz.cloud.gravitational.io.
+    default: rlz.teleport.sh
+
+outputs:
+  latest-version:
+    description: |
+      The latest released Teleport version. Note: this will not return cut dev
+      tags due to a release server limitation.
+    value: ${{ steps.get-latest.outputs.version }}
+  is-latest:
+    description: |
+      Optional output. If `check-version` is provided, this will output will
+      be set to `true` if the provided version is newer than the latest version,
+      or false otherwise.
+    value: ${{ steps.outputs.outputs.is-latest-version }}
+  is-new-major:
+    description: |
+      Optional output. If `check-version` is provided, this will output will
+      be set to `true` if the provided version is a new major release, or false
+      otherwise.
+    value: ${{ steps.outputs.outputs.is-new-major }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get the latest release version
+      id: get-latest
+      shell: bash
+      env:
+        RELEASE_SERVER_DOMAIN_NAME: ${{ inputs.release-server-domain-name }}
+      run: |
+        set -o pipefail
+
+        # Get the latest version that is not a pre-release
+        # This is done in the query step to avoid storing a massive
+        # value as an env var, which the shell doesn't like
+        LATEST_RELEASED_VERSION=$(
+          # It may take several seconds to get a response.
+          # This is massive - download size is a few MB.
+          curl -fsSL "https://$RELEASE_SERVER_DOMAIN_NAME/teleport" |
+          jq -r '.[] | .version | select(. | split("-") | length == 1)' |
+          sort --version-sort --reverse |
+          head -n 1
+        )
+
+        echo "version=$LATEST_RELEASED_VERSION" >> "$GITHUB_OUTPUT"
+    - name: Build outputs
+      shell: bash
+      id: outputs
+      if: ${{ !!inputs.check-version }}
+      env:
+        LATEST_RELEASED_VERSION: ${{ steps.get-latest.outputs.version }}
+        PROVIDED_VERSION: ${{ inputs.check-version }}
+      run: |
+        PROVIDED_VERSION="${PROVIDED_VERSION#v}"  # Strip 'v' if exists
+
+        LATEST_VERSION=$(
+          printf "%s\n%s" "$LATEST_RELEASED_VERSION" "$PROVIDED_VERSION" |
+          sort --version-sort --reverse |
+          head -n 1
+        )
+
+        IS_PROVIDED_NEWER="false"
+        if [[ "$LATEST_VERSION" == "$PROVIDED_VERSION" ]] &&
+           [[ "$LATEST_RELEASED_VERSION" != "$PROVIDED_VERSION" ]]; then
+          IS_PROVIDED_NEWER="true"
+        fi
+
+        LATEST_RELEASED_MAJOR="${LATEST_RELEASED_VERSION%%.*}"
+        PROVIDED_MAJOR="${PROVIDED_VERSION%%.*}"
+
+        IS_NEW_MAJOR="false"
+        if (( PROVIDED_MAJOR > LATEST_RELEASED_MAJOR )); then
+          IS_NEW_MAJOR="true"
+        fi
+
+        {
+          echo "is-new-major=$IS_NEW_MAJOR"
+          echo "is-latest-version=$IS_PROVIDED_NEWER"
+        } >> "$GITHUB_OUTPUT"

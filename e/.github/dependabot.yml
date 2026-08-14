@@ -1,0 +1,112 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: '/tooling/os-package-repo-tool'
+    schedule:
+      interval: monthly
+      day: 'sunday'
+      time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+
+  - package-ecosystem: cargo
+    directory: '/windowsauth'
+    schedule:
+      interval: monthly
+      day: 'sunday'
+      time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 10
+    groups:
+      rust:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'rust'
+      - 'no-changelog'
+
+  - package-ecosystem: github-actions
+    directory: '/.github/workflows'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
+
+  # Every custom action directory must be defined individually. See:
+  # * https://github.com/dependabot/dependabot-core/issues/6704
+  # * https://github.com/dependabot/dependabot-core/issues/2178
+  - package-ecosystem: github-actions
+    directory: '/.github/actions/checkout-teleport'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
+
+  - package-ecosystem: github-actions
+    directory: '/.github/actions/deploy-os-package'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
+
+  - package-ecosystem: github-actions
+    directory: '/.github/actions/load-gpg-key'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
+
+  - package-ecosystem: github-actions
+    directory: '/.github/actions/parse-version'
+    schedule:
+      interval: monthly
+      day: monday
+      time: '09:00'
+      timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'

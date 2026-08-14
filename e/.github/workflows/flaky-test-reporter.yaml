@@ -1,0 +1,156 @@
+# Flaky Test Reporter does a daily run of the Go unit tests multiple
+# times to find any flaky tests on master and release branches.
+
+name: Flaky Test Reporter
+
+on:
+  workflow_dispatch:
+    inputs:
+      slack-channel-id:
+        description: 'The slack channel ID to send the report to.'
+        type: string
+        required: false
+        # We default this to #testing-noise as manually invoking this workflow
+        # is only expected to be done for testing purposes.
+        default: 'C05BHLD737B' # #testing-noise channel
+  schedule:
+    - cron: '0 10 * * *' # At 1000 UTC every day (2am/3am PST/PDT)
+
+jobs:
+  test:
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+
+    runs-on:
+      group: prod
+      labels: ['self-hosted', 'x64']
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      env:
+        TELEPORT_ETCD_TEST: yes
+        TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
+        TELEPORT_XAUTH_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
+      options: --cap-add=SYS_ADMIN --privileged
+
+    services:
+      etcd0:
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --add-host etcd0:127.0.0.1
+        ports:
+          - 2379:2379
+          - 2380:2380
+          - 3379:3379
+
+    env:
+      SLACK_CHANNEL_ID: 'C0DF0TPMY' # #dev-teleport channel
+
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-ref: master
+          edition: enterprise
+
+      # Allow the workflow_dispatch input parameter slack-channel-id to override the
+      # channel the report is sent to.
+      - name: Override slack channel
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          OVERRIDE_ID: ${{ inputs.slack-channel-id }}
+        run: |
+          echo "SLACK_CHANNEL_ID=${OVERRIDE_ID}" >> "$GITHUB_ENV"
+
+      - name: Prepare for tests
+        run: |
+          make test-go-prepare
+
+      - name: Run flaky test report
+        env:
+          FLAKY_RUNS: 24
+          FLAKY_TIMEOUT: 2h
+          FLAKY_TOP_N: 20
+          FLAKY_SUMMARY_FILE: /tmp/flaky-report.txt
+        run: |
+          make test-go-flaky
+
+      - name: Fetch test report data
+        id: fetch
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch render-tests report
+          {
+            echo "report<<END_OF_REPORT"
+            cat /tmp/flaky-report.txt
+            echo END_OF_REPORT
+          } >> "$GITHUB_OUTPUT"
+
+          # Fetch link to logs on CI
+          # We don't have jq on the buildbox, use sed instead of
+          # jq -r '"logurl=\(.jobs[0].html_url)"'
+          # TODO(camscale): Change to jq when added to buildbox
+          URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs"
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${URL}" \
+            | sed -n 's/^.*"html_url":\s*"\([^"]*\)".*$/logurl=\1\n/p' \
+            | head -n 1 >> "$GITHUB_OUTPUT"
+
+      - name: Send report to slack
+        if: failure()
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.FLAKY_TEST_REPORTER_SLACK_TOKEN }}
+          errors: true
+          payload: |
+            {
+              "channel": "${{ env.SLACK_CHANNEL_ID }}",
+              "text": "*Flaky Test Daily Report*",
+              "mrkdwn": true,
+              "parse": "none",
+              "unfurl_links": false,
+              "unfurl_media": false,
+              "attachments": [
+                {
+                  "color": "danger",
+                  "title": "Flaky tests detected",
+                  "title_link": "${{ steps.fetch.outputs.logurl }}"
+                },
+                {
+                  "color": "danger",
+                  "text": ${{ toJSON(steps.fetch.outputs.report) }}
+                }
+              ]
+            }
+
+      - name: Send success report to slack
+        if: success()
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.FLAKY_TEST_REPORTER_SLACK_TOKEN }}
+          errors: true
+          payload: |
+            {
+              "channel": "${{ env.SLACK_CHANNEL_ID }}",
+              "text": "*Flaky Test Daily Report*",
+              "mrkdwn": true,
+              "attachments": [
+                {
+                  "color": "good",
+                  "text": "No failed tests. Yay!"
+                }
+              ]
+            }

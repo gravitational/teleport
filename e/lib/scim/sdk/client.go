@@ -1,0 +1,676 @@
+package scimsdk
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/elimity-com/scim/schema"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+)
+
+const (
+	// awsicGroupMemberNotFound is the detail string returned by the AWS Identity
+	// Center SCIM service when a client attempts to add a non-existent user
+	// to a Group (see Issue #8384).
+	awsicGroupMemberNotFound = "USER does not exist."
+)
+
+// Client is the interface for the SCIM SDK client
+//
+// WARNING: If you want to use the SCIM SDK please verify the SCIM integration and ensure
+// that the SCIM implementation supports the methods you want to use and be aware of the SCIM API limitations.
+//
+// For example, AWS Identity Center SCIM have limitations on the ListUsers and ListGroups and  PatchOperations
+// See https://docs.aws.amazon.com/singlesignon/latest/developerguide/listusers.html and
+// https://docs.aws.amazon.com/singlesignon/latest/developerguide/listgroups.html
+type Client interface {
+	// CreateUser creates a user on the SCIM server.
+	CreateUser(ctx context.Context, user *User) (*User, error)
+	// DeleteUser deletes a user from the SCIM server.
+	DeleteUser(ctx context.Context, id string) error
+	// UpdateUser updates a user on the SCIM server.
+	UpdateUser(ctx context.Context, user *User) (*User, error)
+	// ListUsers returns a list of users from the SCIM server.
+	// NOTE: Some implementations may not support pagination or filtering.
+	// AWS IC SCIM Limitation see https://docs.aws.amazon.com/singlesignon/latest/developerguide/listusers.html:
+	//  * startIndex, attributes, and excludedAttributes (despite being listed in the SCIM protocol)
+	//  * At this time, the ListGroups API is only capable of returning up to 50 results.
+	ListUsers(ctx context.Context, queryOptions ...QueryOption) (*ListUserResponse, error)
+	// CreateGroup creates a group on the SCIM server.
+	CreateGroup(ctx context.Context, group *Group) (*Group, error)
+	// UpdateGroup updates a group on the SCIM server.
+	UpdateGroup(ctx context.Context, group *Group) (*Group, error)
+	// DeleteGroup deletes a group from the SCIM server.
+	DeleteGroup(ctx context.Context, id string) error
+	// ListGroups returns a list of groups from the SCIM server.
+	// NOTE: Some implementations may not support pagination or filtering.
+	// AWS IC SCIM Limitation see https://docs.aws.amazon.com/singlesignon/latest/developerguide/listgroups.html
+	//  * ListGroups return an empty member list.
+	//  * At this time, the ListGroups API is only capable of returning up to 50 results.
+	ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error)
+	// ReplaceGroupName replace the group display name.
+	ReplaceGroupName(ctc context.Context, group *Group) error
+	// ListGroupMembers returns the current members of a group.
+	ListGroupMembers(ctx context.Context, id string) ([]*GroupMember, error)
+	// PatchGroupMembers updates the downstream group, applying the [toAdd] and [toRemove]
+	// lists via SCIM patches
+	PatchGroupMembers(ctx context.Context, id string, toAdd, toRemove []*GroupMember) error
+	// GetGroupByDisplayName returns a group by display name.
+	GetGroupByDisplayName(ctx context.Context, displayName string) (*Group, error)
+	// GetUserByUserName returns a user by username.
+	GetUserByUserName(ctx context.Context, userName string) (*User, error)
+	// Ping checks the connection to the SCIM server.
+	Ping(ctx context.Context) error
+	// GetUser returns a user by ID.
+	GetUser(ctx context.Context, id string) (*User, error)
+	// GetGroup returns a group by ID.
+	GetGroup(ctx context.Context, id string) (*Group, error)
+}
+
+// ClientProvider is a function that creates a new SCIM SDK client.
+// Please note that the ClientProvider is not thread-safe and
+// should be used only in integration tests.
+var ClientProvider = nativeClientProvider
+
+// New creates a new SCIM SDK client.
+func New(config *Config) (Client, error) {
+	c, err := ClientProvider(config)
+	return c, trace.Wrap(err)
+}
+
+func nativeClientProvider(config *Config) (Client, error) {
+	if err := config.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &client{
+		Config: config,
+	}, nil
+}
+
+type client struct {
+	*Config
+}
+
+// GetUser returns a user by ID from the SCIM server.
+func (c *client) GetUser(ctx context.Context, id string) (*User, error) {
+	u, err := c.endpointURL("Users", id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out User
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// GetGroup returns a group by ID from the SCIM server.
+func (c *client) GetGroup(ctx context.Context, id string) (*Group, error) {
+	u, err := c.endpointURL("Groups", id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out Group
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// UpdateGroup updates a group on the SCIM server.
+func (c *client) UpdateGroup(ctx context.Context, group *Group) (*Group, error) {
+	if c.Config.IntegrationType == types.PluginTypeAWSIdentityCenter {
+		return nil, trace.BadParameter("AWS Identity Center does not support updating groups")
+	}
+	u, err := c.endpointURL("Groups", group.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	payload, err := json.Marshal(group)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPut, bytes.NewReader(payload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out Group
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// GetUserByUserName returns a user by userName from the SCIM server.
+// SCIM endpoint identify resource by ID not by property like userName.
+// The GetUsersByUserName method is implemented by injecting the userName into the filter.
+func (c *client) GetUserByUserName(ctx context.Context, userName string) (*User, error) {
+	listUserResp, err := c.ListUsers(ctx, WithUserNameFilter(userName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(listUserResp.Users) == 0 {
+		return nil, trace.NotFound("user %q not found", userName)
+	}
+	if len(listUserResp.Users) != 1 {
+		return nil, trace.BadParameter("expected one user, got %v", len(listUserResp.Users))
+	}
+	return listUserResp.Users[0], nil
+}
+
+// GetGroupByDisplayName returns a group by displayName from the SCIM server.
+// SCIM endpoint identify resource by ID not by property like displayName.
+// The GetGroupByDisplayName method is implemented by injecting the displayName into the filter.
+func (c *client) GetGroupByDisplayName(ctx context.Context, displayName string) (*Group, error) {
+	listGroupResp, err := c.ListGroups(ctx, WithDisplayNameFilter(displayName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(listGroupResp.Groups) == 0 {
+		return nil, trace.NotFound("group %q not found", displayName)
+	}
+	if len(listGroupResp.Groups) != 1 {
+		return nil, trace.BadParameter("expected one group, got %v", len(listGroupResp.Groups))
+	}
+	return listGroupResp.Groups[0], nil
+}
+
+// Config is the configuration for the SCIM SDK client
+type Config struct {
+	// Endpoint is the SCIM endpoint.
+	Endpoint string
+	// Token is the SCIM auth token.
+	Token string
+	// IntegrationType holds value of plugin or integration
+	// for which this SCIM client is configured.
+	IntegrationType string
+
+	// Log is the logger.
+	Log *slog.Logger
+	// HTTPClient is the HTTP client.
+	HTTPClient *http.Client
+	// maxPageSize is the maximum page size for SCIM queries.
+	maxPageSize int
+}
+
+// CheckAndSetDefaults checks the configuration and sets the defaults.
+func (c *Config) checkAndSetDefaults() error {
+	if c.Endpoint == "" {
+		return trace.BadParameter("missing SCIM endpoint")
+	}
+	if c.IntegrationType == "" {
+		return trace.BadParameter("missing integration type")
+	}
+	if c.IntegrationType == types.PluginTypeAWSIdentityCenter {
+		ensuredURL, err := icutils.EnsureSCIMEndpoint(c.Endpoint)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Endpoint = ensuredURL
+	}
+	if c.Token == "" {
+		return trace.BadParameter("missing SCIM auth token")
+	}
+	if c.Log == nil {
+		c.Log = slog.Default().With(teleport.ComponentKey, "SCIM_SDK")
+	}
+	if c.HTTPClient == nil {
+		var err error
+		if c.HTTPClient, err = defaults.HTTPClient(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if c.maxPageSize == 0 {
+		// AWS Identity Center can handle a max of 100 member records at a time
+		c.maxPageSize = 100
+	}
+	return nil
+}
+
+// ListUsers returns a list of users from the SCIM server.
+// NOTE: Some implementations may not support pagination or filtering.
+// AWS IC SCIM Limitation see https://docs.aws.amazon.com/singlesignon/latest/developerguide/listusers.html:
+//   - startIndex, attributes, and excludedAttributes (despite being listed in the SCIM protocol)
+//   - At this time, the ListGroups API is only capable of returning up to 50 results.
+func (c *client) ListUsers(ctx context.Context, queryOptions ...QueryOption) (*ListUserResponse, error) {
+	var options QueryOptions
+	for _, opt := range queryOptions {
+		opt(&options)
+	}
+
+	u, err := c.endpointURL("Users")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.RawQuery = options.toQuery().Encode()
+	u.RawQuery = u.Query().Encode()
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var listResp ListUserResponse
+	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &listResp, nil
+}
+
+// CreateUser creates a user on the SCIM server.
+func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
+	user.Schemas = []string{schema.UserSchema}
+	u, err := c.endpointURL("Users")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPost, bytes.NewReader(payload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusCreated:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out User
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// DeleteUser deletes a user from the SCIM server.
+func (c *client) DeleteUser(ctx context.Context, id string) error {
+	return trace.Wrap(c.deleteResource(ctx, "Users", id))
+}
+
+// UpdateUser updates a user on the SCIM server.
+func (c *client) UpdateUser(ctx context.Context, user *User) (*User, error) {
+	u, err := c.endpointURL("Users", user.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPut, bytes.NewReader(payload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out User
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// CreateGroup creates a group on the SCIM server.
+func (c *client) CreateGroup(ctx context.Context, group *Group) (*Group, error) {
+	group.Schemas = []string{schema.GroupSchema}
+	u, err := c.endpointURL("Groups")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	payload, err := json.Marshal(group)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPost, bytes.NewReader(payload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusCreated:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var out Group
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// DeleteGroup deletes a group from the SCIM server.
+func (c *client) DeleteGroup(ctx context.Context, id string) error {
+	return trace.Wrap(c.deleteResource(ctx, "Groups", id))
+}
+
+// ReplaceGroupName updates a group on the SCIM server.
+func (c *client) ReplaceGroupName(ctx context.Context, group *Group) error {
+	u, err := c.endpointURL("Groups", group.ID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// AWS only supports patch operations on groups, so we have to patch the
+	// values we want to change rather than do the more obvious PUT.
+
+	patch := PatchOperations{
+		Schemas: []string{PatchOpSchema},
+		Operations: []PatchOp{
+			{
+				Operation: OpReplace,
+				Path:      "displayName",
+				Value:     group.DisplayName,
+			},
+		},
+	}
+
+	return trace.Wrap(c.sendPatch(ctx, u, patch))
+}
+
+// ListGroupMembers returns the current members of a group by fetching it from
+// the SCIM server.
+func (c *client) ListGroupMembers(ctx context.Context, id string) ([]*GroupMember, error) {
+	group, err := c.GetGroup(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return group.Members, nil
+}
+
+// PatchGroupMembers updates the members of a group using the supplied
+// [toAdd] and [toRemove] lists.
+func (c *client) PatchGroupMembers(ctx context.Context, groupID string, toAdd, toRemove []*GroupMember) error {
+	url, err := c.endpointURL("Groups", groupID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// keep track of all members that might be causing a User Not Found error
+	// in the downstream SCIM server (only used for AWS Identity Center)
+	var invalidUserCandidates []*GroupMember
+
+	for len(toAdd) > 0 || len(toRemove) > 0 {
+		batchSlotsLeft := c.maxPageSize
+		patch := PatchOperations{
+			Schemas: []string{PatchOpSchema},
+		}
+
+		var pageToRemove []*GroupMember
+		pageToRemove, toRemove, batchSlotsLeft = takePage(toRemove, batchSlotsLeft)
+		if len(pageToRemove) > 0 {
+			patch.Operations = append(patch.Operations, PatchOp{
+				Operation: OpRemove,
+				Path:      "members",
+				Value:     pageToRemove,
+			})
+		}
+
+		var pageToAdd []*GroupMember
+		pageToAdd, toAdd, _ = takePage(toAdd, batchSlotsLeft)
+		if len(pageToAdd) > 0 {
+			patch.Operations = append(patch.Operations, PatchOp{
+				Operation: OpAdd,
+				Path:      "members",
+				Value:     pageToAdd,
+			})
+		}
+
+		if err := c.sendPatch(ctx, url, patch); err != nil {
+			// The AWS Identity Center SCIM Implementation will return a 404 for a
+			// patch attempting to add a non-existent or obsolete user ID as a
+			// group member. We can distinguish this from a missing group by the
+			// presence of "USER does not exist." in the detail string returned
+			// by the SCIM server.
+			//
+			// In this case, Identity Center has still applied the group member
+			// patch operations (minus the non-existent user), so we don't need
+			// to retry the "failed" add/remove operations.
+			if c.Config.IntegrationType == types.PluginTypeAWSIdentityCenter &&
+				trace.IsNotFound(err) &&
+				strings.Contains(err.Error(), awsicGroupMemberNotFound) {
+
+				// Record the candidate users that could be causing the error so
+				// we can report them at the end of the patch. We don't know which
+				// particular user caused it, so we have to put the whole `toAdd` page in.
+				invalidUserCandidates = append(invalidUserCandidates, pageToAdd...)
+
+				continue
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	// If we detected any potential invalid users use the custom InvalidMemberError
+	// to report the candidate
+	if len(invalidUserCandidates) > 0 {
+		return &InvalidMemberError{
+			Candidates: sliceutils.Map(invalidUserCandidates, (*GroupMember).GetExternalID),
+		}
+	}
+
+	return nil
+}
+
+func takePage(src []*GroupMember, slotsRemainingInBatch int) ([]*GroupMember, []*GroupMember, int) {
+	pageSize := min(len(src), slotsRemainingInBatch)
+	if pageSize == 0 {
+		return nil, src, slotsRemainingInBatch
+	}
+
+	if len(src) <= pageSize {
+		return src, nil, slotsRemainingInBatch - len(src)
+	}
+
+	return src[:pageSize], src[pageSize:], slotsRemainingInBatch - pageSize
+}
+
+// sendPatch serializes and sends a PatchOperations request, returning an error
+// if the response indicates failure.
+func (c *client) sendPatch(ctx context.Context, u *url.URL, patch PatchOperations) error {
+	payload, err := json.Marshal(patch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := c.do(ctx, u, http.MethodPatch, bytes.NewReader(payload))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	default:
+		return decodeError(resp)
+	}
+}
+
+func (c *client) endpointURL(paths ...string) (*url.URL, error) {
+	path, err := url.JoinPath(c.Endpoint, paths...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u, err := url.Parse(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
+// ListGroups returns a list of groups from the SCIM server.
+// NOTE: Some implementations may not support pagination or filtering.
+// AWS IC SCIM Limitation see https://docs.aws.amazon.com/singlesignon/latest/developerguide/listgroups.html
+//   - ListGroups return an empty member list.
+//   - At this time, the ListGroups API is only capable of returning up to 50 results.
+func (c *client) ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error) {
+	var options QueryOptions
+	for _, opt := range queryOptions {
+		opt(&options)
+	}
+
+	u, err := c.endpointURL("Groups")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.RawQuery = options.toQuery().Encode()
+	u.RawQuery = u.Query().Encode()
+
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	default:
+		return nil, decodeError(resp)
+	}
+
+	var listResp ListGroupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &listResp, nil
+}
+
+// Ping checks the connection to the SCIM server by sending a request to the ServiceProviderConfig endpoint.
+func (c *client) Ping(ctx context.Context) error {
+	u, err := c.endpointURL("ServiceProviderConfig")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := c.do(ctx, u, http.MethodGet, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return trace.AccessDenied("unauthorized")
+	case http.StatusInternalServerError:
+		return trace.BadParameter("internal server error")
+	default:
+		return trace.BadParameter("unexpected status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *client) deleteResource(ctx context.Context, resourceType, id string) error {
+	u, err := c.endpointURL(resourceType, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := c.do(ctx, u, http.MethodDelete, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+
+	case http.StatusNotFound:
+		return trace.NotFound("resource not found")
+
+	default:
+		return decodeError(resp)
+	}
+}
+
+func (c *client) do(ctx context.Context, u *url.URL, httpMethod string, r io.Reader) (*http.Response, error) {
+	const (
+		authHeaderKey   = "Authorization"
+		acceptHeaderKey = "Accept"
+	)
+	if u == nil {
+		return nil, trace.BadParameter("missing URL")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, httpMethod, u.String(), r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.Header.Set(authHeaderKey, fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set(acceptHeaderKey, ContentType)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}

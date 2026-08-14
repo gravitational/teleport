@@ -1,0 +1,4 @@
+---
+WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: /stage/windows/signing/build-stage/certificate
+WINDOWS_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:603330915152:alias/teleport-windows-signing-key
+WINDOWS_SIGNING_ROLE_ARN: arn:aws:iam::603330915152:role/windows-signing-build-stage-role

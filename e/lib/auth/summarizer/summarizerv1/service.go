@@ -1,0 +1,1242 @@
+package summarizerv1
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"slices"
+	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
+	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+)
+
+// SummaryDownloader provides backend access to session summary recordings.
+type SummaryDownloader interface {
+	// StreamSessionSummary streams a session summary and returns a ReadCloser for
+	// the content. Returns a "not found" error if there's no such summary.
+	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+}
+
+// ServiceConfig holds configuration for the [Service].
+type ServiceConfig struct {
+	Authorizer        authz.Authorizer
+	Backend           services.Summarizer
+	Cache             services.SummarizerServiceGetter
+	SummaryDownloader SummaryDownloader
+	Decrypter         events.DecryptionWrapper
+	// IsLicensed reports whether the SessionSummaries entitlement is active.
+	IsLicensed func() bool
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
+	// OpenAIClientFactory creates OpenAI clients for testing. Optional.
+	OpenAIClientFactory openai.ClientFactory
+	// BedrockClientFactory creates Amazon Bedrock clients for testing. Optional.
+	BedrockClientFactory bedrock.ClientFactory
+	// AWSConfigCache is used to retrieve AWS OIDC tokens for Amazon Bedrock. Optional.
+	AWSConfigCache *awsconfig.Cache
+	// EnableBedrockWithoutRestrictions enables access to Amazon Bedrock models
+	// outside of Teleport Cloud restrictions. Optional.
+	EnableBedrockWithoutRestrictions bool
+	UsageReporter                    usagereporter.UsageReporter
+}
+
+// Service provides an implementation of [pb.SummarizerServiceServer] and
+// facilitates CRUD operations for summarizer resources.
+type Service struct {
+	// Use a forward-compatible server to make it easier to add new methods in
+	// OSS without breaking the enterprise build.
+	pb.UnimplementedSummarizerServiceServer
+	authorizer                       authz.Authorizer
+	backend                          services.Summarizer
+	isLicensed                       func() bool
+	cache                            services.SummarizerServiceGetter
+	summaryDownloader                SummaryDownloader
+	logger                           *slog.Logger
+	decrypter                        events.DecryptionWrapper
+	emitter                          apievents.Emitter
+	openAIClientFactory              openai.ClientFactory
+	bedrockClientFactory             bedrock.ClientFactory
+	awsConfigCache                   *awsconfig.Cache
+	structuredOutputCache            *structured.SupportCache
+	enableBedrockWithoutRestrictions bool
+	usageReporter                    usagereporter.UsageReporter
+}
+
+var _ pb.SummarizerServiceServer = (*Service)(nil)
+
+// NewService creates a new instance of [Service] with the provided
+// configuration. It returns an error if any of the required dependencies are
+// not provided.
+func NewService(cfg ServiceConfig) (*Service, error) {
+	if cfg.Authorizer == nil {
+		return nil, trace.BadParameter("authorizer is required")
+	}
+	if cfg.Backend == nil {
+		return nil, trace.BadParameter("backend service is required")
+	}
+	if cfg.Cache == nil {
+		return nil, trace.BadParameter("cache service is required")
+	}
+	if cfg.SummaryDownloader == nil {
+		return nil, trace.BadParameter("upload handler is required")
+	}
+	if cfg.UsageReporter == nil {
+		return nil, trace.BadParameter("usage reporter is required")
+	}
+	if cfg.Emitter == nil {
+		return nil, trace.BadParameter("emitter is required")
+	}
+	if cfg.IsLicensed == nil {
+		return nil, trace.BadParameter("is licensed function is required")
+	}
+
+	return &Service{
+		authorizer:                       cfg.Authorizer,
+		backend:                          cfg.Backend,
+		isLicensed:                       cfg.IsLicensed,
+		cache:                            cfg.Cache,
+		summaryDownloader:                cfg.SummaryDownloader,
+		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
+		decrypter:                        cfg.Decrypter,
+		emitter:                          cfg.Emitter,
+		openAIClientFactory:              cfg.OpenAIClientFactory,
+		bedrockClientFactory:             cfg.BedrockClientFactory,
+		awsConfigCache:                   cfg.AWSConfigCache,
+		structuredOutputCache:            structured.NewSupportCache(clockwork.NewRealClock(), structured.DefaultSupportCacheTTL),
+		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
+		usageReporter:                    cfg.UsageReporter,
+	}, nil
+}
+
+var (
+	errNotLicensed = summarizererrors.ErrUnlicensed
+)
+
+// CRUD operations for models
+
+// encodeResourcePayload marshals a protobuf message to a Struct for audit event payloads.
+func (s *Service) encodeResourcePayload(msg proto.Message) *apievents.Struct {
+	data, err := apievents.Resource153ToStruct(msg)
+	if err != nil {
+		s.logger.WarnContext(context.Background(), "Failed to marshal resource for audit event", "error", err)
+	}
+	return data
+}
+
+func rejectReservedInferenceModelName(m *pb.InferenceModel) error {
+	if m.GetMetadata().GetName() == apisummarizer.CloudDefaultInferenceModelName {
+		return trace.BadParameter(
+			"metadata.name %q is reserved", apisummarizer.CloudDefaultInferenceModelName,
+		)
+	}
+	return nil
+}
+
+// CreateInferenceModel creates a new InferenceModel.
+func (s *Service) CreateInferenceModel(
+	ctx context.Context, req *pb.CreateInferenceModelRequest,
+) (*pb.CreateInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
+	}
+
+	model, err := s.backend.CreateInferenceModel(ctx, req.GetModel())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelCreateEvent,
+			Code: events.InferenceModelCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model create event", "error", err)
+	}
+
+	return pb.CreateInferenceModelResponse_builder{Model: model}.Build(), nil
+}
+
+// GetInferenceModel retrieves an existing InferenceModel by name.
+func (s *Service) GetInferenceModel(
+	ctx context.Context, req *pb.GetInferenceModelRequest,
+) (*pb.GetInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	model, err := s.backend.GetInferenceModel(ctx, req.GetName())
+	return pb.GetInferenceModelResponse_builder{Model: model}.Build(), trace.Wrap(err)
+}
+
+// UpdateInferenceModel updates an existing InferenceModel.
+func (s *Service) UpdateInferenceModel(
+	ctx context.Context, req *pb.UpdateInferenceModelRequest,
+) (*pb.UpdateInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
+	}
+
+	model, err := s.backend.UpdateInferenceModel(ctx, req.GetModel())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelUpdateEvent,
+			Code: events.InferenceModelUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model update event", "error", err)
+	}
+
+	return pb.UpdateInferenceModelResponse_builder{Model: model}.Build(), nil
+}
+
+// UpsertInferenceModel creates a new InferenceModel or updates an existing one.
+func (s *Service) UpsertInferenceModel(
+	ctx context.Context, req *pb.UpsertInferenceModelRequest,
+) (*pb.UpsertInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
+	}
+
+	model, err := s.backend.UpsertInferenceModel(ctx, req.GetModel())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelUpdateEvent,
+			Code: events.InferenceModelUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model upsert event", "error", err)
+	}
+
+	return pb.UpsertInferenceModelResponse_builder{Model: model}.Build(), nil
+}
+
+// DeleteInferenceModel deletes an existing InferenceModel by name.
+func (s *Service) DeleteInferenceModel(
+	ctx context.Context, req *pb.DeleteInferenceModelRequest,
+) (*pb.DeleteInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if req.GetName() == apisummarizer.CloudDefaultInferenceModelName {
+		// TODO(bl-nero): Add a link to the documentation on default Bedrock model
+		// once it's released.
+		return nil, trace.BadParameter(
+			"deleting the default Amazon Bedrock model is not supported in Teleport Cloud; edit or delete inference_policy resources that use it instead",
+		)
+	}
+
+	err = s.backend.DeleteInferenceModel(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelDeleteEvent,
+			Code: events.InferenceModelDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.GetName(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model delete event", "error", err)
+	}
+
+	return &pb.DeleteInferenceModelResponse{}, nil
+}
+
+// ListInferenceModels lists all InferenceModels that match the request.
+func (s *Service) ListInferenceModels(
+	ctx context.Context, req *pb.ListInferenceModelsRequest,
+) (*pb.ListInferenceModelsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	models, nextPageToken, err := s.backend.ListInferenceModels(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pb.ListInferenceModelsResponse_builder{
+		Models:        models,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
+}
+
+// CRUD operations for secrets
+
+// CreateInferenceSecret creates a new InferenceSecret.
+func (s *Service) CreateInferenceSecret(
+	ctx context.Context, req *pb.CreateInferenceSecretRequest,
+) (*pb.CreateInferenceSecretResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	secret, err := s.backend.CreateInferenceSecret(ctx, req.GetSecret())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretCreateEvent,
+			Code: events.InferenceSecretCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret create event", "error", err)
+	}
+
+	return pb.CreateInferenceSecretResponse_builder{Secret: secret}.Build(), nil
+}
+
+// GetInferenceSecret retrieves an existing InferenceSecret by name.
+func (s *Service) GetInferenceSecret(
+	ctx context.Context, req *pb.GetInferenceSecretRequest,
+) (*pb.GetInferenceSecretResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	secret, err := s.backend.GetInferenceSecret(ctx, req.GetName())
+	// Don't leak the secret.
+	if secret != nil {
+		secret.ClearSpec()
+	}
+	return pb.GetInferenceSecretResponse_builder{Secret: secret}.Build(), trace.Wrap(err)
+}
+
+// UpdateInferenceSecret updates an existing InferenceSecret.
+func (s *Service) UpdateInferenceSecret(
+	ctx context.Context, req *pb.UpdateInferenceSecretRequest,
+) (*pb.UpdateInferenceSecretResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	secret, err := s.backend.UpdateInferenceSecret(ctx, req.GetSecret())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretUpdateEvent,
+			Code: events.InferenceSecretUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret update event", "error", err)
+	}
+
+	// Don't leak the secret.
+	if secret != nil {
+		secret.ClearSpec()
+	}
+	return pb.UpdateInferenceSecretResponse_builder{Secret: secret}.Build(), nil
+}
+
+// UpsertInferenceSecret creates a new InferenceSecret or updates an existing one.
+func (s *Service) UpsertInferenceSecret(
+	ctx context.Context, req *pb.UpsertInferenceSecretRequest,
+) (*pb.UpsertInferenceSecretResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	secret, err := s.backend.UpsertInferenceSecret(ctx, req.GetSecret())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretUpdateEvent,
+			Code: events.InferenceSecretUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret upsert event", "error", err)
+	}
+
+	// Don't leak the secret.
+	if secret != nil {
+		secret.ClearSpec()
+	}
+	return pb.UpsertInferenceSecretResponse_builder{Secret: secret}.Build(), nil
+}
+
+// DeleteInferenceSecret deletes an existing InferenceSecret by name.
+func (s *Service) DeleteInferenceSecret(
+	ctx context.Context, req *pb.DeleteInferenceSecretRequest,
+) (*pb.DeleteInferenceSecretResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	err = s.backend.DeleteInferenceSecret(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretDeleteEvent,
+			Code: events.InferenceSecretDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.GetName(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret delete event", "error", err)
+	}
+
+	return &pb.DeleteInferenceSecretResponse{}, nil
+}
+
+// ListInferenceSecrets lists all InferenceSecrets that match the request.
+func (s *Service) ListInferenceSecrets(
+	ctx context.Context, req *pb.ListInferenceSecretsRequest,
+) (*pb.ListInferenceSecretsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	secrets, nextPageToken, err := s.backend.ListInferenceSecrets(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, secret := range secrets {
+		// Don't leak the secret.
+		secret.ClearSpec()
+	}
+
+	return pb.ListInferenceSecretsResponse_builder{
+		Secrets:       secrets,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
+}
+
+// CRUD operations for policies
+
+// CreateInferencePolicy creates a new InferencePolicy.
+func (s *Service) CreateInferencePolicy(
+	ctx context.Context, req *pb.CreateInferencePolicyRequest,
+) (*pb.CreateInferencePolicyResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policy, err := s.backend.CreateInferencePolicy(ctx, req.GetPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyCreateEvent,
+			Code: events.InferencePolicyCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy create event", "error", err)
+	}
+
+	return pb.CreateInferencePolicyResponse_builder{Policy: policy}.Build(), nil
+}
+
+// GetInferencePolicy retrieves an existing InferencePolicy by name.
+func (s *Service) GetInferencePolicy(
+	ctx context.Context, req *pb.GetInferencePolicyRequest,
+) (*pb.GetInferencePolicyResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	policy, err := s.backend.GetInferencePolicy(ctx, req.GetName())
+	return pb.GetInferencePolicyResponse_builder{Policy: policy}.Build(), trace.Wrap(err)
+}
+
+// UpdateInferencePolicy updates an existing InferencePolicy.
+func (s *Service) UpdateInferencePolicy(
+	ctx context.Context, req *pb.UpdateInferencePolicyRequest,
+) (*pb.UpdateInferencePolicyResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policy, err := s.backend.UpdateInferencePolicy(ctx, req.GetPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyUpdateEvent,
+			Code: events.InferencePolicyUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy update event", "error", err)
+	}
+
+	return pb.UpdateInferencePolicyResponse_builder{Policy: policy}.Build(), nil
+}
+
+// UpsertInferencePolicy creates a new InferencePolicy or updates an existing one.
+func (s *Service) UpsertInferencePolicy(
+	ctx context.Context, req *pb.UpsertInferencePolicyRequest,
+) (*pb.UpsertInferencePolicyResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policy, err := s.backend.UpsertInferencePolicy(ctx, req.GetPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyUpdateEvent,
+			Code: events.InferencePolicyUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy upsert event", "error", err)
+	}
+
+	return pb.UpsertInferencePolicyResponse_builder{Policy: policy}.Build(), nil
+}
+
+// DeleteInferencePolicy deletes an existing InferencePolicy by name.
+func (s *Service) DeleteInferencePolicy(
+	ctx context.Context, req *pb.DeleteInferencePolicyRequest,
+) (*pb.DeleteInferencePolicyResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	err = s.backend.DeleteInferencePolicy(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyDeleteEvent,
+			Code: events.InferencePolicyDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.GetName(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy delete event", "error", err)
+	}
+
+	return &pb.DeleteInferencePolicyResponse{}, nil
+}
+
+// ListInferencePolicies lists all InferencePolicies that match the request.
+func (s *Service) ListInferencePolicies(
+	ctx context.Context, req *pb.ListInferencePoliciesRequest,
+) (*pb.ListInferencePoliciesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	policies, nextPageToken, err := s.backend.ListInferencePolicies(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pb.ListInferencePoliciesResponse_builder{
+		Policies:      policies,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
+}
+
+// GetSummary retrieves the inference result for a session, which contains the session summary.
+func (s *Service) GetSummary(
+	ctx context.Context, req *pb.GetSummaryRequest,
+) (*pb.GetSummaryResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Perform first access check: see if the user can possibly access any
+	// session at all, without taking into consideration the `where` clauses.
+	// This is done to spare us from downloading the entire session if user's
+	// access controls prevent them from reading any sessions at all.
+	sctx := &services.Context{User: authCtx.User}
+	err = authCtx.Checker.GuessIfAccessIsPossible(
+		sctx, defaults.Namespace, types.KindSession, types.VerbRead,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	// Read the session summary.
+	sid := session.ID(req.GetSessionId())
+	summary, sessionAuditEvent, err := s.insecureGetSummary(
+		ctx, session.ID(req.GetSessionId()),
+	)
+	if err != nil {
+		// The user hasn't been fully authorized yet, so we don't return this
+		// error, as it may leak details about the accessed object.
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("a recording summary for session %v was not found", sid)
+		}
+		s.logger.ErrorContext(
+			ctx, "Unable to read session summary recording", "session_id", sid, "error", err,
+		)
+		return nil, trace.AccessDenied(
+			"access denied to perform action %q on %q", types.VerbRead, types.KindSession,
+		)
+	}
+
+	// Extend the context with the session end event and rebuild the resource
+	// from the event.
+	sctx.ExtendWithSessionEnd(sessionAuditEvent, authCtx.Checker)
+	// Perform a fine-grained check that takes the session into consideration.
+	err = authCtx.CheckAccessToRule(sctx, types.KindSession, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceName, sessionKind := resourceToSessionKind(sctx.Resource)
+	s.usageReporter.AnonymizeAndSubmit(
+		&usagereporter.SessionSummaryAccessEvent{
+			UserName:     authCtx.User.GetName(),
+			SessionType:  string(sessionKind),
+			ResourceName: resourceName,
+			UserKind:     usagereporter.PrehogUserKindFromEventKind(authCtx.GetUserMetadata().UserKind),
+		},
+	)
+
+	if err := adjustEnhancedSummaryForClient(ctx, summary); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pb.GetSummaryResponse_builder{Summary: summary}.Build(), nil
+}
+
+// insecureGetSummary retrieves session summary and associated end event,
+// ignoring access rules.
+func (s *Service) insecureGetSummary(
+	ctx context.Context, sid session.ID,
+) (*pb.Summary, apievents.AuditEvent, error) {
+	rc, err := s.summaryDownloader.StreamSessionSummary(ctx, sid)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer rc.Close()
+
+	payload, err := s.decryptIfNeeded(ctx, rc)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "decrypting session summary")
+	}
+
+	summary := &pb.Summary{}
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(payload, summary)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	sessionAuditEvent, err := events.FromEventFields(summary.GetSessionEndEvent().AsMap())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return summary, sessionAuditEvent, nil
+}
+
+// maxBatchGetSummaryMetadataSessions is the maximum number of sessions that may be requested in a single
+// BatchGetSummaryMetadata call.
+const maxBatchGetSummaryMetadataSessions = 100
+
+// batchGetSummaryMetadataConcurrency limits the number of concurrent summary downloads.
+const batchGetSummaryMetadataConcurrency = 8
+
+// BatchGetSummaryMetadata retrieves lightweight summary metadata for multiple sessions in a single call.
+// Sessions without summaries and sessions the user is not allowed to read are omitted from the response rather than
+// reported as errors.
+func (s *Service) BatchGetSummaryMetadata(
+	ctx context.Context, req *pb.BatchGetSummaryMetadataRequest,
+) (*pb.BatchGetSummaryMetadataResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Quick access check to see if the user can access any sessions at all, before we start downloading summaries.
+	sctx := &services.Context{User: authCtx.User}
+	err = authCtx.Checker.GuessIfAccessIsPossible(
+		sctx, defaults.Namespace, types.KindSession, types.VerbRead,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	sessionIDs := apiutils.Deduplicate(req.GetSessionIds())
+	if len(sessionIDs) > maxBatchGetSummaryMetadataSessions {
+		return nil, trace.BadParameter(
+			"at most %d sessions may be requested at once, got %d",
+			maxBatchGetSummaryMetadataSessions, len(sessionIDs),
+		)
+	}
+
+	metadata := make([]*pb.SummaryMetadata, len(sessionIDs))
+
+	// Use an errgroup to get limited concurrency, even though nothing reports an error.
+	var group errgroup.Group
+	group.SetLimit(batchGetSummaryMetadataConcurrency)
+	for i, sid := range sessionIDs {
+		group.Go(func() error {
+			summary, sessionAuditEvent, err := s.insecureGetSummary(ctx, session.ID(sid))
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					s.logger.DebugContext(
+						ctx, "Unable to read session summary recording", "session_id", sid, "error", err,
+					)
+				}
+				return nil
+			}
+
+			sessionCtx := &services.Context{User: authCtx.User}
+			sessionCtx.ExtendWithSessionEnd(sessionAuditEvent, authCtx.Checker)
+			if authCtx.CheckAccessToRule(sessionCtx, types.KindSession, types.VerbRead) != nil {
+				return nil
+			}
+
+			metadata[i] = makeSummaryMetadata(summary)
+			return nil
+		})
+	}
+	_ = group.Wait()
+
+	return pb.BatchGetSummaryMetadataResponse_builder{
+		Metadata: slices.DeleteFunc(metadata, func(m *pb.SummaryMetadata) bool {
+			return m == nil
+		}),
+	}.Build(), nil
+}
+
+// makeSummaryMetadata trims a summary down to the metadata served by BatchGetSummaryMetadata.
+func makeSummaryMetadata(summary *pb.Summary) *pb.SummaryMetadata {
+	es := summary.GetEnhancedSummary()
+	reasons := es.GetNeedsFurtherReviewReasons()
+
+	// Summaries written by a pre-v19 auth carry only the deprecated singular reason field.
+	//nolint:staticcheck // deprecated field read for backwards compatibility
+	if len(reasons) == 0 && es.HasNeedsFurtherReview() {
+		//nolint:staticcheck // deprecated field read for backwards compatibility
+		reasons = []pb.NeedsReviewReason{es.GetNeedsFurtherReview()}
+	}
+
+	return pb.SummaryMetadata_builder{
+		SessionId:                 summary.GetSessionId(),
+		State:                     summary.GetState(),
+		RiskLevel:                 es.GetRiskLevel(),
+		NeedsFurtherReviewReasons: reasons,
+	}.Build()
+}
+
+// IsEnabled checks if the summarizer should be considered enabled. Session
+// summarizer considers itself enabled if there's at least one model configured
+// in the backend. This is not perfect, since whether the summarizer is
+// configured NOW doesn't tell us if it was configured IN THE PAST (and may
+// have generated data). This is all we've got for now, though.
+func (s *Service) IsEnabled(
+	ctx context.Context, req *pb.IsEnabledRequest,
+) (res *pb.IsEnabledResponse, err error) {
+	//  TODO(bl-nero): Figure out a better way to do this.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This endpoint can only be called by the proxy itself.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("access denied")
+	}
+	if !s.isLicensed() {
+		return pb.IsEnabledResponse_builder{Enabled: false}.Build(), nil
+	}
+
+	models, _, err := s.backend.ListInferenceModels(ctx, 1, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	policies, _, err := s.backend.ListInferencePolicies(ctx, 1, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pb.IsEnabledResponse_builder{
+		Enabled: len(models) > 0 && len(policies) > 0,
+	}.Build(), nil
+}
+
+// decryptIfNeeded decrypts the reader if it is encrypted.
+// If the data is not encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, reader io.ReadCloser) ([]byte, error) {
+	decrypted, err := recordingencryption.DecryptReaderIfEncrypted(ctx, reader, r.decrypter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create decrypt reader")
+	}
+	decryptedData, err := io.ReadAll(decrypted)
+	return decryptedData, trace.Wrap(err)
+}
+
+func (s *Service) TestInferenceModel(
+	ctx context.Context, req *pb.TestInferenceModelRequest,
+) (*pb.TestInferenceModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	if resp := validateTestResources(req); resp != nil {
+		return resp, nil
+	}
+
+	// Create a test provider based on the model spec
+	provider, err := s.newTestProvider(ctx, req)
+	if err != nil {
+		return pb.TestInferenceModelResponse_builder{
+			Success: false,
+			Message: err.Error(),
+		}.Build(), nil
+	}
+
+	// Make a simple test request with minimal input
+	testSessionID := session.ID("test-session")
+	testPrompt := "Test prompt"
+	testInput := "echo 'test'"
+
+	reader := io.NopCloser(strings.NewReader(testInput))
+	_, err = provider.Summarize(ctx, testSessionID, testPrompt, reader)
+	if err != nil {
+		return pb.TestInferenceModelResponse_builder{
+			Success: false,
+			Message: summarizererrors.FormatInferenceError(err, req.GetModel()),
+		}.Build(), nil
+	}
+
+	return pb.TestInferenceModelResponse_builder{
+		Success: true,
+		Message: "Successfully connected to the inference provider and received a response",
+	}.Build(), nil
+}
+
+func validateTestResources(req *pb.TestInferenceModelRequest) *pb.TestInferenceModelResponse {
+	if req.GetModel() == nil {
+		return pb.TestInferenceModelResponse_builder{
+			Success: false,
+			Message: "model spec is required",
+		}.Build()
+	}
+	testInferenceModel := apisummarizer.NewInferenceModel("test-model", req.GetModel())
+	if err := apisummarizer.ValidateInferenceModel(testInferenceModel); err != nil {
+		return pb.TestInferenceModelResponse_builder{
+			Success: false,
+			Message: "invalid model spec: " + err.Error(),
+		}.Build()
+	}
+
+	if secret := req.GetSecret(); secret != nil {
+		testInferenceSecret := apisummarizer.NewInferenceSecret("test-secret", secret)
+		if err := apisummarizer.ValidateInferenceSecret(testInferenceSecret); err != nil {
+			return pb.TestInferenceModelResponse_builder{
+				Success: false,
+				Message: "invalid secret spec: " + err.Error(),
+			}.Build()
+		}
+	}
+	return nil
+}
+
+func resourceToSessionKind(resource types.Resource) (string, types.SessionKind) {
+	if resource == nil {
+		return "unknown", types.UnknownSessionKind
+	}
+	switch resource.GetKind() {
+	case types.KindNode:
+		return resource.GetName(), types.DatabaseSessionKind
+	case types.KindKubernetesCluster:
+		return resource.GetName(), types.KubernetesSessionKind
+	case types.KindApp:
+		return resource.GetName(), types.AppSessionKind
+	case types.KindDatabase:
+		return resource.GetName(), types.DatabaseSessionKind
+	case types.KindWindowsDesktop:
+		return resource.GetName(), types.WindowsDesktopSessionKind
+	default:
+		return "unknown", types.UnknownSessionKind
+	}
+}
+
+func (s *Service) validateInferenceSecretExistence(ctx context.Context, name string) error {
+	if _, err := s.cache.GetInferenceSecret(ctx, name); trace.IsNotFound(err) {
+		_, err := s.backend.GetInferenceSecret(ctx, name)
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}

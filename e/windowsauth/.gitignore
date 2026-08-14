@@ -1,0 +1,12 @@
+/.idea/
+/go-dll2.iml
+/x
+/*.dll
+/go.h
+/teleport.h
+/build
+/target
+.DS_Store
+/**/*.dll
+/**/*.syso
+.cargo

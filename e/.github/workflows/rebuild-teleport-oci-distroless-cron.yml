@@ -1,0 +1,103 @@
+# Rebuilds all of the latest-release distroless images on a
+# schedule in order to pick up any security fixes (etc.) in
+# the base image.
+
+name: Rebuild Distroless OCI Images
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily at 7.23 am UTC. 7am UTC is 0:00 PDT, and the 23-
+    # minute offset is not important; just a random offset to
+    # stagger jobs.
+    # This is only run from the `master` branch. GitHub Actions
+    # will not run scheduled/cron jobs from other branches. This
+    # file appears on release branches due to how they are created
+    # off master, but those scheduled/cron jobs do not run.
+    - cron: "23 7 * * *"
+
+env:
+  # A space-delimited list of the major teleport versions for which
+  # we want to rebuild the images. Make sure this value is kept
+  # up-to-date as new major versions are released. See:
+  #   https://github.com/gravitational/teleport/blob/master/docs/postrelease.md
+  TELEPORT_MAJOR_VERSIONS: "v17 v18"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger-builds:
+    name: Rebuild Latest OCI releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout teleport @ `master`
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/teleport
+          ref: master
+          fetch-depth: 1
+          path: teleport
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: teleport/build.assets/tooling/go.mod
+
+      # Fetch a token so we can access releases from teleport-private
+      - name: Fetch installation token
+        id: fetch-token
+        uses: actions/create-github-app-token@b96fde71c0080358ed6e2d162f11c612c92a97d1 # v2.0.6
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: teleport-private
+          permission-contents: read # We just need read on teleport-private
+
+      - name: Select Teleport releases
+        id: select
+        working-directory: teleport/build.assets/tooling
+        env:
+          GITHUB_TOKEN: ${{ steps.fetch-token.outputs.token }}
+        run: |
+          versions=""
+          for major_version in ${{ env.TELEPORT_MAJOR_VERSIONS }}; do
+            v=$(go run ./cmd/query-latest $major_version || true)
+            versions+="$v "
+          done
+          echo tags="$versions" >> "$GITHUB_OUTPUT"
+
+      # GHA wants to know all the exact revision of every single action and
+      # workflow being pulled into a workflow run *before* it starts running.
+      #
+      # We, on the other hand, don't know the versions of
+      # `rebuild-teleport-oci-distroless.yml` we want to invoke until the
+      # previous step complete. This means that we can't use a matrix or any
+      # of the calling mechanisms built into GHA, or aggregate the child
+      # workflow status under this workflow: we have to treat each versioned
+      # invocation of `rebuild-teleport-oci-distroless.yml` as a separate,
+      # top-level workflow run.
+      - name: Trigger rebuild all distroless OCI images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ steps.select.outputs.tags }}
+        run: |
+          for tag in ${TAGS}; do
+            # Select teleport-private repo if version starts with "private-"
+            repo="teleport"
+            teleport_release_tag="${tag#private-}"
+            if [[ "${teleport_release_tag}" != "${tag}" ]]; then
+              repo="teleport-private"
+            fi
+
+            major_branch="branch/${teleport_release_tag%%.*}"
+            echo "Triggering rebuild of teleport images for $teleport_release_tag"
+
+            gh workflow run rebuild-teleport-oci-aggregate.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$major_branch" \
+              --raw-field oss-teleport-repo="gravitational/$repo" \
+              --raw-field teleport-release-tag="$teleport_release_tag" \
+              --raw-field environment=prod/oci-rebuild
+          done

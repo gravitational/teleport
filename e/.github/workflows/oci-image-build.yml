@@ -1,0 +1,362 @@
+name: Build Docker image
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        type: string
+
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string
+
+      source-tag:
+        description: "The semver version tag of the Teleport revision that we're building."
+        required: true
+        type: string
+
+      base-image:
+        description: "The base image to be used when building the docker image"
+        required: true
+        type: string
+
+      dest-image-registry-region:
+        description: "AWS region containing the destination repository"
+        type: string
+        default: us-west-2
+
+      dest-image-repo:
+        description: "The destination image repository (omitting tag)"
+        required: true
+        type: string
+
+      dest-image-tags:
+        description: |
+          Space separated list of tags for the destination image
+        required: false
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+      teleport-release:
+        description: |
+          The release of teleport to include on the image. Must be either `oss`
+          `enterprise`, or `fips`
+        required: true
+        type: string
+
+      teleport-version:
+        description: |
+          Teleport version used for constructing the debian package filename. Must
+          not include a leading `v` in the version tag.
+        required: true
+        type: string
+
+      image-build-args:
+        description: |
+          An optional string containing arbitrary extra build args to be passed
+          to `docker buildx build`. Formatted as a newline-separated list, as
+          per https://github.com/marketplace/actions/docker-setup-buildx#inputs
+        type: string
+        required: false
+
+      image-build-context:
+        description: |
+          Newline-separated list of paths containing the files that
+          must be copied into the build directory. When not specified, defaults
+          to './teleport/build.assets/charts/.'. This is used to build images
+          for Teleport integrations. Wildcards are not supported. To copy a the
+          content of a directory, use the `./dir/.` notation.
+        type: string
+        default: |
+          ./teleport/build.assets/charts/.
+
+      image-build-dockerfile:
+        description: |
+          An optional file path pointing to the Dockerfile to use. The path is
+          relative to the build context specified in inputs.
+        type: string
+        default: "Dockerfile-distroless"
+
+      skip-base-image-verify:
+        description: |
+          Should the verification of the signature of the base image be skipped?
+          Only turn this off if it is not possible to verify the signature of a
+          base image (e.g it is not signed).
+        type: boolean
+        default: false
+
+      allow-overwrites:
+        description: |
+          Allow this script to overwrite any tags in the destination image. If
+          set to false, thie image will not be rebuilt and signed if the
+          workflow detects that any of the requested tags exists in the
+          destination repository, but the build will still succeed.
+        type: boolean
+        default: true
+
+      architectures:
+        description:
+          A newline-separated list of the CPU architectures to build for
+        type: string
+        default: |
+          arm64
+          amd64
+
+      should-download-teleport-packages:
+        description: |
+          True if the build process should pull in the built Teleport packages,
+          false otherwise. If true, callers of this job should ensure that
+          the packages are built or already exist prior to execution of this
+          workflow.
+        type: boolean
+        default: true
+
+      s3-file-name-override:
+        description: |
+          The full name of the file to download from the S3 pending artifacts
+          bucket. If `{arch}` is present in the string, then it will be
+          replaced with the architecture being built. If value not specified,
+          then the appropriate Teleport deb artifact will be downloaded.
+        type: string
+        required: false
+
+    secrets:
+      deploy-access-app-id:
+        description: |
+          The ID of the GitHub app used to grant deployment access for repos
+          to the workflow.
+        required: true
+
+      deploy-access-app-key:
+        description: |
+          The private key used to authenticate against the deployment access
+          GitGub app.
+        required: true
+
+run-name: "Rebuilding ${{ inputs.dest-image-repo }}"
+
+jobs:
+  build-docker-image:
+    name: Build Multiarch OCI image
+    runs-on: ubuntu-22.04-16core
+    environment: ${{ inputs.environment }}
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-built: ${{ steps.check.outputs.build_image }}
+    env:
+      BASE_IMAGE: ${{ inputs.base-image }}
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          path: ./teleport
+          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
+          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          environments-directory: ./teleport/e/.environments
+
+      - name: Configure environment
+        env:
+          TELEPORT_RELEASE: ${{ inputs.teleport-release }}
+        run: |
+          DEB_RELEASE_INFIX=""
+          DEB_FIPS_INFIX=""
+          case "$TELEPORT_RELEASE" in
+            "oss")
+              ;;
+
+            "enterprise")
+              DEB_RELEASE_INFIX="-ent"
+              ;;
+
+            "fips")
+              DEB_RELEASE_INFIX="-ent"
+              DEB_FIPS_INFIX="-fips"
+              ;;
+
+            *)
+              echo "Unsupported release type: $TELEPORT_RELEASE"
+              exit 1
+              ;;
+          esac
+          echo "DEB_RELEASE_INFIX=$DEB_RELEASE_INFIX" >> "$GITHUB_ENV"
+          echo "DEB_FIPS_INFIX=$DEB_FIPS_INFIX" >> "$GITHUB_ENV"
+
+      - name: Set up Docker QEMU integration
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver: docker-container
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Assume Public ECR login role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
+          role-session-name: "gha-oci-image-build-ecr-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      # Authenticate with public ECR for higher rate limits
+      - name: Log into public ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        with:
+          registry-type: public
+        env:
+          # GetAuthorizationToken command is only supported in us-east-1.
+          AWS_REGION: us-east-1
+
+      - name: Copy Docker Image context
+        run: |
+          mkdir ./build
+          echo "${{ inputs.image-build-context }}" | xargs -I '{}' cp -r '{}' ./build
+          tree ./build
+
+      - name: Assume pending artifact bucket AWS download role
+        if: inputs.should-download-teleport-packages
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-oci-image-build-dl-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      - name: Download Teleport packages
+        if: inputs.should-download-teleport-packages
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version }}
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          S3_FILE_NAME_OVERRIDE: ${{ inputs.s3-file-name-override }}
+        run: |
+          for arch in $ARCHITECTURES; do
+            if [[ -z "$S3_FILE_NAME_OVERRIDE" ]]; then
+              export S3_FILE_NAME="teleport/tag/${TELEPORT_VERSION}/teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb"
+            else
+              export S3_FILE_NAME="${S3_FILE_NAME_OVERRIDE//'{arch}'/${arch}}"
+            fi
+
+            aws s3 cp "s3://${PENDING_BUCKET_NAME}/${S3_FILE_NAME}" "./build/$(basename "${S3_FILE_NAME}")" --no-progress
+          done
+
+          tree ./build
+
+      - name: Verify base image
+        if: ${{ !inputs.skip-base-image-verify }}
+        env:
+          CERT_IDENTITY: "keyless@distroless.iam.gserviceaccount.com"
+          CERT_OIDC_ISSUER: "https://accounts.google.com"
+        run: |
+          cosign verify "${BASE_IMAGE}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}" --certificate-identity="${CERT_IDENTITY}" > validated-image.json
+          BASE_IMAGE_HASH="$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)"
+          # Pin base image to verified hash
+          echo "BASE_IMAGE=${BASE_IMAGE}@${BASE_IMAGE_HASH}" >> "$GITHUB_ENV"
+
+      - name: Expand platform names
+        id: platforms
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+        run: |
+          EOF=END_OF_PLATFORMS
+          echo "platforms<<$EOF" >> "$GITHUB_OUTPUT"
+          for a in $ARCHITECTURES; do
+            echo "linux/$a" >> "$GITHUB_OUTPUT"
+          done
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Expand image tags
+        id: expand
+        env:
+          DST_IMAGE_TAGS: ${{ inputs.dest-image-tags }}
+          DST_IMAGE_REPO: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}"
+        run: |
+          EOF=END_OF_TAGS
+          echo "tags<<$EOF" >> "$GITHUB_OUTPUT"
+          for TAG in ${DST_IMAGE_TAGS}; do
+            echo "${DST_IMAGE_REPO}:${TAG}" >> "$GITHUB_OUTPUT"
+          done
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+          # The ECR registry cannot have a repository appended when logging into
+          # public.ecr.aws, so strip off everything from the first slash.
+          echo "dest-image-registry=${DST_IMAGE_REPO%%/*}" >> "$GITHUB_OUTPUT"
+
+      - name: Assume Build AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
+          role-session-name: "gha-oci-image-build-push-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      - name: Login to Destination ECR Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ steps.expand.outputs.dest-image-registry }}
+          ecr: true
+        env:
+          AWS_REGION: ${{ inputs.dest-image-registry-region }}
+
+      - name: Check if building would overwrite destination tag
+        id: check
+        env:
+          TAGS: ${{ steps.expand.outputs.tags }}
+        run: |
+          build_image=true
+          if ${{ inputs.allow-overwrites }}; then
+              echo "Overwrites allowed. Skipping existence test."
+          else
+              for tag in ${TAGS}; do
+                  echo "Checking for: ${tag}"
+                  if docker buildx imagetools inspect "${tag}" > /dev/null ; then
+                      echo "found"
+                      build_image=false
+                      break
+                  fi
+              done
+          fi
+          echo build_image=${build_image} >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        id: build
+        if: steps.check.outputs.build_image == 'true'
+        with:
+          file: "./build/${{ inputs.image-build-dockerfile }}"
+          context: ./build
+          platforms: ${{ steps.platforms.outputs.platforms }}
+          push: true
+          tags: ${{ steps.expand.outputs.tags }}
+          sbom: true
+          build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
+            TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
+            ${{ inputs.image-build-args }}
+
+      - name: Sign image using signing key and GitHub OIDC Token
+        if: steps.check.outputs.build_image == 'true'
+        env:
+          SIGNING_KEY_ARN: ${{ env.OCI_PENDING_SIGNING_KEY_ARN }}
+          DST_IMAGE: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+        run: |
+          cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE}"
+          cosign sign --yes --upload=false --recursive "${DST_IMAGE}"

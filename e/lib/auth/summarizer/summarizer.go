@@ -1,0 +1,1094 @@
+package summarizer
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"runtime/debug"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/vulcand/predicate"
+	"golang.org/x/sync/semaphore"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/gravitational/teleport"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/desktop"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+)
+
+const (
+	// Maximum number of concurrent summarization jobs.
+	concurrencyLimit = 25
+	// desktopConcurrencyLimit caps concurrent desktop session summarizations.
+	desktopConcurrencyLimit = 4
+	// Number of workers in the worker pool for summarization.
+	workerCount = 10
+	// failedSummaryUploadTimeout bounds the upload of a SUMMARY_STATE_ERROR
+	// result from finalizeFailedSummary.
+	failedSummaryUploadTimeout = time.Minute
+)
+
+// SummarizerConfig contains configuration for the SessionSummarizer.
+type SummarizerConfig struct {
+	Cache    services.SummarizerServiceGetter
+	Streamer events.SessionStreamer
+	// Encrypter is used to encrypt session summaries before uploading them.
+	Encrypter events.EncryptionWrapper
+	// SummaryUploader uploads session summaries.
+	SummaryUploader SummaryUploader
+	// OpenAIClientFactory creates OpenAI clients. Defaults to a production
+	// implementation.
+	OpenAIClientFactory openai.ClientFactory
+	// BedrockClientFactory creates Amazon Bedrock clients. Defaults to a
+	// production implementation.
+	BedrockClientFactory bedrock.ClientFactory
+	// Clock is used for time calculations. Defaults to a real clock.
+	Clock clockwork.Clock
+	// EnableBedrockWithoutRestrictions enables access to Amazon Bedrock models. Currently, this
+	// should only be turned on outside Teleport Cloud. Setting it to true allows
+	// using inference_model resources for inference.
+	EnableBedrockWithoutRestrictions bool
+	// AWSConfigCache is used to retrieve AWS OIDC tokens for Amazon Bedrock.
+	AWSConfigCache *awsconfig.Cache
+	// EnvBedrockRegion, if set to a non-empty value, will override Amazon
+	// Bedrock region where it's set to {{env.bedrock_region}}
+	EnvBedrockRegion string
+	// EnvBedrockModelID, if set to a non-empty value, will override Amazon
+	// Bedrock model ID where it's set to {{env.bedrock_model_id}}.
+	EnvBedrockModelID string
+	// UsageReporter reports usage events.
+	UsageReporter usagereporter.UsageReporter
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
+	// AccessGraphClientGetter is the pre-built access graph client getter used to search
+	// session summaries and store them.
+	AccessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
+	// AvailabilityCache caches the session search availability state so that
+	// the summarizer can skip the expensive embedding-generation and push
+	// pipeline when the access graph does not support session search.
+	AvailabilityCache AvailabilityChecker
+	// IsLicensed reports whether the SessionSummaries entitlement is active.
+	IsLicensed func() bool
+}
+
+// SummaryUploader allows uploading recording summaries.
+type SummaryUploader interface {
+	// UploadPendingSummary uploads a pending session summary and returns a URL
+	// with uploaded file in case of success.
+	UploadPendingSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// UploadSummary uploads a full version of session summary and returns a URL
+	// with uploaded file in case of success.
+	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+}
+
+// InferenceProvider is an interface for providers that can summarize session
+// recordings.
+type InferenceProvider interface {
+	// Summarizes a session. Should close the session reader when it's no longer
+	// needed.
+	Summarize(
+		ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser,
+	) (string, error)
+	// SummarizeCommand summarizes a single command and returns the analysis.
+	SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error)
+	// SummarizeMultipleCommands summarizes multiple commands and returns the
+	// overall session analysis.
+	SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error)
+	// SummarizeMultipleImages sends batched screenshots to AI for analysis.
+	SummarizeMultipleImages(ctx context.Context, sessionID session.ID, systemPrompt string, images []schema.ImageData) (*schema.DesktopScreenshotAnalysis, error)
+	// SummarizeDesktopSession synthesizes a list of desktop session events into an overall session analysis.
+	SummarizeDesktopSession(ctx context.Context, sessionID session.ID, systemPrompt, prompt string) (*schema.DesktopSessionAnalysis, error)
+
+	// GetTotalTokens returns the total number of input and output tokens used by this provider.
+	GetTotalTokens() (input uint64, output uint64)
+
+	// GetType returns the type of the inference provider.
+	GetType() string
+
+	// CondenseForEmbedding generates text suitable for embedding based on the session summary.
+	CondenseForEmbedding(ctx context.Context, input *summarizerv1pb.Summary) (string, error)
+}
+
+// ProseProvider is an interface for providers that can generate prose text suitable for embedding based on session summaries.
+type ProseProvider interface {
+	// GenerateProseEmbeddings generates text suitable for embedding based on the session summary.
+	CondenseForEmbedding(context.Context, *summarizerv1pb.Summary) (string, error)
+}
+
+// EmbeddingProvider is an interface for providers that can generate text
+// ragpipeline.
+type EmbeddingProvider interface {
+	// GenerateEmbeddings generates embeddings for the provided text.
+	// Returns the embeddings as []float32, the tokens consumed and an error.
+	GenerateEmbeddings(ctx context.Context, text string) ([]float32, int, error)
+}
+
+// AvailabilityChecker returns the session search availability state reported by
+// the access graph. Implementations may cache the result to avoid repeatedly
+// calling the access graph for the same availability check.
+type AvailabilityChecker interface {
+	// Get returns the current session search availability state.
+	Get(ctx context.Context) (accessgraphv1.SessionSearchAvailability, error)
+}
+
+// SessionSummarizer summarizes session recordings using language model
+// inference.
+type SessionSummarizer struct {
+	cache                            services.SummarizerServiceGetter
+	streamer                         events.SessionStreamer
+	summaryUploader                  SummaryUploader
+	openAIClientFactory              openai.ClientFactory
+	bedrockClientFactory             bedrock.ClientFactory
+	clock                            clockwork.Clock
+	logger                           *slog.Logger
+	concurrencyLimiter               *semaphore.Weighted
+	desktopConcurrencyLimiter        *semaphore.Weighted
+	slotAcquireTimeout               time.Duration
+	enableBedrockWithoutRestrictions bool
+	encrypter                        events.EncryptionWrapper
+	awsConfigCache                   *awsconfig.Cache
+	pool                             *workerPool
+	envBedrockRegion                 string
+	envBedrockModelID                string
+	usageReporter                    usagereporter.UsageReporter
+	emitter                          apievents.Emitter
+	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
+	accessGraphAvailabilityChecker   AvailabilityChecker
+	isLicensed                       func() bool
+
+	// glyphCache lazy-initializes a desktop.GlyphCache the first time a desktop session is summarized and reuses it
+	// for the lifetime of the SessionSummarizer.
+	glyphCache func() *desktop.GlyphCache
+
+	// structuredOutputCache remembers, for the lifetime of the summarizer, whether models of unknown capability
+	// support a provider's native structured output API, so the failed native attempt is not repeated for every session.
+	structuredOutputCache *structured.SupportCache
+}
+
+var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
+
+// NewSessionSummarizer creates a new session summarizer with given
+// configuration.
+func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
+	if cfg.Cache == nil {
+		return nil, trace.BadParameter("cache is required")
+	}
+	if cfg.Streamer == nil {
+		return nil, trace.BadParameter("streamer is required")
+	}
+	if cfg.SummaryUploader == nil {
+		return nil, trace.BadParameter("upload handler is required")
+	}
+	if cfg.AWSConfigCache == nil {
+		return nil, trace.BadParameter("AWS config cache is required")
+	}
+	if cfg.UsageReporter == nil {
+		return nil, trace.BadParameter("usage reporter is required")
+	}
+	if cfg.Emitter == nil {
+		return nil, trace.BadParameter("emitter is required")
+	}
+	if cfg.AccessGraphClientGetter == nil {
+		return nil, trace.BadParameter("access graph client getter is required")
+	}
+	if cfg.AvailabilityCache == nil {
+		return nil, trace.BadParameter("availability cache is required")
+	}
+	if cfg.IsLicensed == nil {
+		return nil, trace.BadParameter("IsLicensed function is required")
+	}
+
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
+	return &SessionSummarizer{
+		cache:                            cfg.Cache,
+		streamer:                         cfg.Streamer,
+		summaryUploader:                  cfg.SummaryUploader,
+		openAIClientFactory:              cfg.OpenAIClientFactory,
+		bedrockClientFactory:             cfg.BedrockClientFactory,
+		clock:                            clock,
+		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
+		concurrencyLimiter:               semaphore.NewWeighted(concurrencyLimit),
+		desktopConcurrencyLimiter:        semaphore.NewWeighted(desktopConcurrencyLimit),
+		slotAcquireTimeout:               defaultSlotAcquireTimeout,
+		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
+		encrypter:                        cfg.Encrypter,
+		awsConfigCache:                   cfg.AWSConfigCache,
+		pool:                             newWorkerPool(workerCount),
+		envBedrockRegion:                 cfg.EnvBedrockRegion,
+		envBedrockModelID:                cfg.EnvBedrockModelID,
+		usageReporter:                    cfg.UsageReporter,
+		emitter:                          cfg.Emitter,
+		accessGraphClientGetter:          cfg.AccessGraphClientGetter,
+		accessGraphAvailabilityChecker:   cfg.AvailabilityCache,
+		isLicensed:                       cfg.IsLicensed,
+		glyphCache:                       sync.OnceValue(desktop.NewGlyphCache),
+		structuredOutputCache:            structured.NewSupportCache(clock, structured.DefaultSupportCacheTTL),
+	}, nil
+}
+
+// sessionDetails contains details about the session to be summarized,
+// including any pending summarization result.
+type sessionDetails struct {
+	sessionID              session.ID
+	username               string
+	loginName              string
+	resourceName           string
+	kind                   types.SessionKind
+	summary                *summarizerv1pb.Summary
+	provider               InferenceProvider
+	sessionEnd             apievents.AuditEvent
+	errorFormatFunc        func(error) string
+	now                    time.Time
+	hadEmbeddingsGenerated bool
+}
+
+// TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
+
+// SummarizeSSH summarizes the SSH (or kubectl exec) session recording
+// associated with the provided [apievents.SessionEnd] event.
+//
+// The PTY rendering runs vt10x in a worker goroutine spawned by summarize,
+// so the panic guard lives on [SessionSummarizer.summarizeNowAndReportMetrics]
+// rather than here.
+func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	if sessionEndEvent == nil {
+		return trace.BadParameter("session end event is required to summarize an SSH session")
+	}
+
+	sessionID := session.ID(sessionEndEvent.SessionID)
+	username := sessionEndEvent.User
+	loginName := sessionEndEvent.Login
+
+	var resourceName string
+	var kind types.SessionKind
+	switch sessionEndEvent.Protocol {
+	case events.EventProtocolSSH:
+		kind = types.SSHSessionKind
+		resourceName = sessionEndEvent.ServerMetadata.ServerID
+	case events.EventProtocolKube:
+		kind = types.KubernetesSessionKind
+		resourceName = sessionEndEvent.KubernetesClusterMetadata.KubernetesCluster
+	default:
+		return trace.BadParameter("unsupported session protocol %s", sessionEndEvent.Protocol)
+	}
+
+	start := time.Now()
+	s.logger.DebugContext(
+		ctx, "Starting session summarization", "session_id", sessionID, "user", username, "kind", kind,
+	)
+
+	details := sessionDetails{
+		sessionID:    sessionID,
+		resourceName: resourceName,
+		username:     username,
+		loginName:    loginName,
+		kind:         kind,
+		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
+	}
+
+	if err := s.summarize(ctx, details); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.logger.DebugContext(
+		ctx, "Completed session summarization", "session_id", sessionID, "user", username,
+		"duration", time.Since(start).String(),
+	)
+
+	return nil
+}
+
+// SummarizeDatabase summarizes the database session recording associated with
+// the provided [apievents.DatabaseSessionEnd] event.
+func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	if sessionEndEvent == nil {
+		return trace.BadParameter("session end event is required to summarize a database session")
+	}
+
+	sessionID := session.ID(sessionEndEvent.SessionID)
+	username := sessionEndEvent.User
+	kind := types.DatabaseSessionKind
+
+	s.logger.DebugContext(
+		ctx, "Summarizing a database session", "session_id", sessionID, "user", username,
+	)
+
+	details := sessionDetails{
+		sessionID:    sessionID,
+		resourceName: sessionEndEvent.DatabaseMetadata.DatabaseName,
+		username:     username,
+		kind:         kind,
+		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
+	}
+
+	return trace.Wrap(s.summarize(ctx, details))
+}
+
+// SummarizeWindowsDesktop summarizes the Windows desktop session recording associated with the provided
+// [apievents.WindowsDesktopSessionEnd] event.
+func (s *SessionSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	if sessionEndEvent == nil {
+		return trace.BadParameter("session end event is required to summarize a Windows desktop session")
+	}
+
+	sessionID := session.ID(sessionEndEvent.SessionID)
+
+	s.logger.DebugContext(
+		ctx, "Summarizing a Windows desktop session", "session_id", sessionID, "user", sessionEndEvent.User,
+	)
+
+	details := sessionDetails{
+		sessionID:    sessionID,
+		resourceName: sessionEndEvent.DesktopAddr,
+		username:     sessionEndEvent.User,
+		loginName:    sessionEndEvent.WindowsUser,
+		kind:         types.WindowsDesktopSessionKind,
+		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
+	}
+
+	return trace.Wrap(s.summarize(ctx, details))
+}
+
+// summarize picks the appropriate inference provider and launches a
+// summarization goroutine.
+func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	supportedSessionKinds := [4]types.SessionKind{
+		types.SSHSessionKind,
+		types.KubernetesSessionKind,
+		types.DatabaseSessionKind,
+		types.WindowsDesktopSessionKind,
+	}
+
+	if !slices.Contains(supportedSessionKinds[:], details.kind) {
+		return trace.BadParameter("unsupported session kind: %v", details.kind)
+	}
+
+	user, err := buildUserFromEvent(details.sessionEnd)
+	if err != nil {
+		return trace.Wrap(err, "failed to build user from event")
+	}
+
+	matchingCtx := &services.InferencePolicyMatchingContext{
+		User: user,
+	}
+	matchingCtx.ExtendWithSessionEnd(details.sessionEnd)
+
+	policy, err := s.matchPolicy(ctx, details.kind, matchingCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	endEventFields, err := events.ToEventFields(details.sessionEnd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	endEventStruct, err := structpb.NewStruct(endEventFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if policy == nil {
+		s.logger.DebugContext(ctx,
+			"No matching summary inference policy found, session will not be summarized",
+			"session_id", details.sessionID,
+		)
+		noPolicySummary := summarizerv1pb.Summary_builder{
+			SessionId:       details.sessionID.String(),
+			State:           summarizerv1pb.SummaryState_SUMMARY_STATE_NO_INFERENCE_POLICY,
+			SessionEndEvent: endEventStruct,
+		}.Build()
+		if _, err := s.persistSummary(ctx, details.sessionID, noPolicySummary); err != nil {
+			return trace.Wrap(err, "failed to upload no-inference-policy summary result")
+		}
+		return nil
+	}
+	s.logger.DebugContext(
+		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.GetMetadata().GetName(),
+	)
+
+	provider, errorFormatter, err := s.newProvider(ctx, policy.GetSpec().GetModel())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	details.provider = newTimeoutProvider(provider)
+	details.errorFormatFunc = errorFormatter
+	details.summary = summarizerv1pb.Summary_builder{
+		SessionId: details.sessionID.String(),
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
+		State:              summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING,
+		InferenceStartedAt: timestamppb.New(s.clock.Now().UTC()),
+		ModelName:          policy.GetSpec().GetModel(),
+		SessionEndEvent:    endEventStruct,
+	}.Build()
+
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(details.summary)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal pending summary result")
+	}
+	s.logger.DebugContext(ctx, "Uploading pending session summary")
+	_, err = s.summaryUploader.UploadPendingSummary(ctx, details.sessionID, bytes.NewReader(rBytes))
+	if err != nil {
+		return trace.Wrap(err, "failed to upload pending summary result")
+	}
+
+	// TODO(bl-nero): At this point, we should save the pending summary using the
+	// upload handler, but the current implementations of our file storages has
+	// wildly inconsistent behavior when overwriting existing files, so we can
+	// only save the terminal state. Fix this and then enable the pending state.
+
+	// Detach from the caller's cancellation: callers (e.g. the proto stream)
+	// cancel their context immediately after this returns, but inference can
+	// take minutes and the final UploadSummary must still run so the summary
+	// doesn't get stranded in SUMMARY_STATE_PENDING.
+	go s.summarizeNowAndReportMetrics(context.WithoutCancel(ctx), details)
+	return nil
+}
+
+func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, details sessionDetails) {
+	// This is the entry point for the worker goroutine that runs the PTY
+	// rendering pipeline (vt10x). Recover any panic so a corrupt recording
+	// cannot crash the auth server, and persist a failed summary so it's not
+	// left in a pending state.
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(ctx, "panic while summarizing session",
+				"session_id", details.sessionID,
+				"kind", details.kind,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+
+			metrics.SummarizationErrors.WithLabelValues(details.summary.GetModelName()).Inc()
+
+			s.finalizeFailedSummary(ctx, &details)
+		}
+	}()
+
+	metrics.SummarizationsTotal.WithLabelValues(details.summary.GetModelName()).Inc()
+
+	success := true
+	if err := s.summarizeNow(ctx, &details); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", details.sessionID, "kind", details.kind, "error", err)
+		metrics.SummarizationErrors.WithLabelValues(details.summary.GetModelName()).Inc()
+		success = false
+	}
+
+	inputTokens, outputTokens := details.provider.GetTotalTokens()
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+		SessionType:         string(details.kind),
+		Provider:            details.provider.GetType(),
+		TotalInputTokens:    inputTokens,
+		TotalOutputTokens:   outputTokens,
+		Success:             success,
+		ResourceName:        details.resourceName,
+		HasStoredEmbeddings: details.hadEmbeddingsGenerated,
+		IsCloudDefaultModel: details.summary.GetModelName() == apisummarizer.CloudDefaultInferenceModelName &&
+			s.enableBedrockWithoutRestrictions,
+	})
+}
+
+// acquireDesktopSlot bounds the number of concurrent desktop session summarizations, which are heavier than other kinds.
+// Non-desktop kinds are not limited and get a no-op release. The returned release must be called once the summarization finishes.
+func (s *SessionSummarizer) acquireDesktopSlot(ctx context.Context, kind types.SessionKind) (func(), error) {
+	if kind != types.WindowsDesktopSessionKind {
+		return func() {}, nil
+	}
+
+	if err := s.desktopConcurrencyLimiter.Acquire(ctx, 1); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return func() { s.desktopConcurrencyLimiter.Release(1) }, nil
+}
+
+// acquireSlots blocks until both the desktop sub-limit (for desktop kinds) and the global concurrency slot are held,
+// bounded by slotAcquireTimeout so that time spent queueing for a slot doesn't consume the summarization budget. The
+// returned release frees both slots and must be called once the summarization finishes.
+func (s *SessionSummarizer) acquireSlots(ctx context.Context, kind types.SessionKind, modelName string) (func(), error) {
+	ctx, cancel := context.WithTimeout(ctx, s.slotAcquireTimeout)
+	defer cancel()
+
+	// Desktop summarizations are heavier (multimodal image inference), so they get a dedicated sub-limit. Acquire it
+	// before the global limiter so a desktop job that's waiting for a desktop slot doesn't occupy one of the shared
+	// slots while it blocks. For other kinds, acquireDesktopSlot is a no-op returning a release that does nothing.
+	releaseDesktop, err := s.acquireDesktopSlot(ctx, kind)
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to acquire the desktop concurrency limiter semaphore")
+	}
+
+	metrics.SummarizationsPending.WithLabelValues(modelName).Inc()
+	err = s.concurrencyLimiter.Acquire(ctx, 1)
+	metrics.SummarizationsPending.WithLabelValues(modelName).Dec()
+	if err != nil {
+		releaseDesktop()
+		return nil, trace.Wrap(err, "Failed to acquire the concurrency limiter semaphore")
+	}
+
+	return func() {
+		s.concurrencyLimiter.Release(1)
+		releaseDesktop()
+	}, nil
+}
+
+// summarizeNow summarizes the session recording synchronously and uploads the
+// result. If it's unable to summarize, it stores an error in the summary
+// object. Regardless of the outcome, an attempt is then made to upload the
+// summary. Any error that occurred either when summarizing or saving the
+// summary is returned.
+//
+// The provided context is only used to create a new one with appropriate
+// timeout and can be canceled at any time without affecting the summarization
+// process.
+func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDetails) error {
+	// Detach from the caller's cancellation; each phase below applies its own deadline.
+	ctx = context.WithoutCancel(ctx)
+
+	// Clone the pending result to avoid modifying the original one.
+	result := proto.CloneOf(details.summary)
+
+	log := s.logger.With("session_id", details.sessionID)
+
+	modelName := details.summary.GetModelName()
+
+	// Phase 1: acquire the concurrency slots under their own deadline so that queueing for a slot doesn't eat into the
+	// inference budget below.
+	release, sumErr := s.acquireSlots(ctx, details.kind, modelName)
+	if sumErr != nil {
+		result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+		result.SetErrorMessage(details.errorFormatFunc(sumErr))
+	} else {
+		defer release()
+
+		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
+		defer metrics.SummarizationsRunning.WithLabelValues(modelName).Dec()
+
+		// Phase 2: the actual inference, bounded by the job ceiling now that a slot is held. Per-call timeouts nest
+		// under this.
+		summarizeCtx, cancel := context.WithTimeout(ctx, maxSummarizationTimeout)
+		defer cancel()
+
+		switch details.kind {
+		case types.SSHSessionKind, types.KubernetesSessionKind:
+			sumErr = s.summarizeSession(summarizeCtx, log, result, details)
+		case types.DatabaseSessionKind:
+			sumErr = s.summarizeSimple(summarizeCtx, log, result, details)
+		case types.WindowsDesktopSessionKind:
+			sumErr = s.summarizeDesktopSession(summarizeCtx, result, *details)
+		// This should be unreachable due to checks in the caller.
+		default:
+			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
+			result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+			result.SetErrorMessage(details.errorFormatFunc(sumErr))
+		}
+	}
+
+	result.SetInferenceFinishedAt(timestamppb.New(s.clock.Now().UTC()))
+
+	// Phase 3: persist the terminal result under its own deadline, separate from the inference budget, so a job that
+	// exhausted the ceiling still records its terminal state instead of failing to upload.
+	return s.uploadSummary(ctx, log, details, result, sumErr)
+}
+
+// summarizeSession performs the actual summarization of the session recording.
+// It chooses between simple summarization and command analysis based on the
+// session kind, and if SSH, whether the session contains bracketed paste sequences.
+func (s *SessionSummarizer) summarizeSession(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	details *sessionDetails,
+) error {
+	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, details.sessionID, 0)
+	stream, err := ttyterminal.StreamTTYRecording(ctx, eventsCh, errCh, tokenizer.Counter{})
+	if err != nil {
+		return handleError(ctx, log, result, err, "Failed to create session recording stream")
+	}
+
+	closeOnce := sync.OnceValue(stream.Close)
+	defer closeOnce()
+
+	if !stream.HasCommands() {
+		return s.summarizeSimple(ctx, log, result, details)
+	}
+
+	analysis, commands, err := analyzeSessionCommands(ctx, details.provider, s.pool, stream.Commands(), details)
+	if err != nil {
+		log.WarnContext(ctx, "Failed to analyze session commands, falling back to simple summarization", "error", err)
+		closeOnce()
+		return s.summarizeSimple(ctx, log, result, details)
+	}
+
+	if err := closeOnce(); err != nil {
+		log.WarnContext(ctx, "Failed to process session recording stream, falling back to simple summarization", "error", err)
+		return s.summarizeSimple(ctx, log, result, details)
+	}
+
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
+	result.SetEnhancedSummary(schema.SessionAnalysisToProto(analysis, commands))
+
+	return nil
+}
+
+// summarizeSimple performs a simple summarization of the session without
+// command analysis. This is used for non-SSH sessions or SSH sessions that
+// don't have bracketed paste sequences.
+func (s *SessionSummarizer) summarizeSimple(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	details *sessionDetails,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, perChunkTimeout)
+	defer cancel()
+
+	reader := newSessionReader(ctx, s.streamer, details.sessionID)
+	defer reader.Close()
+
+	var systemPrompt string
+	switch details.kind {
+	case types.SSHSessionKind, types.KubernetesSessionKind:
+		systemPrompt = prompts.SSHPrompt
+	case types.DatabaseSessionKind:
+		systemPrompt = prompts.DatabasePrompt
+	// This should be unreachable due to checks in the caller.
+	default:
+		return handleError(ctx, log, result, trace.BadParameter("unsupported session kind: %v", details.kind), "Failed to summarize session")
+	}
+
+	systemPrompt = sessionTimesFromEvent(details.sessionEnd, details.now) + "\n" + systemPrompt
+
+	content, err := details.provider.Summarize(ctx, details.sessionID, systemPrompt, reader)
+	if err != nil {
+		return handleError(ctx, log, result, err, "Failed to summarize session")
+	}
+
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
+	result.SetContent(content)
+
+	return nil
+}
+
+// finalizeFailedSummary writes a SUMMARY_STATE_ERROR result to the summary
+// uploader. It's called from the panic-recovery path in
+// summarizeNowAndReportMetrics so the pending summary that was uploaded before
+// the worker goroutine started doesn't get stranded in SUMMARY_STATE_PENDING.
+func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details *sessionDetails) {
+	if details.summary == nil {
+		return
+	}
+
+	failed := proto.CloneOf(details.summary)
+	failed.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+	failed.SetErrorMessage("internal error while processing session recording")
+	failed.SetInferenceFinishedAt(timestamppb.New(s.clock.Now().UTC()))
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failedSummaryUploadTimeout)
+	defer cancel()
+
+	log := s.logger.With("session_id", details.sessionID)
+	if err := s.uploadSummary(ctx, log, details, failed, nil); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to persist failed summary state after panic recovery",
+			"session_id", details.sessionID, "error", err)
+	}
+}
+
+func (s *SessionSummarizer) persistSummary(
+	ctx context.Context, sid session.ID, result *summarizerv1pb.Summary,
+) (string, error) {
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to marshal summary result")
+	}
+
+	if s.encrypter != nil {
+		encrypted, err := s.encryptBytes(ctx, rBytes)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		if len(encrypted) > 0 {
+			rBytes = encrypted
+		}
+	}
+
+	return s.summaryUploader.UploadSummary(ctx, sid, bytes.NewReader(rBytes))
+}
+
+func (s *SessionSummarizer) uploadSummary(
+	ctx context.Context,
+	log *slog.Logger,
+	details *sessionDetails,
+	result *summarizerv1pb.Summary,
+	sumErr error,
+) error {
+	log.DebugContext(ctx, "Uploading session summary")
+	persistCtx, persistCancel := context.WithTimeout(ctx, summaryUploadTimeout)
+	defer persistCancel()
+	path, err := s.persistSummary(persistCtx, details.sessionID, result)
+	if err != nil {
+		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to upload summary result"))
+	}
+	details.summary = result
+	pushCtx, pushCancel := context.WithTimeout(ctx, accessGraphPushTimeout)
+	defer pushCancel()
+	if err := s.pushSummaryToAccessGraph(pushCtx, details); err != nil {
+		log.ErrorContext(pushCtx, "failed to push summary to access graph", "error", err)
+	}
+	log.DebugContext(ctx, "Session summary uploaded", "path", path)
+
+	// Emit audit event for the summary creation
+	emitCtx, emitCancel := context.WithTimeout(ctx, eventEmitTimeout)
+	defer emitCancel()
+	if err := s.emitSummaryCreateEvent(emitCtx, result, details.sessionEnd); err != nil {
+		log.WarnContext(emitCtx, "Failed to emit session summary create audit event", "error", err)
+	}
+
+	return sumErr
+}
+
+func (s *SessionSummarizer) encryptBytes(ctx context.Context, data []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	w, err := s.encrypter.WithEncryption(ctx, &nopCloser{buf})
+	if errors.Is(err, recordingencryption.ErrEncryptionDisabled) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "starting recording encrypter")
+	}
+	if _, err = w.Write(data); err != nil {
+		_ = w.Close()
+		return nil, trace.Wrap(err)
+	}
+	if err := w.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func handleError(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	err error,
+	msg string,
+) error {
+	err = trace.Wrap(err)
+	//nolint:sloglint // msg is not a string literal or constant
+	log.ErrorContext(ctx, msg, "error", err)
+
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+	result.SetErrorMessage(err.Error())
+
+	return err
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (n *nopCloser) Close() error {
+	return nil
+}
+
+// SummarizeWithoutEndEvent summarizes a session recording with a given ID.
+// Used if the caller doesn't have a reference to the end event.
+func (s *SessionSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	sEnd, err := events.FindSessionEndEvent(ctx, s.streamer, sessionID)
+	if err != nil {
+		return trace.Wrap(err, "failed to find session end event")
+	}
+
+	switch o := sEnd.(type) {
+	case *apievents.SessionEnd:
+		return trace.Wrap(s.SummarizeSSH(ctx, o))
+	case *apievents.DatabaseSessionEnd:
+		return trace.Wrap(s.SummarizeDatabase(ctx, o))
+	case *apievents.WindowsDesktopSessionEnd:
+		return trace.Wrap(s.SummarizeWindowsDesktop(ctx, o))
+	default:
+		return trace.BadParameter("unsupported session end event type %T", sEnd)
+	}
+}
+
+// matchPolicy matches the session kind and context against the available
+// inference policies. It returns the first matching policy or nil if no policy
+// matches.
+func (s *SessionSummarizer) matchPolicy(
+	ctx context.Context, kind types.SessionKind, matchingCtx *services.InferencePolicyMatchingContext,
+) (*summarizerv1pb.InferencePolicy, error) {
+	parser, err := services.NewWhereParser(matchingCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for policy, err := range s.cache.AllInferencePolicies(ctx) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Contains(policy.GetSpec().GetKinds(), string(kind)) {
+			continue
+		}
+
+		if policy.GetSpec().GetFilter() == "" {
+			return policy, nil
+		}
+
+		parseResult, err := parser.Parse(policy.GetSpec().GetFilter())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		pred, ok := parseResult.(predicate.BoolPredicate)
+		if !ok {
+			return nil, trace.BadParameter("unsupported type: %T", parseResult)
+		}
+
+		if pred() {
+			return policy, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// newProvider creates a new inference provider based on the model name.
+// It also returns a function that can be used to format errors from the provider
+// in a user-friendly way, and an error if the provider could not be created.
+func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (InferenceProvider, func(error) string, error) {
+	model, err := s.cache.GetInferenceModel(ctx, modelName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	switch model.GetSpec().WhichProvider() {
+	case summarizerv1pb.InferenceModelSpec_Openai_case:
+		apiKey, err := s.cache.GetInferenceSecret(ctx, model.GetSpec().GetOpenai().GetApiKeySecretRef())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
+			ModelProvider:         model.GetSpec().GetOpenai(),
+			SecretSpec:            apiKey.GetSpec(),
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.openAIClientFactory,
+			ModelResourceName:     modelName,
+			StructuredOutputCache: s.structuredOutputCache,
+		})
+		return p, func(err error) string {
+			return openai.FormatError(err, model.GetSpec().GetOpenai())
+		}, trace.Wrap(err)
+
+	case summarizerv1pb.InferenceModelSpec_Bedrock_case:
+		if !s.enableBedrockWithoutRestrictions &&
+			modelName != apisummarizer.CloudDefaultInferenceModelName &&
+			model.GetSpec().GetBedrock().GetIntegration() == "" {
+			return nil, nil, trace.AccessDenied(
+				"only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud",
+			)
+		}
+
+		bedrockCfg := proto.CloneOf(model.GetSpec().GetBedrock()) // Protect from modifying function arguments
+		if strings.ReplaceAll(bedrockCfg.GetBedrockModelId(), " ", "") == apisummarizer.BedrockModelExpansionPlaceholder {
+			if s.envBedrockModelID == "" {
+				return nil, nil, trace.BadParameter("bedrock_model_id cannot be empty. Please set the TELEPORT_BEDROCK_MODEL environment variable")
+			}
+			bedrockCfg.SetBedrockModelId(s.envBedrockModelID)
+		}
+
+		if strings.ReplaceAll(bedrockCfg.GetRegion(), " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
+			if s.envBedrockRegion == "" {
+				return nil, nil, trace.BadParameter("region cannot be empty. Please set the TELEPORT_BEDROCK_REGION environment variable")
+			}
+			bedrockCfg.SetRegion(s.envBedrockRegion)
+		}
+
+		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
+			Spec:                  bedrockCfg,
+			MaxSessionLength:      model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:         s.bedrockClientFactory,
+			ModelResourceName:     modelName,
+			AWSConfigCache:        s.awsConfigCache,
+			StructuredOutputCache: s.structuredOutputCache,
+		})
+		return p, func(err error) string {
+			return bedrock.FormatError(err, model.GetSpec().GetBedrock())
+		}, trace.Wrap(err)
+	default:
+		return nil, nil, trace.BadParameter("unsupported provider type: %v", model.GetSpec().WhichProvider())
+	}
+}
+
+func buildUserFromEvent(event apievents.AuditEvent) (types.User, error) {
+	var (
+		username   string
+		userRoles  []string
+		userTraits wrappers.Traits
+	)
+
+	switch e := event.(type) {
+	case *apievents.SessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	case *apievents.DatabaseSessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	case *apievents.WindowsDesktopSessionEnd:
+		if e == nil {
+			return nil, trace.BadParameter("nil %T event", e)
+		}
+		username = e.User
+		userRoles = e.UserMetadata.UserRoles
+		userTraits = e.UserMetadata.UserTraits
+	default:
+		return nil, trace.BadParameter("unsupported event type %T", event)
+	}
+
+	if username == "" {
+		return nil, trace.BadParameter("empty user name in event")
+	}
+
+	user, err := types.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user.SetRoles(userRoles)
+	user.SetTraits(userTraits)
+
+	return user, nil
+}
+
+// emitSummaryCreateEvent emits a SessionSummarized audit event.
+func (s *SessionSummarizer) emitSummaryCreateEvent(ctx context.Context, summary *summarizerv1pb.Summary, sessionEndEvent apievents.AuditEvent) error {
+	// Create the audit event
+	event := &apievents.SessionSummarized{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionSummarizedEvent,
+			Code:        events.SessionSummarizedCode,
+			Time:        s.clock.Now().UTC(),
+			ClusterName: sessionEndEvent.GetClusterName(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: summary.GetSessionId(),
+		},
+		Status: apievents.Status{
+			Success: summary.GetState() == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+			Error:   summary.GetErrorMessage(),
+		},
+		ModelName:           summary.GetModelName(),
+		InferenceStartedAt:  summary.GetInferenceStartedAt().AsTime(),
+		InferenceFinishedAt: summary.GetInferenceFinishedAt().AsTime(),
+	}
+
+	if !event.Success {
+		event.Metadata.Code = events.SessionSummarizedErrorCode
+	}
+
+	// Extract enhanced summary fields if available
+	if enhancedSummary := summary.GetEnhancedSummary(); enhancedSummary != nil {
+		event.ShortDescription = enhancedSummary.GetShortDescription()
+		event.RiskLevel = strings.TrimPrefix(enhancedSummary.GetRiskLevel().String(), "RISK_LEVEL_")
+	} else {
+		// For simple summaries, use the content as description
+		if summary.GetContent() != "" {
+			// Take first 200 characters as short description
+			content := summary.GetContent()
+			if len(content) > 200 {
+				event.ShortDescription = content[:200] + "..."
+			} else {
+				event.ShortDescription = content
+			}
+		}
+	}
+
+	// Populate session-type-specific metadata
+	switch e := sessionEndEvent.(type) {
+	case *apievents.SessionEnd:
+		event.SessionType = string(types.SSHSessionKind)
+		event.Username = e.User
+		if e.Protocol == events.EventProtocolKube {
+			event.SessionType = string(types.KubernetesSessionKind)
+			event.KubernetesClusterMetadata = e.KubernetesClusterMetadata
+			event.KubernetesPodMetadata = e.KubernetesPodMetadata
+		} else {
+			event.ServerMetadata = e.ServerMetadata
+		}
+	case *apievents.DatabaseSessionEnd:
+		event.SessionType = string(types.DatabaseSessionKind)
+		event.DatabaseMetadata = e.DatabaseMetadata
+		event.Username = e.User
+	case *apievents.WindowsDesktopSessionEnd:
+		event.SessionType = string(types.WindowsDesktopSessionKind)
+		event.WindowsDesktopMetadata.WindowsDesktopService = e.WindowsDesktopService
+		event.WindowsDesktopMetadata.DesktopAddr = e.DesktopAddr
+		event.WindowsDesktopMetadata.Domain = e.Domain
+		event.WindowsDesktopMetadata.WindowsUser = e.WindowsUser
+		event.WindowsDesktopMetadata.DesktopLabels = e.DesktopLabels
+		event.Username = e.User
+	default:
+		return trace.BadParameter("unsupported session end event type: %T", sessionEndEvent)
+	}
+
+	// Emit the audit event
+	return trace.Wrap(s.emitter.EmitAuditEvent(ctx, event))
+}

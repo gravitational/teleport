@@ -1,0 +1,742 @@
+#!/bin/bash
+
+set -euo pipefail
+
+self_version="v13.0.0-unset"
+
+
+# config dir is overridden in tests
+conf_dir="${TELEPORT_UPGRADE_CONFIG:-/etc/teleport-upgrade.d}"
+
+# state_dir contains temporary state values
+state_dir="${TELEPORT_UPGRADE_STATE:-/var/lib/teleport-upgrade}"
+
+# agent conf is the path to teleport.yaml. Is it overridden in tests.
+agent_conf="${TELEPORT_AGENT_CONFIG:-/etc/teleport.yaml}"
+
+# note: performing a dry run differs from running with the 'nop' installer
+# in that the 'nop' installer will still modify filesystem state (specifically,
+# it will set/pop the unhealthy marker). dry run will read but not modify the
+# marker. generally speaking, dry run is intended for use by humans to verify
+# that their installers are correctly configured. the 'nop' installer is intended
+# to be used by tests for confirming the correct behavior of the installer.
+dry_run="yes"
+
+# running the teleport-upgrade command with force, will force a teleport upgrade.
+# this bypasses the schedule check and performs an upgrade. This is not recommended
+# and is only intended to be used for testing at the moment.
+force_run="no"
+
+cmd="${1:-none}"
+
+case "$cmd" in
+    run)
+        dry_run="no"
+        ;;
+    dry-run)
+        # this is the default path
+        ;;
+    version)
+        echo "$self_version"
+        exit 0
+        ;;
+    force)
+        force_run="yes"
+        dry_run="no"
+        ;;
+    help)
+        cat <<EOF
+USAGE: $0 <command>
+
+Tool for automatic upgrades of Teleport agents.
+
+Commands:
+  run           check for and potentially apply a teleport upgrade.
+  dry-run       check for new teleport version but do not upgrade.
+  force         performs an upgrade if an upgrade is available.
+  version       print the current version of $0.
+  help          show this help text.
+EOF
+        exit 0
+        ;;
+    none)
+        echo "ERROR: missing required command. run '$0 help' to see available commands." >&2
+        exit 1
+        ;;
+    *)
+        echo "ERROR: unknown command '$cmd'. run '$0 help' to see available commands." >&2
+        exit 1
+        ;;
+esac
+
+# get_conf is a helper for loading values from the configuration dir. supports very
+# rudimentary comment stripping in order to let us include basic comments in generated
+# configs.
+get_conf() {
+    conf_name=$1
+    default_value=$2
+
+    # if file does not exist, use default
+    if ! test -f "$conf_dir/$conf_name"; then
+        echo "$default_value"
+        return 0
+    fi
+
+    # strip trivially obvious comments, empty lines, and leading/trailing whitespace.
+    normalized_value="$(grep -v -e '^# ' -e '^[[:space:]]*$' <"$conf_dir/$conf_name" | awk '{$1=$1};1')"
+
+    # if variable is empty post-normalization, use default
+    if [[ -z "$normalized_value" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+
+    echo "$normalized_value"
+}
+
+# get_state is a helper for loading values from the state dir. supports very
+# rudimentary comment stripping in order to let us include basic comments in generated
+# state.
+get_state() {
+    state_name=$1
+    default_value=$2
+    full_name="state-$state_name"
+
+    # if file does not exist, use default
+    if ! test -f "$state_dir/$full_name"; then
+        echo "$default_value"
+        return 0
+    fi
+
+    # strip trivially obvious comments, empty lines, and leading/trailing whitespace.
+    normalized_value="$(grep -v -e '^# ' -e '^[[:space:]]*$' <"$state_dir/$full_name" | awk '{$1=$1};1')"
+
+    # if variable is empty post-normalization, use default
+    if [[ -z "$normalized_value" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+
+    echo "$normalized_value"
+}
+
+# get_endpoint chooses which endpoint should be used to get the target version and criticality.
+# returns 'none' if unable to identify endpoint.
+get_endpoint() {
+    # if there's a manual override, we honor it
+    custom_endpoint="$(get_conf endpoint none)"
+    if [[ "$custom_endpoint" != "none" ]]; then
+        echo "$custom_endpoint"
+        return 0
+    fi
+
+    # else, we try to look for the proxy domain in the config file
+    if ! test -f "$agent_conf"; then
+        echo "none"
+        return 0
+    fi
+
+    # we try to parse the teleport config
+    proxy_server="$(grep -oP '^\s+proxy_server:\s*([^\s#]+).*$' "$agent_conf" | sed 's/\s\+proxy_server:\s*\([^[:space:]#]\+\).*/\1/' | sed 's/\"//g' | sed "s/'//g")"
+    if [ -z "$proxy_server" ]; then
+        echo "none"
+        return 0
+    fi
+
+    echo "$proxy_server/v1/webapi/automaticupgrades/channel/stable/cloud"
+}
+
+# upgrade_endpoint is the base host+path used to load the /version and /critical endpoints
+upgrade_endpoint="$(get_endpoint)"
+
+# package_name specializes the teleport package name (e.g. teleport|teleport-ent|etc)
+package_name="$(get_conf package teleport)"
+
+# insecure_mode switches from https to http for upgrade_endpoint. only honored if upgrade_endpoint
+# points to localhost.
+insecure_mode="$(get_conf insecure no)"
+
+# debug mode increases log verbosity when set to 'yes'.
+debug_mode="$(get_conf debug no)"
+
+# upgrade schedule is a line-separated list of pairs of unix timestamps, used to define
+# the upcoming upgrade windows. a missing or stale schedule file indicates that the teleport
+# agent may be unhealthy.
+upgrade_schedule="$(get_conf schedule none)"
+
+# installer kind is an enum representing the kind of installer to use (apt|yum|zypper|nop).
+installer_kind="$(get_conf installer none)"
+
+# repository_name specifies the teleport packge repository name. Defaults to "teleport".
+repository_name="$(get_conf repository teleport)"
+
+# last restart is a timestamp that indicates the last time the teleport service was restarted.
+last_restart="$(get_state last-restart none)"
+
+# log_info prints standard-verbosity messages to stderr.
+log_info() {
+    echo "[i] $* [ $(caller | awk '{print $1}') ]" >&2
+}
+
+# log_warn prints critical messages to stderr.
+log_warn() {
+    echo "[!] $* [ $(caller | awk '{print $1}') ]" >&2
+}
+
+# log_debug prints high verbosity messages to stderr.
+log_debug() {
+    if [[ $debug_mode != "yes" ]]; then
+        return 0
+    fi
+    echo "[d] $* [ $(caller | awk '{print $1}') ]" >&2
+}
+
+# pop_state reads and then deletes an ephemeral config value. short-lived state values are
+# used to track state between runs and as a mechanism of limiting the impact of potentially
+# risky test configuration options by forcing them to be re-set each run.
+pop_state() {
+    state_name=$1
+    default_state_value=$2
+
+    # force use of a common prefix so we don't accidentally delete persistent config values.
+    full_name="state-$state_name"
+    state_value="$(get_state "$state_name" "$default_state_value")"
+
+    if [[ "$dry_run" == "yes" ]]; then
+        log_debug "preserving previous state value '$state_name' due to dry-run."
+    else
+        rm -f "$state_dir/$full_name"
+    fi
+
+    echo "$state_value"
+}
+
+# set_state sets an ephemeral config value. see pop_state for explanation.
+set_state() {
+    state_name=$1
+    state_value=$2
+
+    full_name="state-$state_name"
+
+    if [[ "$dry_run" == "yes" ]]; then
+        log_debug "skipping update of state value '$state_name' due to dry-run."
+        return 0
+    fi
+
+    mkdir -p "$state_dir"
+
+    cat > "$state_dir/$full_name" <<EOF
+# this file is automatically generated by teleport-upgrade.
+# modifications are not persisted.
+$state_value
+EOF
+}
+
+# is_insecure_mode returns 0 if the 'insecure' config param was set to 'yes' *and* the
+# upgrade endpoint looks like it points to localhost.
+is_insecure_mode() {
+    if [[ $insecure_mode != "yes" ]]; then
+        return 1
+    fi
+
+    ue_hostport="$(echo "$upgrade_endpoint" | awk -F/ '{print $1}')"
+    ue_host="$(echo "$ue_hostport" | awk -F: '{print $1}')"
+
+    if [[ $ue_host != "localhost" ]]; then
+        log_warn "refusing to run in insecure mode for non-local endpoint $upgrade_endpoint."
+        return 1
+    fi
+
+    return 0
+}
+
+# in_maintenance_window checks if we are in one of the maintenance windows as specified in
+# <config-dir>/schedule. the schedule file contains pairs of unix timestamps representing
+# the start and end times of maintenance windows.
+in_maintenance_window() {
+    if [[ "$upgrade_schedule" == "none" ]]; then
+        log_debug "cannot check maintenance window (no schedule)."
+        return 1
+    fi
+
+    time_now="$(date +%s)"
+
+    while read line; do
+        start_time="$(echo "$line" | awk '{print $1}')"
+        end_time="$(echo "$line" | awk '{print $2}')"
+
+        if (( time_now > start_time && time_now < end_time )); then
+            log_debug "within maintenance window ${start_time} - ${end_time}."
+            return 0
+        fi
+    done <<< "$upgrade_schedule"
+
+    log_debug "not within maintenance window."
+    return 1
+}
+
+# schedule_appears_healthy checks if schedule was defined and contains at least
+# one upgrade window that ends in the future.
+schedule_appears_healthy() {
+    if [[ $upgrade_schedule == "none" ]]; then
+        log_debug "schedule appears unhealthy (does not exist)."
+        return 1
+    fi
+
+    time_now="$(date +%s)"
+
+    while read line; do
+        end_time="$(echo "$line" | awk '{print $2}')"
+
+        if (( time_now < end_time )); then
+            log_debug "schedule appears healthy (contains future window)"
+            return 0
+        fi
+    done <<< "$upgrade_schedule"
+
+    log_debug "schedule appears unhealthy (contains no future windows)."
+    return 1
+}
+
+# service_appears_healthy checks if the teleport.service is healthy. This is done
+# by checking if the last failed timestamp is within 1 minute.
+service_appears_healthy() {
+    # Validate that content of the last-restart state are valid epoch.
+    if [[ $last_restart == "none" ]] || [[ ! $(date -d "@$last_restart") ]]; then
+        return 0
+    fi
+
+    time_now="$(date +%s)"
+
+    # If the last restart was within the last minute, consider the agent unhealthy.
+    threshold="$(( ${last_restart} + 60 ))"
+    if (( time_now > threshold )); then
+        return 0
+    fi
+
+    log_debug "teleport service appears unhealthy (last_restart within 1 minute)"
+    return 1
+}
+
+# get_current_version gets the current version of the teleport binary. if this
+# operation fails, we assume that teleport is eligible for upgrade.
+get_current_version() {
+
+    # tests may override the version value. we use pop_state rather than get_conf to load
+    # this value since it would be dangerous to support a persistent config like this.
+    version_override="$(pop_state version-override none)"
+    if [[ "$version_override" != "none" ]]; then
+        # setting version override to 'fail' is used to simulate undiscoverable version
+        if [[ "$version_override" == "fail" ]]; then
+            return 1
+        fi
+
+        echo "$version_override"
+        return 0
+    fi
+
+    if hash teleport 2>/dev/null; then
+        # teleport is on PATH
+        if cv_output="$(teleport version --raw)"; then
+            echo "${cv_output}"
+            return 0
+        fi
+    else
+        if hash /usr/local/bin/teleport 2>/dev/null; then
+            # teleport is not on PATH, but appears to be located at default install location
+            if cv_output="$(/usr/local/bin/teleport version --raw)"; then
+                echo "${cv_output}"
+                return 0
+            fi
+        else
+            log_warn "failed to locate teleport binary for local version discovery"
+        fi
+    fi
+
+    return 1
+}
+
+# upgrade_endpoint_fetch loads the specified value from the upgrade endpoint. the only
+# currently supported values are 'version' and 'critical'.
+upgrade_endpoint_fetch() {
+    host_path="${upgrade_endpoint}/${1}"
+    if is_insecure_mode; then
+        log_warn "fetching $host_path in insecure mode (not safe for production use)."
+        if if_output="$(curl -sSf "http://${host_path}")"; then
+            # emit output with empty lines and extra whitespace removed
+            echo "$if_output" | grep -v -e '^[[:space:]]*$' | awk '{$1=$1};1'
+            return 0
+        else
+            log_debug "failed to GET $host_path (insecure mode)."
+            return 1
+        fi
+    fi
+
+    log_debug "fetching $host_path..."
+
+    if sf_output="$(curl --proto '=https' --tlsv1.2 -sSf "https://${host_path}")"; then
+        # emit output with empty lines and extra whitespace removed
+        echo "$sf_output" | grep -v -e '^[[:space:]]*$' | awk '{$1=$1};1'
+        return 0
+    else
+        log_debug "failed to GET $host_path"
+        return 1
+    fi
+}
+
+# version_fetch fetches the /version endpoint value and caches the value into the
+# specified state.
+version_fetch() {
+    state_name=$1
+    if tv_output="$(upgrade_endpoint_fetch version)"; then
+        # emit version string with leading 'v' removed if one is present
+        set_state "$state_name" "${tv_output#v}"
+        return 0
+    fi
+    set_state "$state_name" "none"
+    return 0
+}
+
+# get_target_version loads the current value of the /version endpoint.
+get_target_version() {
+    state_name="target-version"
+    full_name="state-$state_name"
+
+    # if file does not exist, fetch version endpoint
+    if ! test -f "$state_dir/$full_name"; then
+        version_fetch "$state_name"
+    else
+        # if version value ttl is expired, fetch version endpoint
+        last_modified="$(stat -c  "%y" "$state_dir/$full_name")"
+        ttl="$(date -d "$last_modified + 30 minutes" +%s)"
+        time_now="$(date +%s)"
+
+        if (( time_now > ttl )); then
+            version_fetch "$state_name"
+        fi
+    fi
+
+    target_version="$(get_state "$state_name" none)"
+    echo "$target_version"
+    return 0
+}
+
+# critical_fetch fetches the /critical endpoint value and caches the value into the
+# specified state.
+critical_fetch() {
+    state_name=$1
+    if ef_output="$(upgrade_endpoint_fetch critical)"; then
+        # perform case-insensitive compare
+        if [[ ${ef_output,,} == "yes" ]]; then
+            set_state "$state_name" "yes"
+            return 0
+        fi
+    fi
+
+    set_state "$state_name" "no"
+    return 0
+}
+
+# is_critical checks if the critical value is set to 'yes'.
+is_critical() {
+    state_name="critical"
+    full_name="state-$state_name"
+
+    # if file does not exist, fetch critical endpoint
+    if ! test -f "$state_dir/$full_name"; then
+        critical_fetch "$state_name"
+    else
+        # if critical value ttl is expired, fetch critical endpoint
+        last_modified="$(stat -c "%y" "$state_dir/$full_name")"
+        ttl="$(date -d "$last_modified + 30 minutes" +%s)"
+        time_now="$(date +%s)"
+
+        if (( time_now > ttl )); then
+            critical_fetch "$state_name"
+        fi
+    fi
+
+    # critical indicates whether a critical update is available.
+    critical="$(get_state "$state_name" no)"
+    if [[ "$critical" == "yes" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# do_reload_or_restart reloads or restarts teleport.service (depending on
+# restart_mode) if it's currently running.
+do_reload_or_restart() {
+    # fail quietly when systemd is disabled. This is only relevant when testing
+    # in a container.
+    if [ -d "/run/systemd/system" ]; then
+        systemctl daemon-reload
+        # reload or restart the service if it's currently running
+        if [[ "$restart_mode" == "reload" ]]; then
+            log_info "gracefully restarting Teleport (if already running)"
+            # reload returns an error if the unit isn't active, and
+            # try-reload-or-restart is too recent of an addition for centos7
+            if systemctl is-active --quiet teleport.service; then
+                # we fall back to restart in case the reload fails, for example if
+                # the pidfile used for reloading is not valid; this can happen
+                # across the upgrade to the Teleport version that started locking
+                # the pidfile
+                systemctl reload teleport.service || systemctl try-restart teleport.service
+            fi
+        else
+            log_warn "ungracefully restarting Teleport (if already running), sessions will be ungracefully cut"
+            # restart will eventually terminate the whole cgroup and then start
+            # Teleport again
+            systemctl try-restart teleport.service
+        fi
+    fi
+}
+
+# do_upgrade invokes the appropriate installer_kind with package_name=target_version.
+do_upgrade() {
+    if [[ "$dry_run" == "yes" ]]; then
+        log_info "skipping install: kind=$installer_kind package=$package_name version=$target_version restart_mode=$restart_mode (dry-run)."
+        return 0
+    fi
+    case "$installer_kind" in
+        nop)
+            log_info "attempting nop install $package_name=$target_version..."
+            echo "nop-install: $package_name=$target_version $restart_mode"
+            return 0
+            ;;
+        apt)
+            log_info "attempting apt install $package_name=$target_version..."
+
+            # update index for teleport repo
+            source_list="/etc/apt/sources.list.d/${repository_name}.list"
+            if [ -f $source_list ]; then
+                apt-get update \
+                    -o Dir::Etc::sourcelist="$source_list" \
+                    -o Dir::Etc::sourceparts="-" \
+                    -o APT::Get::List-Cleanup="0"
+            else
+                log_warn "failed to update teleport repository '$source_list'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+            fi
+
+            NEEDRESTART_SUSPEND=true DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --allow-change-held-packages "$package_name=$target_version"
+            install_status=$?
+
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
+            ;;
+        yum)
+            # yum version strings have '-' replaced with '_'
+            yum_target_version="${target_version//-/_}"
+
+            log_info "attempting yum install $package_name-$yum_target_version..."
+
+            # update cache for teleport repo
+            if ! yum makecache --disablerepo="*" --enablerepo="$repository_name"; then
+                log_warn "failed to update teleport repository '$repository_name'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+
+                # installation cannot continue with a misconfigured teleport repository
+                return 1
+            fi
+
+            # attempt installation
+            yum install -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
+            install_status=$?
+
+            # attempt to detect post-install version
+            if ! post_install_version="$(get_current_version)"; then
+                post_install_version="unknown"
+            fi
+
+            # yum silently ignores downgrades, so if it looks like the install was ineffectual we attempt an
+            # explicit downgrade. this is safe to do even if we are wrong (e.g. due to undetectable version),
+            # since the downgrade command will similarly ignore upgrades.
+            if [[ "$post_install_version" != "$target_version" ]]; then
+                log_info "install may have been ineffectual (post_install_version=$post_install_version)."
+                log_info "attempting downgrade command variant..."
+                yum downgrade  -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
+                install_status=$?
+            fi
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
+            ;;
+        zypper)
+            log_info "attempting zypper install $package_name-$target_version"
+            if ! zypper refresh --repo="$repository_name"; then
+                log_warn "failed to update teleport repository '$repository_name'..."
+                log_warn "please ensure that the teleport repository is properly configured"
+
+                # installation cannot continue with a misconfigured teleport repository
+                return 1
+            fi
+
+            zypper removelock "$package_name" || true
+            zypper install --oldpackage --no-confirm --repo="$repository_name" "$package_name-$target_version"
+            install_status=$?
+
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
+            ;;
+        *)
+            log_warn "unsupported installer kind: $installer_kind (expected one apt, yum, or nop)"
+            return 1
+            ;;
+    esac
+}
+
+# ensure_version_lock enables a teleport package version lock.
+ensure_version_lock() {
+   case "$installer_kind" in
+        apt)
+            apt-mark hold "$package_name" > /dev/null
+            return 0
+            ;;
+        yum)
+            yum-config-manager --save --setopt "${repository_name}.exclude=$package_name" > /dev/null
+            return 0
+            ;;
+        zypper)
+            zypper addlock "$package_name" > /dev/null
+            return 0
+            ;;
+    esac
+}
+
+# installer identifies the package manager to be used.
+installer() {
+    if [[ ! -f "/etc/os-release" ]]; then
+        echo "none"
+        return 0
+    fi
+
+    source "/etc/os-release"
+    case "${ID}" in
+        "debian" | "ubuntu" | "kali" | "linuxmint" | "pop" | "raspian" | "neon" | "zorin" | "parrot" | "elementary")
+            echo "apt"
+            ;;
+        "centos" | "rhel" | "amzn")
+            echo "yum"
+            ;;
+        "sles")
+            echo "zypper"
+            ;;
+        *)
+            echo "none"
+            ;;
+    esac
+}
+
+# Until https://github.com/gravitational/teleport/issues/41789 is resolved,
+# installer_kind needs to be verified and corrected in cases when the wrong
+# package is installed.
+if [[ "${installer_kind}" != "nop" ]] && ! command -v ${installer_kind} &> /dev/null; then
+    log_warn "configured installer '${installer_kind}' is unavailable. attempting to identify installer from /etc/os-release"
+    installer_kind="$(installer)"
+    if [[ "${installer_kind}" != "none" ]]; then
+        log_info "installer config has been reconfigured to '${installer_kind}'"
+    fi
+fi
+
+# the teleport package should be version locked at all times.
+ensure_version_lock || true
+
+# all our other config parameters have reasonable default values, but there really isn't a sane
+# default for installer_kind, and trying to guess is potentially problematic as some systems may
+# run multiple package managers.
+if [[ "$installer_kind" == "none" ]]; then
+    log_warn "missing required config '$conf_dir/installer' (typically set to one of 'apt', 'yum', or 'zypper')"
+    exit 1
+fi
+
+# the updater will no longer use the global version channel as a default endpoint.
+if [[ "${upgrade_endpoint}" == "none" ]]; then
+    log_warn "missing required config '$conf_dir/endpoint' (typically set to <domain>.teleport.sh/v1/webapi/automaticupgrades/channel/stable/cloud/version)"
+    exit 1
+fi
+
+log_debug "init: endpoint=$upgrade_endpoint, insecure=$insecure_mode, package=$package_name, installer=$installer_kind"
+
+marked_unhealthy="$(pop_state unhealthy no)"
+
+if ! target_version="$(get_target_version)"; then
+    log_warn "failed to get target version, cannot proceed with upgrade check."
+    exit 1
+fi
+
+if [[ "$target_version" == "none" ]]; then
+    log_info "version server did not advertise a target version, no upgrade available"
+    exit 1
+fi
+
+# we compare current version to target version here, but the only effect this comparison has
+# is to halt an upgrade that would otherwise proceed if the strings are identical.
+if current_version="$(get_current_version)"; then
+    if [[ "$current_version" == "$target_version" ]]; then
+        log_info "no upgrades available ($current_version == $target_version)"
+        exit 0
+    else
+        log_info "an upgrade is available ($current_version -> $target_version)"
+    fi
+else
+    log_warn "failed to detect current version, assuming $target_version to be a potential upgrade."
+fi
+
+restart_mode="$(get_conf restart-mode reload)"
+
+# force run bypasses the schedule check and performs the update
+if [[ "$force_run" == "yes" ]]; then
+    if ! do_upgrade; then
+        log_warn "upgrade attempt failed for $package_name=$target_version."
+        exit 1
+    fi
+    exit 0
+fi
+
+if is_critical; then
+    restart_mode=restart
+    log_info "upgrade is marked as critical, will be attempted without checking maintenance window."
+elif in_maintenance_window; then
+    log_info "within maintenance window, upgrade will be attempted."
+elif ! service_appears_healthy; then
+    if [[ "$marked_unhealthy" != "yes" ]]; then
+        log_warn "agent is new, or newly unhealthy. marking for potential future upgrade."
+        set_state unhealthy yes
+        exit 0
+    fi
+    restart_mode=restart
+    log_warn "agent was previously marked unhealthy and does not appear recovered, upgrade will be attempted."
+elif ! schedule_appears_healthy; then
+    log_warn "agent does not appear to have exported a valid upgrade schedule."
+    # lack of healthy upgrade schedule means the agent was either just restarted, or is unhealthy. if
+    # we also observed unhealthy state on the previous tick, we take that to mean the problem is
+    # persistent, rather than having been caused by a restart.
+    if [[ "$marked_unhealthy" != "yes" ]]; then
+        log_warn "agent is new, or newly unhealthy. marking for potential future upgrade."
+        set_state unhealthy yes
+        exit 0
+    fi
+    restart_mode=restart
+    log_warn "agent was previously marked unhealthy and does not appear recovered, upgrade will be attempted."
+else
+    log_info "upgrade is non-critical and we are outside of maintenance window, not attempting."
+    exit 0
+fi
+
+if ! do_upgrade; then
+    log_warn "upgrade attempt failed for $package_name=$target_version."
+    exit 1
+fi
+
+# reset state after an upgrade
+pop_state critical no > /dev/null
+pop_state target-version none > /dev/null

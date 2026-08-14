@@ -1,0 +1,68 @@
+---
+# Note: This action is only maintained on master, and the cronjob only runs against the version
+# on master.
+name: Cleanup AWS EC2 AMIs
+on:
+  workflow_dispatch:
+  schedule:
+    # Scheduled jobs only run from master. If you are reading this on another branch,
+    # this event does not fire there.
+    # Run at 4am UTC on Mondays, Thursdays, and Saturdays.
+    # The minute offset of 26 is a "random" offset to not run at the top of the hour.
+    # This should be coordinated with nightly releases so that cleanups are (usually)
+    # avoided when the releases are running.
+    - cron: '26 4 * * 1,4,6'
+
+jobs:
+  build:
+    # Note: This is a long running (couple of hours) job, but is not well parallelized,
+    # with most of the time spent waiting on API calls to complete. More cores will
+    # not improve performance. If performance becomes an issue, the script should be
+    # fixed to run multiple cleanup commands per region in parallel.
+    runs-on: ubuntu-latest
+    environment: stage/automation/ami-cleanup
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout environment config
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .environments
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: stage/automation/ami-cleanup
+
+      - name: Assume AWS role for cleaning up AMIs
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AMI_CLEANUP_AWS_ROLE }}
+          role-session-name: "gha-ami-cleanup-${{ github.run_number }}"
+          role-duration-seconds: 21600  # 6 hours. See note above about runtime.
+
+      - name: Cleanup AMIs
+        run: |
+          cleanup-region() {
+              region="${1}"
+              echo "Purging images for ${region}"
+              for image in $(aws ec2 describe-images --owners self --region "${region}" | jq -c '.Images[] | select(.Name | test("(-dev|-nightly)")) | {"imageId": .ImageId, "snapshotId": (.BlockDeviceMappings | first | .Ebs.SnapshotId)}'); do
+                  imageId="$(echo "${image}" | jq -r '.imageId')"
+                  snapshotId="$(echo "${image}" | jq -r '.snapshotId')"
+                  aws ec2 deregister-image --region "${region}" --image-id "${imageId}"
+                  aws ec2 delete-snapshot --region "${region}" --snapshot-id "${snapshotId}"
+              done
+              echo "Region ${region} complete"
+          }
+
+          for region in $(aws account list-regions --region-opt-status-contains ENABLED ENABLING ENABLED_BY_DEFAULT DISABLING | jq -r '.Regions[].RegionName'); do
+              # Running regions in parallel _drastically_ cuts down on runtime, going from a day to a few hours.
+              cleanup-region "${region}" &
+          done
+
+          wait

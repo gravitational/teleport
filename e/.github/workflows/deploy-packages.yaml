@@ -1,0 +1,546 @@
+---
+name: Deploy OS packages to repos
+run-name: Deploy ${{ inputs.repo-type }} ${{ inputs.environment }} ${{ inputs.release-channel }}/${{ inputs.version-channel }} ${{ inputs.artifact-tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo-type:
+        description: "The type of OS package repo that the package should be deployed to"
+        required: true
+        type: choice
+        options:
+          - apt
+          - yum
+      environment:
+        description: "Environment to deploy the package to. Either stage/publish, or prod/publish."
+        type: environment
+        required: true
+      package-name-filter:
+        description: "Filter that limits what packages will be deployed. This is evalulated in a shell context, applied following the s3 sync include rules."
+        default: "*"
+        type: string
+        required: true
+      artifact-tag:
+        description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
+        type: string
+        required: true
+      version-channel:
+        description: "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: \"v1.2.3\" (truncated to \"v1\"), \"cloud\"."
+        type: string
+        required: true
+      # This is here to facilitate the addition of new release channels when/if the OPRT supports them
+      release-channel:
+        description: "The release channel that the artifact should be deployed to"
+        type: choice
+        required: true
+        options:
+          - stable
+        default: stable
+      package-to-test:
+        description: "The package to install and test during the smoke test"
+        type: string
+        required: false
+      do-teleport-package-tests:
+        description: "True if Teleport-specific smoke tests should be run, false otherwise"
+        type: boolean
+        required: true
+        default: true
+      # This is a workaround so that the actor who initiated a workflow run via a workflow dispatch event can determine the run ID of the started workflow run
+      workflow-tag:
+        description: "This field adds the provided value to a run step, allowing the calling actor to associate the started run with the GHA run ID."
+        type: string
+        required: false
+      deploy:
+        description: "Deploys the packages if true. Set to false if package is already deployed and only tests should be run."
+        type: boolean
+        required: true
+        default: true
+
+jobs:
+  determine-runner:
+    name: Determine what runner the job should be sent to
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.output-step.outputs.runner }}
+    steps:
+      - name: Set the label output
+        id: output-step
+        env:
+          RUNNER_GROUP: prod
+          REPO_TYPE: ${{ inputs.repo-type }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          # TODO(fheinecke) clean up the old environments listed here
+          case "$ENVIRONMENT" in
+            "promote" | "build-prod" | "publish-prod" | "prod/publish")
+              RUNNER_LABEL_ENVIRONMENT="prod"
+            ;;
+            "build" | "build-stage" | "publish-stage" | "stage/publish")
+              RUNNER_LABEL_ENVIRONMENT="dev"
+            ;;
+            *)
+              echo "Unknown environment '$ENVIRONMENT', aborting"
+              exit 1
+            ;;
+          esac
+
+          # The runner group in the label value is due to a very "interesting" decision by GH. See
+          # https://github.com/gravitational/cloud-terraform/pull/2693 for details.
+          RUNNER_LABEL="$REPO_TYPE-$RUNNER_LABEL_ENVIRONMENT-runner-$RUNNER_GROUP"
+          # This "--arg" arg is a bit verbose but is the JQ recommended way of passing environment
+          # variables to ensure that they are properly JSON escaped
+          # x64 arch is required because the Aptly repo does not support arm64/other ISAs
+          RUNNER="$(\
+            jq --compact-output --null-input \
+            --arg RUNNER_LABEL "$RUNNER_LABEL" \
+            '{"labels": ["self-hosted", "x64", $RUNNER_LABEL]}' \
+          )"
+          echo "runner=$RUNNER" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Runner target" 
+            echo '```json'
+            echo "$RUNNER" | jq .
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: ${{ inputs.workflow-tag }}
+        run: |
+          # This is a do-nothing step so that agents calling this workflow can identify the run ID associated
+          # with the run they started
+
+  deploy:
+    name: Deploy packages to ${{ inputs.repo-type }} repo
+    if: ${{ inputs.deploy }}
+    # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
+    # and `${{ inputs.environment }}` expressions
+    concurrency:
+      group: Only allow a single ${{ inputs.repo-type }} package deployment at a time for ${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 2880 # 2 days. Value is set this high for DR but in most cases should not be needed.
+    needs:
+      - determine-runner
+    permissions:
+      contents: read
+      id-token: write   # Required for aws-actions/configure-aws-credentials
+    environment: ${{ inputs.environment }}
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
+    env:
+      TOOL_BINARY_PATH: os-package-repo-tool
+      DOWNLOAD_DIRECTORY: /tmp/artifacts
+      GNUPGHOME: /tmp/gnupg
+      CACHE_PATH: /mnt/oprt-cache
+      REPO_TYPE: ${{ inputs.repo-type }}
+      VERSION_CHANNEL: ${{ inputs.version-channel }}
+      RELEASE_CHANNEL: ${{ inputs.release-channel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.DEPLOY_PACKAGES_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-publish-deploy-packages-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: |
+            gpg-signing
+            os-package-repos
+      - name: Derive and set repo type-specific variables for APT
+        if: inputs.repo-type == 'apt'
+        env:
+          APT_S3_BUCKET: ${{ env.APT_S3_BUCKET }}
+          APT_DEPLOYMENT_AWS_ROLE: ${{ env.APT_DEPLOYMENT_AWS_ROLE }}
+          APT_CLOUDFRONT_DISTRIBUTION: ${{ env.APT_CLOUDFRONT_DISTRIBUTION }}
+        run: |
+          {
+            echo "PACKAGE_TYPE=deb"
+            echo "BUCKET_NAME=$APT_S3_BUCKET"
+            echo "TOOL_ARGUMENTS=-aptly-root-dir $CACHE_PATH/aptly"
+            echo "DEPLOYMENT_AWS_ROLE=$APT_DEPLOYMENT_AWS_ROLE"
+            echo "CLOUDFRONT_DISTRIBUTION=$APT_CLOUDFRONT_DISTRIBUTION"
+          } >> "$GITHUB_ENV"
+      - name: Derive and set repo type-specific variables for YUM
+        if: inputs.repo-type == 'yum'
+        env:
+          YUM_S3_BUCKET: ${{ env.YUM_S3_BUCKET }}
+          YUM_REPO_BASE_DOMAIN_NAME: ${{ env.YUM_REPO_BASE_DOMAIN_NAME }}
+          YUM_DEPLOYMENT_AWS_ROLE: ${{ env.YUM_DEPLOYMENT_AWS_ROLE }}
+          YUM_CLOUDFRONT_DISTRIBUTION: ${{ env.YUM_CLOUDFRONT_DISTRIBUTION }}
+        run: |
+          {
+            echo "PACKAGE_TYPE=rpm"
+            echo "BUCKET_NAME=$YUM_S3_BUCKET"
+            echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name $YUM_REPO_BASE_DOMAIN_NAME"
+            echo "DEPLOYMENT_AWS_ROLE=$YUM_DEPLOYMENT_AWS_ROLE"
+            echo "CLOUDFRONT_DISTRIBUTION=$YUM_CLOUDFRONT_DISTRIBUTION"
+          } >> "$GITHUB_ENV"
+      - name: Log set variables
+        run: |
+          echo "Set variables:"
+          env
+      - name: Log general runner information
+        run: |
+          echo "OS info:"
+          cat /etc/os-release
+          uname -a
+
+          echo
+          echo "EC2 instance info:"
+          TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+          curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document
+
+          echo
+          echo
+          echo "APT repo info:"
+          sudo apt update
+
+          echo
+          echo "Disk info:"
+          df -hT
+      - name: Setup common runner tools
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
+      # Future TODO package the tool as an action or separate workflow
+      - name: Checkout repo
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "./tooling/os-package-repo-tool/go.mod"
+          cache-dependency-path: "./tooling/os-package-repo-tool/go.sum"
+          check-latest: true
+      - name: Log installed Go version
+        run: go version
+      - name: Build tool
+        run: |
+          sudo apt install -y gcc
+          CGO_ENABLED=1 go build -C "./tooling/os-package-repo-tool/" -o "$(pwd)/$TOOL_BINARY_PATH" -race "./src/"
+      - name: Install the required runtime dependencies
+        run: |
+          # Exit on error, and error on unset vars
+          set -o errexit
+          set -o nounset
+
+          # Createrepo
+          sudo apt install -y createrepo-c
+
+          # Verify the install
+          createrepo_c --version
+
+          # GPG >=2.2
+          sudo apt satisfy -y "gnupg2 (>= 2.2)"
+
+          # Verify the install
+          gpg --version
+
+          # Aptly
+          # The version available from Ubuntu repos is old, so install it based on Aptly docs here
+          APTLY_KEYRING_PATH="/usr/share/keyrings/aptly-archive-keyring.asc"
+          APTLY_DOMAIN_NAME="repo.aptly.info"
+          sudo curl -s https://www.aptly.info/pubkey.txt -o "$APTLY_KEYRING_PATH"
+          # Note that the Aptly repo does not appear to support HTTPS
+          echo "deb [signed-by=$APTLY_KEYRING_PATH] http://$APTLY_DOMAIN_NAME squeeze main" \
+            | sudo tee /etc/apt/sources.list.d/aptly.list > /dev/null
+          # Ensure that Aptly is always installed from Aptly repo rather than Ubuntu repos
+          cat << EOF | sudo tee /etc/apt/preferences.d/aptly
+          Package: aptly
+          Pin: origin $APTLY_DOMAIN_NAME
+          Pin-Priority: 900
+          EOF
+          sudo apt update
+          sudo apt install -y aptly bzip2
+
+          # Verify the install
+          aptly version
+
+      # Download the artifacts
+      - name: Assume AWS role for downloading the artifacts
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-oprt-artifact-download-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Define the version number used in the artifact download key
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
+        run: |
+          echo "Setting artifact download version..."
+          FULL_TAG="${ARTIFACT_TAG}"
+          echo "ARTIFACT_DOWNLOAD_VERSION=${FULL_TAG#v}" | tee -a "$GITHUB_ENV"
+      - name: Download artifacts to the download directory
+        env:
+          PACKAGE_NAME_FILTER: ${{ inputs.package-name-filter }}
+          ARTIFACT_SOURCE_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          echo "Creating download directory..."
+          mkdir -pv "$DOWNLOAD_DIRECTORY"
+
+          FILTER="${PACKAGE_NAME_FILTER}.${PACKAGE_TYPE}*"
+          S3_PATH="s3://${ARTIFACT_SOURCE_BUCKET}/teleport/tag/${ARTIFACT_DOWNLOAD_VERSION}/"
+          echo
+          echo "Downloading files matching '$FILTER' from '$S3_PATH' to '$DOWNLOAD_DIRECTORY'..."
+          aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" "$S3_PATH" "$DOWNLOAD_DIRECTORY"
+
+          echo
+          echo "Downloaded files:"
+          ls -lAht "$DOWNLOAD_DIRECTORY"
+
+          # Record packages for job summary
+          {
+            echo "PACKAGES<<EOF"
+            ls "$DOWNLOAD_DIRECTORY"/*."${PACKAGE_TYPE}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          echo ""
+          count="$(find . -mindepth 1 -maxdepth 1 -print | wc -l)"
+          if (( count > 0 )); then
+              echo "Found $count artifacts for $ARTIFACT_DOWNLOAD_VERSION"
+          else
+              echo "No artifacts found for $ARTIFACT_DOWNLOAD_VERSION"
+              exit 1
+          fi
+      # Publish the package
+      - name: Assume AWS role for deploying ${{ inputs.repo-type }} artifacts
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.DEPLOYMENT_AWS_ROLE }}
+          role-session-name: "gha-os-package-repo-tool-deploy-${{ github.run_number }}"
+          role-duration-seconds: 3600  # 1 hour, the max that the Terraform module allows. DR takes a long time (6 hrs+) so this will cause DR to fail the first time.
+      - name: Setup GPG signing key
+        uses: ./.github/actions/load-gpg-key
+        with:
+          gpg-signing-archive: ${{ env.GPG_SIGNING_ARCHIVE }}
+          gnupghome: ${{ env.GNUPGHOME }}
+      - name: Ensure the environment cache path exists
+        env:
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
+        run: |
+          OWNER="$(id -un):$(id -gn)"
+          echo "Creating the $ENVIRONMENT_NAME environment cache path at $CACHE_PATH, owned by $OWNER"
+          mkdir -pv "$CACHE_PATH"
+          chmod 0770 "$CACHE_PATH"
+          sudo chown -v "$OWNER" "$CACHE_PATH"
+
+          # Clear out files to trigger DR
+          # Do not uncomment this unless you know what you are doing!
+          # rm -rf "$CACHE_PATH"/*
+      - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
+        env:
+          LOG_LEVEL: 5
+        run: |
+            IFS=' ' read -r -a tool_arguments_array <<< "$TOOL_ARGUMENTS"
+            "./$TOOL_BINARY_PATH" "${REPO_TYPE}" \
+            -bucket "$BUCKET_NAME" \
+            -local-bucket-path "$CACHE_PATH/bucket-contents" \
+            -version-channel "${VERSION_CHANNEL}" \
+            -release-channel "${RELEASE_CHANNEL}" \
+            -artifact-path "$DOWNLOAD_DIRECTORY" \
+            -log-level "$LOG_LEVEL" \
+            -leader-election-namespace "${LEADERSHIP_ELECTION_NAMESPACE}" \
+            "${tool_arguments_array[@]}"
+      - name: Log runner state post-job
+        run: |
+          # Log information that may have changed during job execution so that we can catch future issues before they happen
+          echo "Disk info:"
+          df -hT
+      - name: Set job summary
+        run: |
+          package_array=()
+          while IFS= read -r package; do
+            package_array+=("$package")
+          done <<< "$PACKAGES"
+          echo "### Uploaded ${#package_array[@]} packages uploaded to ${RELEASE_CHANNEL}/${VERSION_CHANNEL} \
+            in ${REPO_TYPE} repo stored in S3 bucket at $BUCKET_NAME" | tee -a "$GITHUB_STEP_SUMMARY"
+          for package in "${package_array[@]}"
+          do
+            echo "* $(basename "$package")" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Invalidate the CDN cache
+        env:
+          TIMEOUT_SECONDS: 600
+          WAIT_TIME_SECONDS: 5
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+            --paths "/*" \
+            --query "Invalidation.Id" \
+            --output "text" \
+          )
+          echo "Created cache invalidation $INVALIDATION_ID for Cloudfront distribution $CLOUDFRONT_DISTRIBUTION"
+
+          ELAPSED_TIME_SECONDS=0
+          while true; do
+            INVALIDATION_STATUS=$(aws cloudfront get-invalidation \
+              --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+              --id "$INVALIDATION_ID" \
+              --query "Invalidation.Status" \
+              --output "text" \
+            )
+
+            if [ "$INVALIDATION_STATUS" != "InProgress" ]; then
+              break
+            fi
+            
+            if [ "$ELAPSED_TIME_SECONDS" -gt "$TIMEOUT_SECONDS" ]; then
+              echo "Cache invalidation still in progress after timeout ($TIMEOUT_SECONDS seconds) elapsed!"
+              exit 1
+            fi
+
+            echo "Cache invalidation still in progress ($ELAPSED_TIME_SECONDS seconds passed). Waiting $WAIT_TIME_SECONDS seconds before checking again..."
+            sleep "$WAIT_TIME_SECONDS"
+            ELAPSED_TIME_SECONDS=$(( ELAPSED_TIME_SECONDS + WAIT_TIME_SECONDS ))
+          done
+
+          if [ "$INVALIDATION_STATUS" != "Completed" ]; then
+            echo "Cache invalidation failed! Full invalidation information:"
+            aws cloudfront get-invalidation \
+              --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+              --id "$INVALIDATION_ID"
+              exit 1
+          fi
+
+          echo "Cache invalidation succeeded!"
+      - name: ${{ inputs.repo-type }}-${{ inputs.environment }}
+        run: |
+          # This is a do-nothing step so that agents calling this workflow can determine what concurrency group
+          # this run is using
+
+  # These jobs are designed to be a very final test to verify that we didn't just publish a broken release
+  # They are very much not a catch-all even of the few basic tests they run - but if they fail, something
+  # is really broken.
+  setup-test-environment:
+    name: Setup Test Environment
+    needs: deploy
+    # Run tests if deploy is successful or skipped
+    if: |
+      always() &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') &&
+      inputs.do-teleport-package-tests &&
+      inputs.package-to-test != ''
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      test-environment: ${{ steps.set-test-environment.outputs.test-environment }}
+      version-channel: ${{ steps.set-version-channel.outputs.version-channel }}
+      auto-updates-domain-name: ${{ steps.set-auto-updates-domain-name.outputs.domain-name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .environments
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: auto-updates
+      # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
+      #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
+      - name: Derive and set Github environment-specific variables for production
+        if: contains(fromJSON('["promote", "build-prod", "publish-prod", "prod/publish"]'), inputs.environment)
+        run: echo "TEST_ENVIRONMENT=test-prod" >> "$GITHUB_ENV"
+      - name: Derive and set Github environment-specific variables for development
+        if: contains(fromJSON('["build", "build-stage", "publish-stage", "stage/publish"]'), inputs.environment)
+        run: echo "TEST_ENVIRONMENT=test-stage" >> "$GITHUB_ENV"
+      - name: Fail when test environment is not set
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ -z "${TEST_ENVIRONMENT}" ]; then
+            echo "Test environment is unset for input environment '${INPUT_ENVIRONMENT}'" >&2
+            exit 1
+          fi
+      - name: Set test environment
+        id: set-test-environment
+        run: echo "test-environment=${TEST_ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+
+      - name: Set version channel
+        id: set-version-channel
+        env:
+          # This is copy/pasted from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+          # with the addition of "v?" to match Teleport's tag naming scheme
+          SEMVER_TAG_REGEX: ^v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
+          VERSION_CHANNEL: ${{ inputs.version-channel }}
+        run: |
+          # Check if the artifact version is a semver
+          if echo "$VERSION_CHANNEL" | grep --perl-regexp --quiet "$SEMVER_TAG_REGEX"; then
+            # Ensure exactly one "v" prefix exists, and trim the first '.' and everything after
+            echo "version-channel=$(echo "v${VERSION_CHANNEL#v}" | sed -e 's/\..*//')" >> "$GITHUB_OUTPUT"
+            exit
+          fi
+
+          # If not a semver (such as when it's set to "cloud")
+          echo "version-channel=$VERSION_CHANNEL" >> "$GITHUB_OUTPUT"
+
+      - name: Set auto updates domain name
+        id: set-auto-updates-domain-name
+        env:
+          AUTO_UPDATES_DOMAIN_NAME: ${{ env.AUTO_UPDATES_DOMAIN_NAME }}
+        run: echo "domain-name=${AUTO_UPDATES_DOMAIN_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Log set variables
+        run: |
+          echo "Set variables:"
+          env
+
+  teleport-tests:
+    name: Run teleport tests
+    needs: setup-test-environment
+    if: |
+      always() && needs.setup-test-environment.result == 'success' &&
+      inputs.package-to-test == 'teleport-ent'
+    uses: ./.github/workflows/integrations.yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        test-case:
+          - "test_pre_install"
+          - "test_teleport_basic"
+    with:
+      repo-type: ${{ inputs.repo-type }}
+      environment: ${{ needs.setup-test-environment.outputs.test-environment }}
+      package-to-test: ${{ inputs.package-to-test }}
+      release-channel: ${{ inputs.release-channel }}
+      version-channel: ${{ needs.setup-test-environment.outputs.version-channel }}
+      artifact-tag: ${{ inputs.artifact-tag }}
+      auto-updates-domain-name: ${{ needs.setup-test-environment.outputs.auto-updates-domain-name }}
+      test-case: ${{ matrix.test-case }}
+
+  updater-tests:
+    name: Run updater tests
+    needs: setup-test-environment
+    if: |
+      always() && needs.setup-test-environment.result == 'success' &&
+      inputs.package-to-test == 'teleport-ent-updater'
+    uses: ./.github/workflows/integrations.yaml
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        test-case:
+          - "test_pre_install"
+          - "test_updater_basic"
+    with:
+      repo-type: ${{ inputs.repo-type }}
+      environment: ${{ needs.setup-test-environment.outputs.test-environment }}
+      package-to-test: ${{ inputs.package-to-test }}
+      release-channel: ${{ inputs.release-channel }}
+      version-channel: ${{ needs.setup-test-environment.outputs.version-channel }}
+      artifact-tag: ${{ inputs.artifact-tag }}
+      auto-updates-domain-name: ${{ needs.setup-test-environment.outputs.auto-updates-domain-name }}
+      test-case: ${{ matrix.test-case }}

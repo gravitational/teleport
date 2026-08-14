@@ -1,0 +1,106 @@
+# Defines a workflow that, given a major version of Teleport:
+#  1. Finds the newest released version of that series of Teleport
+#  2. Rebuilds all the distroless oci container images for that
+#     build of tbot, and
+#  3. Pushes them to production
+#
+# This is intended to be run on a schedule from a parent workflow.
+
+name: Rebuild Distroless tbot OCI Image
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: "gravitational/teleport"
+
+      teleport-release-tag:
+        description: |
+          The semver version of the teleport release to rebuild, including
+          the leading `v`
+        type: string
+        required: true
+      environment:
+        description: |
+          GitHub Actions environment in which to run the rebuild. Can be either
+          `stage/oci-rebuild` or `prod/oci-rebuild`.
+        type: string
+        default: stage/oci-rebuild
+
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: "gravitational/teleport"
+
+      teleport-release-tag:
+        description: |
+          The semver version of the teleport release to rebuild, including
+          the leading `v`
+        type: string
+        required: true
+      environment:
+        description: |
+          GitHub Actions environment in which to run the rebuild. Can be either
+          `stage/oci-rebuild` or `prod/oci-rebuild`.
+        type: string
+        default: stage/oci-rebuild
+
+run-name: Rebuild Distroless tbot OCI Image ${{ inputs.teleport-release-tag }}
+
+jobs:
+  configure:
+    name: Configure Build
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.version.outputs.full }}
+      image-tags: ${{ steps.version.outputs.labels }}
+    steps:
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.teleport-release-tag }}
+
+  rebuild-image:
+    name: Build OCI container images
+    needs: configure
+    permissions:
+      actions: read
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      matrix:
+        release: ['oss', 'fips']
+        include:
+          - architectures: |
+              amd64
+              arm
+              arm64
+          # FIPS release is currently amd64 and arm64-only
+          - release: 'fips'
+            repo-infix: '-fips'
+            dockerfile-suffix: '-fips'
+            architectures: |
+              amd64
+              arm64
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: ${{ matrix.release }}
+      base-image: 'gcr.io/distroless/cc-debian12:latest'
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.teleport-release-tag }}
+      source-tag: ${{ inputs.teleport-release-tag }}
+      teleport-version: ${{ needs.configure.outputs.teleport-version }}
+      # Defaults to us-west-2; rebuild-teleport-oci-distroless sets to us-east-1
+      dest-image-registry-region: us-east-1
+      dest-image-repo: tbot${{ matrix.repo-infix }}-distroless
+      dest-image-tags: ${{ needs.configure.outputs.image-tags }}
+      architectures: ${{ matrix.architectures }}
+      image-build-args: |
+        TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
+      image-build-dockerfile: Dockerfile-tbot-distroless${{ matrix.dockerfile-suffix }}
+      environment: ${{ inputs.environment }}
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

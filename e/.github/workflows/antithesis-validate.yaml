@@ -1,0 +1,93 @@
+# This workflow validates changes in tests/antithesis/Makefile to catch regressions in the SUT config/setup at review time.
+# It does not ensure the setup runs within Antithesis, this should be triggered manually or via dispatch due to quotas.
+name: Validate Antithesis
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  changed:
+    name: Detect changed SUTs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      suts: ${{ steps.resolve.outputs.suts }}
+    steps:
+      - name: Checkout
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            common:
+              - '.github/workflows/antithesis-*.yaml'
+              - 'tests/antithesis/Makefile'
+              - 'tests/antithesis/docker/**'
+              - 'tests/antithesis/scripts/**'
+              - 'tests/antithesis/workloads/**'
+            core:
+              - 'tests/antithesis/sut/core/**'
+
+      - name: Resolve SUTs to validate
+        id: resolve
+        run: |
+          if [[ "${{ steps.filter.outputs.common }}" == "true" ]]; then
+            SUTS='["core"]'
+          else
+            SUTS=$(echo '${{ steps.filter.outputs.changes }}' \
+              | jq -c '[.[] | select(. != "common")]')
+          fi
+          echo "suts=${SUTS}" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: Validate ${{ matrix.sut }}
+    needs: changed
+    if: ${{ needs.changed.outputs.suts != '[]' }}
+    runs-on: ubuntu-22.04-16core
+    strategy:
+      fail-fast: true
+      matrix:
+        sut: ${{ fromJson(needs.changed.outputs.suts) }}
+    env:
+      SUT: ${{ matrix.sut }}
+      ANTITHESIS_TENANT: teleport
+      ANTITHESIS_LAUNCHER: teleport
+
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/teleport
+          ref: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v4
+        with:
+          path: e
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          driver: docker
+
+      - name: Build images locally (no push)
+        working-directory: e/tests/antithesis
+        run: make local write-env SUT="${SUT}" REGISTRY= TAG=local
+
+      - name: Validate docker compose
+        working-directory: e/tests/antithesis/sut/${{ env.SUT }}
+        run: docker compose config --quiet
+
+      - name: Dry-run trigger
+        working-directory: e/tests/antithesis
+        run: |
+          scripts/trigger.sh --sut "$SUT" --dry-run

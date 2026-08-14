@@ -1,0 +1,6 @@
+---
+# TODO use the same build process as all the other images
+OPERATOR_PENDING_ECR_REPO: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
+OPERATOR_PUBLISH_ECR_REPO: public.ecr.aws/gravitational/teleport-operator
+PUBLISH_OPERATOR_OCI_AWS_ROLE: arn:aws:iam::146628656107:role/tf-publish-operator-oci-gha
+OCI_PUBLIC_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:146628656107:key/763018cb-43b0-49f4-bfd2-b3a00336cfa7

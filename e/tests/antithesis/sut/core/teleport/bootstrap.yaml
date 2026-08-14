@@ -1,0 +1,169 @@
+kind: role
+version: v8
+metadata:
+  name: workload-admin
+spec:
+  allow:
+    rules:
+    - resources:
+      - "*"
+      verbs:
+      - list
+      - read
+---
+kind: role
+version: v8
+metadata:
+  name: resource-admin
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+    db_labels:
+      '*': ['*']
+    group_labels:
+      '*': ['*']
+    kubernetes_labels:
+      '*': ['*']
+    linux_desktop_labels:
+      '*': ['*']
+    windows_desktop_labels:
+      '*': ['*']
+    rules:
+      - resources: ['*']
+        verbs: ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: resource-deny-all
+spec:
+  allow:
+    rules:
+      # Without this tbot will fail to emit the identity
+      - resources: [remote_cluster]
+        verbs: [list, read]
+  deny:
+    rules:
+      - resources:
+          - role
+          - user
+          - auth_connector
+          - oidc
+          - saml
+          - github
+          - trusted_cluster
+          - access_request
+          - access_plugin_data
+          - session
+          - session_tracker
+          - instance
+          - event
+          - workload_identity
+          - bot
+          - lock
+          - network_restrictions
+          - auth_server
+          - proxy
+          - node
+          - app
+          - db
+          - kube_cluster
+          - token
+          - cert_authority
+          - git_server
+          - cluster_name
+          - cluster_config
+          - cluster_auth_preference
+          - session_recording_config
+          - cluster_audit_config
+          - cluster_networking_config
+        verbs: ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: resource-read-only
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+    db_labels:
+      '*': ['*']
+    group_labels:
+      '*': ['*']
+    kubernetes_labels:
+      '*': ['*']
+    linux_desktop_labels:
+      '*': ['*']
+    windows_desktop_labels:
+      '*': ['*']
+    rules:
+      - resources: ['*']
+        verbs: ['list', 'read']
+  deny:
+    rules:
+      - resources: ['*']
+        verbs: ['create', 'update', 'delete']
+---
+kind: role
+version: v8
+metadata:
+  name: node-admin
+spec:
+  allow:
+    logins: ['root']
+    node_labels:
+      '*': ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: node-deny
+spec:
+  deny:
+    node_labels:
+      '*': ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: app-admin
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: app-mint
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+    rules:
+      - resources: [role]
+        verbs: [read]
+---
+kind: role
+version: v8
+metadata:
+  name: app-deny
+spec:
+  allow:
+    rules:
+      - resources: [role]
+        verbs: [read]
+  deny:
+    app_labels:
+      '*': ['*']
+---
+kind: token
+version: v2
+metadata:
+  name: workload-token
+spec:
+  roles: [Bot]
+  join_method: token
+  bot_name: workload

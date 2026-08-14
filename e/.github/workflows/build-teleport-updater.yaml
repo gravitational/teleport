@@ -1,0 +1,232 @@
+---
+name: Build the Teleport updater
+
+on:
+  workflow_call:
+    inputs:
+      updater-version:
+        description: |
+          The version to use for the updater, i.e. `v1.2.3`.
+        type: string
+        required: true
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+  
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      updater-version:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: stage/build
+env:
+  DEBIAN_FRONTEND: noninteractive
+  VERSION_CHANNEL: cloud
+
+jobs:
+  build:
+    name: Package the Teleport updater
+    permissions:
+      contents: read
+      id-token: write   # Required for aws-actions/configure-aws-credentials
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: true
+      matrix:
+        package:
+          - file-extension: deb
+            manager: apt
+          - file-extension: rpm
+            manager: yum
+          - file-extension: rpm
+            manager: zypper
+          - file-extension: tar
+            manager: tarball
+        architecture:
+          - amd64
+          - i386
+          - arm64
+          - armhf
+    env:
+      GNUPGHOME: /tmp/gnupg
+      ARTIFACT_VERSION: ${{ inputs.updater-version }}
+      ARCHITECTURE: ${{ matrix.architecture }}
+      PACKAGE_FILE_EXTENSION: ${{ matrix.package.file-extension }}
+      PACKAGE_MANAGER: ${{ matrix.package.manager }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_TELEPORT_UPDATER_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-teleport-updater-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: gpg-signing
+      - name: Install fpm and dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ruby binutils rpm gpg
+          sudo gem install fpm
+      - name: Create the default package configuration for the package manager type (${{ matrix.package.manager }}) that the service should use 
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        env:
+          CONFIG_FOLDER_PATH: "etc/teleport-upgrade.d"
+          SCRIPT_PATH: "usr/sbin/teleport-upgrade"
+        run: |
+          INSTALLER_CONFIG_PATH="$CONFIG_FOLDER_PATH/installer"
+          mkdir -pv "$CONFIG_FOLDER_PATH"
+          echo "$PACKAGE_MANAGER" > "$INSTALLER_CONFIG_PATH"
+          chmod -R 755 "$CONFIG_FOLDER_PATH"
+          sudo chown -R "root:root" "$CONFIG_FOLDER_PATH"
+
+          echo "$INSTALLER_CONFIG_PATH contents:"
+          sudo cat "$INSTALLER_CONFIG_PATH"
+      - name: Set the script version number
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        env:
+          SCRIPT_PATH: "usr/sbin/teleport-upgrade"
+        run: |
+          sed -e "s/self_version=.*/self_version=\"$ARTIFACT_VERSION\"/" -i "$SCRIPT_PATH"
+          echo "Updater version number: $("./$SCRIPT_PATH" version)"
+
+          if [ "$("./$SCRIPT_PATH" version)" != "$ARTIFACT_VERSION" ]; then
+            echo "Error: updater version number does not match artifact version ($ARTIFACT_VERSION)!"
+            exit 1
+          else
+            echo "Updater version number matches the artifact version ($ARTIFACT_VERSION)"
+          fi
+      - name: Set the TELEPORT_EXT_UPGRADER_VERSION env variable
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        env:
+          ENV_CONFIG_PATH: "etc/systemd/system/teleport.service.d/teleport-upgrader-env.conf"
+        run: |
+          sed -e "s/TELEPORT_EXT_UPGRADER_VERSION=.*-unset/TELEPORT_EXT_UPGRADER_VERSION=$ARTIFACT_VERSION/" -i "$ENV_CONFIG_PATH"
+          UPGRADER_VERSION=$(grep TELEPORT_EXT_UPGRADER_VERSION "$ENV_CONFIG_PATH" | sed -e "s/.*TELEPORT_EXT_UPGRADER_VERSION=\($ARTIFACT_VERSION\).*/\1/")
+
+          if [ "$UPGRADER_VERSION" != "$ARTIFACT_VERSION" ]; then
+            echo "Error: updater version does not match artifact version ($ARTIFACT_VERSION)!"
+            exit 1
+          else
+            echo "Updater version matches the artifact version ($ARTIFACT_VERSION)"
+          fi
+      - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
+        working-directory: ./assets/systemd-unit-upgrader/
+        id: build-package
+        # This must be ran as root because the directories are owned by root
+        run: |
+          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.$ARCHITECTURE.$PACKAGE_MANAGER.$PACKAGE_FILE_EXTENSION"
+          sudo fpm \
+            --output-type "${{ matrix.package.file-extension }}" \
+            --architecture "${{ matrix.architecture }}" \
+            --version "${ARTIFACT_VERSION#v}" \
+            --package "$PACKAGE_NAME"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+      - name: Update package file ownership
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: sudo chown -Rv "$(id -un):$(id -gn)" ./*."${PACKAGE_FILE_EXTENSION}"
+      - name: Log created file info
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: ls -laht "$PACKAGE_NAME"
+      # When RPM artifact, sign the RPM
+      - name: Setup GPG signing key for rpm signing
+        if: matrix.package.file-extension == 'rpm'
+        uses: ./.github/actions/load-gpg-key
+        with:
+          gpg-signing-archive: ${{ env.GPG_SIGNING_ARCHIVE }}
+          gnupghome: ${{ env.GNUPGHOME }}
+      - name: Configure RPM signing
+        if: matrix.package.file-extension == 'rpm'
+        run: |
+          # Setup the RPM macros
+          MACRO_FILE="$HOME/.rpmmacros"
+          SIGNING_KEY_NAME=$(gpg --list-secret-keys --with-colons | grep uid | cut -d':' -f10 | cut -d'<' -f1 | sed 's/ $//')
+
+          echo "Using signing key named \"$SIGNING_KEY_NAME\""
+
+          # Contents are pulled from `gravitational/teleport/build.assets/rpm-sign/rpmmacros` but modified to fit this use case
+          echo "RPM macro file contents:"
+          cat <<EOF | tee "$MACRO_FILE"
+          %_signature gpg
+          %_gpg_path $GNUPGHOME
+          %_gpg_name $SIGNING_KEY_NAME
+          %_gpgbin $(which gpg)
+          %_gpg_pass -
+          # Use SHA512 to sign RPMs
+          %__gpg_sign_cmd %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase '' --no-secmem-warning -u "%{_gpg_name}" --digest-algo sha512 -sbo %{__signature_filename} %{__plaintext_filename}
+          # Don't include build-id artifacts
+          %_build_id_links none
+          EOF
+
+          # Import the GPG key to RPM
+          echo
+          echo "Importing public key for $SIGNING_KEY_NAME"
+          SIGNING_KEY_PATH="signing.gpg"
+          gpg --export -a "$SIGNING_KEY_NAME" | tee "$SIGNING_KEY_PATH"
+          rpm --import "$SIGNING_KEY_PATH"
+          rm -fv "$SIGNING_KEY_PATH"
+      - name: Sign the RPM
+        if: matrix.package.file-extension == 'rpm'
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          # shellcheck disable=SC2155
+          export GPG_TTY="$(tty || true)"
+          echo "Signing $PACKAGE_NAME"
+          rpm --addsign "$PACKAGE_NAME"
+          echo "Validating signature:"
+          rpm --checksig "$PACKAGE_NAME"
+      # When tarball artifact, gzip the tarchive
+      - name: GZip the tarchive
+        if: matrix.package.file-extension == 'tar'
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          GZ_PACKAGE_NAME="$PACKAGE_NAME.gz"
+          echo "GZipping $PACKAGE_NAME to $GZ_PACKAGE_NAME"
+          gzip "$PACKAGE_NAME" -n
+          echo "PACKAGE_NAME=$GZ_PACKAGE_NAME" >> "$GITHUB_ENV"
+      # Generate a checksum of the final artifact
+      - name: Generate the sha256 checksum
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          PACKAGE_CHECKSUM_NAME="$PACKAGE_NAME.sha256"
+          sha256sum "$PACKAGE_NAME" > "$PACKAGE_CHECKSUM_NAME"
+          echo "SHA-256 checksum value: $(cat "$PACKAGE_CHECKSUM_NAME")"
+          echo "PACKAGE_CHECKSUM_NAME=$PACKAGE_CHECKSUM_NAME" >> "$GITHUB_ENV"
+      # Upload the artifact
+      - name: Set artifact bucket paths
+        env:
+          ARTIFACT_SOURCE_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          ARTIFACT_BUCKET_PATH="s3://$ARTIFACT_SOURCE_BUCKET/teleport/tag/${ARTIFACT_VERSION#v}/$PACKAGE_NAME"
+          ARTIFACT_CHECKSUM_BUCKET_PATH="$ARTIFACT_BUCKET_PATH.sha256"
+          echo "Setting artifact bucket upload path to $ARTIFACT_BUCKET_PATH and checksum upload path to $ARTIFACT_CHECKSUM_BUCKET_PATH"
+          echo "ARTIFACT_BUCKET_PATH=$ARTIFACT_BUCKET_PATH" >> "$GITHUB_ENV"
+          echo "ARTIFACT_CHECKSUM_BUCKET_PATH=$ARTIFACT_CHECKSUM_BUCKET_PATH" >> "$GITHUB_ENV"
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-package-auto-updater-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
+          role-duration-seconds: 900
+      - name: Upload the artifact to S3
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: aws s3 cp "$PACKAGE_NAME" "$ARTIFACT_BUCKET_PATH"
+      - name: Upload the artifact checksum to S3
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: aws s3 cp "$PACKAGE_CHECKSUM_NAME" "$ARTIFACT_CHECKSUM_BUCKET_PATH"

@@ -1,0 +1,667 @@
+package plugins
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
+	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
+	"github.com/gravitational/teleport/e/lib/plugins/factory"
+	"github.com/gravitational/teleport/e/lib/services"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/lib/auth"
+	integrationcred "github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+type (
+	staticRefLookup map[string]map[string]string
+)
+
+type fakeEvents struct {
+	mu       sync.RWMutex
+	watchers []*fakeWatcher
+}
+
+func (e *fakeEvents) NewWatcher(ctx context.Context, _ types.Watch) (types.Watcher, error) {
+	watcher := &fakeWatcher{
+		ch:     make(chan types.Event),
+		doneCh: make(chan struct{}, 1),
+		ctx:    ctx,
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.watchers = append(e.watchers, watcher)
+	return watcher, nil
+}
+
+// close all existing watchers
+func (e *fakeEvents) close() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, w := range e.watchers {
+		w.Close()
+	}
+	e.watchers = nil
+}
+
+func (e *fakeEvents) numWatchers() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.watchers)
+}
+
+func (e *fakeEvents) send(event types.Event) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	for _, watcher := range e.watchers {
+		watcher.send(event)
+	}
+}
+
+type fakeWatcher struct {
+	ch     chan types.Event
+	doneCh chan struct{}
+	ctx    context.Context
+}
+
+func (w *fakeWatcher) send(event types.Event) {
+	w.ch <- event
+}
+
+func (w *fakeWatcher) Close() error {
+	close(w.ch)
+	close(w.doneCh)
+	return nil
+}
+
+func (w *fakeWatcher) Done() <-chan struct{} {
+	return w.doneCh
+}
+
+func (w *fakeWatcher) Error() error {
+	select {
+	case <-w.doneCh:
+		return errors.New("watcher closed")
+	default:
+		return nil
+	}
+}
+
+func (w *fakeWatcher) Events() <-chan types.Event {
+	return w.ch
+}
+
+func TestPluginManagerStartStopOAuth(t *testing.T) {
+	modifySpec := func(t *testing.T, plugin *types.PluginV1) {
+		slackSpec := plugin.Spec.GetSlackAccessPlugin()
+		require.NotNil(t, slackSpec)
+		slackSpec.FallbackChannel = "#teleport-rules"
+	}
+	plugin := createSlackPlugin(t, "slack-default").(*types.PluginV1)
+	testPluginStartStop(t, plugin, modifySpec)
+}
+
+func TestDispatchIgnoresIntegrationCredentials(t *testing.T) {
+	t.Parallel()
+
+	m := &Manager{
+		log: slog.With("test", t.Name()),
+	}
+
+	cred, err := types.NewPluginStaticCredentials(
+		types.Metadata{
+			Name: "integration-cred",
+		},
+		types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+					ClientId:     "id",
+					ClientSecret: "secret",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	integrationcred.CopyRefLabels(cred, integrationcred.NewRef())
+
+	err = m.dispatchPluginStaticCredentialsEvent(t.Context(), types.Event{
+		Type:     types.OpPut,
+		Resource: cred,
+	})
+	require.NoError(t, err)
+}
+
+func TestPluginManagerStartStopStaticCreds(t *testing.T) {
+	modifySpec := func(t *testing.T, plugin *types.PluginV1) {
+		oktaSpec := plugin.Spec.GetOkta()
+		require.NotNil(t, oktaSpec)
+		oktaSpec.OrgUrl = "https://www.new-okta.com"
+	}
+
+	plugin, creds := createOktaPlugin(t, "okta")
+	testPluginStartStop(t, plugin.(*types.PluginV1), modifySpec, creds)
+}
+
+func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t *testing.T, plugin *types.PluginV1), staticCreds ...types.PluginStaticCredentials) {
+	mem, err := memory.New(memory.Config{
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mem.Close()) })
+
+	testLog := slog.With("test", t.Name())
+
+	pluginService := local.NewPluginsService(mem)
+	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
+	require.NoError(t, err)
+
+	require.NoError(t, pluginService.CreatePlugin(context.Background(), plugin))
+
+	events := &fakeEvents{}
+
+	managerCtx, managerCancel := context.WithCancel(context.Background())
+	defer managerCancel()
+
+	// Add in any provided static credentials
+	for _, staticCred := range staticCreds {
+		require.NoError(t, pluginStaticCredentialsService.CreatePluginStaticCredentials(managerCtx, staticCred))
+	}
+
+	var instanceStarted, instanceStopped int64
+	makeInstanceDelegate := func(deps factory.Dependencies) factory.Delegate {
+		return func(ctx context.Context) error {
+			atomic.AddInt64(&instanceStarted, 1)
+			<-ctx.Done()
+			atomic.AddInt64(&instanceStopped, 1)
+			return nil
+		}
+	}
+
+	assertStartStop := func(started, stopped int64, msgAndArgs ...any) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.Equal(t, started, atomic.LoadInt64(&instanceStarted), "Start count")
+			require.Equal(t, stopped, atomic.LoadInt64(&instanceStopped), "Stop count")
+		}, time.Second, time.Second/100, msgAndArgs...)
+	}
+
+	resetStartStopCounts := func() {
+		atomic.StoreInt64(&instanceStarted, 0)
+		atomic.StoreInt64(&instanceStopped, 0)
+	}
+
+	simulateCredentialUpdate := func(c types.PluginStaticCredentials) types.PluginStaticCredentials {
+		updated, err := pluginStaticCredentialsService.UpdatePluginStaticCredentials(context.Background(), c)
+		require.NoError(t, err)
+
+		clone := apiutils.CloneProtoMsg(updated.(*types.PluginStaticCredentialsV1))
+		events.send(types.Event{Type: types.OpPut, Resource: clone})
+		return updated
+	}
+
+	staticCredentialsSuppliedToPlugin := staticRefLookup{}
+	cfg := ManagerConfig{
+		Plugins:                 pluginService,
+		PluginStaticCredentials: pluginStaticCredentialsService,
+		Events:                  events,
+		Factories: map[types.PluginType]factory.Factory{
+			plugin.GetType(): func(ctx context.Context, plugin *types.PluginV1, deps factory.Dependencies) (factory.Delegate, error) {
+				for _, cred := range deps.StaticCredentials {
+					staticCredentialsSuppliedToPlugin[cred.GetName()] = cred.GetStaticLabels()
+				}
+				return makeInstanceDelegate(deps), nil
+			},
+		},
+		Logger: testLog,
+
+		// the following are not used in the test
+		TeleportClient: &auth.Server{},
+		ParentProcess: &service.TeleportProcess{
+			SyncGatherers: metrics.NewSyncGatherers(),
+			Config: &servicecfg.Config{
+				Modules: modulestest.EnterpriseModules(),
+			},
+		},
+	}
+
+	manager, err := NewManager(cfg)
+	require.NoError(t, err)
+
+	go manager.Run(managerCtx)
+
+	// Wait for manager to subscribe to events
+	require.Eventually(t, func() bool {
+		return events.numWatchers() == 1
+	}, time.Second, time.Second/100)
+
+	// fake initialized watcher
+	events.send(types.Event{Type: types.OpInit})
+
+	testLog.InfoContext(context.Background(), "Sending plugin start event")
+	// 1) Create plugin: start
+	events.send(types.Event{
+		Type:     types.OpPut,
+		Resource: plugin,
+	})
+	assertStartStop(1, 0)
+
+	// EXPECT that the static credentials presented to the plugin are the ones
+	// we expect
+	for _, cred := range staticCreds {
+		require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
+	}
+	// Clear out the static refs
+	staticCredentialsSuppliedToPlugin = staticRefLookup{}
+
+	// 2) Modify metadata, but not spec: do not restart
+	plugin = plugin.Clone().(*types.PluginV1)
+	plugin.Metadata.Labels["foo"] = "bar"
+	// No way to reliably assert this: will assert total start-stop count later
+	events.send(types.Event{
+		Type:     types.OpPut,
+		Resource: plugin,
+	})
+
+	// 3) Modify spec: restart
+	plugin = plugin.Clone().(*types.PluginV1)
+	modifySpec(t, plugin)
+
+	events.send(types.Event{
+		Type:     types.OpPut,
+		Resource: plugin,
+	})
+	assertStartStop(2, 1)
+
+	// Verify the static credentials again
+	for _, cred := range staticCreds {
+		require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
+	}
+
+	if len(staticCreds) > 0 {
+		staticCredentialsSuppliedToPlugin = staticRefLookup{}
+		resetStartStopCounts()
+
+		// WHEN I simulate a credential update that does not change the credential spec
+		testLog.InfoContext(managerCtx, "Simulating non-restarting credential update")
+		staticCreds[0].GetMetadata().Labels["test"] = t.Name()
+		staticCreds[0] = simulateCredentialUpdate(staticCreds[0])
+
+		// EXPECT that the plugin service does *not* restart. We can't reliably
+		// assert this here, but we will check the total restart count below
+
+		// WHEN I simulate a credential update that changes the credential spec
+		testLog.InfoContext(managerCtx, "Simulating restarting credential update")
+		staticCreds[0].(*types.PluginStaticCredentialsV1).Spec.Credentials =
+			&types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "updated-test-credential",
+			}
+		staticCreds[0] = simulateCredentialUpdate(staticCreds[0])
+
+		// EXPECT that the plugin gets shut down and restarted exactly once
+		assertStartStop(1, 1, "Expected full plugin restart")
+
+		// EXPECT that the updated static credentials were presented to the
+		// plugin
+		for _, cred := range staticCreds {
+			require.Equal(t, cred.GetStaticLabels(), staticCredentialsSuppliedToPlugin[cred.GetName()])
+		}
+	}
+
+	// 4) Close existing watcher: loop should stop all plugin instances,
+	// and then re-subscribe
+	resetStartStopCounts()
+	testLog.InfoContext(managerCtx, "Closing watcher")
+	events.close()
+
+	testLog.InfoContext(managerCtx, "Waiting for plugin monitor to restart...")
+	// Wait for manager to re-subscribe to events
+	require.Eventually(t, func() bool {
+		return events.numWatchers() == 1
+	}, time.Second, 10*time.Millisecond)
+	testLog.InfoContext(managerCtx, "Plugin monitor has restarted")
+
+	// fake initialized watcher
+	events.send(types.Event{Type: types.OpInit})
+
+	assertStartStop(1, 1, "Expected the recovered plugin manager to restart plugins")
+
+	// Re-create plugin via an event.
+	// We must do this because we do not mock the backend service itself
+	resetStartStopCounts()
+	testLog.InfoContext(managerCtx, "Forcing recreation with an event")
+	events.send(types.Event{
+		Type:     types.OpPut,
+		Resource: plugin,
+	})
+	assertStartStop(1, 1, "Expected Put event to trigger full plugin restart")
+
+	// 5) Delete: stop
+	events.send(types.Event{
+		Type: types.OpDelete,
+		Resource: &types.ResourceHeader{
+			Kind: types.KindPlugin,
+			Metadata: types.Metadata{
+				Name: plugin.GetName(),
+			},
+		},
+	})
+	assertStartStop(1, 2)
+}
+
+// TestInstanceFactory runs registered plugins instance factory to test start and stop events
+func TestInstanceFactory(t *testing.T) {
+	jamfEnv := jamftestenv.NewUsingT(t, &jamftestenv.Opts{DeviceTrustEnv: true})
+	intuneEnv := intunetestenv.MustNew(t, &intunetestenv.Config{})
+
+	testCases := []struct {
+		name                     string
+		pluginType               string
+		plugin                   *types.PluginV1
+		readyEvent, stoppedEvent string
+	}{
+		{
+			name:       "oktaInstanceFactoryNoSync",
+			pluginType: types.PluginTypeOkta,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "okta",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							OrgUrl:       "https://test.url",
+							SyncSettings: &types.PluginOktaSyncSettings{},
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+			stoppedEvent: services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+		},
+		{
+			name:       "oktaInstanceFactoryWithSync",
+			pluginType: types.PluginTypeOkta,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "okta",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							OrgUrl: "https://test.url",
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SyncUsers: true,
+							},
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+			stoppedEvent: services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+		},
+		{
+			name:       "jamfInstanceFactory",
+			pluginType: types.PluginTypeJamf,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "jamf",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Jamf{
+						Jamf: &types.PluginJamfSettings{
+							JamfSpec: &types.JamfSpecV1{
+								ApiEndpoint: jamfEnv.APIEndpoint,
+							},
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"jamf/api-endpoint": jamfEnv.APIEndpoint,
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.JamfReadyEvent,
+			stoppedEvent: services.JamfStoppedEvent,
+		},
+		{
+			name:       "intuneInstanceFactory",
+			pluginType: types.PluginTypeIntune,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "intune",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Intune{
+						Intune: &types.PluginIntuneSettings{
+							Tenant: intunetestenv.DefaultApps[0].Tenant,
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.IntuneReadyEvent,
+			stoppedEvent: services.IntuneStoppedEvent,
+		},
+	}
+
+	// GIVEN a running Teleport Cluster...
+	process := testAuthProcess(t, withModules(modulestest.EnterpriseModules()))
+	require.NoError(t, process.Start())
+
+	for _, tc := range testCases {
+		factoryCtx, factoryCancel := context.WithCancel(context.Background())
+		pluginLifetime, pluginCancel := context.WithCancel(context.Background())
+		t.Run(tc.name, func(t *testing.T) {
+			var pluginDelegateFn factory.Delegate
+
+			switch tc.pluginType {
+			case types.PluginTypeOkta:
+				var err error
+				// Run plugin
+				pluginDelegateFn, err = factory.Okta(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
+					ParentProcess: process,
+					StaticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+									APIToken: "test",
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			case types.PluginTypeJamf:
+				var err error
+				// Run plugin
+				pluginDelegateFn, err = factory.Jamf(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
+					HTTPClient:    jamfEnv.HTTPClient,
+					ParentProcess: process,
+					StaticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+									BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+										Username: jamftestenv.DefaultUsers[0].Username,
+										Password: jamftestenv.DefaultUsers[0].Password,
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			case types.PluginTypeIntune:
+				var err error
+				pluginDelegateFn, err = factory.Intune(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
+					HTTPClient:    intuneEnv.HTTPClient,
+					ParentProcess: process,
+					StatusSink:    &integration.FakeStatusSink{},
+					StaticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+									OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+										ClientId:     intunetestenv.DefaultApps[0].ClientID,
+										ClientSecret: intunetestenv.DefaultApps[0].ClientSecret,
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			default:
+				t.Fatalf("Unknown plugin type: %q", tc.pluginType)
+			}
+
+			// make sure that anything holding a reference to the wrong context is
+			// terminated with extreme prejudice
+			factoryCancel()
+
+			factoryErr := make(chan error, 1)
+			go func() {
+				factoryErr <- pluginDelegateFn(pluginLifetime)
+			}()
+
+			// EXPECT that the plugin process emits a `ready` event
+			_, err := process.WaitForEventTimeout(5*time.Second, tc.readyEvent)
+			require.NoError(t, err)
+
+			// terminate plugin
+			pluginCancel()
+
+			// EXPECT that the plugin process emits a `close` event and eventually
+			// terminates
+			_, err = process.WaitForEventTimeout(5*time.Second, tc.stoppedEvent)
+			require.NoError(t, err)
+
+			select {
+			case err := <-factoryErr:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("Timeout waiting for start error")
+			}
+		})
+	}
+}
+
+type testAuthOptions struct {
+	clock   clockwork.Clock
+	modules *modulestest.Modules
+}
+
+type testAuthOption func(*testAuthOptions)
+
+func withClock(clock clockwork.Clock) testAuthOption {
+	return func(o *testAuthOptions) {
+		o.clock = clock
+	}
+}
+
+func withModules(m *modulestest.Modules) testAuthOption {
+	return func(tao *testAuthOptions) {
+		tao.modules = m
+	}
+}
+
+func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProcess {
+	options := &testAuthOptions{
+		clock:   clockwork.NewFakeClock(),
+		modules: modulestest.OSSModules(),
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Clock = options.clock
+	cfg.DataDir = t.TempDir()
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	cfg.Modules = options.modules
+
+	process, err := service.NewTeleport(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	return process
+}

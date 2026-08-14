@@ -1,0 +1,115 @@
+---
+name: Publish Teleport OS packages to OS repos
+on:
+  workflow_call:
+    inputs:
+      artifact-version:
+        description: The tag associated with the artifact to deploy (eg. v1.2.3).
+        type: string
+        required: true
+      environment:
+        # TODO(camh): use proper GitHub environment names
+        description: |
+          Environment to deploy the package to. This must be 'development' or
+          'production', not an actual GitHub Actions environment.
+        type: string
+        required: true
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch: 
+    inputs:
+      artifact-version:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      # ************* This is a critical issue ***************
+      # Don't allow sending prerelease artifacts to production environment(s), as this will cause customer
+      # APT/YUM to upgrade to the prerelease.
+      should-run: ${{ steps.version.outputs.pre-release == '' || !contains(inputs.environment, 'prod') }}
+    steps:
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.artifact-version }}
+  # These are two separate jobs due to GHA matrix limitations. There should only be one run per OS repo type
+  # at a time, but YUM and APT jobs can run in parallel.
+  # These jobs should be kept in sync at all times.
+  deploy-teleport-apt-artifacts:
+    runs-on: ubuntu-latest
+    needs:
+      - setup
+    if: ${{ needs.setup.outputs.should-run == 'true' }}
+    permissions:
+      actions: write
+      contents: read
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        deployment-config:
+          - name: Teleport
+            version-channel: ${{ inputs.artifact-version }}
+            package-to-test: teleport-ent
+          - name: Teleport
+            version-channel: rolling
+            package-to-test: teleport-ent
+          - name: Teleport-ent-updater
+            version-channel: cloud
+            package-name-filter: teleport-ent-updater-*
+    name: APT ${{ matrix.deployment-config.name }} ${{ matrix.deployment-config.version-channel }}
+    steps:
+      - name: Deploy package to `stable/${{ matrix.deployment-config.version-channel }}` ${{ matrix.deployment-config.name }} repos
+        uses: gravitational/teleport.e/.github/actions/deploy-os-package@master
+        with:
+          environment: ${{ inputs.environment }}
+          repo-type: apt
+          artifact-tag: ${{ inputs.artifact-version }}
+          version-channel: ${{ matrix.deployment-config.version-channel }}
+          package-name-filter: ${{ matrix.deployment-config.package-name-filter }}
+          package-to-test: ${{ matrix.deployment-config.package-to-test }}
+          do-teleport-package-tests: ${{ matrix.deployment-config.package-to-test != '' }}
+          workflow-git-reference: ${{ github.event_name == 'pull_request' && github.head_ref || 'refs/heads/master' }}
+  # Deploying to YUM repos will deploy to Zypper repos as well because the Zypper repos just alias to YUM
+  deploy-teleport-yum-artifacts:
+    runs-on: ubuntu-latest
+    needs:
+      - setup
+    if: ${{ needs.setup.outputs.should-run == 'true' }}
+    permissions:
+      actions: write
+      contents: read
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        deployment-config:
+          - name: Teleport
+            version-channel: ${{ inputs.artifact-version }}
+            package-to-test: teleport-ent
+          - name: Teleport
+            version-channel: rolling
+            package-to-test: teleport-ent
+          - name: Teleport-ent-updater
+            version-channel: cloud
+            package-name-filter: teleport-ent-updater-*
+    name: YUM/Zypper ${{ matrix.deployment-config.name }} ${{ matrix.deployment-config.version-channel }}
+    steps:
+      - name: Deploy package to `stable/${{ matrix.deployment-config.version-channel }}` ${{ matrix.deployment-config.name }} repos
+        uses: gravitational/teleport.e/.github/actions/deploy-os-package@master
+        with:
+          environment: ${{ inputs.environment }}
+          repo-type: yum
+          artifact-tag: ${{ inputs.artifact-version }}
+          version-channel: ${{ matrix.deployment-config.version-channel }}
+          package-name-filter: ${{ matrix.deployment-config.package-name-filter }}
+          package-to-test: ${{ matrix.deployment-config.package-to-test }}
+          do-teleport-package-tests: ${{ matrix.deployment-config.package-to-test != '' }}
+          workflow-git-reference: ${{ github.event_name == 'pull_request' && github.head_ref || 'refs/heads/master' }}

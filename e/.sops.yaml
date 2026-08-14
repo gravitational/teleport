@@ -1,0 +1,57 @@
+---
+# *******************************************************************
+# *                        !!! IMPORTANT !!!                        *
+# *******************************************************************
+#
+# All environment value secrets should include the following age key
+# for break-glass, emergency access in the event that the KMS key is
+# deleted and nobody catches it in time. The private key is stored in
+# the "Critical Infrastructure" 1password vault, under the name
+# "Age key for release secrets". In the event of emergency, contact
+# Roman, RJ, or Sasha for access to the key.
+#
+# Key: age1draaeuw9qtg9rt69v4kn8mnu3kzl42snm6h85wfjsqxrtg6v4vls5zas3x
+#
+# *******************************************************************
+
+creation_rules:
+  # Staging
+  ## Build
+  - &env_value_rules
+    path_regex: \.environments/stage/build/gpg-signing\.sops\.yaml
+    # Don't invalidate the file if unencrypted content changes
+    mac_only_encrypted: true
+    # Input/output defaults for CLI piping
+    input_type: yaml
+    output_type: yaml
+    # Keys
+    age: age1draaeuw9qtg9rt69v4kn8mnu3kzl42snm6h85wfjsqxrtg6v4vls5zas3x
+    kms: arn:aws:kms:us-west-2:603330915152:key/3ce72a8c-b9bb-40e5-9fee-a11ad82a0d2d
+  - <<: *env_value_rules
+    path_regex: \.environments/stage/build/mac-signing\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:603330915152:key/a2273d3b-33c3-4ef9-809e-49810e651fca
+  ## Publish
+  - <<: *env_value_rules
+    path_regex: \.environments/stage/publish/gpg-signing\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:603330915152:key/89286df3-d1c1-429b-8680-02e78e43d224
+  - <<: *env_value_rules
+    path_regex: \.environments/stage/publish/terraform\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:603330915152:key/d2f3b71b-61b1-4036-a4ca-b4c0ea05213e
+  # Production
+  ## Build
+  - <<: *env_value_rules
+    path_regex: \.environments/prod/build/gpg-signing\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:146628656107:key/56753980-93d4-4590-9292-6cfec20c33f3
+  - <<: *env_value_rules
+    path_regex: \.environments/prod/build/mac-signing\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:146628656107:key/cef95a41-80c3-49ad-844a-bbf6cbd48721
+  ## Publish
+  - <<: *env_value_rules
+    path_regex: \.environments/prod/publish/gpg-signing\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:146628656107:key/31cac1e2-f6dd-471f-a7ae-6ae8aa531928
+  - <<: *env_value_rules
+    path_regex: \.environments/prod/publish/terraform\.sops\.yaml
+    kms: arn:aws:kms:us-west-2:146628656107:key/7ebede23-1857-47ed-9367-1137896ff354
+stores:
+  yamls:
+    indent: 2

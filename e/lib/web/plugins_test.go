@@ -1,0 +1,488 @@
+package web
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+func TestCreateStaticAuthPluginHandle(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
+	defer func() { testServer.Close() }()
+
+	// Plugins like Slack require OAuth and are not compatible with
+	// the /enterprise/plugins/staticauth endpoint.
+	t.Run("IncompatibleOAuthPlugin", func(t *testing.T) {
+		req := url.Values{
+			"type":             {"slack"},
+			"name":             {"test"},
+			"fallback_channel": {"test_fallback_channel"},
+		}
+		resp, err := webPack.clt.PostForm(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "staticauth"), req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotImplemented, resp.Code())
+	})
+
+	var testCases = []struct {
+		name         string
+		request      url.Values
+		expectedResp string
+		delete       bool
+	}{
+		{
+			name: "incorrect plugin subType",
+			request: url.Values{
+				"type":        {"unknown"},
+				"apiEndpoint": {"https://testserver.com"},
+			},
+			expectedResp: "unknown plugin type",
+		},
+		{
+			name: "AWS IC plugin",
+			request: url.Values{
+				awsICPluginNameField:                        {types.PluginTypeAWSIdentityCenter},
+				"type":                                      {types.PluginTypeAWSIdentityCenter},
+				awsICPluginICRegionField:                    {"ca-central-1"},
+				awsICPluginICARNField:                       {"arn:aws:sso:::instance/ssoins-8893885e0d4lllka"},
+				awsICPluginOIDCIntegrationNameField:         {icOIDCIntegrationName},
+				awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
+				awsICPluginSAMLServiceProviderNameField:     {types.PluginTypeAWSIdentityCenter},
+				awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
+				awsICPluginSCIMBaseURLField:                 {"https://scim.ca-central-1.amazonaws.com/random-id/scim/v2"},
+				awsICPluginSCIMAccessTokenField:             {"abc123example"},
+			},
+			expectedResp: "",
+		},
+		{
+			name: "Opsgenie plugin",
+			request: url.Values{
+				"type":         {"opsgenie"},
+				"apiEndpoint":  {testServer.URL},
+				"apiKey":       {"some-api-key"},
+				"scheduleName": {"some-schedule-name"},
+			},
+			expectedResp: "some-schedule-name",
+		},
+		{
+			name: "Servicenow plugin",
+			request: url.Values{
+				"type":        {"servicenow"},
+				"apiEndpoint": {testServer.URL},
+				"username":    {"some-username"},
+				"password":    {"some-password"},
+				"closeCode":   {"some-close-code"},
+			},
+			expectedResp: "Incidents will be created at",
+		},
+		{
+			name: "PagerDuty plugin",
+			request: url.Values{
+				"type":        {"pagerduty"},
+				"apiEndPoint": {"https://www.some-apiendoint.com"},
+				"apiKey":      {"some-api-key"},
+				"email":       {"root@example.com"},
+			},
+			expectedResp: "root@example.com",
+		},
+		{
+			name: "Mattermost plugin with only team/channel defined",
+			request: url.Values{
+				"type":    {"mattermost"},
+				"url":     {"https://www.some-apiendoint.com"},
+				"token":   {"some-token"},
+				"channel": {"some-channel"},
+				"team":    {"some-team"},
+			},
+			expectedResp: `and to the \"some-channel\" channel from team \"some-team\"`,
+			delete:       true,
+		},
+		{
+			name: "Mattermost plugin with only email defined",
+			request: url.Values{
+				"type":  {"mattermost"},
+				"url":   {"https://www.some-apiendoint.com"},
+				"token": {"some-token"},
+				"email": {"some-email"},
+			},
+			expectedResp: `and to Mattermost user \"some-email\"`,
+			delete:       true,
+		},
+		{
+			name: "Mattermost plugin with both team/channel and email defined",
+			request: url.Values{
+				"type":    {"mattermost"},
+				"url":     {"https://www.some-apiendoint.com"},
+				"token":   {"some-token"},
+				"email":   {"some-email"},
+				"channel": {"some-channel"},
+				"team":    {"some-team"},
+			},
+			expectedResp: `, to Mattermost user \"some-email\", and to the \"some-channel\" channel from team \"some-team\"`,
+		},
+		{
+			name: "Datadog plugin",
+			request: url.Values{
+				"type":              {"datadog"},
+				"apiEndpoint":       {"https://www.some-apiendpoint.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"apiKey":            {"some-api-key"},
+				"applicationKey":    {"some-application-key"},
+			},
+			expectedResp: `Incidents will be created at \"https://www.some-apiendpoint.com\" and notify \"root@example.com\" recipient`,
+		},
+		{
+			name: "Email (mailgun) plugin",
+			request: url.Values{
+				"type":              {"email"},
+				"service":           {"mailgun"},
+				"sender":            {"sender@example.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"domain":            {"sandbox.mailgun.org"},
+				"privateKey":        {"some-private-key"},
+			},
+			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
+			delete:       true,
+		},
+		{
+			name: "Email (smtp) plugin",
+			request: url.Values{
+				"type":              {"email"},
+				"service":           {"smtp"},
+				"sender":            {"sender@example.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"host":              {"smtp.example.com"},
+				"port":              {"587"},
+				"startTLSPolicy":    {"mandatory"},
+				"username":          {"user@example.com"},
+				"password":          {"example-password"},
+			},
+			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
+			delete:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := webPack.clt.PostForm(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "staticauth"), tc.request)
+			require.NoError(t, err)
+
+			if tc.expectedResp != "" {
+				require.Contains(t, string(resp.Bytes()), tc.expectedResp)
+			}
+			if tc.delete {
+				endpoint := webPack.clt.Endpoint("enterprise", "plugin", tc.request["type"][0])
+				_, err := webPack.clt.Delete(s.ctx, endpoint)
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestOAuthPluginStart(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
+	defer func() { testServer.Close() }()
+
+	var testCases = []struct {
+		name    string
+		request url.Values
+		wantErr bool
+		assert  func(t *testing.T, re *roundtrip.Response, err error)
+	}{
+		{
+			name: "Slack",
+			request: url.Values{
+				"type":             {"slack"},
+				"name":             {"test"},
+				"fallback_channel": {"test_fallback_channel"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.True(t, true, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				resp := ui.OAuthPluginStartResponse{}
+				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+				require.True(t, strings.HasPrefix(resp.RedirectURL, "https://slack.com/oauth/v2/authorize"))
+			},
+		},
+		{
+			name: "incorrect plugin subType",
+			request: url.Values{
+				"type":        {"unknown"},
+				"apiEndpoint": {"https://testserver.com"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.True(t, trace.IsBadParameter(err))
+				require.False(t, false, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				require.Contains(t, string(re.Bytes()), "unknown plugin type")
+			},
+		},
+		{
+			name: "non oauth plugin type",
+			request: url.Values{
+				"type":         {"opsgenie"},
+				"apiEndpoint":  {testServer.URL},
+				"apiKey":       {"some-api-key"},
+				"scheduleName": {"some-schedule-name"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.False(t, false, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				require.True(t, trace.IsNotImplemented(err))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			re, err := webPack.clt.PostWithFormData(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "oauth", "start"), tc.request)
+			tc.assert(t, re, err)
+		})
+	}
+}
+
+func TestPluginUpdate(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t, withModules(modulestest.EnterpriseModules()))
+	webPack := s.newAuthWebPack(t, "foo")
+	endpoint := webPack.clt.Endpoint("enterprise", "plugin")
+	cases := []struct {
+		name    string
+		payload ui.PluginUpdateRequest
+		assert  func(t *testing.T, r *roundtrip.Response, err error)
+	}{
+		{
+			name: "when no existing plugin",
+			payload: ui.PluginUpdateRequest{
+				Plugin: "okta",
+				Okta: &ui.OktaPluginUpdate{
+					SCIMToken: "abcdefghijklmnop",
+				},
+			},
+			assert: func(t *testing.T, r *roundtrip.Response, err error) {
+				require.Equal(t, http.StatusNotFound, r.Code())
+				require.ErrorContains(t, err, "plugin \"okta\" doesn't exist")
+			},
+		},
+		{
+			name: "when updates not supported",
+			payload: ui.PluginUpdateRequest{
+				Plugin: "slack",
+			},
+			assert: func(t *testing.T, r *roundtrip.Response, err error) {
+				require.Equal(t, http.StatusBadRequest, r.Code())
+				require.ErrorContains(t, err, "plugin type \"slack\" does not support updates")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := webPack.clt.PutJSON(s.ctx, endpoint, tc.payload)
+			tc.assert(t, resp, err)
+		})
+	}
+}
+
+func TestPluginCleanup(t *testing.T) {
+	t.Parallel()
+	// We define a real clock here, so we don't run into cases of
+	// `backend.RunWhileLocked()` never retrying lock acquisition.
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(modulestest.EnterpriseModules()),
+	)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
+	require.NoError(t, err)
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
+	require.NoError(t, err)
+
+	endpoint := webPack.clt.Endpoint("enterprise", "plugins", "needscleanup", types.PluginTypeOkta)
+	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	needsCleanup := ui.PluginNeedsCleanup{}
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.False(t, needsCleanup.NeedsCleanup)
+
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertAccessList(s.ctx, newAccessList(t, "okta-access-list", withOrigin(types.OriginOkta)))
+	require.NoError(t, err)
+
+	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.True(t, needsCleanup.NeedsCleanup)
+
+	endpoint = webPack.clt.Endpoint("enterprise", "plugins", "cleanup", types.PluginTypeOkta)
+	resp, err = webPack.clt.PutForm(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.Contains(t, string(resp.Bytes()), "ok")
+
+	endpoint = webPack.clt.Endpoint("enterprise", "plugins", "needscleanup", types.PluginTypeOkta)
+	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
+	require.False(t, needsCleanup.NeedsCleanup)
+}
+
+func cookieExist(cookies []*http.Cookie, name string) bool {
+	for i := range cookies {
+		if cookies[i].Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+type accessListOptions struct {
+	origin            string
+	typ               accesslist.Type
+	owners            []accesslist.Owner
+	ownershipRequires accesslist.Requires
+}
+
+type accessListOpt func(*accessListOptions)
+
+func withOrigin(origin string) accessListOpt {
+	return func(o *accessListOptions) {
+		o.origin = origin
+	}
+}
+
+func withType(typ accesslist.Type) accessListOpt {
+	return func(o *accessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withOwners(owners []accesslist.Owner) accessListOpt {
+	return func(o *accessListOptions) {
+		o.owners = owners
+	}
+}
+
+func withOwnershipRequires(ownershipRequires accesslist.Requires) accessListOpt {
+	return func(o *accessListOptions) {
+		o.ownershipRequires = ownershipRequires
+	}
+}
+
+func newAccessList(t *testing.T, name string, opts ...accessListOpt) *accesslist.AccessList {
+	t.Helper()
+
+	options := accessListOptions{
+		owners: []accesslist.Owner{
+			{
+				Name: "some-owner",
+			},
+		},
+	}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	var labels map[string]string
+	if options.origin != "" {
+		labels = map[string]string{}
+		labels[types.OriginLabel] = options.origin
+	}
+
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name:   name,
+		Labels: labels,
+	}, accesslist.Spec{
+		Type:  options.typ,
+		Title: "some title",
+		OwnerGrants: accesslist.Grants{
+			Roles: []string{"grant-role"},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"role"},
+		},
+		Owners:            options.owners,
+		OwnershipRequires: options.ownershipRequires,
+	})
+	require.NoError(t, err)
+
+	return accessList
+}
+
+func newAccessListSpec(t *testing.T, opts ...accessListOpt) accesslist.Spec {
+	return newAccessList(t, "does-not-matter", opts...).Spec
+}
+
+type accessListMemberOptions struct {
+	expires time.Time
+	reason  string
+}
+
+type accessListMemberOpt func(*accessListMemberOptions)
+
+func withExpires(expires time.Time) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.expires = expires
+	}
+}
+
+func withReason(reason string) accessListMemberOpt {
+	return func(o *accessListMemberOptions) {
+		o.reason = reason
+	}
+}
+
+func newAccessListMember(t *testing.T, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	options := accessListMemberOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	t.Helper()
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.AccessListMemberSpec{
+			Name:    name,
+			Expires: options.expires,
+			Reason:  options.reason,
+		},
+	)
+	require.NoError(t, err)
+	return member
+}
+
+func newAccessListMemberSpec(t *testing.T, name string, opts ...accessListMemberOpt) accesslist.AccessListMemberSpec {
+	m := newAccessListMember(t, name, opts...)
+	m.Spec.Name = name
+	return m.Spec
+}

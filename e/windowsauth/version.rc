@@ -1,0 +1,27 @@
+#include "winver.h"
+#define xstr(s) str(s)
+#define str(s) #s "\0"
+#define stringify_(s) #s
+#define stringify(s) stringify_(s)
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION    VERSION_COMMA,0
+PRODUCTVERSION VERSION_COMMA,0
+{
+    BLOCK "StringFileInfo"
+    {
+        //English, multilingual
+        BLOCK "040904E4"
+        {
+            VALUE "CompanyName",        "Gravitational, Inc.\0"
+            VALUE "FileDescription",    "Teleport Authentication Package\0"
+            VALUE "FileVersion",        xstr(VERSION)
+            VALUE "LegalCopyright",     "Copyright (C) " stringify(YEAR) " Gravitational Inc.\0"
+            VALUE "ProductName",        "Teleport Authentication Package\0"
+            VALUE "ProductVersion",     xstr(VERSION)
+        }
+    }
+    BLOCK "VarFileInfo"
+    {
+        VALUE "Translation", 0x409, 0x4E4 // English, multilingual
+    }
+}

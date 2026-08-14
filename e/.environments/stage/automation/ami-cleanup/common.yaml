@@ -1,0 +1,2 @@
+---
+AMI_CLEANUP_AWS_ROLE: arn:aws:iam::603330915152:role/tf-stage_automation_ami-cleanup

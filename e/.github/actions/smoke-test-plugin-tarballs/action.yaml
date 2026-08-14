@@ -1,0 +1,147 @@
+---
+name: Smoke Test Plugin Tarballs
+description: |
+  Download and run smoke tests on plugins after a build.
+
+inputs:
+  version:
+    required: true
+    description: |
+      Teleport semver to smoke test against. Must not have leading 'v'.
+      As an example "17.0.0-dev"
+  target:
+    required: true
+    description: |
+      The target OS-ARCH to test for. Valid targets are 'linux-amd64', 'linux-arm64',
+      'darwin-amd64', 'darwin-arm64', 'darwin-universal'
+  s3-bucket:
+    required: true
+    description: |
+      The S3 bucket where artifacts are stored.
+  aws-role-to-assume:
+    required: true
+    description: |
+      The AWS role to assume that is granted permissions to list/read objects in the
+      given s3 bucket.
+  access-plugins:
+    description: |
+      Access plugins (and event-handler) to verify.
+
+runs:
+  using: composite
+  steps:
+    - name: Inputs Check
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        TARGET: ${{ inputs.target }}
+        S3_BUCKET: ${{ inputs.s3-bucket }}
+        AWS_ROLE_TO_ASSUME: ${{ inputs.aws-role-to-assume }}
+      run: |
+        # Checking environment variables are set
+        CODE=0
+        if [[ -z "$VERSION" ]]; then
+            echo "::error title=Bad Parameter::input.version was not set"
+            CODE=1
+        fi
+        if [[ -z "$TARGET" ]]; then
+            echo "::error title=Bad Parameter::input.target was not set"
+            CODE=1
+        fi
+        if [[ -z "$S3_BUCKET" ]]; then
+            echo "::error title=Bad Parameter::input.s3-bucket was not set"
+            CODE=1
+        fi
+        if [[ -z "$AWS_ROLE_TO_ASSUME" ]]; then
+            echo "::error title=Bad Parameter::input.aws-role-to-assume was not set"
+            CODE=1
+        fi
+        exit $CODE
+
+    # Sync artifacts down (required by everything)
+    - name: Assume AWS role for downloading the artifacts
+      uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+      with:
+        role-skip-session-tagging: true
+        aws-region: us-west-2
+        role-to-assume: ${{ inputs.aws-role-to-assume }}
+        role-session-name: "smoke-testing-plugins-${{ github.run_attempt }}"
+        role-duration-seconds: 900
+
+    - name: Download artifacts from S3
+      shell: bash
+      env:
+        BUCKET_DIR_URI: s3://${{ inputs.s3-bucket }}/teleport-plugins/tag/${{ inputs.version }}
+        LOCAL_ARTIFACTS_PATH: /tmp/artifacts
+        TARGET: ${{ inputs.target }}
+      run: |
+        aws s3 sync "$BUCKET_DIR_URI" "$LOCAL_ARTIFACTS_PATH/" \
+          --exclude "*" \
+          --include "*.exe" \
+          --include "*.exe.manifest" \
+          --include "*$TARGET-bin.tar.gz"
+
+    - name: Verify Plugin Tarballs (macOS/Linux)
+      if: ${{ inputs.target != 'windows-amd64' }}
+      shell: bash
+      env:
+        LOCAL_ARTIFACTS_PATH: /tmp/artifacts
+        ACCESS_PLUGINS: ${{ inputs.access-plugins }}
+        ARTIFACT_TAG: v${{ inputs.version }}
+        TARGET: ${{ inputs.target }}
+      run: |
+        echo "## $ARTIFACT_TAG-$TARGET Plugins" >> "$GITHUB_STEP_SUMMARY"
+        CODE=0
+        read -ra plugins <<<"${ACCESS_PLUGINS}"
+        for plugin in "${plugins[@]}"; do
+          TARBALL_PATH="$LOCAL_ARTIFACTS_PATH/$plugin-$ARTIFACT_TAG-$TARGET-bin.tar.gz"
+          FILE_NAME="${plugin/teleport-access/teleport}"
+          FULL_PATH="$plugin/$FILE_NAME"
+          PATTERN="^${plugin/teleport-access/teleport}" # expect teleport-access-$NAME to output teleport-$NAME
+
+          tar -xvzf "$TARBALL_PATH"
+          VERSION_OUTPUT="$($FULL_PATH version)"
+          echo "$VERSION_OUTPUT"
+          if [[ $VERSION_OUTPUT =~ $PATTERN ]]; then
+            echo "$plugin was verified"
+            echo "* :white_check_mark: $plugin" >> "$GITHUB_STEP_SUMMARY"
+          else
+            CODE=1
+            echo "::error title=Smoke $plugin::$plugin-$ARTIFACT_TAG verify failed. Output '$VERSION_OUTPUT' did not match pattern '$PATTERN'"
+            echo "* :x: $plugin" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        done
+
+        # Running terraform provider directly should return an exit code of 1
+        # and will spit a message starting with "This binary is a plugin" to stderr
+        tar -xzvf "$LOCAL_ARTIFACTS_PATH/terraform-provider-teleport-$ARTIFACT_TAG-$TARGET-bin.tar.gz"
+        if [[ $(./terraform-provider-teleport 2>&1) =~  ^"This binary is a plugin" ]]; then
+          echo "* :white_check_mark: terraform-provider-teleport" >> "$GITHUB_STEP_SUMMARY"
+        else
+          CODE=1
+          echo "::error title=Smoke terraform-provider-teleport::terraform-provider-teleport-$ARTIFACT_TAG failed to run for $TARGET"
+          echo "* :x: terraform-provider-teleport" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit $CODE
+
+    - name: Verify downloaded .exe plugin artifacts
+      shell: bash
+      if: ${{ inputs.target == 'windows-amd64' }}
+      env:
+        LOCAL_ARTIFACTS_PATH: /tmp/artifacts
+        VERSION: ${{ inputs.version }}
+      run: |
+        echo "## Verifying .exe plugin artifacts for v$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+        CODE=0
+
+        TF_PROVIDER_EXE="terraform-provider-teleport-v${VERSION}-windows-amd64.exe"
+
+        if [[ -f "$LOCAL_ARTIFACTS_PATH/$TF_PROVIDER_EXE" ]]; then
+          echo "* Found $TF_PROVIDER_EXE"  | tee -a "$GITHUB_STEP_SUMMARY"
+        else
+          echo "::error title=Missing EXE::$TF_PROVIDER_EXE not found"
+          echo "* Missing $TF_PROVIDER_EXE"  | tee -a "$GITHUB_STEP_SUMMARY"
+        CODE=1
+        fi
+
+        exit $CODE

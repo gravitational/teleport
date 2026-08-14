@@ -1,0 +1,7 @@
+kind: inference_policy
+version: v1
+metadata:
+  name: e2e-policy
+spec:
+  kinds: ['ssh']
+  model: e2e-model

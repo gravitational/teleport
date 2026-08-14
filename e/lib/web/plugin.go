@@ -1,0 +1,908 @@
+package web
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"maps"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/net/http2"
+
+	"github.com/gravitational/teleport"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
+	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/web"
+)
+
+const (
+	pluginName = "web.enterprise"
+)
+
+type getCertFunc = func() (*tls.Certificate, error)
+
+// AccessGraphConfig holds the configuration for AccessGraph if it's enabled in the proxy.
+type AccessGraphConfig struct {
+	// Addr is the Access Graph listener address
+	Addr string
+	// CA is the CA certificate in PEM format used to verify the Access Graph GRPC connection.
+	CA []byte
+	// Insecure is true if the Access Graph GRPC connection should be insecure.
+	// Do not use in production.
+	Insecure bool
+	// CipherSuites is the list of cipher suites to use for the Access Graph connection.
+	CipherSuites []uint16
+	// DemoMode indicates if Access Graph should run with a limited capacity.
+	DemoMode bool
+}
+
+// Config is a configuration of the web plugin
+type Config struct {
+	// Log is the logger
+	Logger *slog.Logger
+
+	// PluginShimURL is the URL for the Cloud plugin shim,
+	// which is used to forward OAuth callbacks back to individual tenants
+	// from a single domain.
+	// If not set (i.e. in a single tenant or debug scenario),
+	// the `redirect_uri` we submit to API providers will point
+	// directly to the cluster, and the OAuth app needs to be configured accordingly.
+	PluginShimURL *url.URL
+
+	// AccessGraph is the configuration for AccessGraph if it's enabled in the proxy.
+	AccessGraph *AccessGraphConfig
+
+	// Clock is the clock used by the plugin.
+	Clock clockwork.Clock
+
+	//  HTTPClient is the HTTP client used by the plugin.
+	HTTPClient http.RoundTripper
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+
+	// ScopesFeatures specifies which scopes features are enabled.
+	ScopesFeatures scopes.Features
+}
+
+// CheckAndSetDefaults checks and sets the defaults
+func (c *Config) CheckAndSetDefaults() error {
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, pluginName)
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.HTTPClient == nil {
+		c.HTTPClient = http.DefaultTransport
+	}
+
+	return nil
+}
+
+// NewPlugin creates an instance of the Enterprise Web Plugin
+func NewPlugin(cfg Config) (*Plugin, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Plugin{
+		Config:            cfg,
+		pluginDescriptors: maps.Clone(defaultPluginDescriptors),
+	}, nil
+}
+
+// Plugin extends OSS auth server API with enterprise features
+type Plugin struct {
+	Config
+	mu sync.RWMutex
+	h  *web.Handler
+
+	// samlIdP is the SAML identity provider.
+	samlIdPMu sync.RWMutex
+	samlIdP   *samlidp.Service
+
+	// authMiddleware is the auth middleware.
+	authMiddlewareMu sync.RWMutex
+	authMiddleware   *authz.Middleware
+
+	pluginDescriptors map[types.PluginType]pluginDescriptor
+
+	accessGraphForwarder   *reverseproxy.Forwarder
+	accessGraphForwarderMu sync.RWMutex
+
+	// testOnAccessGraphInit is called instead of the real init sequence in tests. nil in production.
+	testOnAccessGraphInit func()
+}
+
+// GetName returns plugin name
+func (p *Plugin) GetName() string {
+	return pluginName
+}
+
+// GetProxyClient returns the proxy client.
+func (p *Plugin) GetProxyClient() authclient.ClientI {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.GetProxyClient()
+}
+
+// EmitAuditEvent implements [apievents.Emitter] for the Plugin, routing the
+// event to the auth server's event log.
+func (p *Plugin) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return trace.Wrap(p.h.GetProxyClient().EmitAuditEvent(ctx, event))
+}
+
+// GetAccessPoint returns the proxy caching access point.
+func (p *Plugin) GetAccessPoint() authclient.ProxyAccessPoint {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.GetAccessPoint()
+}
+
+// GetHighLimiter returns the WithHighLimiter from lib/web.
+func (p *Plugin) GetHighLimiter() func(fn httplib.HandlerFunc) httprouter.Handle {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.WithHighLimiter
+}
+
+// RegisterAuthServices registers GRPC services
+func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer any, getClientCert getCertFunc) error {
+	return nil
+}
+
+// RegisterAuthWebHandlers plugs in new handlers into OSS auth server router
+func (p *Plugin) RegisterAuthWebHandlers(srv any) error {
+	return nil
+}
+
+// RegisterSAMLIdP will register the SAML IdP with the plugin.
+//
+//nolint:revive // Because we want this to be IdP.
+func (p *Plugin) RegisterSAMLIdP(samlIdP *samlidp.Service) {
+	p.samlIdPMu.Lock()
+	defer p.samlIdPMu.Unlock()
+	p.samlIdP = samlIdP
+}
+
+// RegisterProxyWebHandlers registers to proxy web handler
+func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
+	h, ok := handler.(*web.Handler)
+	if !ok {
+		return trace.BadParameter("unsupported handler type %T", handler)
+	}
+
+	p.mu.Lock()
+	p.h = h
+	p.mu.Unlock()
+
+	clusterName, err := p.h.GetProxyClient().GetClusterName(context.TODO())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	p.authMiddlewareMu.Lock()
+	p.authMiddleware = &authz.Middleware{
+		ClusterName: clusterName.GetClusterName(),
+	}
+	p.authMiddlewareMu.Unlock()
+
+	// If the proxy doesn't have the access_graph section enabled
+	// on the configuration, we fall back to the
+	// cluster's access graph config provided by the auth server.
+	if p.Config.AccessGraph == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rsp, err := p.h.GetProxyClient().GetClusterAccessGraphConfig(ctx)
+		cancel()
+		switch {
+		case trace.IsNotImplemented(err):
+			p.Logger.DebugContext(ctx, "Auth server does not implement access graph's GetClusterAccessGraphConfig")
+		case err != nil:
+			p.Logger.ErrorContext(ctx, "Failed to get access graph config from the Auth server", "error", err)
+			return trace.Wrap(err)
+		default:
+			if rsp.GetEnabled() || p.h.GetClusterFeatures().Cloud {
+				p.Config.AccessGraph = &AccessGraphConfig{
+					Addr:     rsp.GetAddress(),
+					CA:       rsp.GetCa(),
+					Insecure: rsp.GetInsecure(),
+				}
+			}
+		}
+
+		// If still no config after startup fetch, watch for it to appear on the auth server.
+		if p.Config.AccessGraph == nil {
+			go p.watchAccessGraphConfig()
+		}
+	}
+
+	if p.Config.AccessGraph != nil {
+		if err := p.initAccessGraph(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Device Trust handlers
+	h.GET("/enterprise/devices", h.WithAuth(p.listDevicesHandle))
+	h.GET("/enterprise/user/devices", h.WithAuth(p.listDevicesByUserHandle))
+	h.POST("/enterprise/devices/enroll_pairing", h.WithAuth(p.createEnrollPairingHandle))
+	h.GET("/enterprise/devices/enroll_pairing", h.WithAuth(p.getEnrollPairingHandle))
+
+	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
+	h.POST("/enterprise/saml", h.WithAuth(p.createSAMLConnectorHandle))
+	h.GET("/enterprise/saml/connector/:name", h.WithAuth(p.getSAMLConnectorHandle))
+	h.PUT("/enterprise/saml/:name", h.WithAuth(p.updateSAMLConnectorHandle))
+	h.DELETE("/enterprise/saml/:name", h.WithAuth(p.deleteSAMLConnectorHandle))
+
+	h.POST("/enterprise/oidc", h.WithAuth(p.createOIDCConnectorHandle))
+	h.GET("/enterprise/oidc/connector/:name", h.WithAuth(p.getOIDCConnectorHandle))
+	h.PUT("/enterprise/oidc/:name", h.WithAuth(p.updateOIDCConnectorHandle))
+	h.DELETE("/enterprise/oidc/:name", h.WithAuth(p.deleteOIDCConnectorHandle))
+
+	// /webapi handlers have been moved from OSS Teleport, but the path must remain unchanged
+	// for compatibility reasons (connector resources contain URLs with these paths)
+
+	// SAML 2.0 callback handlers
+	h.POST("/webapi/saml/acs", h.WithMetaRedirect(p.samlACSHandle))
+	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(p.samlACSHandle))
+	h.GET("/webapi/saml/sso", h.WithHighLimiter(p.samlSSO))
+	h.POST("/webapi/saml/login/console", h.WithLimiter(p.samlSSOConsole))
+
+	h.POST("/webapi/saml/slo", h.WithMetaRedirect(p.samlSLOHandle))
+
+	// Teleport SAML IdP API
+	h.GET("/enterprise/samlidp/:name", h.WithAuth(p.getSAMLIdPServiceProviderHandle))
+	h.POST("/enterprise/samlidp", h.WithAuth(p.createSAMLIdPServiceProviderHandle))
+	h.PUT("/enterprise/samlidp/:name", h.WithAuth(p.updateSAMLIdPServiceProviderHandle))
+	h.DELETE("/enterprise/samlidp/:name", h.WithAuth(p.deleteSAMLIdPServiceProviderHandle))
+
+	// OIDC callback handlers
+	h.GET("/webapi/oidc/login/web", h.WithRedirect(p.oidcLoginWeb))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(p.oidcCallback))
+	h.POST("/webapi/oidc/login/console", h.WithLimiter(p.oidcLoginConsole))
+
+	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
+	h.GET("/enterprise/license", h.WithAuth(p.getLicense))
+
+	h.POST("/enterprise/accessrequest", h.WithClusterClientProvider(p.createAccessRequestHandle))
+	h.PUT("/enterprise/accessrequest", h.WithClusterClientProvider(p.reviewAccessRequestHandle))
+	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
+	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
+	h.GET("/enterprise/accessrequest", h.WithClusterClientProvider(p.getAccessRequestsHandle))
+	//nolint:staticcheck // TODO(kiosion): DELETE IN v20.0
+	h.GET("/enterprise/resourcerequestroles", h.WithClusterClientProvider(p.getResourceRequestRolesHandle))
+	h.POST("/enterprise/resourcerequestroles", h.WithClusterClientProvider(p.getResourceRequestRolesV2Handle))
+	h.GET("/enterprise/accessrequest/:requestId/suggestions/accesslist", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
+	h.POST("/enterprise/accessrequest/:requestId/promote", h.WithClusterClientProvider(p.accessRequestPromoteHandle))
+
+	// TODO(alexhemard): add WithAuthAndLimiter middleware in OSS
+	h.GET("/enterprise/users/:username/accesslists", h.WithAuth(func(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+		return h.WithLimiterHandlerFunc(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+			return p.listUserAccessLists(w, r, params, ctx)
+		})(w, r, params)
+	}))
+
+	// Deprecated: use /v2/enterprise/accesslists instead.
+	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
+	h.GET("/v2/enterprise/accesslists", h.WithAuth(p.listAccessLists))
+	h.GET("/enterprise/accesslist/:accessListId", h.WithAuth(p.getAccessList))
+	// use the same handler for create and update
+	h.POST("/enterprise/accesslist", h.WithAuth(p.upsertAccessList))
+	h.PUT("/enterprise/accesslist/:accessListId", h.WithAuth(p.upsertAccessList))
+	h.DELETE("/enterprise/accesslist/:accessListId", h.WithAuth(p.deleteAccessList))
+	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
+	h.POST("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.reviewAccessList))
+	h.GET("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.listAccessListReviews))
+	h.POST("/enterprise/generate/terraform/accesslist", h.WithAuth(p.generateAccessListTerraformConfig))
+
+	// Access List long-term short-term Preset API
+	h.POST("/enterprise/accesslistpreset", h.WithAuth(p.createAccessListWithPreset))
+	h.PUT("/enterprise/accesslistpreset/:accessListId", h.WithAuth(p.updateAccessListWithPreset))
+	h.DELETE("/enterprise/accesslistpreset/:accessListId", h.WithAuth(p.deleteAccessListWithPreset))
+	// Deprecated: use /enterprise/accessrequest/:requestId/suggestions/accesslist instead.
+	h.GET("/enterprise/accesslistsuggestions/accessrequest/:requestId", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
+
+	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
+
+	// Crown Jewels
+	h.GET("/enterprise/crownjewels/:name", h.WithAuth(p.getCrownJewel))
+	h.GET("/enterprise/crownjewels", h.WithAuth(p.listCrownJewels))
+	h.POST("/enterprise/crownjewels", h.WithAuth(p.markCrownJewel))
+	h.DELETE("/enterprise/crownjewels/:name", h.WithAuth(p.deleteCrownJewel))
+
+	// Handles plugins that does not require OAuth.
+	h.POST("/enterprise/plugins/staticauth", h.WithAuth(p.installPluginWithStaticAuthCredsHandle))
+
+	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
+	h.PUT("/enterprise/plugin", h.WithAuth(p.updatePluginHandler))
+	h.GET("/enterprise/plugin/:name", h.WithAuth(p.getPluginStatus))
+	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
+
+	// The flow to create plugins that require OAuth (eg: slack) is completed in 2 steps:
+	//
+	// Step 1: endpoint "enterprise/plugins/oauth/start"
+	// - Middleware validates request with session cookie and bearer token.
+	// - Set a plugin cookie that stores insenstive plugin metadata and a "state" field
+	//   that is just a randomly generated string:
+	//   https://github.com/gravitational/teleport.e/blob/7476cafa19d26dc3046b771c5a585ac9d4fc7d19/lib/web/plugins.go#L80
+	// - Construct and return as response, a redirect URL where we set the same "state" value as a query param
+	// - The web UI will redirect for the user to this URL (windows.location.replace)
+	//
+	// Redirect URL format:
+	// https://slack.com/oauth/v2/authorize?
+	//   client_id=<client_id>
+	//   &redirect_uri=<teleport cluster or plugins.teleportinfra.build>
+	//   &scope=chat%3Awrite%2Cusers%3Aread%2Cusers%3Aread.email
+	//   &state=<the-randomly-generated-string>
+	//
+	// Once slack page is loaded, and user confirms to "allow teleport access to this slack workspace",
+	// user will be redirected back to teleport which brings us to:
+	//
+	// Step 2: endpoint "enterprise/plugins/callback"
+	// - The middleware used to validate request only validates session cookie, but not a bearer token.
+	//   To ensure that the request were made by the same user we check that the "state" field
+	//   in the plugin cookie (set in step 1), is same as the state field set as a query param.
+	// - Once validated, plugin cookie is deleted, and a plugin resource is created in the backend
+	//   which completes the flow.
+	h.POST("/enterprise/plugins/oauth/start", h.WithAuth(p.startPluginOAuthHandle))
+	h.GET("/enterprise/plugins/callback/:type", h.WithSession(p.pluginCallbackHandle))
+
+	// get supported plugins
+	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+	// validate (possibly partial) plugin config without trying to create the plugin itself
+	h.POST("/enterprise/plugins/validate", h.WithAuth(p.validatePluginConfig))
+	h.GET("/enterprise/plugins/needscleanup/:type", h.WithAuth(p.pluginNeedsCleanup))
+	h.PUT("/enterprise/plugins/cleanup/:type", h.WithAuth(p.pluginCleanup))
+	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
+	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets", h.WithAuth(p.awsICPluginAccountsWithAssignedPermSets))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/groups-with-assignments", h.WithAuth(p.awsICPluginGroupsWithAccountAndPermAssignment))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/permission-sets", h.WithAuth(p.awsICPluginListPermissionSets))
+
+	// Security reports API
+	h.GET("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.getSecurityReport))
+	h.DELETE("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.deleteSecurityReport))
+	h.GET("/webapi/sites/:site/audit/reports", h.WithClusterAuth(p.listSecurityReports))
+	h.POST("/webapi/sites/:site/audit/reports", h.WithClusterAuth(p.upsertSecurityReport))
+	h.GET("/webapi/sites/:site/audit/queries/:name", h.WithClusterAuth(p.getAuditQuery))
+	h.DELETE("/webapi/sites/:site/audit/queries/:name", h.WithClusterAuth(p.deleteAuditQuery))
+	h.GET("/webapi/sites/:site/audit/queries", h.WithClusterAuth(p.listAuditQueries))
+	h.POST("/webapi/sites/:site/audit/queries", h.WithClusterAuth(p.upsertAuditQuery))
+	h.GET("/webapi/sites/:site/audit/schema", h.WithClusterAuth(p.getSchema))
+	h.POST("/webapi/sites/:site/audit/queries/run", h.WithClusterAuth(p.runAuditQuery))
+	h.POST("/webapi/sites/:site/audit/queries/result", h.WithClusterAuth(p.getQueryResult))
+	h.POST("/webapi/sites/:site/audit/reports/:name/run", h.WithClusterAuth(p.runSecurityReport))
+	h.GET("/webapi/sites/:site/audit/reports/:name/result/days/:days", h.WithClusterAuth(p.getSecurityReportResult))
+	h.GET("/webapi/sites/:site/audit/reports/:name/state/days/:days", h.WithClusterAuth(p.getSecurityReportState))
+
+	// Access monitoring rule API
+	h.GET("/webapi/sites/:site/accessmonitoringrule", h.WithClusterAuth(p.getAccessMonitoringRules))
+	h.POST("/webapi/sites/:site/accessmonitoringrule", h.WithClusterAuth(p.createAccessMonitoringRule))
+	h.PUT("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.updateAccessMonitoringRule))
+	h.DELETE("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.deleteAccessMonitoringRule))
+	h.GET("/webapi/sites/:site/accessmonitoringrule/:name/terraform", h.WithClusterAuth(p.getAccessMonitoringRuleTerraform))
+
+	h.POST("/webapi/sites/:site/integration/externalauditstorage/generate", h.WithClusterAuth(externalAuditStorageGenerate))
+	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(p.getExternalAuditStorageBootstrapScript))
+	h.POST("/webapi/sites/:site/integration/externalauditstorage/promote", h.WithClusterAuth(p.externalAuditStoragePromote))
+	h.GET("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalAuditStorageGetCluster))
+	h.GET("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageGetDraft))
+	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalAuditStorageDeleteCluster))
+	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageDeleteDraft))
+
+	// Access graph
+	const accessGraphPrefix = "/enterprise/accessgraph"
+	h.GET(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.POST(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.PATCH(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.OPTIONS(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.PUT(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.HEAD(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.DELETE(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.GET("/enterprise/accessgraphsettings", h.WithAuth(p.getAccessGraphSettings))
+	h.POST("/enterprise/accessgraphsettings", h.WithAuth(p.updateAccessGraphSettings))
+	// wire up the cert-based Access Graph handler for mTLS app-cert requests.
+	h.SetAccessGraphHandler(p.accessGraphCertHandler(accessGraphPrefix))
+
+	h.GET("/enterprise/rootscopedroles", h.WithAuth(p.listRootScopedRolesHandler))
+
+	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
+	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
+
+	p.registerAccountRecoveryHandlers()
+	p.registerTeleportInviteHandlers()
+	p.registerCloudHandlers()
+	p.registerSCIMHandlers()
+	p.registerSummarizerHandlers()
+	p.registerSessionSearchHandlers()
+	p.registerInferenceHandlers()
+	p.registerClassifierHandlers()
+	p.registerBeamHandlers()
+
+	return nil
+}
+
+// withSAMLAuth authenticates request against a valid Teleport web session except for
+// the SAML IdP metadata endpoint "/saml-idp/metadata", which is served unauthenticated.
+//
+// Teleport SAML IdP supports both the HTTP-POST and HTTP-Redirect protocol binding formats.
+// In an HTTP-Redirect binding, the SSO request is sent using an HTTP GET method.
+// In an HTTP-POST binding, the SSO request is sent using an HTTP POST method.
+// In order to preseve the original request format throughout the login redirection,
+//   - For a HTTP-Redirect binding request: we just retrieve the SSO request message
+//     from the URL query, base64 encode it and append it to the redirect_uri query param
+//     as the value of the SAMLAuthRequest query key.
+//   - For a HTTP-POST binding request: we parse the incoming HTML form, build a new URL query
+//     based on the form value and append a new query param "Method=POST". This query is
+//     then base64 encoded and appended to the redirect_uri query param as the value of
+//     the SAMLAuthRequest query key.
+//
+// When the user is redirected back to this middleware after authentication, the original
+// message is rebuilt by decoding SAMLAuthRequest query param. And if the original query contains query
+// param "Method=POST", we convert the GET request to the original POST request by responding
+// with an HTML POST form that will be auto submitted by the browser.
+func (p *Plugin) withSAMLAuth() httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+		p.samlIdPMu.RLock()
+		samlIdP := p.samlIdP
+		p.samlIdPMu.RUnlock()
+
+		if samlIdP == nil {
+			p.Logger.DebugContext(r.Context(), "SAML IdP not set")
+			return nil, trace.NotFound("SAML IdP not found")
+		}
+
+		// We need the middleware before we can continue
+		p.authMiddlewareMu.RLock()
+		authMiddleware := p.authMiddleware
+		p.authMiddlewareMu.RUnlock()
+
+		if authMiddleware == nil {
+			return nil, trace.BadParameter("the middleware is not yet ready")
+		}
+
+		// skip authenticating request for metadata endpoint
+		if r.URL.Path == "/enterprise/saml-idp/metadata" || r.URL.Path == "/enterprise/saml-idp/metadata-values" {
+			samlIdP.ServeHTTP(w, r)
+			return nil, nil
+		}
+		sessCtx, err := p.h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			redirectURI, err := samlidp.SSORedirectURL(r, r.URL.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			http.Redirect(w, r, "/web/login?redirect_uri="+redirectURI.String(), http.StatusSeeOther)
+			return nil, nil
+		}
+		// If the URL contains "Method=POST" query, it means the request is redirected here
+		// after authenticating with Teleport and the original request format was HTTP-POST binding.
+		// We will convert the request to the POST method so the original request format remains
+		// unchanged.
+		queryParams := r.URL.Query()
+		query, err := rebuildSAMLRequest(queryParams)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// query will be nil if the request is hitting the SSO endpoint
+		// without any redirection, i.e. user is already authenticated.
+		if query != nil {
+			if query.Get("Method") == http.MethodPost {
+				webauthnData := queryParams.Get(samlidp.Webauthn.String())
+				if webauthnData != "" {
+					webauthnData = url.Values{
+						samlidp.Webauthn.String(): []string{webauthnData},
+					}.Encode()
+				}
+				if err := samlidp.WriteSAMLPOSTFormWithHeaders(w, samlidp.POSTFormData{
+					URL: (&url.URL{
+						Scheme:   "https",
+						Host:     r.Host,
+						Path:     r.URL.Path,
+						RawQuery: webauthnData,
+					}).String(),
+					SAMLAuthnMessageType: samlidp.SAMLRequest,
+					SAMLAuthnMessage:     query.Get(samlidp.SAMLRequest.String()),
+					RelayState:           query.Get(samlidp.RelayState.String()),
+				}); err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return nil, nil
+			}
+
+			webauthnData := queryParams.Get(samlidp.Webauthn.String())
+			if webauthnData != "" {
+				query.Add(samlidp.Webauthn.String(), webauthnData)
+			}
+
+			r.URL.RawQuery = query.Encode()
+		}
+
+		cert, err := sessCtx.GetX509Certificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConnState := tls.ConnectionState{
+			PeerCertificates: []*x509.Certificate{cert},
+		}
+		remoteAddr, err := utils.ParseAddr(r.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		newCtx, err := authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState, remoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		samlIdP.ServeHTTP(w, r.WithContext(newCtx))
+		return nil, nil
+	})
+}
+
+// rebuildSAMLRequest returns original SAML authentication request queries
+// that was available before redirection.
+func rebuildSAMLRequest(queryParams url.Values) (url.Values, error) {
+	encodedSAMLAuthRequest := queryParams.Get(samlidp.SAMLAuthRequest)
+	if encodedSAMLAuthRequest == "" {
+		// SAMLAuthRequest query will not be defined if the user has an active session in
+		// Teleport. In this case, we return the original query value to preserve
+		// the request encoding as it came to Teleport.
+		return queryParams, nil
+	}
+	samlAuthRequest, err := base64.URLEncoding.DecodeString(encodedSAMLAuthRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query, err := url.ParseQuery(string(samlAuthRequest))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return query, nil
+}
+
+func (p *Plugin) getAuthClient() (*authclient.Client, error) {
+	proxyClient := p.h.GetProxyClient()
+
+	// TODO(mcbattirola): Move away from type assertions to a more robust solution.
+	switch c := proxyClient.(type) {
+	case *auth.GithubConverter:
+		authClient, ok := c.ClientI.(*authclient.Client)
+		if !ok {
+			return nil, trace.BadParameter("unexpected underlying type for GithubConverter: %T", c.ClientI)
+		}
+		return authClient, nil
+	case *authclient.Client:
+		return c, nil
+	default:
+		return nil, trace.BadParameter("unexpected underlying type for proxyClient: %T", proxyClient)
+	}
+}
+
+func buildAccessGraphForwarder(tlsConfig *tls.Config) (*reverseproxy.Forwarder, error) {
+	tr, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = http2.ConfigureTransport(tr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tr.TLSClientConfig = tlsConfig
+
+	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+	delegate := reverseproxy.NewHeaderRewriter()
+	delegate.TrustForwardHeader = false
+
+	accessGraphForwarder, err := reverseproxy.New(
+		reverseproxy.WithRoundTripper(tr),
+		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate, &teleportVersionHeaderAppender{})),
+	)
+
+	return accessGraphForwarder, trace.Wrap(err)
+}
+
+// initAccessGraph marks access graph as disconnected, starts the connection
+// monitor, and builds the HTTP transport if the service supports it.
+func (p *Plugin) initAccessGraph() error {
+	setProxyAccessGraphConnected(false)
+	go p.monitorAccessGraphConnection()
+	return trace.Wrap(p.checkAndBuildAccessGraphHTTPTransport())
+}
+
+// monitorAccessGraphConnection periodically probes the Access Graph service by
+// fetching features.json and updates the proxy_connected gauge every minute.
+func (p *Plugin) monitorAccessGraphConnection() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		setProxyAccessGraphConnected(p.accessGraphSupportsHTTP())
+	}
+}
+
+// watchAccessGraphConfig polls the auth server every 60 seconds until the
+// cluster's access graph config becomes available, then initializes access
+// graph support and returns. It is only started when the proxy has no local
+// access graph config.
+func (p *Plugin) watchAccessGraphConfig() {
+	p.watchAccessGraphConfigWithFetcher(func(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+		return p.h.GetProxyClient().GetClusterAccessGraphConfig(ctx)
+	})
+}
+
+func (p *Plugin) watchAccessGraphConfigWithFetcher(
+	fetch func(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error),
+) {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rsp, err := fetch(ctx)
+		cancel()
+		switch {
+		case trace.IsNotImplemented(err):
+			p.Logger.Log(ctx, logutils.TraceLevel, "Auth server does not implement access graph's GetClusterAccessGraphConfig")
+			continue
+		case err != nil:
+			p.Logger.WarnContext(ctx, "Failed to get access graph config from the Auth server", "error", err)
+			continue
+		case !rsp.GetEnabled():
+			p.Logger.Log(ctx, logutils.TraceLevel, "Access graph is not enabled on the Auth server yet")
+			continue
+		}
+
+		p.mu.Lock()
+		p.Config.AccessGraph = &AccessGraphConfig{
+			Addr:     rsp.GetAddress(),
+			CA:       rsp.GetCa(),
+			Insecure: rsp.GetInsecure(),
+		}
+		p.mu.Unlock()
+
+		if p.testOnAccessGraphInit != nil {
+			p.testOnAccessGraphInit()
+			return
+		}
+
+		if err := p.initAccessGraph(); err != nil {
+			p.Logger.WarnContext(ctx, "Failed to initialize access graph", "error", err)
+		}
+		return
+	}
+}
+
+// checkAndBuildAccessGraphHTTPTransport checks if the access graph supports
+// HTTP and builds the forwarder if it does.
+// It builds the TLS config using the proxy identity and the cipher suites
+// specified in the configuration.
+func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
+	cfg := p.getAccessGraphConfig()
+	tlsConfig, err := getAccessGraphTLSConfig(cfg, p.getProxyClientCertificate)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the access graph supports HTTP, build the forwarder now.
+	if p.accessGraphSupportsHTTP() {
+		accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		p.accessGraphForwarderMu.Lock()
+		p.accessGraphForwarder = accessGraphForwarder
+		p.accessGraphForwarderMu.Unlock()
+	} else {
+		// Otherwise, periodically check if the access graph supports HTTP.
+		// If it does, build the forwarder and replace the existing one.
+		// Otherwise we will keep sending gRPC requests.
+		go func() {
+			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  defaults.HighResPollingPeriod,
+				Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
+				Max:    defaults.LowResPollingPeriod,
+				Jitter: retryutils.HalfJitter,
+				Clock:  p.Config.Clock,
+			})
+			if err != nil {
+				p.Logger.DebugContext(context.Background(), "Failed to create retry", "error", err)
+				return
+			}
+
+			// Periodically check if the access graph supports HTTP.
+			for {
+				<-retry.After()
+
+				p.Logger.DebugContext(context.Background(), "Checking if access graph supports HTTP", "addr", cfg.Addr)
+				retry.Inc()
+				if p.accessGraphSupportsHTTP() {
+					accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
+					if err != nil {
+						p.Logger.WarnContext(context.Background(), "Failed to build access graph forwarder", "error", err)
+						continue
+					}
+					p.accessGraphForwarderMu.Lock()
+					p.accessGraphForwarder = accessGraphForwarder
+					p.accessGraphForwarderMu.Unlock()
+					return
+				}
+			}
+		}()
+	}
+	return nil
+}
+
+// accessGraphSupportsHTTP returns true if the access graph service supports HTTP.
+// This is determined by the presence of the grv_teleport_access_graph_http_enabled feature flag.
+// This function uses the gRPC client through Auth to figure out if the feature is enabled.
+func (p *Plugin) accessGraphSupportsHTTP() bool {
+	cfg := p.getAccessGraphConfig()
+	client, err := p.getAuthClient()
+	if err != nil {
+		p.Logger.DebugContext(context.Background(), "Failed to get auth client", "error", err)
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// featuresFile is the file that contains the access graph features.
+	const featuresFile = "features.json"
+	rsp, err := client.AccessGraphClient().GetFile(
+		ctx,
+		accessgraphv1.GetFileRequest_builder{
+			Filepath: featuresFile,
+		}.Build(),
+	)
+	if err != nil {
+		p.Logger.DebugContext(ctx, "Failed to get access graph features", "error", err)
+		return false
+	}
+
+	type jsonData struct {
+		HTTPEnabled bool `json:"grv_teleport_access_graph_http_enabled"`
+	}
+
+	data := &jsonData{}
+	if err := json.Unmarshal(rsp.GetData(), data); err != nil {
+		p.Logger.DebugContext(ctx, "Failed to parse access graph features payload", "error", err)
+		return false
+	}
+	// If the access graph does not support HTTP, return false.
+	if !data.HTTPEnabled {
+		p.Logger.DebugContext(ctx, "Access graph does not support HTTP")
+		return false
+	}
+
+	// now that we know the access graph supports HTTP, check if it's reachable.
+	tlsConfig, err := getAccessGraphTLSConfig(cfg, p.getProxyClientCertificate)
+	if err != nil {
+		p.Logger.DebugContext(ctx, "Failed to get access graph TLS config", "error", err)
+		return false
+	}
+	tr := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+	// Without this there will be a goroutine and open file descriptor leak. The alternative is
+	// to set Transport.IdleConnTimeout to a positive value.
+	defer tr.CloseIdleConnections()
+	if err := http2.ConfigureTransport(tr); err != nil {
+		p.Logger.DebugContext(ctx, "Failed to configure transport", "error", err)
+		return false
+	}
+	httpClient := &http.Client{
+		Transport: tr,
+	}
+
+	// Check if the access graph static assets are reachable.
+	u := &url.URL{
+		Scheme: "https",
+		Host:   cfg.Addr,
+		Path:   "/static/" + featuresFile,
+	}
+	// Use a context with a timeout to make the request.
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		p.Logger.DebugContext(ctx, "Failed to create request", "error", err)
+		return false
+	}
+	httpRsp, err := httpClient.Do(req)
+	if err != nil {
+		p.Logger.WarnContext(ctx, "Failed to make request, ensure the proxy can reach the access graph service", "access_graph_addr", cfg.Addr, "error", err)
+		return false
+	}
+	defer httpRsp.Body.Close()
+	io.Copy(io.Discard, httpRsp.Body)
+	if httpRsp.StatusCode != http.StatusOK {
+		p.Logger.WarnContext(ctx, "Access graph static assets are not reachable, Please ensure the proxy can reach the access graph service", "access_graph_addr", cfg.Addr, "error", err)
+	}
+	return httpRsp.StatusCode == http.StatusOK
+}
+
+func (p *Plugin) getProxyClientCertificate() (*tls.Certificate, error) {
+	cert, err := p.h.GetProxyClientCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
+// getAccessGraphConfig returns a consistent snapshot of the current AccessGraph
+// config. It holds the read lock to avoid racing with watchAccessGraphConfigWithFetcher,
+// which replaces the pointer from a background goroutine.
+func (p *Plugin) getAccessGraphConfig() *AccessGraphConfig {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.Config.AccessGraph
+}
+
+// getAccessGraphTLSConfig builds the TLS config used to retrieve static assets from access graph service.
+func getAccessGraphTLSConfig(cfg *AccessGraphConfig, getClientCert func() (*tls.Certificate, error)) (*tls.Config, error) {
+	const (
+		// accessGraph expects this ALPN to redirect the request to the static HTTP server instead of the default
+		// gRPC server.
+		accessGraphStaticFileServerALPN = "http@server"
+	)
+	var caPool *x509.CertPool
+	if len(cfg.CA) > 0 {
+		caPool = x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(cfg.CA) {
+			return nil, trace.BadParameter("unable to parse certificate")
+		}
+	}
+
+	tlsConfig := utils.TLSConfig(cfg.CipherSuites)
+	if getClientCert != nil {
+		tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			c, err := getClientCert()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return c, nil
+		}
+	}
+	tlsConfig.NextProtos = []string{accessGraphStaticFileServerALPN, string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP)}
+	tlsConfig.InsecureSkipVerify = cfg.Insecure
+	tlsConfig.RootCAs = caPool
+	tlsConfig.ServerName = "" /* empty server name to avoid SNI */
+	return tlsConfig, nil
+}
+
+// teleportVersionHeaderAppender sets the X-TELEPORT-VERSION header on the request.
+type teleportVersionHeaderAppender struct{}
+
+// Rewrite request headers.
+func (rw *teleportVersionHeaderAppender) Rewrite(req *httputil.ProxyRequest) {
+	req.Out.Header.Set(teleport.VersionRequest, teleport.Version)
+}

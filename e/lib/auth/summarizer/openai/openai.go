@@ -1,0 +1,476 @@
+package openai
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"sync/atomic"
+
+	"github.com/gravitational/trace"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/gravitational/teleport"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/structured"
+	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// TODO(bl-nero): add context window size detection and adaptive algorithm.
+	defaultMaxSessionLength       = 200_000 // bytes
+	maxCompletionTokens     int64 = 4000
+	// labelApiErrorCode is a Prometheus metric label that carries the OpenAI API
+	// error code.
+	labelApiErrorCode = "api_error_code"
+)
+
+var (
+	apiRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: metrics.SummarizerSubsystem,
+		Name:      "openai_api_requests",
+		Help:      "Number of requests to the OpenAI API",
+	}, []string{metrics.LabelInferenceModelName})
+
+	apiErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: metrics.SummarizerSubsystem,
+		Name:      "openai_api_errors",
+		Help:      "Number of errors returned by OpenAI API",
+	}, []string{metrics.LabelInferenceModelName, labelApiErrorCode})
+
+	apiRequestsInFlight = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: metrics.SummarizerSubsystem,
+		Name:      "openai_api_requests_in_flight",
+		Help:      "Number of OpenAI API requests currently in flight",
+	}, []string{metrics.LabelInferenceModelName})
+)
+
+func init() {
+	libmetrics.RegisterPrometheusCollectors(apiRequests, apiErrors, apiRequestsInFlight)
+}
+
+// ProviderConfig holds the configuration for the OpenAI inference provider.
+type ProviderConfig struct {
+	// ModelProvider is the OpenAI model specification.
+	ModelProvider *summarizerv1pb.OpenAIProvider
+	// SecretSpec is the inference secret containing the API key.
+	SecretSpec *summarizerv1pb.InferenceSecretSpec
+	// ClientFactory is used to create OpenAI clients. Can be overridden for
+	// testing. Defaults to a production implementation.
+	ClientFactory ClientFactory
+	// MaxSessionLength is the maximum length of a session recording that can be
+	// summarized. If the session recording exceeds this length, an error will be
+	// returned. If not set, defaults to 1MB.
+	MaxSessionLength int64
+	// ModelResourceName is the name of an inference model this configuration is
+	// derived from.
+	ModelResourceName string
+	// StructuredOutputCache persists across providers whether an endpoint (base URL + model) supports the native
+	// json_schema response format, so a failed native attempt is not repeated for every session. Optional.
+	StructuredOutputCache *structured.SupportCache
+}
+
+// ClientFactory is an interface for creating OpenAI clients.
+type ClientFactory interface {
+	NewClient(opts ...option.RequestOption) Client
+}
+
+// Client is an interface for the OpenAI client used to make requests.
+type Client interface {
+	NewChatCompletion(
+		ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
+	) (*openai.ChatCompletion, error)
+	GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error)
+}
+
+type defaultClientFactory struct{}
+
+func (defaultClientFactory) NewClient(opts ...option.RequestOption) Client {
+	return &defaultClient{clt: openai.NewClient(opts...)}
+}
+
+type defaultClient struct {
+	clt openai.Client
+}
+
+// NewChatCompletion makes a new chat completion request to the real OpenAI
+// API.
+func (c *defaultClient) NewChatCompletion(
+	ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
+) (*openai.ChatCompletion, error) {
+	return c.clt.Chat.Completions.New(ctx, body, opts...)
+}
+
+func (c *defaultClient) GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
+	return c.clt.Embeddings.New(ctx, input, opts...)
+}
+
+// InferenceProvider is an OpenAI inference provider that summarizes session
+// recordings.
+type InferenceProvider struct {
+	openAIModelName   openai.ChatModel
+	temperature       float64
+	maxSessionLength  int64
+	client            Client
+	logger            *slog.Logger
+	modelResourceName string
+	totalInputTokens  atomic.Uint64
+	totalOutputTokens atomic.Uint64
+	// structuredOutputCache remembers, for endpoints of unknown capability, whether the native json_schema response
+	// format has been observed not to work, keyed by the endpoint (base URL + model). Shared across the providers
+	// built for each session.
+	structuredOutputCache *structured.SupportCache
+	// nativeSupportKey identifies this endpoint (base URL + model) as the provider-key dimension of the
+	// structuredOutputCache, so verdicts are scoped per endpoint: the same model can support json_schema on one
+	// base URL but not another.
+	nativeSupportKey string
+}
+
+// NewProvider creates a new OpenAI inference provider.
+func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, error) {
+	if cfg.ModelProvider == nil {
+		return nil, trace.BadParameter("provider spec is required")
+	}
+	if cfg.SecretSpec == nil {
+		return nil, trace.BadParameter("secret spec is required")
+	}
+	if cfg.ModelResourceName == "" {
+		return nil, trace.BadParameter("model resource name is required")
+	}
+
+	clientFactory := cfg.ClientFactory
+	if clientFactory == nil {
+		clientFactory = defaultClientFactory{}
+	}
+
+	maxSessionLength := cfg.MaxSessionLength
+	if maxSessionLength <= 0 {
+		maxSessionLength = defaultMaxSessionLength
+	}
+
+	clientOptions := []option.RequestOption{option.WithAPIKey(cfg.SecretSpec.GetValue())}
+	baseURL := cfg.ModelProvider.GetBaseUrl()
+	if baseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
+	}
+	client := clientFactory.NewClient(clientOptions...)
+
+	modelName := cfg.ModelProvider.GetOpenaiModelId()
+
+	logger := slog.With(teleport.ComponentKey, "openai", "inference_model", cfg.ModelResourceName)
+	return &InferenceProvider{
+		openAIModelName:       modelName,
+		temperature:           cfg.ModelProvider.GetTemperature(),
+		maxSessionLength:      maxSessionLength,
+		client:                client,
+		logger:                logger,
+		modelResourceName:     cfg.ModelResourceName,
+		structuredOutputCache: cfg.StructuredOutputCache,
+		nativeSupportKey:      baseURL + "\x00" + modelName,
+	}, nil
+}
+
+// GetTotalTokens returns the total number of input and output tokens used by this provider.
+func (p *InferenceProvider) GetTotalTokens() (input uint64, output uint64) {
+	return p.totalInputTokens.Load(), p.totalOutputTokens.Load()
+}
+
+// GetType returns the type of the inference provider.
+func (p *InferenceProvider) GetType() string {
+	return "openai"
+}
+
+// Summarize summarizes a session recording using OpenAI. Closes the reader
+// when it's no longer needed.
+func (p *InferenceProvider) Summarize(
+	ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser,
+) (string, error) {
+	defer reader.Close()
+	p.logger.DebugContext(ctx, "Summarizing session", "session_id", sessionID)
+
+	// Read up to maxSessionLength bytes from the stream. This call attempts to
+	// read one more byte, as `ReadAtMost` also reports an error if we read
+	// exactly the number of bytes left in the reader.
+	transcript, err := utils.ReadAtMost(reader, p.maxSessionLength+1)
+	if err != nil {
+		if trace.IsLimitExceeded(err) {
+			return "", trace.Wrap(
+				err, "session transcript exceeds maximum length of %d bytes", p.maxSessionLength,
+			)
+		}
+		return "", trace.Wrap(err)
+	}
+
+	// We have read enough, we may close the reader.
+	reader.Close()
+
+	completionParams := openai.ChatCompletionNewParams{
+		Model: p.openAIModelName,
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(string(transcript)),
+		},
+	}
+
+	res, err := p.makeRequest(ctx, sessionID, completionParams)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Session summary generated",
+		"session_id", sessionID,
+		"session_length", len(transcript),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return res.result, nil
+}
+
+// SummarizeCommand summarizes a single command using OpenAI.
+func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing command from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeCommandSystemPrompt(username, loginName)
+
+	analysis, res, err := makeStructuredTextRequest[schema.CommandAnalysis](ctx, p, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Command summary generated",
+		"session_id", sessionID,
+		"command_length", len(command),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+// SummarizeMultipleCommands summarizes the result of multiple commands using OpenAI.
+func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing multiple commands from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeMultipleCommandsSystemPrompt(username, loginName)
+
+	analysis, res, err := makeStructuredTextRequest[schema.SessionAnalysis](ctx, p, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Summary of multiple commands generated",
+		"session_id", sessionID,
+		"prompt_length", len(prompt),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+// SummarizeMultipleImages summarizes a batch of desktop screenshots using OpenAI's vision API.
+func (p *InferenceProvider) SummarizeMultipleImages(ctx context.Context, sessionID session.ID, systemPrompt string, images []schema.ImageData) (*schema.DesktopScreenshotAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing images from session", "session_id", sessionID)
+
+	parts := make([]openai.ChatCompletionContentPartUnionParam, 0, len(images))
+	for _, img := range images {
+		dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(img.Data)
+		parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+			URL: dataURL,
+		}))
+	}
+
+	userMessages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(parts),
+	}
+
+	analysis, res, err := makeStructuredRequest[schema.DesktopScreenshotAnalysis](ctx, p, sessionID, "DesktopScreenshotAnalysis", schema.DesktopScreenshotAnalysisSchema, systemPrompt, userMessages)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Summary of multiple images generated",
+		"session_id", sessionID,
+		"number_of_images", len(images),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+// SummarizeDesktopSession synthesizes a list of desktop session events into an overall session analysis.
+func (p *InferenceProvider) SummarizeDesktopSession(ctx context.Context, sessionID session.ID, systemPrompt, prompt string) (*schema.DesktopSessionAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing desktop session", "session_id", sessionID)
+
+	analysis, res, err := makeStructuredTextRequest[schema.DesktopSessionAnalysis](ctx, p, sessionID, "DesktopSessionAnalysis", schema.DesktopSessionAnalysisSchema, systemPrompt, prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Desktop session summary generated",
+		"session_id", sessionID,
+		"prompt_length", len(prompt),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+// makeStructuredRequest sends messages with a JSON-schema response format and unmarshals the response into out.
+type response struct {
+	promptTokens     int64
+	completionTokens int64
+	finishReason     string
+	result           string
+}
+
+func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.ID, completionParams openai.ChatCompletionNewParams) (*response, error) {
+	completionParams.MaxCompletionTokens = param.NewOpt(maxCompletionTokens)
+
+	if p.temperature > 0.0 {
+		completionParams.Temperature = param.NewOpt(p.temperature)
+	}
+
+	args := []any{"model", completionParams.Model}
+	if sessionID != "" {
+		args = append(args, "session_id", sessionID)
+	}
+	p.logger.DebugContext(ctx, "Sending request to OpenAI", args...)
+
+	apiRequests.WithLabelValues(p.modelResourceName).Inc()
+	reqInFlightMetric := apiRequestsInFlight.WithLabelValues(p.modelResourceName)
+	reqInFlightMetric.Inc()
+	defer reqInFlightMetric.Dec()
+
+	completion, err := p.client.NewChatCompletion(ctx, completionParams)
+	if err != nil {
+		var apierr *openai.Error
+		if errors.As(err, &apierr) {
+			apiErrors.With(prometheus.Labels{
+				metrics.LabelInferenceModelName: p.modelResourceName,
+				labelApiErrorCode:               apierr.Code,
+			}).Inc()
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
+			Message: "model returned no choices",
+		})
+	}
+
+	choice := completion.Choices[0]
+
+	res := &response{
+		promptTokens:     completion.Usage.PromptTokens,
+		completionTokens: completion.Usage.CompletionTokens,
+		finishReason:     choice.FinishReason,
+		result:           choice.Message.Content,
+	}
+
+	p.totalInputTokens.Add(uint64(res.promptTokens))
+	p.totalOutputTokens.Add(uint64(res.completionTokens))
+
+	switch choice.FinishReason {
+	case string(openai.CompletionChoiceFinishReasonStop):
+		return res, nil
+	case string(openai.CompletionChoiceFinishReasonLength):
+		return res, trace.LimitExceeded("model response length limit exceeded")
+	default:
+		return res, trace.Wrap(summarizererrorstypes.BadResponseError{
+			Message: fmt.Sprintf("model returned unexpected finish reason: %q", choice.FinishReason),
+		})
+	}
+}
+
+// FormatError formats OpenAI API errors into user-friendly messages.
+func FormatError(err error, provider *summarizerv1pb.OpenAIProvider) string {
+	// Check for OpenAI API errors
+	var openaiErr *openai.Error
+	if errors.As(err, &openaiErr) {
+		switch openaiErr.Code {
+		case "invalid_api_key":
+			return "Invalid API key provided. Please verify your OpenAI API key is correct."
+		case "insufficient_quota":
+			return "OpenAI API quota exceeded. Please check your usage limits and billing status."
+		case "rate_limit_exceeded":
+			return "OpenAI API rate limit exceeded. Please try again in a few moments."
+		case "model_not_found":
+			return fmt.Sprintf("Model %q not found. Please verify the model ID is correct and accessible with your API key.", provider.GetOpenaiModelId())
+		case "invalid_request_error":
+			return fmt.Sprintf("Invalid request to OpenAI API: %s", openaiErr.Message)
+		case "server_error", "service_unavailable":
+			return "OpenAI API is currently unavailable. Please try again later."
+		default:
+			return fmt.Sprintf("OpenAI API error (%s): %s", openaiErr.Code, openaiErr.Message)
+		}
+	}
+
+	// Check for network/connection errors
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "Request to OpenAI API timed out. Please check your network connection and try again."
+	}
+	if errors.Is(err, context.Canceled) {
+		return "Request to OpenAI API was canceled."
+	}
+
+	// Check for trace errors
+	if trace.IsConnectionProblem(err) {
+		baseURL := provider.GetBaseUrl()
+		if baseURL != "" {
+			return fmt.Sprintf("Failed to connect to OpenAI API at %s. Please verify the base URL is correct and accessible.", baseURL)
+		}
+		return "Failed to connect to OpenAI API. Please check your network connection."
+	}
+	if trace.IsAccessDenied(err) {
+		return "Access denied by OpenAI API. Please verify your API key has the necessary permissions."
+	}
+
+	// Generic error
+	return fmt.Sprintf("Failed to connect to OpenAI API: %v", err)
+}
+
+func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *summarizerv1pb.Summary) (string, error) {
+	systemPrompt := schema.GetProseEmbedding()
+
+	query, err := protojson.Marshal(input)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to marshal input to JSON")
+	}
+
+	proseEmbedding, res, err := makeStructuredTextRequest[schema.ProseEmbedding](ctx, p, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Prose embeddings generated",
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return proseEmbedding.CondensedText, nil
+}

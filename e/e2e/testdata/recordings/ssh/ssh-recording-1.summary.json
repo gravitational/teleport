@@ -1,0 +1,129 @@
+{
+  "session_id": "14020602-3ede-4efc-815d-42ccb0e7409e",
+  "state": "SUMMARY_STATE_SUCCESS",
+  "inference_started_at": "2026-05-13T17:27:33.148962939Z",
+  "inference_finished_at": "2026-05-13T17:28:14.481387729Z",
+  "model_name": "opus",
+  "session_end_event": {
+    "cluster_name": "linux",
+    "code": "T2004I",
+    "ei": 34,
+    "enhanced_recording": false,
+    "event": "session.end",
+    "interactive": true,
+    "login": "root",
+    "namespace": "default",
+    "participants": ["admin"],
+    "private_key_policy": "none",
+    "proto": "ssh",
+    "server_addr": "192.168.80.3:3022",
+    "server_hostname": "td",
+    "server_id": "0a4ad6f8-7c52-4d67-9efb-3f7a1c2d8e91",
+    "session_recording": "node",
+    "session_start": "2026-05-13T17:26:55.734Z",
+    "session_stop": "2026-05-13T17:27:25.90061786Z",
+    "sid": "14020602-3ede-4efc-815d-42ccb0e7409e",
+    "time": "2026-05-13T17:27:25.901Z",
+    "uid": "70ce1e88-b70e-4661-a9e7-1659788f6f56",
+    "user": "admin",
+    "user_cluster_name": "linux",
+    "user_kind": 1,
+    "user_roles": ["access", "editor", "auditor"],
+    "user_traits": {
+      "logins": ["root", "ubuntu"]
+    }
+  },
+  "enhanced_summary": {
+    "short_title": "Suspicious /etc/hosts modification by root",
+    "short_description": "Root SSH session with /etc/hosts modification adding suspicious 'reverseshell' entry, indicating potential reverse shell infrastructure setup.",
+    "detailed_description": "## SSH Session Summary\n\nThe session was conducted entirely as the root user over an interactive SSH session on host 'td'.\n\n### Activities Observed\n\n1. **Network connectivity test** — A `ping google.com` command was executed to verify outbound network connectivity.\n2. **Recreational command** — `curl parrot.live` was run, displaying an ASCII art animation (benign activity).\n3. **Critical system file modification** — The `/etc/hosts` file was opened in vim and modified. A suspicious entry was added mapping `0.0.0.0` to the hostname `reverseshell`. The file also contained an existing entry mapping IP `100.119.223.50` to `linux.ryan.dev`.\n\n### Key Observations\n\n- The entire session ran under root privileges, maximizing the impact of any changes made.\n- The modification to `/etc/hosts` with a hostname explicitly named \"reverseshell\" is highly indicative of setting up infrastructure for command-and-control or reverse shell connectivity.\n- The network connectivity check preceding the hosts file modification suggests a deliberate sequence: verify connectivity, then configure DNS resolution for malicious purposes.",
+    "risk_level": "RISK_LEVEL_HIGH",
+    "risk_score": 75,
+    "risk_score_reasons": [
+      {
+        "reason": "Added '0.0.0.0 reverseshell' entry to /etc/hosts, suggesting reverse-shell infrastructure setup",
+        "score_impact": 30
+      },
+      {
+        "reason": "Modified system DNS configuration (/etc/hosts) as root",
+        "score_impact": 20
+      },
+      {
+        "reason": "Entire SSH session conducted with root privileges",
+        "score_impact": 15
+      },
+      {
+        "reason": "Probed outbound connectivity with ping before modifying system files",
+        "score_impact": 10
+      }
+    ],
+    "suspicious_activities": [
+      "Entire SSH session conducted as root user",
+      "Modified /etc/hosts to add entry mapping 0.0.0.0 to hostname 'reverseshell'",
+      "Verified network connectivity before modifying system DNS configuration",
+      "Hostname 'reverseshell' strongly suggests reverse shell infrastructure setup"
+    ],
+    "compromise_indicators": true,
+    "session_events": [
+      {
+        "category": "COMMAND_CATEGORY_NETWORK",
+        "risk_score": 5,
+        "threat_category": "THREAT_CATEGORY_DISCOVERY",
+        "timeline_title": "Ran \"ping google.com\" to test connectivity",
+        "short_description": "Executed ping google.com as root to verify network connectivity.",
+        "detailed_description": "Ran 'ping google.com' from the root shell, which resolved to 142.251.209.238 (tzamsa-ad-in-f14.1e100.net). Five successful replies were received with ~6ms latency and 0% packet loss before the command was interrupted.",
+        "start_offset": "6s",
+        "end_offset": "11s",
+        "command_event_details": {
+          "command": "ping google.com",
+          "success": true
+        }
+      },
+      {
+        "category": "COMMAND_CATEGORY_NETWORK",
+        "risk_score": 5,
+        "threat_category": "THREAT_CATEGORY_NONE",
+        "timeline_title": "Ran \"curl parrot.live\" for ASCII art",
+        "short_description": "Executed curl parrot.live which displayed an ASCII art animation of a parrot in the terminal.",
+        "detailed_description": "After the ping completed, 'curl parrot.live' was run, which displayed a colorful ASCII art parrot animation in the terminal. This is a well-known novelty/fun command.",
+        "start_offset": "14s",
+        "end_offset": "18s",
+        "command_event_details": {
+          "command": "curl parrot.live",
+          "success": true
+        }
+      },
+      {
+        "category": "COMMAND_CATEGORY_SYSTEM_CONFIG",
+        "risk_level": "RISK_LEVEL_HIGH",
+        "risk_score": 72,
+        "threat_category": "THREAT_CATEGORY_PERSISTENCE",
+        "timeline_title": "Edited /etc/hosts adding suspicious entry",
+        "short_description": "Opened /etc/hosts in vim and added a suspicious entry mapping 0.0.0.0 to 'reverseshell'.",
+        "detailed_description": "Used 'vim /etc/hosts' as root to edit the system hosts file. The file already contained entries for 127.0.1.1 td, 127.0.0.1 localhost, IPv6 entries, and 100.119.223.50 linux.ryan.dev. A new line was added: '0.0.0.0 reverseshell'. The file was saved with :wq.",
+        "suspicious_flags": [
+          "Modifying /etc/hosts as root",
+          "Adding entry named 'reverseshell' to hosts file",
+          "Mapping 0.0.0.0 to hostname 'reverseshell'"
+        ],
+        "sensitive_items": [
+          "/etc/hosts system configuration file",
+          "IP address 100.119.223.50 mapped to linux.ryan.dev"
+        ],
+        "suspicious_patterns": [
+          "Adding a hosts entry with name 'reverseshell' suggests potential reverse shell infrastructure or DNS redirection"
+        ],
+        "iocs": ["100.119.223.50", "linux.ryan.dev", "0.0.0.0 reverseshell"],
+        "mitre_attack_ids": ["T1565.001"],
+        "has_sensitive_data": true,
+        "persistence": true,
+        "start_offset": "21s",
+        "end_offset": "28s",
+        "command_event_details": {
+          "command": "vim /etc/hosts",
+          "success": true
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+kind: inference_model
+version: v1
+metadata:
+  name: e2e-model
+spec:
+  openai:
+    openai_model_id: gpt-5.4

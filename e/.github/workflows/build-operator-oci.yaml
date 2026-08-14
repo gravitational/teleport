@@ -1,0 +1,150 @@
+# Build Teleport Operator OCI images for amd64, arm64 and arm architectures.
+name: Build Operator OCI Images
+run-name: Build Operator OCI Images
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build
+        required: true
+        type: string
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      architectures:
+        description:
+          Space-separated list of architectures to build the image for. Must be Docker
+          architectures - amd64, arm, arm64, etc.
+        type: string
+        default: "amd64 arm64 arm"
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: "gravitational/teleport"
+      oss-teleport-ref:
+        required: true
+        type: string
+      teleport-version:
+        type: string
+      architectures:
+        type: string
+        default: "amd64 arm64 arm"
+      environment:
+        type: string
+        default: stage/build
+
+jobs:
+  build-image:
+    name: Build OCI Images
+    runs-on: ubuntu-22.04-16core
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: operator
+          environments-directory: e/.environments
+
+      - name: Parameterize build
+        id: params
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
+        run: |
+          # Convert architectures into docker platform args
+          read -ra arches <<<"${ARCHITECTURES}" # safely read into array to prevent globbing
+          {
+            echo 'platforms<<EOF'
+            printf 'linux/%s\n' "${arches[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "teleport-version=${TELEPORT_VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      # Log into Docker Hub to increase rate limits
+      - name: Login to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Assume Build AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.BUILD_OPERATOR_OCI_AWS_ROLE }}
+          role-session-name: "gha-build-operator-oci-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      - name: Log into Destination ECR Registry
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Check if Image Exists
+        id: check
+        env:
+          IMAGE: ${{ env.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
+        run: |
+          if docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
+            echo "Skipping build/push as image already exists: ${IMAGE}" >> "$GITHUB_STEP_SUMMARY"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build OCI Image
+        id: build
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          context: .
+          file: ./integrations/operator/Dockerfile.gha
+          platforms: ${{ steps.params.outputs.platforms }}
+          tags: ${{ env.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
+
+      - name: Sign image using signing key and GitHub OIDC Token
+        if: steps.check.outputs.exists == 'false'
+        env:
+          SIGNING_KEY_ARN: ${{ env.OCI_PENDING_SIGNING_KEY_ARN }}
+          DST_IMAGE: "${{ env.OPERATOR_PENDING_ECR_REPO }}@${{ steps.build.outputs.digest }}"
+        run: |
+          cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE}"
+          cosign sign --yes --upload=false --recursive "${DST_IMAGE}"

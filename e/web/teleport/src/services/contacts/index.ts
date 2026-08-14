@@ -1,0 +1,1 @@
+export { contactsService } from './contacts';
