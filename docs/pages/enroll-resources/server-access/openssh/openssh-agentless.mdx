@@ -97,6 +97,29 @@ Change the command-line options to assign the following values:
 - <Var name="teleport.example.com:443" /> Set to the address and port of your Teleport Proxy Service.
 - <Var name="(=presets.tokens.first=)" /> Set to the join token value.
 
+<details>
+<summary>Command not connecting, or not sure it worked?</summary>
+
+If the command fails with a "connection refused" error on the first attempt,
+verify that the Teleport Proxy Service is reachable:
+
+```code
+$ curl https://<Var name="teleport.example.com:443" />/webapi/ping
+```
+
+Retry the command afterward. Transient DNS or TLS handshake delays can cause
+the first attempt to fail.
+
+The command exits silently on success. To confirm the node registered, run
+`tctl nodes ls` or `tsh ls` and check that the new node appears in the output.
+
+If you need to retry the command, for example after a failed attempt, run it
+again from the same host without deleting anything first. The command reuses
+the host ID persisted in the local data directory, so retries update the
+existing node entry instead of creating a duplicate one.
+
+</details>
+
 Check that your new node is listed with `tsh ls` or in the Web UI.
 
 You can edit the node with `tctl edit nodes/<hostname>` or
@@ -371,4 +394,3 @@ dropped.
 
 To increase the concurrency level, increase the value to something like
 `MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
-

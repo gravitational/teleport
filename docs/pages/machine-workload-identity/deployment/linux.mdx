@@ -63,6 +63,11 @@ authenticate with your Teleport cluster. Be aware that this URI contains a
 single use secret value (shown as `secret` in the above example) and should be
 copied with care.
 
+The bot must have at least one role assigned before running an identity or
+output service. You'll create a role and assign it to the bot when you follow
+the access guide for your use case (see Next steps), using a command similar
+to `tctl bots update example --add-roles <role-name>`.
+
 ## Step 3/3. Configure `tbot`
 
 **This step is completed on the Linux host.**

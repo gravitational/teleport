@@ -1,12 +1,23 @@
+The Linux, macOS, and Docker installation commands below use
+[`jq`](https://jqlang.org/download/) to read your Teleport cluster's version
+from the Proxy Service. Install `jq` before continuing if you don't already
+have it.
+
 <Tabs>
 <TabItem label="Linux">
 
 The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
 Replace `ARCH` with your required version.
 
+This command queries your Teleport Proxy Service directly to detect the
+version of your Teleport cluster, so the plugin version you download always
+matches your cluster. Replace <Var name="teleport.example.com:443" /> with the
+address of your Teleport Proxy Service:
+
 ```code
-$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ EVENT_HANDLER_VERSION=$(curl -s https://<Var name="teleport.example.com:443" />/v1/webapi/find | jq -r '.server_version')
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v${EVENT_HANDLER_VERSION}-linux-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v${EVENT_HANDLER_VERSION}-linux-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
 
@@ -17,19 +28,30 @@ $ sudo ./teleport-event-handler/install
 The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
 Replace `ARCH` with your required version.
 
+This command queries your Teleport Proxy Service directly to detect the
+version of your Teleport cluster, so the plugin version you download always
+matches your cluster. Replace <Var name="teleport.example.com:443" /> with the
+address of your Teleport Proxy Service:
+
 ```code
-$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ EVENT_HANDLER_VERSION=$(curl -s https://<Var name="teleport.example.com:443" />/v1/webapi/find | jq -r '.server_version')
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v${EVENT_HANDLER_VERSION}-darwin-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v${EVENT_HANDLER_VERSION}-darwin-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
 
 </TabItem>
 
 <TabItem label="Docker">
-Ensure that you have Docker installed and running.
+Ensure that you have Docker installed and running. This command queries your
+Teleport Proxy Service directly to detect the version of your Teleport
+cluster, so the image tag you pull always matches your cluster. Replace
+<Var name="teleport.example.com:443" /> with the address of your Teleport
+Proxy Service:
 
 ```code
-$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)
+$ EVENT_HANDLER_VERSION=$(curl -s https://<Var name="teleport.example.com:443" />/v1/webapi/find | jq -r '.server_version')
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:${EVENT_HANDLER_VERSION}
 ```
 
 </TabItem>
@@ -67,4 +89,3 @@ to `/usr/local/bin`.
 
 </TabItem>
 </Tabs>
-

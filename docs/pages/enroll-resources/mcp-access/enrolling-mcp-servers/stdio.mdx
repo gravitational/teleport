@@ -56,7 +56,7 @@ app_service:
   - name: "everything"
     labels:
       env: dev
-    description:
+    description: "Everything MCP demo server for testing tool access"
     mcp:
       # Command to launch stdio-based MCP servers.
       command: "docker"
@@ -65,8 +65,29 @@ app_service:
       # Name of the host user account under which the command will be
       # executed. Required for stdio-based MCP servers. The user account must
       # exist on the host before you run the Teleport Application Service.
-      run_as_host_user: "docker"
+      run_as_host_user: "teleport-mcp"
 ```
+
+The `run_as_host_user` field specifies a Linux user account that must exist on
+the host before starting the Application Service. Create it with:
+
+```code
+$ sudo useradd --system --no-create-home teleport-mcp
+```
+
+<Admonition
+  type="warning"
+  title="Security warning: Docker group privileges"
+>
+Avoid adding this account to the host's `docker` group. If this host is later
+enabled for [dynamic MCP server registration](../dynamic-registration.mdx),
+group membership would give anyone who can create or update `app` resources
+effective root access to the host, since Docker group membership allows
+mounting the host filesystem into a container. Run Docker in
+[Rootless mode](https://docs.docker.com/engine/security/rootless/) for the
+`teleport-mcp` user instead, or use a pre-approved wrapper script in place of
+raw Docker execution.
+</Admonition>
 
 Replace the MCP details with the MCP server you desire to run then restart the Application Service.
 
@@ -110,7 +131,7 @@ app_service:
   - name: "everything"
     labels:
       env: dev
-    description:
+    description: "Everything MCP demo server for testing tool access"
     mcp:
       # Command to launch stdio-based MCP servers.
       command: "docker"
@@ -118,12 +139,15 @@ app_service:
       args: ["run", "-i", "--rm", "mcp/everything"]
       # Name of the host user account under which the command will be
       # executed. Required for stdio-based MCP servers.
-      run_as_host_user: "docker"
+      run_as_host_user: "teleport-mcp"
 ```
 
 Replace <Var name="teleport.example.com:443" /> with the host and port of your Teleport Proxy
 Service or Teleport Cloud tenant, and replace the MCP details with the MCP
 server you desire to run.
+
+Create the `teleport-mcp` host user as described above before starting the
+service. Avoid adding it to the `docker` group for the same reason.
 
 #### Start the Teleport Application Service
 
@@ -157,5 +181,5 @@ everything everything MCP server stdio env=dev
 Learn more about protecting MCP servers with Teleport in the following topics:
 
 - [MCP Access Control](../rbac.mdx).
-- [Register MCP servers dynamically](../dynamic-registration.mdx)
+- [Register MCP servers dynamically](../dynamic-registration.mdx).
 - Configuration and CLI [reference](../reference.mdx).

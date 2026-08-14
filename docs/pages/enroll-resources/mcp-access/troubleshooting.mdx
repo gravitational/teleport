@@ -52,6 +52,8 @@ You can configure this user trait with `tctl`, assigning it to the Teleport user
 $ tctl users update <Var name="my_user" /> --set-mcp-tools "*"
 ```
 
+The `"*"` wildcard grants access to all tools on all MCP servers and should only be used for temporary debugging. After identifying the issue, update the role to grant access to specific tools only. Leaving wildcard tool access in production bypasses the principle of least privilege.
+
 Alternatively you can assign your Teleport user the preset role `mcp-user` which
 allows access to all MCP servers and their tools. You can also define a custom
 role that explicitly specifies the allowed MCP tools and assigns them to your
