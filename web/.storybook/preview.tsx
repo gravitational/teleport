@@ -24,7 +24,13 @@ import { ComponentType, PropsWithChildren } from 'react';
 import { sb } from 'storybook/test';
 
 import Box from '../packages/design/src/Box';
-import { bblpTheme, darkTheme, lightTheme, offsitedarkTheme, offsitelightTheme } from '../packages/design/src/theme';
+import {
+  bblpTheme,
+  darkTheme,
+  lightTheme,
+  offsitedarkTheme,
+  offsitelightTheme,
+} from '../packages/design/src/theme';
 import { Theme } from '../packages/design/src/theme/themes/types';
 import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import cfg from '../packages/teleport/src/config';
@@ -179,7 +185,13 @@ const preview: Preview = {
       defaultValue: 'Dark Theme',
       toolbar: {
         icon: 'contrast',
-        items: ['Light Theme', 'Dark Theme', 'BBLP Theme', 'Offsite Dark Theme', 'Offsite Light Theme'],
+        items: [
+          'Light Theme',
+          'Dark Theme',
+          'BBLP Theme',
+          'Offsite Dark Theme',
+          'Offsite Light Theme',
+        ],
         dynamicTitle: true,
       },
     },
