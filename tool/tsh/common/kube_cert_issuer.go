@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -54,7 +55,8 @@ type kubeCertIssuer struct {
 	// mfa is the reusable MFA state shared across issuances.
 	mfa *reusableMFA
 	// sharedCertUnsupported latches once an auth server has rejected an unrouted request.
-	sharedCertUnsupported bool
+	// The middleware reissues concurrently with the burst that starts the proxy, so it is atomic.
+	sharedCertUnsupported atomic.Bool
 }
 
 // kubeKeyStore is the subset of [client.LocalKeyAgent] the issuer loads and saves certs through.
@@ -197,6 +199,12 @@ func (issuer *kubeCertIssuer) ReissueSharedCert(ctx context.Context, teleportClu
 
 // reissueSharedCertOverConn reissues the shared unrouted cert over the given connection.
 func (issuer *kubeCertIssuer) reissueSharedCertOverConn(ctx context.Context, cc kubeCertClient, teleportCluster, requestedKubeCluster string) (*tls.Certificate, string, error) {
+	// An auth server has already refused an unrouted request, so do not ask again.
+	if issuer.sharedCertUnsupported.Load() {
+		cert, err := issuer.issueCertOverConn(ctx, cc, teleportCluster, requestedKubeCluster, nil /*mfaCheck*/)
+		return cert, requestedKubeCluster, trace.Wrap(err)
+	}
+
 	authClient, err := cc.ConnectToCluster(ctx, teleportCluster)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -220,7 +228,22 @@ func (issuer *kubeCertIssuer) reissueSharedCertOverConn(ctx context.Context, cc 
 
 	// The cluster can still use the shared cert, so reissue it.
 	cert, err := issuer.issueCertOverConn(ctx, cc, teleportCluster, "" /*kubeCluster*/, nil /*mfaCheck*/)
-	return cert, "", trace.Wrap(err)
+	if err == nil {
+		return cert, "", nil
+	}
+	if !isUnroutedKubeCertRejected(err) {
+		return nil, "", trace.Wrap(err)
+	}
+	// This auth server will not issue the shared cert, so give the cluster its own and latch.
+	// Every other cluster it served converts the same way as its own reissue comes due.
+	logger.DebugContext(ctx, "Auth server rejected the shared unrouted cert, giving the cluster a routed cert",
+		"teleport_cluster", teleportCluster,
+		"kube_cluster", requestedKubeCluster,
+		"error", err,
+	)
+	issuer.sharedCertUnsupported.Store(true)
+	cert, err = issuer.issueCertOverConn(ctx, cc, teleportCluster, requestedKubeCluster, check)
+	return cert, requestedKubeCluster, trace.Wrap(err)
 }
 
 // AcquireConn holds the shared cluster connection until the returned release is called.
@@ -280,7 +303,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 		return nil, trace.Wrap(err)
 	}
 
-	if issuer.sharedCertUnsupported {
+	if issuer.sharedCertUnsupported.Load() {
 		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
 
@@ -291,7 +314,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 		}
 		// The auth server rejected the shared unrouted cert, so issue per cluster instead.
 		logger.DebugContext(ctx, "Auth server rejected the shared unrouted cert, issuing per cluster", "error", err)
-		issuer.sharedCertUnsupported = true
+		issuer.sharedCertUnsupported.Store(true)
 		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
 	return run.certs, nil

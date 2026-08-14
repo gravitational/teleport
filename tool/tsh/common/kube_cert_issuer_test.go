@@ -884,6 +884,51 @@ func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
 	}
 }
 
+// TestKubeCertIssuer_ReissueUnroutedRejectedFallback verifies that
+// an auth server that refuses the unrouted request cannot strand a running proxy,
+// as one reached mid-session during a rolling upgrade would.
+// The reissue gives the requesting cluster its own cert and latches,
+// so the clusters the shared cert served convert as their own reissues come due.
+func TestKubeCertIssuer_ReissueUnroutedRejectedFallback(t *testing.T) {
+	t.Parallel()
+
+	const kubeCluster = "kube-0"
+	clusters := newTestKubeClusters(1)
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		var unroutedAttempts, routedIssuances atomic.Int32
+		cc := &fakeKubeCertClient{mfaRequired: false}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.KubernetesCluster == "" {
+				unroutedAttempts.Add(1)
+				return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+			}
+			routedIssuances.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+
+		issuer := newTestKubeCertIssuer(cc)
+		cert, storeUnder, err := issuer.ReissueSharedCert(t.Context(), "root", kubeCluster)
+		require.NoError(t, err, "the reissue must recover instead of leaving the cluster unreachable")
+		require.NotNil(t, cert)
+		require.Equal(t, kubeCluster, storeUnder, "the cluster must be moved onto its own cert")
+		require.Equal(t, int32(1), unroutedAttempts.Load())
+		require.Equal(t, int32(1), routedIssuances.Load())
+		require.True(t, issuer.sharedCertUnsupported.Load(), "the rejection must latch")
+
+		// A later reissue must not retry the shape this server already refused.
+		_, storeUnder, err = issuer.ReissueSharedCert(t.Context(), "root", kubeCluster)
+		require.NoError(t, err)
+		require.Equal(t, kubeCluster, storeUnder)
+		require.Equal(t, int32(1), unroutedAttempts.Load(), "the rejection must latch")
+		require.Equal(t, int32(2), routedIssuances.Load())
+	})
+}
+
 // TestKubeCertIssuer_UnroutedErrorNotSwallowed verifies that
 // only the old-server rejection triggers the per-cluster fallback.
 // Any other failure has to surface, or a real problem would show up as a silent loss of the shared cert.
@@ -911,7 +956,7 @@ func TestKubeCertIssuer_UnroutedErrorNotSwallowed(t *testing.T) {
 		_, err := issuer.issueCerts(t.Context(), clusters)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied but got %v", err)
 		require.Zero(t, routedIssuances.Load(), "an unrelated failure must not fall back to per-cluster issuance")
-		require.False(t, issuer.sharedCertUnsupported, "an unrelated failure must not latch")
+		require.False(t, issuer.sharedCertUnsupported.Load(), "an unrelated failure must not latch")
 	})
 }
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {
