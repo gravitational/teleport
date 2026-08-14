@@ -1427,7 +1427,6 @@ update-tag:
 	cd build.assets/tooling && GOWORK=off CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
-	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
 # find-any evaluates to non-empty (true) if any of the strings in $(1) are contained in $(2)
@@ -1447,6 +1446,21 @@ IS_CLOUD_SEMVER = $(call find-any,$(CLOUD_VERSIONS),$(VERSION))
 PROD_VERSIONS = -cloud.
 IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS),$(VERSION)),true)
 
+# TAG_WORKFLOW_REF sets the teleport.e ref that will be used for tag-build and tag-publish
+# This can be overriden to choose a specific teleport.e ref to build from
+# By default, this parses the VERSION to find the major and maps to a branch
+#   - v19: master
+#   - v18: branch/v18
+#   - v17: branch/v17
+#
+# This is only a temporary measure to allow the monorepo to still continue doing releases from teleport.e
+# This will be removed once release workflow is migrated to core
+VERSION_MAJOR = $(patsubst v%,%,$(word 1,$(subst ., ,$(VERSION))))
+TAG_WORKFLOW_REF_19 = master
+TAG_WORKFLOW_REF_18 = branch/v18
+TAG_WORKFLOW_REF_17 = branch/v17
+TAG_WORKFLOW_REF = $(or $(TAG_WORKFLOW_REF_$(VERSION_MAJOR)),$(error no tag workflow ref configured for VERSION=$(VERSION)))
+
 # Builds a tag build on GitHub Actions.
 # Starts a tag publish run using e/.github/workflows/tag-build.yaml
 # for the tag v$(VERSION).
@@ -1461,7 +1475,7 @@ tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "$(TAG_WORKFLOW_REF)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
@@ -1482,7 +1496,7 @@ tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
 		--repo gravitational/teleport.e \
-		--ref "v$(VERSION)" \
+		--ref "$(TAG_WORKFLOW_REF)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
