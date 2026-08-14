@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -818,7 +819,7 @@ func TestKubeCertIssuer_HeadlessUnroutedRejected(t *testing.T) {
 }
 
 // TestKubeCertIssuer_UnroutedRejectedFallback verifies that
-// an auth server predating the shared cert does not break the proxy.
+// an auth server that refuses the unrouted request does not break the proxy.
 // The issuer falls back to per-cluster certs and latches,
 // so a later burst does not retry a request that server refuses.
 func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
@@ -828,39 +829,59 @@ func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
 	clusters := newTestKubeClusters(numClusters)
 	keyRing := newTestKubeKeyRing(t, clusters)
 
-	synctest.Test(t, func(t *testing.T) {
-		var unroutedAttempts, routedIssuances atomic.Int32
-		cc := &fakeKubeCertClient{mfaRequired: false}
-		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
-			if params.KubernetesCluster == "" {
-				unroutedAttempts.Add(1)
-				return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
-			}
-			routedIssuances.Add(1)
-			return &client.IssueUserCertsWithMFAResult{
-				KeyRing:     keyRing,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-			}, nil
-		}
+	for _, tt := range []struct {
+		name      string
+		rejection error
+	}{
+		{
+			// Every auth server predating the shared cert.
+			name:      "old auth server",
+			rejection: trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest"),
+		},
+		{
+			// A scoped identity is only allowed a Kubernetes cert that names a cluster.
+			name:      "scoped identity",
+			rejection: trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", proto.UserCertsRequest_Kubernetes),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		issuer := newTestKubeCertIssuer(cc)
-		certs, err := issuer.issueCerts(t.Context(), clusters)
-		require.NoError(t, err)
-		require.Equal(t, int32(1), unroutedAttempts.Load())
-		require.Equal(t, int32(numClusters), routedIssuances.Load())
+			synctest.Test(t, func(t *testing.T) {
+				var unroutedAttempts, routedIssuances atomic.Int32
+				cc := &fakeKubeCertClient{mfaRequired: false}
+				cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+					if params.KubernetesCluster == "" {
+						unroutedAttempts.Add(1)
+						return nil, tt.rejection
+					}
+					routedIssuances.Add(1)
+					return &client.IssueUserCertsWithMFAResult{
+						KeyRing:     keyRing,
+						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+					}, nil
+				}
 
-		// Every cluster is served by its own cert, and no shared entry lingers from the attempt.
-		require.Len(t, certs, numClusters)
-		require.NotContains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root", KubeCluster: ""})
-		require.Equal(t, numClusters, cc.saves)
+				issuer := newTestKubeCertIssuer(cc)
+				certs, err := issuer.issueCerts(t.Context(), clusters)
+				require.NoError(t, err)
+				require.Equal(t, int32(1), unroutedAttempts.Load())
+				require.Equal(t, int32(numClusters), routedIssuances.Load())
 
-		// A later burst must not retry the shape this server already refused.
-		certs, err = issuer.issueCerts(t.Context(), clusters)
-		require.NoError(t, err)
-		require.Equal(t, int32(1), unroutedAttempts.Load(), "the rejection must latch")
-		require.Equal(t, int32(2*numClusters), routedIssuances.Load())
-		require.Len(t, certs, numClusters)
-	})
+				// Every cluster is served by its own cert, and no shared entry lingers from the attempt.
+				require.Len(t, certs, numClusters)
+				require.NotContains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root", KubeCluster: ""})
+				require.Equal(t, numClusters, cc.saves)
+
+				// A later burst must not retry the shape this server already refused.
+				certs, err = issuer.issueCerts(t.Context(), clusters)
+				require.NoError(t, err)
+				require.Equal(t, int32(1), unroutedAttempts.Load(), "the rejection must latch")
+				require.Equal(t, int32(2*numClusters), routedIssuances.Load())
+				require.Len(t, certs, numClusters)
+			})
+		})
+	}
 }
 
 // TestKubeCertIssuer_UnroutedErrorNotSwallowed verifies that

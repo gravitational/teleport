@@ -486,11 +486,17 @@ func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
 	return cluster.TeleportCluster + "/" + cluster.KubeCluster
 }
 
-// isUnroutedKubeCertRejected reports whether an auth server refused an unrouted request,
-// as every server predating the shared cert does.
+// isUnroutedKubeCertRejected reports whether an auth server refused the request for naming no Kubernetes cluster,
+// which a routed request would have satisfied. Both causes are recoverable by issuing per cluster instead.
 func isUnroutedKubeCertRejected(err error) bool {
-	// validateCertUsage rejects the request before it reaches any typed error.
-	return trace.IsBadParameter(err) && strings.Contains(err.Error(), "missing KubernetesCluster field")
+	// Every server predating the shared cert refuses an unrouted request.
+	// validateCertUsage rejects it before it reaches any typed error.
+	if trace.IsBadParameter(err) && strings.Contains(err.Error(), "missing KubernetesCluster field") {
+		return true
+	}
+	// Scoped identities are only allowed a Kubernetes cert that names a cluster,
+	// so an unrouted request reads to auth as an unsupported usage.
+	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), "generating scoped user cert for unsupported usage")
 }
 
 // isMFAReuseRejected reports whether an auth server unambiguously rejected the reusable MFA flow.
