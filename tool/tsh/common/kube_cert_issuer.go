@@ -183,6 +183,10 @@ func (issuer *kubeCertIssuer) issueCertOverConn(ctx context.Context, cc kubeCert
 // So the reissue rechecks the requesting cluster: if MFA is now required, that cluster gets a cert routed to itself,
 // since a shared cert can carry no MFA state. The rest of the fleet keeps using the shared one.
 func (issuer *kubeCertIssuer) ReissueSharedCert(ctx context.Context, teleportCluster, requestedKubeCluster string) (*tls.Certificate, string, error) {
+	if requestedKubeCluster == "" {
+		return nil, "", trace.BadParameter("reissuing the shared Kubernetes certificate requires a Kubernetes cluster name")
+	}
+
 	// Hold one connection across the recheck and the issuance below.
 	cc, release, err := issuer.conn.Acquire(ctx)
 	if err != nil {
