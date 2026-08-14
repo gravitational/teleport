@@ -44,19 +44,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AccessListsAndLockGetter is an interface for retrieving access lists and locks.
-type AccessListsAndLockGetter interface {
-	services.AccessListsGetter
-	services.LockGetter
-}
-
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
 	Log *slog.Logger
 
-	// AccessLists is a service for retrieving access lists and locks from the backend.
-	AccessLists AccessListsAndLockGetter
+	// AccessLists defines an interface for reading access lists.
+	AccessLists services.AccessListsGetter
+
+	// Locks is a service that gets locks.
+	Locks services.LockGetter
 
 	// Access is a service that will be used for retrieving roles from the backend.
 	Access services.Access
@@ -86,7 +83,11 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 	}
 
 	if g.AccessLists == nil {
-		return trace.BadParameter("missing access lists")
+		return trace.BadParameter("missing access lists service")
+	}
+
+	if g.Locks == nil {
+		return trace.BadParameter("missing locks service")
 	}
 
 	if g.Access == nil {
@@ -219,7 +220,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	locks, err := clientutils.CollectWithFallback(
 		ctx,
 		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
-			return g.Cfg.AccessLists.ListLocks(ctx, limit, start, &types.LockFilter{
+			return g.Cfg.Locks.ListLocks(ctx, limit, start, &types.LockFilter{
 				InForceOnly: true,
 				Targets:     []*types.LockTarget{{User: user.GetName()}},
 			})
@@ -227,7 +228,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		func(ctx context.Context) ([]types.Lock, error) {
 			// TODO(okraport): DELETE IN v21
 			const inForceOnlyTrue = true
-			return g.Cfg.AccessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+			return g.Cfg.Locks.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
 				User: user.GetName(),
 			})
 		},

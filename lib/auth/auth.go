@@ -968,6 +968,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as.ULSGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
 		AccessLists: as,
+		Locks:       as,
 		Access:      as,
 		UsageEvents: as,
 		Clock:       cfg.Clock,

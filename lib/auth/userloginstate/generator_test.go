@@ -768,6 +768,7 @@ func initGeneratorSvc(cloud bool) (*Generator, *svc, error) {
 	generator, err := NewGenerator(GeneratorConfig{
 		Log:         logtest.NewLogger(),
 		AccessLists: svc,
+		Locks:       svc,
 		Access:      svc,
 		UsageEvents: svc,
 		Clock:       clock,
