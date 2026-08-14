@@ -28,15 +28,15 @@ jobs:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
           values: |
-            BACKPORT_APP_ID,variable
-            BACKPORT_PRIVATE_KEY,secret
+            REVIEWERS_APP_ID,variable
+            REVIEWERS_PRIVATE_KEY,secret
             REVIEWERS,secret
       - name: Generate GitHub Token
         id: generate_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ env.BACKPORT_APP_ID }}
-          private-key: ${{ env.BACKPORT_PRIVATE_KEY }}
+          app-id: ${{ env.REVIEWERS_APP_ID }}
+          private-key: ${{ env.REVIEWERS_PRIVATE_KEY }}
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
