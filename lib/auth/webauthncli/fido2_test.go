@@ -1173,6 +1173,14 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "retry on rx error from busy device",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.ErrRX,
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
