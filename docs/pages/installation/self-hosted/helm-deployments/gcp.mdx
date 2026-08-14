@@ -415,7 +415,7 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
 
   ```code
   $ gcloud services enable firestore.googleapis.com --project=$(gcloud config get-value project)
-  $ gcloud firestore databases create --location=us-central --type=firestore-native --project=$(gcloud config get-value project)
+  $ gcloud firestore databases create --location=us-central1 --type=firestore-native --project=$(gcloud config get-value project)
   ```
 </Admonition>
 
@@ -445,7 +445,6 @@ highAvailability:
 podSecurityPolicy:
   enabled: false
 ```
-
 </TabItem>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
 

@@ -128,7 +128,7 @@ in native mode.
 
 ```code
 $ gcloud firestore databases create \
-    --location=us-central \
+    --location=us-central1 \
     --type=firestore-native \
     --project=Example_GCP_PROJECT
 ```
@@ -211,6 +211,7 @@ Teleport requires custom ports for SSH and Web Traffic.
 
 ```code
 $ gcloud compute backend-services create teleport-proxy-backend \
+    --load-balancing-scheme=EXTERNAL \
     --protocol=TCP \
     --health-checks=teleport-auth-healthcheck \
     --global
@@ -218,11 +219,28 @@ $ gcloud compute backend-services create teleport-proxy-backend \
 $ gcloud compute target-tcp-proxies create teleport-tcp-proxy \
     --backend-service=teleport-proxy-backend
 
+$ gcloud compute addresses create teleport-lb-ip \
+    --ip-version=IPV4 \
+    --global
+
+$ export LB_IP=$(gcloud compute addresses describe teleport-lb-ip --global --format="value(address)")
+
 $ gcloud compute forwarding-rules create teleport-forwarding-rule \
+    --load-balancing-scheme=EXTERNAL \
     --global \
     --target-tcp-proxy=teleport-tcp-proxy \
+    --address=$LB_IP \
+    --ip-protocol=TCP \
     --ports=443,3023,3024,3025,3026,3036
 ```
+
+<Admonition type="note">
+Reserving a static external IP address (`teleport-lb-ip` above) before creating
+the forwarding rule means your Teleport Proxy's public address won't change if
+you ever need to recreate the forwarding rule. If you're fine with an
+ephemeral address instead, you can omit the `addresses create` step and the
+`--address` flag.
+</Admonition>
 
 ### Network Services: Cloud DNS
 

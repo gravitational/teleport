@@ -98,11 +98,14 @@ Install Teleport on your GCP Linux VM.
 (!docs/pages/includes/install-linux.mdx!)
 
 To discover the service account attached to your GCP VM (useful for verifying
-your token's allow rules), run the following on the VM:
+your token's allow rules), run the following on your workstation, replacing
+`INSTANCE_NAME` and `ZONE` with your VM's instance name and zone (both are
+visible in the GCP Console, or you can list them with `gcloud compute
+instances list`):
 
 ```code
-$ gcloud compute instances describe $(hostname) \
-    --zone=$(gcloud compute instances list --filter="name=$(hostname)" --format="value(zone)") \
+$ gcloud compute instances describe INSTANCE_NAME \
+    --zone=ZONE \
     --format="value(serviceAccounts.email)"
 ```
 
