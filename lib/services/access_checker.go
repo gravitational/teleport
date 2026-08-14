@@ -339,6 +339,11 @@ type AccessInfo struct {
 	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
+	// FromRemoteCluster indicates that this identity was issued by another
+	// cluster and its roles were mapped through a trusted-cluster role
+	// mapping. Beam ownership is matched by username, which is not unique
+	// across clusters, so beam access checks deny remote identities outright.
+	FromRemoteCluster bool
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -700,6 +705,27 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 	preconds, err := a.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Enforce beam ownership: only a beam's owner may access its SSH server,
+	// regardless of role permissions. Both CheckAccess and
+	// CheckConditionalAccess funnel through here, so every SSH access
+	// evaluation (node, proxying, scoped, PDP, listing) inherits this check.
+	//
+	// It intentionally runs after the role checks so that role-derived signals
+	// such as ErrSessionMFARequired surface to callers that probe access (e.g.
+	// the IsMFARequired RPC). Ordering does not weaken the check: access
+	// requires both the role evaluation above and this check to pass.
+	if server, ok := r.(types.Server); ok {
+		var username string
+		var fromRemoteCluster bool
+		if a.info != nil {
+			username = a.info.Username
+			fromRemoteCluster = a.info.FromRemoteCluster
+		}
+		if err := CheckBeamSSHOwnership(username, fromRemoteCluster, server); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return preconds, nil
@@ -1591,6 +1617,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
 		DelegationSessionID:      unmappedIdentity.DelegationSessionID,
+		FromRemoteCluster:        true,
 	}, nil
 }
 
@@ -1667,6 +1694,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 		DelegationSessionID:      identity.DelegationSessionID,
+		FromRemoteCluster:        true,
 	}, nil
 }
 

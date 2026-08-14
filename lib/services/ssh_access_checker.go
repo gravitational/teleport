@@ -38,13 +38,9 @@ type SSHAccessChecker struct {
 }
 
 // CheckAccessToSSHServer checks access to an SSH server for the given OS user.
+// Beam ownership is enforced by the underlying CheckAccess call (see
+// [CheckBeamSSHOwnership]): only a beam's owner can access its SSH server.
 func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
-	if accessInfo := c.checker.AccessInfo(); accessInfo != nil {
-		if err := checkBeamOwnershipForSSH(accessInfo.Username, target); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
 	}
@@ -53,14 +49,9 @@ func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state Acc
 
 // CanAccessSSHServer checks whether read access to the specified SSH server is possible without
 // regard to a specific OS user or MFA state. Used for listing/filtering.
+// Beam ownership is enforced by the underlying CheckAccess call (see
+// [CheckBeamSSHOwnership]), so other users' beams are filtered out of listings.
 func (c *SSHAccessChecker) CanAccessSSHServer(target types.Server) error {
-	// Enforce beam ownership for listing/filtering as well
-	if accessInfo := c.checker.AccessInfo(); accessInfo != nil {
-		if err := checkBeamOwnershipForSSH(accessInfo.Username, target); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})
 	}
@@ -297,31 +288,6 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 		return nil
 	}
 	return c.checker.role.GetSpec().GetSsh().GetLogins()
-}
-
-// checkBeamOwnershipForSSH enforces that only a beam's owner can SSH into it.
-// This is a mandatory check that applies regardless of role permissions.
-// Even if a user has broad node access permissions, they cannot access beams owned by others.
-func checkBeamOwnershipForSSH(username string, target types.Server) error {
-	// Only apply check if target is a beam node (has BeamIDLabel)
-	if _, isBeam := target.GetLabels()[types.BeamIDLabel]; !isBeam {
-		return nil // Not a beam node, proceed normally
-	}
-
-	// Beam nodes must have an owner label
-	beamOwner, hasOwner := target.GetLabels()[types.BeamOwnerLabel]
-	if !hasOwner {
-		return trace.AccessDenied("beam node %q is missing owner label", target.GetName())
-	}
-
-	// User must match the beam owner - this is non-negotiable
-	if username != beamOwner {
-		return trace.AccessDenied(
-			"user %q cannot access beam owned by %q",
-			username, beamOwner,
-		)
-	}
-	return nil
 }
 
 // CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.
