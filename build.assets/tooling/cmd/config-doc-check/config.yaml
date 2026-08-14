@@ -1,0 +1,249 @@
+source_path: "../../../../"
+service_sections:
+  - name: Instance-wide settings
+    example_path: docs/pages/includes/config-reference/instance-wide.yaml
+    key_type_pairs:
+      - section_key: teleport
+        type_name: Global
+    dismissed_keys:
+      - teleport.audit_queue # Need to add
+      - teleport.auth_connection_config # it is included in the example as a comment
+      - teleport.auth_servers # deprecated
+      - teleport.ca_signature_algo # deprecated
+      - teleport.cache # auth service specific, not instance-wide
+      - teleport.ciphers # auth service specific, not instance-wide
+      - teleport.ciphersuites # auth service specific, not instance-wide
+      - teleport.connection_limits.max_users # deprecated
+      - teleport.connection_limits.rates # Need to add
+      - teleport.join_params.azure # Need to add
+      - teleport.join_params.generic_oidc # Need to add
+      - teleport.kex_algos # auth service specific, not instance-wide
+      - teleport.mac_algos # auth service specific, not instance-wide
+      - teleport.pid_file # it is included in the example as a comment
+      - teleport.shutdown_delay # it is included in the example as a comment
+      - teleport.storage # auth service specific, not instance-wide
+  - name: Auth Service
+    example_path: docs/pages/includes/config-reference/auth-service.yaml
+    key_type_pairs:
+      - section_key: teleport
+        type_name: Global
+      - section_key: auth_service
+        type_name: Auth
+    dismissed_keys:
+      - auth_service.access_monitoring.database
+      - auth_service.access_monitoring.data_limit
+      - auth_service.access_monitoring.query_results
+      - auth_service.access_monitoring.role_tags
+      - auth_service.access_monitoring.table
+      - auth_service.audit_queue
+      - auth_service.authentication.allow_cli_auth_via_browser
+      - auth_service.authentication.connector_name
+      - auth_service.authentication.hardware_key
+      - auth_service.authentication.headless
+      - auth_service.authentication.local_auth
+      - auth_service.authentication.passwordless
+      - auth_service.authentication.second_factor
+      - auth_service.authentication.piv_slot # deprecated
+      - auth_service.authentication.stable_unix_user_config.first_uid # it is included in the example as a comment
+      - auth_service.authentication.stable_unix_user_config.last_uid # it is included in the example as a comment
+      - auth_service.authentication.u2f.device_attestation_cas # deprecated
+      - auth_service.authentication.u2f.facets # deprecated
+      - auth_service.ca_key_params.pkcs11.pin_path # it is included in the example as a comment
+      - auth_service.ca_key_params.health_check
+      - auth_service.ca_key_params.aws_kms.multi_region
+      - auth_service.ca_key_params.aws_kms.tags
+      - auth_service.hosted_plugins
+      - auth_service.kubeconfig_file
+      - auth_service.proxy_checks_host_keys
+      - auth_service.proxy_ping_interval
+      - auth_service.reverse_tunnels # for internal use only
+      - auth_service.scoped_tokens
+      - auth_service.session_control_timeout
+      - auth_service.session_recording
+      - auth_service.session_recording.data_limit
+      - auth_service.tunnel_strategy.agent_connection_count # it is included in the example TODO: detect protobuf field presence
+      - auth_service.tunnel_strategy.strategy # Not allowed to be set
+      - auth_service.tunnel_strategy.type # it is included in the example TODO: detect protobuf field presence
+      - teleport.advertise_ip # instance-wide, not auth service specific
+      - teleport.audit_queue
+      - teleport.auth_connection_config # instance-wide, not auth service specific
+      - teleport.auth_server # instance-wide, not auth service specific
+      - teleport.auth_servers # instance-wide, not auth service specific
+      - teleport.auth_token # instance-wide, not auth service specific
+      - teleport.ca_pin # instance-wide, not auth service specific
+      - teleport.ca_signature_algo # instance-wide, not auth service specific
+      - teleport.cache # instance-wide, not auth service specific
+      - teleport.connection_limits # instance-wide, not auth service specific
+      - teleport.data_dir # instance-wide, not auth service specific
+      - teleport.diag_addr # instance-wide, not auth service specific
+      - teleport.join_params # instance-wide, not auth service specific
+      - teleport.log # instance-wide, not auth service specific
+      - teleport.nodename # instance-wide, not auth service specific
+      - teleport.pid_file # instance-wide, not auth service specific
+      - teleport.proxy_server # instance-wide, not auth service specific
+      - teleport.relay_server # instance-wide, not auth service specific
+      - teleport.shutdown_delay # instance-wide, not auth service specific
+  - name: SSH Service
+    example_path: docs/pages/includes/config-reference/ssh-service.yaml
+    key_type_pairs:
+      - section_key: ssh_service
+        type_name: SSH
+    dismissed_keys:
+    # missing from the example at ssh_service:
+      - ssh_service.namespace
+      - ssh_service.restricted_session
+    # missing from the example at ssh_service.pam:
+      - ssh_service.pam.environment
+  - name: Proxy Service
+    example_path: docs/pages/includes/config-reference/proxy-service.yaml
+    key_type_pairs:
+      - section_key: proxy_service
+        type_name: Proxy
+    dismissed_keys:
+      - proxy_service.acme # it is included in the example as a comment
+      - proxy_service
+    # missing from the example at proxy_service:
+      - proxy_service.https_cert_file
+      - proxy_service.https_key_file
+      - proxy_service.kubernetes
+    # missing from the example at proxy_service.idp.saml:
+      - proxy_service.idp.saml.base_url
+  - name: Kubernetes Service
+    example_path: docs/pages/includes/config-reference/kubernetes-config.yaml
+    key_type_pairs:
+      - section_key: kubernetes_service
+        type_name: Kube
+  - name: Application Service
+    example_path: docs/pages/includes/config-reference/app-service.yaml
+    key_type_pairs:
+      - section_key: app_service
+        type_name: Apps
+    dismissed_keys:
+      - app_service.apps.required_apps # it is included in the example as a comment
+      - app_service.apps.rewrite # it is included in the example as a comment
+      - app_service.apps.cors # it is included in the example as a comment
+    # missing from the example at app_service:
+      - app_service.listen_addr
+    # missing from the example at app_service.apps:
+      - app_service.apps.aws
+      - app_service.apps.inference
+      - app_service.apps.insecure_skip_verify
+      - app_service.apps.tcp_ports
+      - app_service.apps.tls
+      - app_service.apps.use_any_proxy_public_addr
+    # missing from the example at app_service.resources:
+      - app_service.resources.aws
+  - name: Database Service
+    example_path: docs/pages/includes/config-reference/database-config.yaml
+    key_type_pairs:
+      - section_key: db_service
+        type_name: Databases
+    dismissed_keys:
+      - db_service.databases.ca_cert_file # deprecated
+    # missing from the example at db_service:
+      - db_service.listen_addr
+    # missing from the example at db_service.aws:
+      - db_service.aws.assume_role_name
+      - db_service.aws.install
+      - db_service.aws.integration
+      - db_service.aws.kube_app_discovery
+      - db_service.aws.organization
+      - db_service.aws.setup_access_for_arn
+      - db_service.aws.ssm
+    # missing from the example at db_service.azure:
+      - db_service.azure.install
+      - db_service.azure.integration
+    # missing from the example at db_service.databases.ad:
+      - db_service.databases.ad.kdc_host_name
+      - db_service.databases.ad.ldap_cert
+    # missing from the example at db_service.databases.aws:
+      - db_service.databases.aws.account_id
+      - db_service.databases.aws.elasticache_serverless
+      - db_service.databases.aws.redshift_serverless
+    # missing from the example at db_service.databases.oracle:
+      - db_service.databases.oracle.audit_user
+  - name: Discovery Service
+    example_path: docs/pages/includes/config-reference/discovery-config.yaml
+    key_type_pairs:
+      - section_key: discovery_service
+        type_name: Discovery
+    dismissed_keys:
+      - discovery_service.gcp.tags # deprecated
+    # missing from the example at discovery_service:
+      - discovery_service.access_graph
+      - discovery_service.listen_addr
+    # missing from the example at discovery_service.aws:
+      - discovery_service.aws.integration
+      - discovery_service.aws.kube_app_discovery
+    # missing from the example at discovery_service.aws.install:
+      - discovery_service.aws.install.azure
+      - discovery_service.aws.install.public_proxy_addr
+      - discovery_service.aws.install.sshd_config
+    # missing from the example at discovery_service.aws.install.join_params:
+      - discovery_service.aws.install.join_params.azure
+      - discovery_service.aws.install.join_params.bound_keypair
+      - discovery_service.aws.install.join_params.generic_oidc
+      - discovery_service.aws.install.join_params.method
+    # missing from the example at discovery_service.aws.organization.organizational_units:
+      - discovery_service.aws.organization.organizational_units.exclude
+      - discovery_service.aws.organization.organizational_units.include
+    # extra in the example (not in struct) at discovery_service.aws.organization.organizational_units:
+      - discovery_service.aws.organization.organizational_units.exclude_ous
+      - discovery_service.aws.organization.organizational_units.include_ous
+    # missing from the example at discovery_service.azure:
+      - discovery_service.azure.integration
+    # missing from the example at discovery_service.azure.install:
+      - discovery_service.azure.install.azure
+      - discovery_service.azure.install.enroll_mode
+      - discovery_service.azure.install.install_teleport
+      - discovery_service.azure.install.public_proxy_addr
+      - discovery_service.azure.install.sshd_config
+    # missing from the example at discovery_service.azure.install.join_params:
+      - discovery_service.azure.install.join_params.azure
+      - discovery_service.azure.install.join_params.bound_keypair
+      - discovery_service.azure.install.join_params.generic_oidc
+      - discovery_service.azure.install.join_params.method
+    # missing from the example at discovery_service.gcp.install:
+      - discovery_service.gcp.install.azure
+      - discovery_service.gcp.install.enroll_mode
+      - discovery_service.gcp.install.install_teleport
+      - discovery_service.gcp.install.public_proxy_addr
+      - discovery_service.gcp.install.sshd_config
+    # missing from the example at discovery_service.gcp.install.join_params:
+      - discovery_service.gcp.install.join_params.azure
+      - discovery_service.gcp.install.join_params.bound_keypair
+      - discovery_service.gcp.install.join_params.generic_oidc
+      - discovery_service.gcp.install.join_params.method
+  - name: Windows Desktop Service
+    example_path: docs/pages/includes/config-reference/desktop-config.yaml
+    key_type_pairs:
+      - section_key: windows_desktop_service
+        type_name: WindowsDesktopService
+    dismissed_keys:
+      - windows_desktop_service.discovery # deprecated
+      - windows_desktop_service.hosts # deprecated
+      - windows_desktop_service.non_ad_hosts # deprecated
+      - windows_desktop_service.resources.aws
+  - name: Jamf Service
+    example_path: docs/pages/includes/config-reference/jamf-service.yaml
+    key_type_pairs:
+      - section_key: jamf_service
+        type_name: JamfService
+    dismissed_keys:
+      - jamf_service.listen_addr
+  - name: Relay Service
+    example_path: docs/pages/includes/config-reference/relay-service.yaml
+    key_type_pairs:
+      - section_key: relay_service
+        type_name: Relay
+    dismissed_keys:
+      - relay_service.peer_public_addr # it is included in the example as a comment
+      - relay_service.transport_proxy_protocol # it is included in the example as a comment
+      - relay_service.tunnel_proxy_protocol # it is included in the example as a comment
+  - name: Debug Service
+    example_path: docs/pages/includes/config-reference/debug-service.yaml
+    key_type_pairs:
+      - section_key: debug_service
+        type_name: DebugService
+    dismissed_keys:
+      - debug_service.listen_addr
