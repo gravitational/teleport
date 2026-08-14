@@ -68,8 +68,21 @@ func NewServer(s hardwarekey.Service, creds credentials.TransportCredentials, kn
 		grpc.Creds(creds),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
-	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s, knownKeyFn: knownKeyFn})
+	if err := RegisterServer(grpcServer, s, knownKeyFn); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return grpcServer, nil
+}
+
+// RegisterServer registers a hardware key agent service with the given gRPC
+// service registrar.
+func RegisterServer(registrar grpc.ServiceRegistrar, s hardwarekey.Service, knownKeyFn KnownHardwareKeyFn) error {
+	if knownKeyFn == nil {
+		return trace.BadParameter("knownKeyFn must be provided")
+	}
+
+	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(registrar, &agentService{s: s, knownKeyFn: knownKeyFn})
+	return nil
 }
 
 // KnownHardwareKeyFn is a function to determine if the hardware private key, described by the given
