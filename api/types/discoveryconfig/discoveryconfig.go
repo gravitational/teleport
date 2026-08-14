@@ -253,12 +253,80 @@ func (a *DiscoveryConfig) MatchSearch(values []string) bool {
 }
 
 // IsMatchersEmpty returns true if all matchers are empty.
+//
+// Deprecated: check the Spec matcher fields directly, or use
+// ReferencesOnlyIntegration to check if the config belongs to one integration.
 func (a *DiscoveryConfig) IsMatchersEmpty() bool {
 	return len(a.Spec.AWS) == 0 &&
 		len(a.Spec.Azure) == 0 &&
 		len(a.Spec.GCP) == 0 &&
 		len(a.Spec.Kube) == 0 &&
-		(a.Spec.AccessGraph == nil || len(a.Spec.AccessGraph.AWS) == 0)
+		(a.Spec.AccessGraph == nil ||
+			(len(a.Spec.AccessGraph.AWS) == 0 && len(a.Spec.AccessGraph.Azure) == 0))
+}
+
+// ReferencesIntegration returns true if any matcher or Access Graph sync uses
+// the named integration.
+func (a *DiscoveryConfig) ReferencesIntegration(integration string) bool {
+	if integration == "" {
+		return false
+	}
+
+	for _, matcher := range a.Spec.AWS {
+		if matcher.Integration == integration {
+			return true
+		}
+	}
+	for _, matcher := range a.Spec.Azure {
+		if matcher.Integration == integration {
+			return true
+		}
+	}
+
+	if a.Spec.AccessGraph != nil {
+		for _, sync := range a.Spec.AccessGraph.AWS {
+			if sync != nil && sync.Integration == integration {
+				return true
+			}
+		}
+		for _, sync := range a.Spec.AccessGraph.Azure {
+			if sync != nil && sync.Integration == integration {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// ReferencesOnlyIntegration returns true if every matcher and Access Graph sync
+// uses the named integration. GCP and Kubernetes matchers never do.
+func (a *DiscoveryConfig) ReferencesOnlyIntegration(integration string) bool {
+	for _, matcher := range a.Spec.AWS {
+		if matcher.Integration != integration {
+			return false
+		}
+	}
+	for _, matcher := range a.Spec.Azure {
+		if matcher.Integration != integration {
+			return false
+		}
+	}
+
+	if a.Spec.AccessGraph != nil {
+		for _, sync := range a.Spec.AccessGraph.AWS {
+			if sync == nil || sync.Integration != integration {
+				return false
+			}
+		}
+		for _, sync := range a.Spec.AccessGraph.Azure {
+			if sync == nil || sync.Integration != integration {
+				return false
+			}
+		}
+	}
+
+	return len(a.Spec.GCP) == 0 && len(a.Spec.Kube) == 0
 }
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.

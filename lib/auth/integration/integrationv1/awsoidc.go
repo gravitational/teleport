@@ -21,7 +21,6 @@ package integrationv1
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -99,6 +98,14 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	// TODO(alexhemard): follow up work needed to add explicit labels for
 	// resources created by integration rather than rely on implicit rules
 
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAppServer, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Delete discovery_configs created by this integration
 	var configsRequireCleanup []string
 	var configsToDelete []string
@@ -108,21 +115,15 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			return trace.Wrap(err)
 		}
 
-		awsMatchers := config.Spec.AWS
-
-		config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
-			return matcher.Integration == ig.GetName()
-		})
-
-		if len(awsMatchers) == len(config.Spec.AWS) {
+		if !config.ReferencesIntegration(ig.GetName()) {
 			continue
 		}
 
 		// discovery_configs can be assumed to be created by the integration
 		// and deleted if
-		// 1. only has matchers referencing this integration
+		// 1. every matcher and Access Graph sync references this integration
 		// 2. has valid uuid name
-		if config.IsMatchersEmpty() {
+		if config.ReferencesOnlyIntegration(ig.GetName()) {
 			_, err := uuid.Parse(config.GetName())
 
 			if err == nil {
@@ -131,20 +132,14 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			}
 		}
 
-		configsRequireCleanup = append(configsRequireCleanup, config.GetName())
+		configsRequireCleanup = append(configsRequireCleanup, "discovery_config/"+config.GetName())
 	}
 
 	if len(configsRequireCleanup) > 0 {
-		var qualifiedConfigs []string
-		for _, config := range configsRequireCleanup {
-			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
-		}
-
-		return trace.BadParameter("cannot delete integration, "+
-			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
-			"Use `tsh rm %s` to remove them.",
-			strings.Join(configsRequireCleanup, ", "),
-			strings.Join(qualifiedConfigs, " "))
+		return trace.BadParameter("cannot delete integration %q because these discovery configs reference it "+
+			"and cannot be removed automatically: %s\n\n"+
+			"Remove the reference from each one, or delete it with `tctl rm <name>`, then try again.",
+			ig.GetName(), strings.Join(configsRequireCleanup, ", "))
 	}
 
 	for _, configName := range configsToDelete {

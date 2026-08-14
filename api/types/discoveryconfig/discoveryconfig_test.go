@@ -452,7 +452,7 @@ func TestNewDiscoveryConfig(t *testing.T) {
 	}
 }
 
-func TestDiscoveryConfig_IsMatchersEmpty(t *testing.T) {
+func TestIsMatchersEmpty(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		config   *DiscoveryConfig
@@ -527,13 +527,27 @@ func TestDiscoveryConfig_IsMatchersEmpty(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "has AccessGraph but no AWS",
+			name: "has AccessGraph but no syncs",
 			config: &DiscoveryConfig{
 				Spec: Spec{
 					AccessGraph: &types.AccessGraphSync{},
 				},
 			},
 			expected: true,
+		},
+		{
+			name: "has AccessGraph Azure sync",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						Azure: []*types.AccessGraphAzureSync{{
+							Integration:    "integration1",
+							SubscriptionID: "sub-id",
+						}},
+					},
+				},
+			},
+			expected: false,
 		},
 		{
 			name: "has multiple matcher types",
@@ -555,6 +569,258 @@ func TestDiscoveryConfig_IsMatchersEmpty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.config.IsMatchersEmpty()
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestReferencesIntegration(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *DiscoveryConfig
+		expected bool
+	}{
+		{
+			name:     "empty config",
+			config:   &DiscoveryConfig{Spec: Spec{}},
+			expected: false,
+		},
+		{
+			name: "AWS matcher on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{
+						{Integration: "integration2"},
+						{Integration: "integration1"},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Azure matcher on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					Azure: []types.AzureMatcher{{Integration: "integration1"}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "AccessGraph AWS sync on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{{Integration: "integration1"}},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "AccessGraph Azure sync on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						Azure: []*types.AccessGraphAzureSync{{Integration: "integration1"}},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "only another integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS:   []types.AWSMatcher{{Integration: "integration2"}},
+					Azure: []types.AzureMatcher{{Integration: "integration2"}},
+					AccessGraph: &types.AccessGraphSync{
+						AWS:   []*types.AccessGraphAWSSync{{Integration: "integration2"}},
+						Azure: []*types.AccessGraphAzureSync{{Integration: "integration2"}},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "nil AccessGraph sync entries",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						AWS:   []*types.AccessGraphAWSSync{nil},
+						Azure: []*types.AccessGraphAzureSync{nil},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "GCP and Kube matchers cannot reference an integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					GCP:  []types.GCPMatcher{{Types: []string{"gce"}}},
+					Kube: []types.KubernetesMatcher{{Types: []string{"app"}}},
+				},
+			},
+			expected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.config.ReferencesIntegration("integration1"))
+		})
+	}
+
+	t.Run("matchers using ambient credentials reference no integration", func(t *testing.T) {
+		config := &DiscoveryConfig{
+			Spec: Spec{
+				AWS:   []types.AWSMatcher{{Types: []string{"ec2"}}},
+				Azure: []types.AzureMatcher{{Types: []string{"vm"}}},
+				AccessGraph: &types.AccessGraphSync{
+					AWS:   []*types.AccessGraphAWSSync{{Regions: []string{"us-east-1"}}},
+					Azure: []*types.AccessGraphAzureSync{{SubscriptionID: "sub-id"}},
+				},
+			},
+		}
+
+		require.False(t, config.ReferencesIntegration(""))
+	})
+}
+
+func TestReferencesOnlyIntegration(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *DiscoveryConfig
+		expected bool
+	}{
+		{
+			name:     "empty config",
+			config:   &DiscoveryConfig{Spec: Spec{}},
+			expected: true,
+		},
+		{
+			name: "AWS matchers on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{
+						{Integration: "integration1"},
+						{Integration: "integration1"},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "one AWS matcher on another integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{
+						{Integration: "integration1"},
+						{Integration: "integration2"},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "AWS matcher with no integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{Types: []string{"ec2"}}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Azure matcher on another integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS:   []types.AWSMatcher{{Integration: "integration1"}},
+					Azure: []types.AzureMatcher{{Integration: "integration2"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "AccessGraph syncs on the integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{Integration: "integration1"}},
+					AccessGraph: &types.AccessGraphSync{
+						AWS:   []*types.AccessGraphAWSSync{{Integration: "integration1"}},
+						Azure: []*types.AccessGraphAzureSync{{Integration: "integration1"}},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "AccessGraph AWS sync on another integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{Integration: "integration1"}},
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{{Integration: "integration2"}},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "AccessGraph Azure sync on another integration",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{Integration: "integration1"}},
+					AccessGraph: &types.AccessGraphSync{
+						Azure: []*types.AccessGraphAzureSync{{Integration: "integration2"}},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "nil AccessGraph AWS sync entry",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{nil},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "nil AccessGraph Azure sync entry",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						Azure: []*types.AccessGraphAzureSync{nil},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "GCP matcher",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{Integration: "integration1"}},
+					GCP: []types.GCPMatcher{{Types: []string{"gce"}}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Kube matcher",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS:  []types.AWSMatcher{{Integration: "integration1"}},
+					Kube: []types.KubernetesMatcher{{Types: []string{"app"}}},
+				},
+			},
+			expected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.config.ReferencesOnlyIntegration("integration1"))
 		})
 	}
 }
