@@ -23,6 +23,7 @@
     "lint-fix": "pnpm oxlint --fix && pnpm format",
     "type-check": "tsc --build",
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
+    "generate-authenticator-icons": "node web/packages/design/src/AuthenticatorIcon/script/generate.mjs && pnpm oxfmt 'web/packages/design/src/AuthenticatorIcon/authenticatorSpecs.ts' 'web/packages/design/src/AuthenticatorIcon/icons.ts'",
     "format-check": "pnpm format --check",
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
