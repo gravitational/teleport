@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/zitadel/oidc/v3/pkg/client"
 
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -116,5 +118,77 @@ func (h *Handler) oauthProxyAuthorize(w http.ResponseWriter, r *http.Request, p 
 	u.RawQuery = q.Encode()
 
 	http.Redirect(w, r, u.String(), http.StatusFound)
+	return nil, nil
+}
+
+func (h *Handler) oauthProxyCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params, sessionCtx *SessionContext) (any, error) {
+	if r.URL.Query().Get("error") != "" {
+		return nil, trace.Errorf("%s: %s", r.URL.Query().Get("error"), r.URL.Query().Get("error_description"))
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		return nil, trace.Errorf("code not present")
+	}
+
+	state := r.URL.Query().Get("state")
+	if state == "" {
+		return nil, trace.Errorf("state not present")
+	}
+
+	stateValue, cookieID, ok := strings.Cut(state, "_")
+	if !ok {
+		return nil, trace.Errorf("invalid state")
+	}
+
+	cookieData, err := r.Cookie("oauthproxy_state_" + cookieID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cookieValue, err := base64.RawURLEncoding.DecodeString(cookieData.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cookie oauthProxyCookiePayload
+	if err := json.Unmarshal(cookieValue, &cookie); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if subtle.ConstantTimeCompare([]byte(cookie.State), []byte(stateValue)) == 0 {
+		return nil, trace.Errorf("cookie state doesn't match")
+	}
+
+	// Clear out the cookie.
+	http.SetCookie(w, &http.Cookie{
+		Name:     fmt.Sprintf("%s_%s", oauthProxyCookieName, cookieID),
+		Path:     "/v1/webapi/oauthproxy",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	clt, err := sessionCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.IntegrationsClient().CompleteOAuthProxyExchange(r.Context(), &integrationv1.CompleteOAuthProxyExchangeRequest{
+		Name:              p.ByName("integration"),
+		AuthorizationCode: code,
+		CodeVerifier:      cookie.Verifier,
+		RedirectUri:       oauthProxyRedirectURI(h.PublicProxyAddr(), p.ByName("integration")),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := w.Write([]byte(resp.String())); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return nil, nil
 }

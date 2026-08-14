@@ -40,6 +40,175 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CompleteOAuthProxyExchangeRequest
+type CompleteOAuthProxyExchangeRequest struct {
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name              string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_AuthorizationCode string                 `protobuf:"bytes,2,opt,name=authorization_code,json=authorizationCode,proto3"`
+	xxx_hidden_CodeVerifier      string                 `protobuf:"bytes,3,opt,name=code_verifier,json=codeVerifier,proto3"`
+	xxx_hidden_RedirectUri       string                 `protobuf:"bytes,4,opt,name=redirect_uri,json=redirectUri,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) Reset() {
+	*x = CompleteOAuthProxyExchangeRequest{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteOAuthProxyExchangeRequest) ProtoMessage() {}
+
+func (x *CompleteOAuthProxyExchangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) GetAuthorizationCode() string {
+	if x != nil {
+		return x.xxx_hidden_AuthorizationCode
+	}
+	return ""
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) GetCodeVerifier() string {
+	if x != nil {
+		return x.xxx_hidden_CodeVerifier
+	}
+	return ""
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) GetRedirectUri() string {
+	if x != nil {
+		return x.xxx_hidden_RedirectUri
+	}
+	return ""
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) SetAuthorizationCode(v string) {
+	x.xxx_hidden_AuthorizationCode = v
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) SetCodeVerifier(v string) {
+	x.xxx_hidden_CodeVerifier = v
+}
+
+func (x *CompleteOAuthProxyExchangeRequest) SetRedirectUri(v string) {
+	x.xxx_hidden_RedirectUri = v
+}
+
+type CompleteOAuthProxyExchangeRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name              string
+	AuthorizationCode string
+	CodeVerifier      string
+	RedirectUri       string
+}
+
+func (b0 CompleteOAuthProxyExchangeRequest_builder) Build() *CompleteOAuthProxyExchangeRequest {
+	m0 := &CompleteOAuthProxyExchangeRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_AuthorizationCode = b.AuthorizationCode
+	x.xxx_hidden_CodeVerifier = b.CodeVerifier
+	x.xxx_hidden_RedirectUri = b.RedirectUri
+	return m0
+}
+
+// CompleteOAuthProxyExchangeResponse
+type CompleteOAuthProxyExchangeResponse struct {
+	state              protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Expires *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=expires,proto3"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) Reset() {
+	*x = CompleteOAuthProxyExchangeResponse{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteOAuthProxyExchangeResponse) ProtoMessage() {}
+
+func (x *CompleteOAuthProxyExchangeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_Expires
+	}
+	return nil
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) SetExpires(v *timestamppb.Timestamp) {
+	x.xxx_hidden_Expires = v
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Expires != nil
+}
+
+func (x *CompleteOAuthProxyExchangeResponse) ClearExpires() {
+	x.xxx_hidden_Expires = nil
+}
+
+type CompleteOAuthProxyExchangeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Expires *timestamppb.Timestamp
+}
+
+func (b0 CompleteOAuthProxyExchangeResponse_builder) Build() *CompleteOAuthProxyExchangeResponse {
+	m0 := &CompleteOAuthProxyExchangeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Expires = b.Expires
+	return m0
+}
+
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
 type ListIntegrationsRequest struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
@@ -51,7 +220,7 @@ type ListIntegrationsRequest struct {
 
 func (x *ListIntegrationsRequest) Reset() {
 	*x = ListIntegrationsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63,7 +232,7 @@ func (x *ListIntegrationsRequest) String() string {
 func (*ListIntegrationsRequest) ProtoMessage() {}
 
 func (x *ListIntegrationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -126,7 +295,7 @@ type ListIntegrationsResponse struct {
 
 func (x *ListIntegrationsResponse) Reset() {
 	*x = ListIntegrationsResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -138,7 +307,7 @@ func (x *ListIntegrationsResponse) String() string {
 func (*ListIntegrationsResponse) ProtoMessage() {}
 
 func (x *ListIntegrationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -215,7 +384,7 @@ type GetIntegrationRequest struct {
 
 func (x *GetIntegrationRequest) Reset() {
 	*x = GetIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -227,7 +396,7 @@ func (x *GetIntegrationRequest) String() string {
 func (*GetIntegrationRequest) ProtoMessage() {}
 
 func (x *GetIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -274,7 +443,7 @@ type CreateIntegrationRequest struct {
 
 func (x *CreateIntegrationRequest) Reset() {
 	*x = CreateIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -286,7 +455,7 @@ func (x *CreateIntegrationRequest) String() string {
 func (*CreateIntegrationRequest) ProtoMessage() {}
 
 func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -344,7 +513,7 @@ type UpdateIntegrationRequest struct {
 
 func (x *UpdateIntegrationRequest) Reset() {
 	*x = UpdateIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +525,7 @@ func (x *UpdateIntegrationRequest) String() string {
 func (*UpdateIntegrationRequest) ProtoMessage() {}
 
 func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +584,7 @@ type DeleteIntegrationRequest struct {
 
 func (x *DeleteIntegrationRequest) Reset() {
 	*x = DeleteIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -427,7 +596,7 @@ func (x *DeleteIntegrationRequest) String() string {
 func (*DeleteIntegrationRequest) ProtoMessage() {}
 
 func (x *DeleteIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +658,7 @@ type DeleteAllIntegrationsRequest struct {
 
 func (x *DeleteAllIntegrationsRequest) Reset() {
 	*x = DeleteAllIntegrationsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -501,7 +670,7 @@ func (x *DeleteAllIntegrationsRequest) String() string {
 func (*DeleteAllIntegrationsRequest) ProtoMessage() {}
 
 func (x *DeleteAllIntegrationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -536,7 +705,7 @@ type GenerateAWSOIDCTokenRequest struct {
 
 func (x *GenerateAWSOIDCTokenRequest) Reset() {
 	*x = GenerateAWSOIDCTokenRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -548,7 +717,7 @@ func (x *GenerateAWSOIDCTokenRequest) String() string {
 func (*GenerateAWSOIDCTokenRequest) ProtoMessage() {}
 
 func (x *GenerateAWSOIDCTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -617,7 +786,7 @@ type GenerateAWSOIDCTokenResponse struct {
 
 func (x *GenerateAWSOIDCTokenResponse) Reset() {
 	*x = GenerateAWSOIDCTokenResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +798,7 @@ func (x *GenerateAWSOIDCTokenResponse) String() string {
 func (*GenerateAWSOIDCTokenResponse) ProtoMessage() {}
 
 func (x *GenerateAWSOIDCTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -677,7 +846,7 @@ type GenerateAzureOIDCTokenRequest struct {
 
 func (x *GenerateAzureOIDCTokenRequest) Reset() {
 	*x = GenerateAzureOIDCTokenRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -689,7 +858,7 @@ func (x *GenerateAzureOIDCTokenRequest) String() string {
 func (*GenerateAzureOIDCTokenRequest) ProtoMessage() {}
 
 func (x *GenerateAzureOIDCTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -737,7 +906,7 @@ type GenerateAzureOIDCTokenResponse struct {
 
 func (x *GenerateAzureOIDCTokenResponse) Reset() {
 	*x = GenerateAzureOIDCTokenResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -749,7 +918,7 @@ func (x *GenerateAzureOIDCTokenResponse) String() string {
 func (*GenerateAzureOIDCTokenResponse) ProtoMessage() {}
 
 func (x *GenerateAzureOIDCTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -801,7 +970,7 @@ type GenerateGitHubUserCertRequest struct {
 
 func (x *GenerateGitHubUserCertRequest) Reset() {
 	*x = GenerateGitHubUserCertRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -813,7 +982,7 @@ func (x *GenerateGitHubUserCertRequest) String() string {
 func (*GenerateGitHubUserCertRequest) ProtoMessage() {}
 
 func (x *GenerateGitHubUserCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,7 +1099,7 @@ type GenerateGitHubUserCertResponse struct {
 
 func (x *GenerateGitHubUserCertResponse) Reset() {
 	*x = GenerateGitHubUserCertResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -942,7 +1111,7 @@ func (x *GenerateGitHubUserCertResponse) String() string {
 func (*GenerateGitHubUserCertResponse) ProtoMessage() {}
 
 func (x *GenerateGitHubUserCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -993,7 +1162,7 @@ type ExportIntegrationCertAuthoritiesRequest struct {
 
 func (x *ExportIntegrationCertAuthoritiesRequest) Reset() {
 	*x = ExportIntegrationCertAuthoritiesRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1005,7 +1174,7 @@ func (x *ExportIntegrationCertAuthoritiesRequest) String() string {
 func (*ExportIntegrationCertAuthoritiesRequest) ProtoMessage() {}
 
 func (x *ExportIntegrationCertAuthoritiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +1222,7 @@ type ExportIntegrationCertAuthoritiesResponse struct {
 
 func (x *ExportIntegrationCertAuthoritiesResponse) Reset() {
 	*x = ExportIntegrationCertAuthoritiesResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1065,7 +1234,7 @@ func (x *ExportIntegrationCertAuthoritiesResponse) String() string {
 func (*ExportIntegrationCertAuthoritiesResponse) ProtoMessage() {}
 
 func (x *ExportIntegrationCertAuthoritiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1129,7 +1298,7 @@ type GenerateAWSRACredentialsRequest struct {
 
 func (x *GenerateAWSRACredentialsRequest) Reset() {
 	*x = GenerateAWSRACredentialsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1310,7 @@ func (x *GenerateAWSRACredentialsRequest) String() string {
 func (*GenerateAWSRACredentialsRequest) ProtoMessage() {}
 
 func (x *GenerateAWSRACredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1276,7 +1445,7 @@ type GenerateAWSRACredentialsResponse struct {
 
 func (x *GenerateAWSRACredentialsResponse) Reset() {
 	*x = GenerateAWSRACredentialsResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1288,7 +1457,7 @@ func (x *GenerateAWSRACredentialsResponse) String() string {
 func (*GenerateAWSRACredentialsResponse) ProtoMessage() {}
 
 func (x *GenerateAWSRACredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1382,7 +1551,14 @@ var File_teleport_integration_v1_integration_service_proto protoreflect.FileDesc
 
 const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"J\n" +
+	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"\xae\x01\n" +
+	"!CompleteOAuthProxyExchangeRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
+	"\x12authorization_code\x18\x02 \x01(\tR\x11authorizationCode\x12#\n" +
+	"\rcode_verifier\x18\x03 \x01(\tR\fcodeVerifier\x12!\n" +
+	"\fredirect_uri\x18\x04 \x01(\tR\vredirectUri\"Z\n" +
+	"\"CompleteOAuthProxyExchangeResponse\x124\n" +
+	"\aexpires\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"J\n" +
 	"\x17ListIntegrationsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x19\n" +
 	"\bnext_key\x18\x02 \x01(\tR\anextKey\"\x90\x01\n" +
@@ -1437,8 +1613,7 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12:\n" +
 	"\n" +
 	"expiration\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expiration2\xc3\n" +
-	"\n" +
+	"expiration2\xdb\v\n" +
 	"\x12IntegrationService\x12w\n" +
 	"\x10ListIntegrations\x120.teleport.integration.v1.ListIntegrationsRequest\x1a1.teleport.integration.v1.ListIntegrationsResponse\x12V\n" +
 	"\x0eGetIntegration\x12..teleport.integration.v1.GetIntegrationRequest\x1a\x14.types.IntegrationV1\x12\\\n" +
@@ -1450,68 +1625,74 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\x16GenerateAzureOIDCToken\x126.teleport.integration.v1.GenerateAzureOIDCTokenRequest\x1a7.teleport.integration.v1.GenerateAzureOIDCTokenResponse\x12\x89\x01\n" +
 	"\x16GenerateGitHubUserCert\x126.teleport.integration.v1.GenerateGitHubUserCertRequest\x1a7.teleport.integration.v1.GenerateGitHubUserCertResponse\x12\xa7\x01\n" +
 	" ExportIntegrationCertAuthorities\x12@.teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest\x1aA.teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse\x12\x8f\x01\n" +
-	"\x18GenerateAWSRACredentials\x128.teleport.integration.v1.GenerateAWSRACredentialsRequest\x1a9.teleport.integration.v1.GenerateAWSRACredentialsResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
+	"\x18GenerateAWSRACredentials\x128.teleport.integration.v1.GenerateAWSRACredentialsRequest\x1a9.teleport.integration.v1.GenerateAWSRACredentialsResponse\x12\x95\x01\n" +
+	"\x1aCompleteOAuthProxyExchange\x12:.teleport.integration.v1.CompleteOAuthProxyExchangeRequest\x1a;.teleport.integration.v1.CompleteOAuthProxyExchangeResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
 
-var file_teleport_integration_v1_integration_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_integration_v1_integration_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_teleport_integration_v1_integration_service_proto_goTypes = []any{
-	(*ListIntegrationsRequest)(nil),                  // 0: teleport.integration.v1.ListIntegrationsRequest
-	(*ListIntegrationsResponse)(nil),                 // 1: teleport.integration.v1.ListIntegrationsResponse
-	(*GetIntegrationRequest)(nil),                    // 2: teleport.integration.v1.GetIntegrationRequest
-	(*CreateIntegrationRequest)(nil),                 // 3: teleport.integration.v1.CreateIntegrationRequest
-	(*UpdateIntegrationRequest)(nil),                 // 4: teleport.integration.v1.UpdateIntegrationRequest
-	(*DeleteIntegrationRequest)(nil),                 // 5: teleport.integration.v1.DeleteIntegrationRequest
-	(*DeleteAllIntegrationsRequest)(nil),             // 6: teleport.integration.v1.DeleteAllIntegrationsRequest
-	(*GenerateAWSOIDCTokenRequest)(nil),              // 7: teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	(*GenerateAWSOIDCTokenResponse)(nil),             // 8: teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	(*GenerateAzureOIDCTokenRequest)(nil),            // 9: teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	(*GenerateAzureOIDCTokenResponse)(nil),           // 10: teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	(*GenerateGitHubUserCertRequest)(nil),            // 11: teleport.integration.v1.GenerateGitHubUserCertRequest
-	(*GenerateGitHubUserCertResponse)(nil),           // 12: teleport.integration.v1.GenerateGitHubUserCertResponse
-	(*ExportIntegrationCertAuthoritiesRequest)(nil),  // 13: teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	(*ExportIntegrationCertAuthoritiesResponse)(nil), // 14: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	(*GenerateAWSRACredentialsRequest)(nil),          // 15: teleport.integration.v1.GenerateAWSRACredentialsRequest
-	(*GenerateAWSRACredentialsResponse)(nil),         // 16: teleport.integration.v1.GenerateAWSRACredentialsResponse
-	(*types.IntegrationV1)(nil),                      // 17: types.IntegrationV1
-	(*durationpb.Duration)(nil),                      // 18: google.protobuf.Duration
-	(*types.CAKeySet)(nil),                           // 19: types.CAKeySet
-	(*timestamppb.Timestamp)(nil),                    // 20: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                            // 21: google.protobuf.Empty
+	(*CompleteOAuthProxyExchangeRequest)(nil),        // 0: teleport.integration.v1.CompleteOAuthProxyExchangeRequest
+	(*CompleteOAuthProxyExchangeResponse)(nil),       // 1: teleport.integration.v1.CompleteOAuthProxyExchangeResponse
+	(*ListIntegrationsRequest)(nil),                  // 2: teleport.integration.v1.ListIntegrationsRequest
+	(*ListIntegrationsResponse)(nil),                 // 3: teleport.integration.v1.ListIntegrationsResponse
+	(*GetIntegrationRequest)(nil),                    // 4: teleport.integration.v1.GetIntegrationRequest
+	(*CreateIntegrationRequest)(nil),                 // 5: teleport.integration.v1.CreateIntegrationRequest
+	(*UpdateIntegrationRequest)(nil),                 // 6: teleport.integration.v1.UpdateIntegrationRequest
+	(*DeleteIntegrationRequest)(nil),                 // 7: teleport.integration.v1.DeleteIntegrationRequest
+	(*DeleteAllIntegrationsRequest)(nil),             // 8: teleport.integration.v1.DeleteAllIntegrationsRequest
+	(*GenerateAWSOIDCTokenRequest)(nil),              // 9: teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	(*GenerateAWSOIDCTokenResponse)(nil),             // 10: teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	(*GenerateAzureOIDCTokenRequest)(nil),            // 11: teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	(*GenerateAzureOIDCTokenResponse)(nil),           // 12: teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	(*GenerateGitHubUserCertRequest)(nil),            // 13: teleport.integration.v1.GenerateGitHubUserCertRequest
+	(*GenerateGitHubUserCertResponse)(nil),           // 14: teleport.integration.v1.GenerateGitHubUserCertResponse
+	(*ExportIntegrationCertAuthoritiesRequest)(nil),  // 15: teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	(*ExportIntegrationCertAuthoritiesResponse)(nil), // 16: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	(*GenerateAWSRACredentialsRequest)(nil),          // 17: teleport.integration.v1.GenerateAWSRACredentialsRequest
+	(*GenerateAWSRACredentialsResponse)(nil),         // 18: teleport.integration.v1.GenerateAWSRACredentialsResponse
+	(*timestamppb.Timestamp)(nil),                    // 19: google.protobuf.Timestamp
+	(*types.IntegrationV1)(nil),                      // 20: types.IntegrationV1
+	(*durationpb.Duration)(nil),                      // 21: google.protobuf.Duration
+	(*types.CAKeySet)(nil),                           // 22: types.CAKeySet
+	(*emptypb.Empty)(nil),                            // 23: google.protobuf.Empty
 }
 var file_teleport_integration_v1_integration_service_proto_depIdxs = []int32{
-	17, // 0: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
-	17, // 1: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	17, // 2: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	18, // 3: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
-	19, // 4: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
-	18, // 5: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
-	20, // 6: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
-	0,  // 7: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
-	2,  // 8: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
-	3,  // 9: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
-	4,  // 10: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
-	5,  // 11: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
-	6,  // 12: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
-	7,  // 13: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	9,  // 14: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	11, // 15: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
-	13, // 16: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	15, // 17: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
-	1,  // 18: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
-	17, // 19: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
-	17, // 20: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
-	17, // 21: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
-	21, // 22: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
-	21, // 23: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
-	8,  // 24: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	10, // 25: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	12, // 26: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
-	14, // 27: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	16, // 28: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
-	18, // [18:29] is the sub-list for method output_type
-	7,  // [7:18] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	19, // 0: teleport.integration.v1.CompleteOAuthProxyExchangeResponse.expires:type_name -> google.protobuf.Timestamp
+	20, // 1: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
+	20, // 2: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	20, // 3: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	21, // 4: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
+	22, // 5: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
+	21, // 6: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
+	19, // 7: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
+	2,  // 8: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
+	4,  // 9: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
+	5,  // 10: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
+	6,  // 11: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
+	7,  // 12: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
+	8,  // 13: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
+	9,  // 14: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	11, // 15: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	13, // 16: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
+	15, // 17: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	17, // 18: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
+	0,  // 19: teleport.integration.v1.IntegrationService.CompleteOAuthProxyExchange:input_type -> teleport.integration.v1.CompleteOAuthProxyExchangeRequest
+	3,  // 20: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
+	20, // 21: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
+	20, // 22: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
+	20, // 23: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
+	23, // 24: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
+	23, // 25: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
+	10, // 26: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	12, // 27: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	14, // 28: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
+	16, // 29: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	18, // 30: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
+	1,  // 31: teleport.integration.v1.IntegrationService.CompleteOAuthProxyExchange:output_type -> teleport.integration.v1.CompleteOAuthProxyExchangeResponse
+	20, // [20:32] is the sub-list for method output_type
+	8,  // [8:20] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_integration_service_proto_init() }
@@ -1525,7 +1706,7 @@ func file_teleport_integration_v1_integration_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_integration_service_proto_rawDesc), len(file_teleport_integration_v1_integration_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

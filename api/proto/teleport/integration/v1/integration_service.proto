@@ -58,6 +58,22 @@ service IntegrationService {
 
   // GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
   rpc GenerateAWSRACredentials(GenerateAWSRACredentialsRequest) returns (GenerateAWSRACredentialsResponse);
+
+  // CompleteOAuthProxyExchange
+  rpc CompleteOAuthProxyExchange(CompleteOAuthProxyExchangeRequest) returns (CompleteOAuthProxyExchangeResponse);
+}
+
+// CompleteOAuthProxyExchangeRequest
+message CompleteOAuthProxyExchangeRequest {
+  string name = 1;
+  string authorization_code = 2;
+  string code_verifier = 3;
+  string redirect_uri = 4;
+}
+
+// CompleteOAuthProxyExchangeResponse
+message CompleteOAuthProxyExchangeResponse {
+  google.protobuf.Timestamp expires = 1;
 }
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.

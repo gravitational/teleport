@@ -1342,6 +1342,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 
 	h.GET("/webapi/oauthproxy/:integration/authorize", h.WithSession(h.oauthProxyAuthorize))
+	h.GET("/webapi/oauthproxy/:integration/callback", h.WithSession(h.oauthProxyCallback))
 }
 
 // GetProxyClient returns authenticated auth server client
