@@ -1142,9 +1142,9 @@ type RequestValidator struct {
 	// requireReasonForAllRoles indicates that non-empty reason is required for all access
 	// requests. This happens if any of the user roles has options.request_access "reason".
 	requireReasonForAllRoles bool
-	// reasonRequiredMatchers holds groups of role matchers that require a non-empty reason to
-	// be specified when a matching role is requested. The same applies to all requested
-	// resources allowed by those roles. Each group is compiled from spec.allow.request.roles
+	// reasonRequiredMatchers holds role matchers that require a non-empty reason to be
+	// specified when a matching role is requested. The same applies to all requested
+	// resources allowed by those roles. The matchers are compiled from spec.allow.request.roles
 	// (including claims_to_roles) and spec.allow.request.search_as_roles of a role assigned to
 	// the user that has spec.allow.request.reason.mode="required" set. Using matchers rather
 	// than literal role names ensures wildcard, regexp and claims_to_roles entries are honored.
@@ -1153,7 +1153,7 @@ type RequestValidator struct {
 	// necessarily require reason when they are requested themselves. Instead they mark roles
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
-	reasonRequiredMatchers [][]parse.Matcher
+	reasonRequiredMatchers []parse.Matcher
 	// customPromptRoles is a set of role names, which specifies a custom prompt when requested.
 	// Such roles are all requestable roles and search_as_roles allowed by a user's role
 	// which has spec.allow.request.reason.prompt set.
@@ -1553,10 +1553,8 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 	}
 
 	for _, r := range allApplicableRoles {
-		for _, matchers := range v.reasonRequiredMatchers {
-			if matchesAnyRole(matchers, r) {
-				return true, fmt.Sprintf("request reason must be specified (required for role %q)", r), nil
-			}
+		if matchesAnyRole(v.reasonRequiredMatchers, r) {
+			return true, fmt.Sprintf("request reason must be specified (required for role %q)", r), nil
 		}
 	}
 
@@ -1913,7 +1911,7 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 
 	if allow.Reason != nil {
 		if allow.Reason.Mode.Required() {
-			m.reasonRequiredMatchers = append(m.reasonRequiredMatchers, allNewAllowMatchers)
+			m.reasonRequiredMatchers = append(m.reasonRequiredMatchers, allNewAllowMatchers...)
 		}
 
 		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
