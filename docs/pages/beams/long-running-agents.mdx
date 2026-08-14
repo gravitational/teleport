@@ -44,8 +44,10 @@ This guide illustrates the following `beamctl` commands in action:
 <details>
 <summary>Deleting a service</summary>
 
-To remove a service from the list of services `beam-init` tracks, run the
-following command:
+If you terminate a `beam-init` service with `beamctl stop`, the default behavior
+is for `beam-init` to retain the service in its list of managed services. To
+remove a service from the list of services `beam-init` tracks, run the following
+command:
 
 ```code
 $ beamctl stop --prune <service name>
@@ -78,22 +80,16 @@ Agent 2 writes tests that handle edge cases Agent 1 hasn't addressed yet. This
 forces the agents to adopt a test-driven development (TDD) workflow and prevents
 the agent writing the application code from adding trivial tests.
 
-## Step 1/3. Create a demo user
+<Admonition type="warning">
 
-Agentic workloads that run on a beam receive the Teleport identity of the user
-who created the beam. Start by creating a user for the workloads we are running
-for the demo in order to isolate them from the rest of your cluster:
+The demo we run in this guide skips permissions in agent prompts. Since an agent
+on a Teleport beam inherits the permissions of the user who started the beam, we
+recommend that you authenticate to Teleport as a user with no access to
+Teleport-protected resources before starting this guide.
 
-1. Create a user called `beam-demo` with the `beam-user` role:
+</Admonition>
 
-   ```code
-   $ tctl users add --roles=beam-user beam-demo
-   ```
-
-1. Follow the instructions in your terminal to activate your user and
-   authenticate.
-
-## Step 2/3. Set up the demo project
+## Step 1/2. Set up the demo project
 
 The demo project we'll create in this guide lets users enter Morse code using a
 browser button and converts it to text.
@@ -129,10 +125,11 @@ carry out their work:
 
 1. Name the package `morsecode` and accept all the `npm` defaults.
 
-1. Install Vite, which we'll use to set up the NodeJS project:
+1. Install Vite, which we'll use to set up the NodeJS project, and `vitest` for
+   testing:
 
    ```code
-   $ npm install -D vite@~8.2.0
+   $ npm install -D vitest vite@~8.2.0
    ```
 
 1. Add empty directories:
@@ -179,6 +176,7 @@ carry out their work:
    $ beamctl start --name=tester -- bash -c ' \
      export HOME=/home/beams; \
      export count=0; \
+     cd /home/beams/morsecode; \
      while [ $count -lt 30 ]; do \
        claude -p --dangerously-skip-permissions < /dev/null "\
          Read SPEC.md and the existing test files under tests. Identify one \
@@ -195,18 +193,15 @@ carry out their work:
     Started service tester
    ```
 
-   Since the beam is a sandbox environment, the agent running on the beam cannot
-   cause unintended impacts to your infrastructure, even if you include
-   `--dangerously-skip-permissions` when running it.
-
 1. Start the coding agent:
 
    ```code
    $ beamctl start --name=coder -- bash -c ' \
      export HOME=/home/beams; \
      export count=0; \
+     cd /home/beams/morsecode; \
      while [ $count -lt 30 ]; do \
-       if ! npm test --silent; then \
+       if ! npx vitest run --silent; then \
          claude -p --dangerously-skip-permissions < /dev/null "\
            Read SPEC.md and existing test files under tests. Get the tests to \
            pass by editing files in src. Maintain a minimal Vite entrypoint at \
@@ -259,7 +254,7 @@ carry out their work:
 
 Do something else for five minutes.
 
-## Step 3/3. Check your app
+## Step 2/2. Check your app
 
 At this point, your agents should have made substantial progress on your demo
 project.
