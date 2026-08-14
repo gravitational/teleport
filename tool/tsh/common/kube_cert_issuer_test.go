@@ -863,6 +863,7 @@ func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
 				}
 
 				issuer := newTestKubeCertIssuer(cc)
+				start := time.Now()
 				certs, err := issuer.issueCerts(t.Context(), clusters)
 				require.NoError(t, err)
 				require.Equal(t, int32(1), unroutedAttempts.Load())
@@ -872,6 +873,9 @@ func TestKubeCertIssuer_UnroutedRejectedFallback(t *testing.T) {
 				require.Len(t, certs, numClusters)
 				require.NotContains(t, certs, alpnproxy.KubeClusterKey{TeleportCluster: "root", KubeCluster: ""})
 				require.Equal(t, numClusters, cc.saves)
+				// One rejected unrouted attempt, then the per-cluster issuances.
+				// Those write to the key store, so they must not run concurrently.
+				require.Equal(t, (1+numClusters)*time.Second, time.Since(start))
 
 				// A later burst must not retry the shape this server already refused.
 				certs, err = issuer.issueCerts(t.Context(), clusters)
