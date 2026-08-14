@@ -22,15 +22,31 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// denyKindRequestNotAllowed is the deny kind reported to the client when a v9
-// role denies an HTTP app request by default.
+// denyKindRequestNotAllowed is the deny kind for a request that no v9 rule
+// allows. It is also the 403 response body for that denial.
 const denyKindRequestNotAllowed = "teleport_request_not_allowed"
+
+// denyKindRoleVersionUnsupported is the deny kind for a request denied
+// because the caller's roles use rule fields or role versions that this
+// Teleport version does not implement. It appears in the audit event only.
+const denyKindRoleVersionUnsupported = "teleport_role_version_unsupported"
+
+// denyBodyInternalAccessError is the 500 response body for a denial the
+// caller cannot act on, where an admin must raise a limit or upgrade the
+// agent. The audit event contains the reason, the client does not read it.
+const denyBodyInternalAccessError = "teleport_internal_access_error"
 
 // minimalV9Decision is the outcome of the minimal v9 default-deny check
 // for one HTTP app request. Only allow_all is honored.
@@ -126,9 +142,13 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 }
 
 // enforceMinimalV9 applies v9 default-deny to a plain HTTP app request. It
-// returns true when the request is denied, after writing a 403 response
-// naming the deny kind. Cloud apps (AWS console, Azure, GCP) and LLM apps
-// never reach this path. Earlier cases in serveHTTP handle them.
+// returns true when the request is denied, after writing the response. A
+// request that no rule allows gets a 403 with the deny kind in the body. A
+// request denied by version skew gets a 500, because only an admin can act on
+// it. Every denial emits one audit event with the reason, and a version-skew
+// denial also logs one warning per user and app. Cloud apps (AWS console,
+// Azure, GCP) and LLM apps never reach this path. Earlier cases in serveHTTP
+// handle them.
 //
 // TODO(@juliaogris): Replace with per-request rule matching from the
 // upcoming lib/appresource engine package.
@@ -175,7 +195,16 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 		)
 	}
 
-	http.Error(w, denyKindRequestNotAllowed, http.StatusForbidden)
+	denyKind := denyKindRequestNotAllowed
+	body := denyKindRequestNotAllowed
+	status := http.StatusForbidden
+	if decision.versionSkew {
+		denyKind = denyKindRoleVersionUnsupported
+		body = denyBodyInternalAccessError
+		status = http.StatusInternalServerError
+	}
+	c.emitRequestDenied(r, &identity, app, denyKind)
+	http.Error(w, body, status)
 	return true, nil
 }
 
@@ -184,6 +213,42 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 func isGovernedByAppResources(app types.Application) bool {
 	return !app.IsAWSConsole() && !app.IsAzureCloud() && !app.IsGCP() && !app.IsLLM() &&
 		app.GetSubKind() != types.KindIdentityCenterAccount
+}
+
+// emitRequestDenied emits one audit event for a request that the minimal v9
+// check denied, with denyKind in the event. The denial happens before any
+// chunk exists, so the event goes through the handler's emitter instead of a
+// session recorder. The event is not rate limited, matching every other
+// Teleport audit event.
+func (c *ConnectionsHandler) emitRequestDenied(r *http.Request, identity *tlsca.Identity, app types.Application, denyKind string) {
+	event := &apievents.AppSessionRequestDenied{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionRequestDeniedEvent,
+			Code:        events.AppSessionRequestDeniedCode,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		UserMetadata: identity.GetUserMetadata(),
+		// The denial precedes any app session, so leaving SessionID unset
+		// gives each denial a unique audit key instead of colliding on the
+		// cert's shared session ID.
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA:          identity.MFAVerified,
+			PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        c.cfg.HostID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		AppMetadata: *common.MakeAppMetadata(app),
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		DenyKind:    denyKind,
+	}
+	err := c.cfg.Emitter.EmitAuditEvent(r.Context(), event)
+	if err != nil {
+		c.log.WarnContext(r.Context(), "Failed to emit audit event for a denied app request.", "error", err)
+	}
 }
 
 // isCORSPreflight reports whether r is a CORS preflight request, an

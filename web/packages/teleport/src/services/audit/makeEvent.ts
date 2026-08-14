@@ -705,6 +705,14 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.APP_SESSION_REQUEST_DENIED]: {
+    type: 'app.session.request.denied',
+    desc: 'App Request Denied',
+    format: ({ user, app_name, method, path, deny_kind, server_version }) =>
+      deny_kind === 'teleport_role_version_unsupported'
+        ? `User [${user}] request [${method} ${path}] to application [${app_name}] was rejected by an incompatible app service running [${server_version || 'unknown version'}]`
+        : `User [${user}] request [${method} ${path}] to application [${app_name}] was denied because no rule allows it`,
+  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',

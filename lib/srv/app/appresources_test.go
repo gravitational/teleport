@@ -30,7 +30,10 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -239,6 +242,7 @@ func TestEnforceMinimalV9(t *testing.T) {
 		AppLabels:    devLabels,
 		AppResources: []types.AppResource{{AllowAll: true}},
 	})
+	defaultDeny := newTestRole(t, "default-deny", types.V9, types.RoleConditions{AppLabels: devLabels})
 
 	authContext := func(roles ...types.Role) *authz.Context {
 		names := make([]string, len(roles))
@@ -248,45 +252,69 @@ func TestEnforceMinimalV9(t *testing.T) {
 		info := &services.AccessInfo{Username: "alice", Roles: names}
 		checker := services.NewAccessCheckerWithRoleSet(info, "cluster", services.NewRoleSet(roles...))
 		return &authz.Context{
-			Identity: authz.WrapIdentity(tlsca.Identity{Username: "alice"}),
-			Checker:  checker,
+			Identity: authz.WrapIdentity(tlsca.Identity{
+				Username:   "alice",
+				RouteToApp: tlsca.RouteToApp{SessionID: "app-session-id"},
+			}),
+			Checker: checker,
 		}
 	}
 
-	newHandler := func(logs *strings.Builder) *ConnectionsHandler {
+	newHandler := func(log *slog.Logger) (*ConnectionsHandler, *eventstest.MockRecorderEmitter) {
 		v9Warned, err := lru.New[v9WarnKey, struct{}](v9WarnedSize)
 		require.NoError(t, err)
-		return &ConnectionsHandler{log: slog.New(slog.NewTextHandler(logs, nil)), v9Warned: v9Warned}
+		emitter := &eventstest.MockRecorderEmitter{}
+		handler := &ConnectionsHandler{
+			cfg:      &ConnectionsHandlerConfig{Emitter: emitter, HostID: "host-id"},
+			log:      log,
+			v9Warned: v9Warned,
+		}
+		return handler, emitter
 	}
 
 	t.Run("denies a plain request", func(t *testing.T) {
+		handler, _ := newHandler(slog.New(slog.DiscardHandler))
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "http://dev-app/", nil)
-		denied, err := newHandler(&strings.Builder{}).enforceMinimalV9(rec, req, authContext(denyAll), app)
+		denied, err := handler.enforceMinimalV9(rec, req, authContext(defaultDeny), app)
 		require.NoError(t, err)
 		require.True(t, denied)
 		require.Equal(t, http.StatusForbidden, rec.Code)
 		require.Contains(t, rec.Body.String(), denyKindRequestNotAllowed)
 	})
 
-	t.Run("allows allow_all", func(t *testing.T) {
+	t.Run("denies version skew with a 500", func(t *testing.T) {
+		handler, _ := newHandler(slog.New(slog.DiscardHandler))
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "http://dev-app/", nil)
-		denied, err := newHandler(&strings.Builder{}).enforceMinimalV9(rec, req, authContext(allowAll), app)
+		denied, err := handler.enforceMinimalV9(rec, req, authContext(denyAll), app)
+		require.NoError(t, err)
+		require.True(t, denied)
+		require.Equal(t, http.StatusInternalServerError, rec.Code)
+		require.Contains(t, rec.Body.String(), denyBodyInternalAccessError)
+		require.NotContains(t, rec.Body.String(), denyKindRoleVersionUnsupported, "the client must not read the skew reason")
+	})
+
+	t.Run("allows allow_all", func(t *testing.T) {
+		handler, emitter := newHandler(slog.New(slog.DiscardHandler))
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "http://dev-app/", nil)
+		denied, err := handler.enforceMinimalV9(rec, req, authContext(allowAll), app)
 		require.NoError(t, err)
 		require.False(t, denied)
 		require.Zero(t, rec.Body.Len(), "the handler must not write on the allow path")
+		require.Empty(t, emitter.Events(), "the allow path must not emit audit events")
 	})
 
 	t.Run("denies and warns once on CORS preflights", func(t *testing.T) {
 		logs := &strings.Builder{}
-		handler := newHandler(logs)
+		handler, _ := newHandler(slog.New(slog.NewTextHandler(logs, nil)))
 		for range 2 {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodOptions, "http://dev-app/", nil)
 			req.Header.Set("Origin", "http://origin")
 			req.Header.Set("Access-Control-Request-Method", http.MethodPost)
-			denied, err := handler.enforceMinimalV9(rec, req, authContext(denyAll), app)
+			denied, err := handler.enforceMinimalV9(rec, req, authContext(defaultDeny), app)
 			require.NoError(t, err)
 			require.True(t, denied)
 			require.Equal(t, http.StatusForbidden, rec.Code)
@@ -297,7 +325,7 @@ func TestEnforceMinimalV9(t *testing.T) {
 	t.Run("warns once about dropped v8 roles", func(t *testing.T) {
 		v8Grants := newTestRole(t, "v8-grants", types.V8, types.RoleConditions{AppLabels: devLabels})
 		logs := &strings.Builder{}
-		handler := newHandler(logs)
+		handler, _ := newHandler(slog.New(slog.NewTextHandler(logs, nil)))
 		ctx := authContext(allowAll, v8Grants)
 		for range 2 {
 			rec := httptest.NewRecorder()
@@ -307,5 +335,43 @@ func TestEnforceMinimalV9(t *testing.T) {
 			require.False(t, denied)
 		}
 		require.Equal(t, 1, strings.Count(logs.String(), "Dropped v8-or-older roles"))
+	})
+
+	t.Run("emits an audit event per denied request", func(t *testing.T) {
+		handler, emitter := newHandler(slog.New(slog.DiscardHandler))
+		for range 2 {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "http://dev-app/api/things?q=1", nil)
+			denied, err := handler.enforceMinimalV9(rec, req, authContext(denyAll), app)
+			require.NoError(t, err)
+			require.True(t, denied)
+		}
+		emitted := emitter.Events()
+		require.Len(t, emitted, 2)
+		event, ok := emitted[0].(*apievents.AppSessionRequestDenied)
+		require.True(t, ok, "expected AppSessionRequestDenied, got %T", emitted[0])
+		require.Equal(t, events.AppSessionRequestDeniedEvent, event.GetType())
+		require.Equal(t, events.AppSessionRequestDeniedCode, event.GetCode())
+		require.Equal(t, "alice", event.User)
+		require.Equal(t, "dev-app", event.AppName)
+		require.Equal(t, "host-id", event.ServerID)
+		require.Equal(t, http.MethodGet, event.Method)
+		require.Equal(t, "/api/things", event.Path)
+		require.Equal(t, denyKindRoleVersionUnsupported, event.DenyKind)
+		require.Empty(t, event.SessionID, "SessionID must stay unset so denials get unique audit keys")
+	})
+
+	t.Run("names the deny kind for an intended default-deny", func(t *testing.T) {
+		handler, emitter := newHandler(slog.New(slog.DiscardHandler))
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "http://dev-app/", nil)
+		denied, err := handler.enforceMinimalV9(rec, req, authContext(defaultDeny), app)
+		require.NoError(t, err)
+		require.True(t, denied)
+		emitted := emitter.Events()
+		require.Len(t, emitted, 1)
+		event, ok := emitted[0].(*apievents.AppSessionRequestDenied)
+		require.True(t, ok, "expected AppSessionRequestDenied, got %T", emitted[0])
+		require.Equal(t, denyKindRequestNotAllowed, event.DenyKind)
 	})
 }
