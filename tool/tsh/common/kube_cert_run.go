@@ -96,6 +96,18 @@ func (r *kubeCertRun) IssueShared(ctx context.Context, clusters kubeconfig.Local
 	return nil
 }
 
+// DropShared removes the shared certs issued so far,
+// so a fallback to per-cluster certs cannot leave one behind for the proxy to serve.
+func (r *kubeCertRun) DropShared() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key := range r.certs {
+		if key.KubeCluster == "" {
+			delete(r.certs, key)
+		}
+	}
+}
+
 func (r *kubeCertRun) add(teleportCluster, kubeCluster string, cert tls.Certificate) {
 	r.mu.Lock()
 	r.certs.Add(teleportCluster, kubeCluster, cert)

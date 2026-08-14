@@ -319,6 +319,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 		// The auth server rejected the shared unrouted cert, so issue per cluster instead.
 		logger.DebugContext(ctx, "Auth server rejected the shared unrouted cert, issuing per cluster", "error", err)
 		issuer.sharedCertUnsupported.Store(true)
+		run.DropShared()
 		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
 	return run.certs, nil
