@@ -1944,6 +1944,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		cluster         string
 		withoutDevice   bool
 		logSuccess      []string
+		// lockMFADevice locks the user's enrolled MFA device before `tsh login` and the SSH command.
+		lockMFADevice bool
+		// lockAuth is the auth server where the lock is created. Defaults to tt.auth if nil.
+		lockAuth *auth.Server
 	}
 
 	parallelCases := []sshCase{
@@ -2190,6 +2194,53 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion: require.NoError,
 			headless:     true,
 		},
+		{
+			name:          "mfa device lock rejects new connection (root cluster)",
+			target:        sshHostID,
+			proxyAddr:     rootProxyAddr.String(),
+			auth:          rootAuth.GetAuthServer(),
+			roles:         []string{perSessionMFARole.GetName()},
+			webauthnLogin: successfulChallenge("localhost"),
+			lockMFADevice: true,
+			errAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.Regexp(t, `ssh: rejected: administratively prohibited \(lock targeting MFADevice:"[^"]+" is in force\)`, err)
+			},
+			stdoutAssertion: require.Empty,
+			stderrAssertion: require.Empty,
+			mfaPromptCount:  1,
+		},
+		{
+			name:          "mfa device lock rejects new connection (leaf cluster)",
+			target:        sshLeafHostID,
+			proxyAddr:     leafProxyAddr,
+			auth:          leafAuth.GetAuthServer(),
+			roles:         []string{perSessionMFARole.GetName()},
+			webauthnLogin: successfulChallenge("leafcluster"),
+			lockMFADevice: true,
+			errAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.Regexp(t, `ssh: rejected: administratively prohibited \(lock targeting MFADevice:"[^"]+" is in force\)`, err)
+			},
+			stdoutAssertion: require.Empty,
+			stderrAssertion: require.Empty,
+			mfaPromptCount:  1,
+		},
+		{
+			name:          "mfa device lock rejects new connection (root user and leaf cluster)",
+			target:        sshLeafHostID,
+			proxyAddr:     rootProxyAddr.String(),
+			cluster:       "leafcluster",
+			auth:          rootAuth.GetAuthServer(),
+			lockAuth:      leafAuth.GetAuthServer(),
+			roles:         []string{perSessionMFARole.GetName()},
+			webauthnLogin: successfulChallenge("localhost"),
+			lockMFADevice: true,
+			errAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.Regexp(t, `ssh: rejected: administratively prohibited \(lock targeting MFADevice:"[^"]+" is in force\)`, err)
+			},
+			stdoutAssertion: require.Empty,
+			stderrAssertion: require.Empty,
+			mfaPromptCount:  1,
+		},
 	}
 
 	sequentialCases := []sshCase{
@@ -2301,6 +2352,50 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				roles = []string{"access", sshLoginRole.GetName()}
 			}
 			user, device := newUserDevice(t, tt.auth, roles, !tt.withoutDevice)
+
+			// Lock the user's MFA device if the test case calls for it.
+			if tt.lockMFADevice {
+				devices, err := tt.auth.Services.GetMFADevices(ctx, user.GetName(), false)
+				require.NoError(t, err)
+				require.NotEmpty(t, devices)
+				lockDeviceID := devices[0].Id
+
+				lockAuth := tt.lockAuth
+				if lockAuth == nil {
+					lockAuth = tt.auth
+				}
+
+				lock, err := types.NewLock(
+					"test-lock-"+uuid.NewString(),
+					types.LockSpecV2{
+						Target: types.LockTarget{MFADevice: lockDeviceID},
+					},
+				)
+				require.NoError(t, err)
+
+				err = lockAuth.UpsertLock(ctx, lock)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, lockAuth.DeleteLock(ctx, lock.GetName()))
+				})
+
+				// UpsertLock only writes the lock to the backend; enforcement begins once the lock replicates to the
+				// cluster's lock watchers. Wait until the lock is in force to avoid racing the SSH attempt against the
+				// propagation.
+				require.EventuallyWithT(
+					t,
+					func(t *assert.CollectT) {
+						assert.Error(
+							t,
+							lockAuth.CheckLockInForce(
+								constants.LockingModeBestEffort,
+								[]types.LockTarget{lock.Target()},
+							),
+						)
+					},
+					10*time.Second, 100*time.Millisecond, "lock was not propagated",
+				)
+			}
 
 			if tt.authPreference != nil {
 				_, err = tt.auth.UpsertAuthPreference(ctx, tt.authPreference)
