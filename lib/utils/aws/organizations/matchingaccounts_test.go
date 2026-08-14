@@ -19,6 +19,7 @@
 package organizations
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"testing"
@@ -35,13 +36,14 @@ import (
 type mockOrganizationsClient struct {
 	organizationID string
 	rootOUID       string
+	rootARN        string
 	ouItems        map[string]ouItem
 }
 
 type ouItem struct {
-	innerOUs               []string
-	innerAccounts          []string
-	innerNotActiveAccounts []string
+	innerOUs              []string
+	innerAccounts         []string
+	innerInactiveAccounts []string
 }
 
 func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
@@ -67,7 +69,7 @@ func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organ
 }
 
 func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
-	rootARN := fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID)
+	rootARN := cmp.Or(m.rootARN, fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID))
 	return &organizations.ListRootsOutput{
 		Roots: []organizationstypes.Root{
 			{
@@ -86,19 +88,15 @@ func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, inp
 
 	var accounts []organizationstypes.Account
 	for _, accountID := range ouItem.innerAccounts {
-		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
 		accounts = append(accounts, organizationstypes.Account{
 			Id:    aws.String(accountID),
 			State: organizationstypes.AccountStateActive,
-			Arn:   aws.String(accountARN),
 		})
 	}
-	for _, accountID := range ouItem.innerNotActiveAccounts {
-		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
+	for _, accountID := range ouItem.innerInactiveAccounts {
 		accounts = append(accounts, organizationstypes.Account{
 			Id:    aws.String(accountID),
 			State: organizationstypes.AccountStateSuspended,
-			Arn:   aws.String(accountARN),
 		})
 	}
 	return &organizations.ListAccountsForParentOutput{
@@ -148,8 +146,7 @@ func TestMatchingAccounts(t *testing.T) {
 					},
 				},
 			},
-			errCheck:         require.Error,
-			expectedAccounts: []string{},
+			errCheck: require.Error,
 		},
 		{
 			name: "missing organization id returns an error",
@@ -166,11 +163,10 @@ func TestMatchingAccounts(t *testing.T) {
 					},
 				},
 			},
-			errCheck:         require.Error,
-			expectedAccounts: []string{},
+			errCheck: require.Error,
 		},
 		{
-			name: "non-active accounts are discarded",
+			name: "inactive accounts are discarded",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
 				IncludeOUs:     []string{"*"},
@@ -181,7 +177,7 @@ func TestMatchingAccounts(t *testing.T) {
 				ouItems: map[string]ouItem{
 					"r-1": {
 						innerAccounts: []string{"o1-r1-01", "o1-r1-02"},
-						innerNotActiveAccounts: []string{
+						innerInactiveAccounts: []string{
 							"o1-r1-01-suspended",
 							"o1-r1-02-suspended",
 							"o1-r1-03-suspended",
@@ -217,6 +213,24 @@ func TestMatchingAccounts(t *testing.T) {
 				},
 			},
 			errCheck: require.Error,
+		},
+		{
+			name: "unparseable root ARN: returns error",
+			filter: MatchingAccountsFilter{
+				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
+			},
+			orgsClient: &mockOrganizationsClient{
+				organizationID: "o-1",
+				rootOUID:       "r-1",
+				rootARN:        "not-an-arn",
+				ouItems: map[string]ouItem{
+					"r-1": {
+						innerAccounts: []string{"o1-r1-01"},
+					},
+				},
+			},
+			errCheck: errContains("arn: invalid prefix"),
 		},
 		{
 			name: "one excluded, but wrong organization id: returns error",
@@ -456,9 +470,51 @@ func TestMatchingAccounts(t *testing.T) {
 				tt.filter,
 			)
 			tt.errCheck(t, err)
-			if tt.expectedAccounts != nil {
-				require.ElementsMatch(t, tt.expectedAccounts, matchingAccounts)
+			if err != nil {
+				require.Empty(t, matchingAccounts)
+				return
 			}
+			require.ElementsMatch(t, tt.expectedAccounts, matchingAccounts.IDs)
+		})
+	}
+}
+
+func TestMatchingAccountsPartition(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		rootARN           string
+		expectedPartition string
+	}{
+		{
+			name:              "partition from the root ARN",
+			rootARN:           "arn:aws-us-gov:organizations::000000000000:root/o-1/r-1",
+			expectedPartition: "aws-us-gov",
+		},
+		{
+			name:              "root ARN without a partition falls back to aws",
+			rootARN:           "arn::organizations::000000000000:root/o-1/r-1",
+			expectedPartition: "aws",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			orgsClient := &mockOrganizationsClient{
+				organizationID: "o-1",
+				rootOUID:       "r-1",
+				rootARN:        tt.rootARN,
+				ouItems: map[string]ouItem{
+					"r-1": {innerAccounts: []string{"111111111111"}},
+				},
+			}
+
+			matchingAccounts, err := MatchingAccounts(
+				t.Context(),
+				logtest.NewLogger(),
+				orgsClient,
+				MatchingAccountsFilter{OrganizationID: "o-1", IncludeOUs: []string{"*"}},
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedPartition, matchingAccounts.Partition)
+			require.Equal(t, []string{"111111111111"}, matchingAccounts.IDs)
 		})
 	}
 }

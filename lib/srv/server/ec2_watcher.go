@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -38,6 +37,7 @@ import (
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/labels"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/organizations"
 )
 
@@ -601,7 +601,7 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, params matcherR
 	return regions, nil
 }
 
-func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Context) ([]string, error) {
+func (f *ec2InstanceFetcher) fetchAccountsUnderOrganization(ctx context.Context) (*organizations.Accounts, error) {
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
 	}
@@ -625,7 +625,7 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 		})
 	}
 
-	accountIDs, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
+	accounts, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
 		IncludeOUs:     includeOUs,
 		ExcludeOUs:     excludeOUs,
 		OrganizationID: organizationID,
@@ -638,7 +638,7 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 		})
 	}
 
-	return accountIDs, nil
+	return accounts, nil
 }
 
 type assumeRoleWithExternalID struct {
@@ -668,23 +668,15 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWi
 		return nil, trace.BadParameter("assume role name is required when using AWS organization discovery")
 	}
 
-	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)
+	accounts, err := f.fetchAccountsUnderOrganization(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var allAssumeRoles []assumeRoleWithExternalID
-	for _, accountID := range accountIDs {
-		assumeRoleARN := arn.ARN{
-			Partition: "aws",
-			Service:   "iam",
-			Region:    "",
-			AccountID: accountID,
-			Resource:  "role/" + f.Matcher.AssumeRole.RoleName,
-		}
-
+	allAssumeRoles := make([]assumeRoleWithExternalID, 0, len(accounts.IDs))
+	for _, accountID := range accounts.IDs {
 		allAssumeRoles = append(allAssumeRoles, assumeRoleWithExternalID{
-			RoleARN:    assumeRoleARN.String(),
+			RoleARN:    awsutils.RoleARN(accounts.Partition, accountID, f.Matcher.AssumeRole.RoleName),
 			ExternalID: f.Matcher.AssumeRole.ExternalID,
 		})
 	}

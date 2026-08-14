@@ -19,6 +19,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -34,7 +35,7 @@ import (
 	organizationtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -101,14 +102,15 @@ func (m *mockAWSSTSClient) GetCallerIdentity(ctx context.Context, params *sts.Ge
 type mockOrganizationsClient struct {
 	organizationID string
 	rootOUID       string
+	rootARN        string
 	ouItems        map[string]ouItem
 	responseError  error
 }
 
 type ouItem struct {
-	innerOUs               []string
-	innerAccounts          []string
-	innerNotActiveAccounts []string
+	innerOUs              []string
+	innerAccounts         []string
+	innerInactiveAccounts []string
 }
 
 func TestEC2WatcherResolveCallerIdentity(t *testing.T) {
@@ -208,7 +210,7 @@ func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organiza
 	if m.responseError != nil {
 		return nil, m.responseError
 	}
-	rootARN := fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID)
+	rootARN := cmp.Or(m.rootARN, fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID))
 	return &organizations.ListRootsOutput{
 		Roots: []organizationtypes.Root{
 			{
@@ -230,19 +232,15 @@ func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, inp
 
 	var accounts []organizationtypes.Account
 	for _, accountID := range ouItem.innerAccounts {
-		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
 		accounts = append(accounts, organizationtypes.Account{
 			Id:    aws.String(accountID),
 			State: organizationtypes.AccountStateActive,
-			Arn:   aws.String(accountARN),
 		})
 	}
-	for _, accountID := range ouItem.innerNotActiveAccounts {
-		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
+	for _, accountID := range ouItem.innerInactiveAccounts {
 		accounts = append(accounts, organizationtypes.Account{
 			Id:    aws.String(accountID),
 			State: organizationtypes.AccountStateSuspended,
-			Arn:   aws.String(accountARN),
 		})
 	}
 	return &organizations.ListAccountsForParentOutput{
@@ -842,15 +840,66 @@ func TestEC2WatcherCallerIdentityFailureDoesNotBlockOrganizationDiscovery(t *tes
 		Logger: logtest.NewLogger(),
 	})
 
-	accountIDs, err := fetcher.fetchAccountIDsUnderOrganization(t.Context())
+	accounts, err := fetcher.fetchAccountsUnderOrganization(t.Context())
 	require.Error(t, err)
-	require.Empty(t, accountIDs)
+	require.Empty(t, accounts)
 
 	permissionErrors := EC2IAMPermissionErrors(err)
 	require.Len(t, permissionErrors, 1)
 	require.Equal(t, integrationName, permissionErrors[0].Integration)
 	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, permissionErrors[0].IssueType)
 	require.True(t, trace.IsAccessDenied(permissionErrors[0].Err))
+}
+
+func TestEC2WatcherAssumeRolesUseOrganizationPartition(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name            string
+		rootARN         string
+		expectedRoleARN string
+	}{
+		{
+			name:            "aws-us-gov",
+			rootARN:         "arn:aws-us-gov:organizations::000000000000:root/o-1/r-1",
+			expectedRoleARN: "arn:aws-us-gov:iam::000000000001:role/MyRole",
+		},
+		{
+			name:            "aws-cn",
+			rootARN:         "arn:aws-cn:organizations::000000000000:root/o-1/r-1",
+			expectedRoleARN: "arn:aws-cn:iam::000000000001:role/MyRole",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					AssumeRole: &types.AssumeRole{RoleName: "MyRole", ExternalID: "ext-1"},
+					Organization: &types.AWSOrganizationMatcher{
+						OrganizationID:      "o-1",
+						OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{Include: []string{types.Wildcard}},
+					},
+				},
+				AWSOrganizationsGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+					return &mockOrganizationsClient{
+						organizationID: "o-1",
+						rootOUID:       "r-1",
+						rootARN:        tt.rootARN,
+						ouItems:        map[string]ouItem{"r-1": {innerAccounts: []string{"000000000001"}}},
+					}, nil
+				},
+				Logger: logtest.NewLogger(),
+			})
+
+			assumeRoles, err := fetcher.allAssumeRoles(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, []assumeRoleWithExternalID{{
+				RoleARN:    tt.expectedRoleARN,
+				ExternalID: "ext-1",
+			}}, assumeRoles)
+		})
+	}
 }
 
 func TestEC2WatcherOrganizationClientCreationPermissionErrorReturnsPermissionError(t *testing.T) {
@@ -1600,7 +1649,7 @@ func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, serverInfos, 1)
 
-	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
+	require.Empty(t, gocmp.Diff(expected, serverInfos[0]))
 }
 
 func TestMakeEvents(t *testing.T) {

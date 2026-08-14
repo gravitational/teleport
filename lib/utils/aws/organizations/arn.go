@@ -28,28 +28,23 @@ import (
 // OrganizationIDFromAccountARN extracts the organization ID from an account ARN.
 // Example ARN: arn:aws:organizations::<org-master-account-id>:account/<org-id>/<account-id>
 func OrganizationIDFromAccountARN(accountARN string) (string, error) {
-	return organizationIDFromARN(accountARN, "account")
-}
-
-// organizationIDFromRootOUARN extracts the organization ID from an root Organizational Unit ARN.
-// Example ARN: arn:aws:organizations::<org-master-account-id>:root/<org-id>/<root-ou-id>
-func organizationIDFromRootOUARN(rootOUARN string) (string, error) {
-	return organizationIDFromARN(rootOUARN, "root")
-}
-
-func organizationIDFromARN(orgARN string, resourceType string) (string, error) {
-	arnParsed, err := arn.Parse(orgARN)
+	parsed, err := arn.Parse(accountARN)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	resourceSplitted := strings.Split(arnParsed.Resource, "/")
-	if len(resourceSplitted) != 3 {
+	return organizationIDFromARN(parsed, "account")
+}
+
+// organizationIDFromARN extracts the organization ID from an AWS Organizations ARN
+// whose resource is resourceType/<org-id>/<resource-id>.
+func organizationIDFromARN(orgARN arn.ARN, resourceType string) (string, error) {
+	parts := strings.Split(orgARN.Resource, "/")
+	if len(parts) != 3 {
 		return "", trace.BadParameter("unexpected resource received in ARN from organizations API call: %s", orgARN)
 	}
-	if resourceSplitted[0] != resourceType {
-		return "", trace.BadParameter("expected resource type %s but received unexpected resource type %s in ARN from organizations API call: %s", resourceType, resourceSplitted[0], orgARN)
+	if parts[0] != resourceType {
+		return "", trace.BadParameter("expected resource type %s but received unexpected resource type %s in ARN from organizations API call: %s", resourceType, parts[0], orgARN)
 	}
-	organizationID := resourceSplitted[1]
 
-	return organizationID, nil
+	return parts[1], nil
 }
