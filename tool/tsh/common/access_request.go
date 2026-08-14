@@ -198,13 +198,36 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
-	if !req.GetAccessExpiry().IsZero() {
-		// Display the expiry time in the local timezone. UTC is confusing.
-		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	timing := req.GetTiming()
+	if timing != nil {
+		scheduled := timing.GetScheduled()
+		if scheduled == nil {
+			return trace.BadParameter("invalid timing parameters: missing scheduled mode")
+		}
+
+		end := scheduled.Start.Add(scheduled.Duration)
+		start := scheduled.Start
+		now := time.Now()
+		if now.After(start) && now.Before(end) {
+			start = now
+		}
+
+		table.AddRow([]string{"Access Starts:", start.UTC().Format(time.DateTime)})
+		table.AddRow([]string{"Access Ends:", end.UTC().Format(time.DateTime)})
+		table.AddRow([]string{"Access Duration:", end.Sub(start).String()})
+		if req.GetState().IsPending() {
+			table.AddRow([]string{"Approval Required By:", req.Expiry().UTC().Format(time.DateTime)})
+		}
+
+	} else {
+		if !req.GetAccessExpiry().IsZero() {
+			table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().UTC().Format(time.DateTime)})
+		}
+		if req.GetAssumeStartTime() != nil {
+			table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().UTC().Format(time.DateTime)})
+		}
 	}
-	if req.GetAssumeStartTime() != nil {
-		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
-	}
+
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err = table.AsBuffer().WriteTo(cf.Stdout())

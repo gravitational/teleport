@@ -198,6 +198,8 @@ type CLIConf struct {
 	Approve, Deny bool
 	// AssumeStartTimeRaw format is RFC3339
 	AssumeStartTimeRaw string
+	// ScheduledStartTimeRaw format is RFC3339
+	ScheduledStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// RequestableRoles allows users to search for requestable roles.
@@ -1464,6 +1466,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
+	reqCreate.Flag("scheduled-start", "Start of the scheduled access window (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.ScheduledStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
@@ -3293,6 +3296,22 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 	return req, trace.Wrap(err)
 }
 
+func validateScheduledFlags(cf *CLIConf) error {
+	if cf.AssumeStartTimeRaw != "" {
+		return trace.BadParameter("assume-start-time cannot be specified with scheduled-start-time")
+	}
+
+	if cf.MaxDuration <= 0 {
+		return trace.BadParameter("max-duration must be specified and greater than zero when using scheduled-start-time")
+	}
+
+	if cf.SessionTTL != 0 {
+		return trace.BadParameter("session-ttl cannot be specified with scheduled-start-time")
+	}
+
+	return nil
+}
+
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
@@ -3314,12 +3333,39 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if cf.RequestTTL > 0 {
 		req.SetExpiry(time.Now().UTC().Add(cf.RequestTTL))
 	}
-	if cf.SessionTTL > 0 {
-		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
+
+	if cf.ScheduledStartTimeRaw != "" {
+		if err := validateScheduledFlags(cf); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scheduledStartTime, err := time.Parse(time.RFC3339, cf.ScheduledStartTimeRaw)
+		if err != nil {
+			return nil, trace.BadParameter("unable to parse the scheduled-start-time (expected RFC3339): %v", err)
+		}
+
+		// NOTE: the max-duration flag is being reused as a scheduled duration in the scheduled
+		// mode. In this case the MaxDuration must NOT be set in the request but instead set as
+		// Duration in the timing.Mode.Scheduled.
+		req.SetTiming(&types.AccessRequestTiming{
+			Mode: &types.AccessRequestTiming_Scheduled{
+				Scheduled: &types.AccessRequestScheduledTiming{
+					Start:    scheduledStartTime.UTC(),
+					Duration: cf.MaxDuration,
+				},
+			},
+		})
+
+		return req, nil
 	}
+
 	if cf.MaxDuration > 0 {
 		// Time will be relative to the approval time instead of the request time.
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
+	}
+
+	if cf.SessionTTL > 0 {
+		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
 	}
 
 	if cf.AssumeStartTimeRaw != "" {
@@ -6086,6 +6132,29 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 			return trace.AccessDenied("%s", msg)
 		}
 		return trace.Errorf("%s", msg)
+	}
+
+	timing := req.GetTiming()
+	if timing != nil {
+		scheduled := timing.GetScheduled()
+		if scheduled == nil {
+			return trace.BadParameter("request %s has no scheduled timing", req.GetName())
+		}
+
+		startTime := scheduled.Start
+		if time.Now().Before(startTime) {
+			// If the request has a start time in the future, wait until that time before reissuing.
+			msg := fmt.Sprintf("Approval receieved. Access becomes available at %s",
+				startTime.Format(time.RFC3339))
+
+			if reason := req.GetResolveReason(); reason != "" {
+				msg = fmt.Sprintf("Approval receieved, reason=%q\nAccess becomes available at %s",
+					reason, startTime.Format(time.RFC3339))
+			}
+
+			fmt.Fprint(os.Stderr, msg)
+			return nil
+		}
 	}
 
 	msg := "\nApproval received, getting updated certificates...\n\n"

@@ -353,6 +353,10 @@ func TestPrintRequest(t *testing.T) {
 
 	createdAtTime := time.Now()
 	expiresTime := time.Now().Add(time.Hour)
+	scheduledStart := time.Date(2035, time.January, 2, 5, 4, 5, 0, time.FixedZone("UTC+2", 2*60*60))
+	scheduledExpiry := time.Date(2035, time.January, 1, 5, 4, 5, 0, time.FixedZone("UTC+2", 2*60*60))
+	accessExpiry := time.Date(2035, time.February, 2, 5, 4, 5, 0, time.FixedZone("UTC+2", 2*60*60))
+	assumeStart := time.Date(2035, time.February, 1, 5, 4, 5, 0, time.FixedZone("UTC+2", 2*60*60))
 
 	tests := []struct {
 		name        string
@@ -384,6 +388,61 @@ func TestPrintRequest(t *testing.T) {
 				"admin, developer",
 			},
 			wantAbsent: []string{"Resources:"},
+		},
+		{
+			name: "legacy request uses UTC timestamps",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name: "legacy-request",
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:            "testuser",
+					Roles:           []string{"admin"},
+					Expires:         accessExpiry,
+					AssumeStartTime: &assumeStart,
+				},
+			},
+			wantPresent: []string{
+				"Access Expires:",
+				"2035-02-02 03:04:05",
+				"Assume Start Time:",
+				"2035-02-01 03:04:05",
+			},
+		},
+		{
+			name: "pending scheduled request uses UTC timestamps",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name: "scheduled-request",
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:           "testuser",
+					Roles:          []string{"admin"},
+					State:          types.RequestState_PENDING,
+					ResourceExpiry: &scheduledExpiry,
+					Timing: &types.AccessRequestTiming{
+						Mode: &types.AccessRequestTiming_Scheduled{
+							Scheduled: &types.AccessRequestScheduledTiming{
+								Start:    scheduledStart,
+								Duration: 2 * time.Hour,
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{
+				"Access Starts:",
+				"2035-01-02 03:04:05",
+				"Access Ends:",
+				"2035-01-02 05:04:05",
+				"Access Duration:",
+				"2h0m0s",
+				"Approval Required By:",
+				"2035-01-01 03:04:05",
+			},
+			wantAbsent: []string{
+				"2035-01-02 05:04:05 +0200",
+			},
 		},
 		{
 			name: "request with constrained AWS console resources",
@@ -534,6 +593,81 @@ func TestPrintRequest(t *testing.T) {
 			for _, unwanted := range tc.wantAbsent {
 				require.NotContains(t, output, unwanted, "expected output to not contain %q", unwanted)
 			}
+		})
+	}
+}
+
+func TestCreateScheduledAccessRequest(t *testing.T) {
+	t.Parallel()
+
+	cf := &CLIConf{
+		Username:              "alice",
+		DesiredRoles:          "admin",
+		ScheduledStartTimeRaw: "2035-01-02T05:04:05+02:00",
+		MaxDuration:           2 * time.Hour,
+	}
+	req, err := createAccessRequest(cf)
+	require.NoError(t, err)
+
+	scheduled := req.GetTiming().GetScheduled()
+	require.NotNil(t, scheduled)
+	require.Equal(t, time.Date(2035, time.January, 2, 3, 4, 5, 0, time.UTC), scheduled.Start)
+	require.Equal(t, 2*time.Hour, scheduled.Duration)
+	require.True(t, req.GetMaxDuration().IsZero())
+	require.True(t, req.GetAccessExpiry().IsZero())
+}
+
+func TestCreateScheduledAccessRequestValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*CLIConf)
+		wantError string
+	}{
+		{
+			name: "invalid start",
+			configure: func(cf *CLIConf) {
+				cf.ScheduledStartTimeRaw = "tomorrow"
+			},
+			wantError: "unable to parse the scheduled-start-time",
+		},
+		{
+			name: "missing max duration",
+			configure: func(cf *CLIConf) {
+				cf.MaxDuration = 0
+			},
+			wantError: "max-duration must be specified and greater than zero",
+		},
+		{
+			name: "assume start time",
+			configure: func(cf *CLIConf) {
+				cf.AssumeStartTimeRaw = "2035-01-02T03:04:05Z"
+			},
+			wantError: "assume-start-time cannot be specified",
+		},
+		{
+			name: "session TTL",
+			configure: func(cf *CLIConf) {
+				cf.SessionTTL = time.Hour
+			},
+			wantError: "session-ttl cannot be specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cf := &CLIConf{
+				Username:              "alice",
+				DesiredRoles:          "admin",
+				ScheduledStartTimeRaw: "2035-01-02T03:04:05Z",
+				MaxDuration:           time.Hour,
+			}
+			tt.configure(cf)
+
+			_, err := createAccessRequest(cf)
+			require.ErrorContains(t, err, tt.wantError)
 		})
 	}
 }
