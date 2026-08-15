@@ -828,6 +828,19 @@ const (
 	VerbUse = "use"
 )
 
+// RulesVerbs lists the supported Rules verbs.
+var RulesVerbs = []string{
+	VerbList,
+	VerbCreate,
+	VerbRead,
+	VerbReadNoSecrets,
+	VerbUpdate,
+	VerbDelete,
+	VerbCreateEnrollToken,
+	VerbEnroll,
+	VerbUse,
+}
+
 const (
 	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
 	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.

@@ -963,6 +963,23 @@ func TestValidateRole(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid rules.verbs",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						{
+							Resources: []string{"role"},
+							Verbs:     []string{"unknown"},
+						},
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"parsing allow.rules[0]",
+				"unsupported verb \"unknown\"",
+			},
+		},
+		{
 			name: "valid require_session_join.filter",
 			spec: types.RoleSpecV6{
 				Allow: types.RoleConditions{
