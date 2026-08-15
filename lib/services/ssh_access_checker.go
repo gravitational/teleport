@@ -39,6 +39,10 @@ type SSHAccessChecker struct {
 
 // CheckAccessToSSHServer checks access to an SSH server for the given OS user.
 func (c *SSHAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
+	if err := CheckBeamSSHLogin(osUser, target); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAccess(target, state, NewLoginMatcher(osUser))
 	}

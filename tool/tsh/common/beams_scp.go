@@ -79,11 +79,11 @@ func (c *beamsSCPCommand) run(cf *CLIConf) error {
 	tc.AllowHeadless = true
 
 	err = c.withClusterFn(ctx, tc, func(cli authclient.ClientI) error {
-		src, err := c.parseTarget(ctx, cli, c.src)
+		src, err := c.parseTarget(ctx, cli, c.src, tc.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		dest, err := c.parseTarget(ctx, cli, c.dest)
+		dest, err := c.parseTarget(ctx, cli, c.dest, tc.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -133,7 +133,7 @@ type beamCopyTarget struct {
 	beam *beamsv1.Beam
 }
 
-func (c *beamsSCPCommand) parseTarget(ctx context.Context, client authclient.ClientI, path string) (*beamCopyTarget, error) {
+func (c *beamsSCPCommand) parseTarget(ctx context.Context, client authclient.ClientI, path string, currentUser string) (*beamCopyTarget, error) {
 	// This is a path to a local file.
 	if !filesftp.IsRemotePath(path) {
 		return &beamCopyTarget{path: path}, nil
@@ -148,6 +148,10 @@ func (c *beamsSCPCommand) parseTarget(ctx context.Context, client authclient.Cli
 	}
 	if beam.GetStatus().GetNodeId() == "" {
 		return nil, trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
+	}
+
+	if err := validateBeamOwnership(currentUser, beam); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &beamCopyTarget{beam: beam, path: after}, nil

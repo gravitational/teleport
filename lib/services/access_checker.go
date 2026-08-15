@@ -339,6 +339,9 @@ type AccessInfo struct {
 	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
+	// Impersonator is the name of the user who requested this identity on
+	// behalf of Username, if any.
+	Impersonator string
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -449,8 +452,9 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}
 
 	remoteAccessInfo := &AccessInfo{
-		Username: remoteUser.GetName(),
-		Traits:   remoteUser.GetTraits(),
+		Username:     remoteUser.GetName(),
+		Impersonator: localAccessInfo.Impersonator,
+		Traits:       remoteUser.GetTraits(),
 		// Will fill this in with the names of the remote/mapped roles we got
 		// from GetCurrentUserRoles.
 		Roles: make([]string, 0, len(remoteRoles)),
@@ -700,6 +704,17 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 	preconds, err := a.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if server, ok := r.(types.Server); ok {
+		var username, impersonator string
+		if a.info != nil {
+			username = a.info.Username
+			impersonator = a.info.Impersonator
+		}
+		if err := CheckBeamSSHOwnership(username, impersonator, server); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return preconds, nil
@@ -1544,6 +1559,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
 		Username:                 ident.Username,
+		Impersonator:             ident.Impersonator,
 		ScopePin:                 ident.ScopePin,
 		Roles:                    ident.Roles,
 		Traits:                   ident.Traits,
@@ -1587,6 +1603,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 
 	return &AccessInfo{
 		Username:                 unmappedIdentity.Username,
+		Impersonator:             unmappedIdentity.Impersonator,
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
@@ -1604,6 +1621,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 
 	return &AccessInfo{
 		Username:                 identity.Username,
+		Impersonator:             identity.Impersonator,
 		ScopePin:                 identity.ScopePin,
 		Roles:                    identity.Groups,
 		Traits:                   identity.Traits,
@@ -1663,6 +1681,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 
 	return &AccessInfo{
 		Username:                 identity.Username,
+		Impersonator:             identity.Impersonator,
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
