@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -28,11 +29,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
@@ -783,6 +786,47 @@ func TestPrintRequestableResources(t *testing.T) {
 		err := printRequestableResources(cf, rows, resourceIDs)
 		require.Error(t, err)
 	})
+}
+
+// TestPrintCreatedRequest pins the `tsh request create --format json` shape
+// promised by RFD 228: the id, state and resolved roles, plus the requested
+// resources in the same inline form --resource accepts.
+func TestPrintCreatedRequest(t *testing.T) {
+	t.Parallel()
+
+	req, err := types.NewAccessRequestWithResources("req-1", "alice", []string{"dba"}, []types.ResourceAccessID{
+		{
+			Id: types.ResourceID{ClusterName: "main", Kind: types.KindNode, Name: "web-1"},
+			Constraints: &types.ResourceConstraints{
+				Version: types.ResourceConstraintVersionV1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{Logins: []string{"root", "admin"}},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	cf := &CLIConf{Format: teleport.JSON, OverrideStdout: &out}
+	require.NoError(t, printCreatedRequest(cf, req))
+
+	var got createdRequestJSON
+	require.NoError(t, json.Unmarshal(out.Bytes(), &got))
+	require.Equal(t, "req-1", got.ID)
+	require.Equal(t, "PENDING", got.State)
+	require.Equal(t, "alice", got.User)
+	require.Equal(t, []string{"dba"}, got.Roles)
+	require.Equal(t, []string{"/main/node/web-1?logins=root,admin"}, got.Resources)
+
+	// The resources field must survive a round trip back through the parser
+	// an agent would feed it to.
+	parsed, err := common.ParseResourceValues(got.Resources)
+	require.NoError(t, err)
+	require.Len(t, parsed, 1)
+	ssh, ok := parsed[0].GetConstraints().GetDetails().(*types.ResourceConstraints_Ssh)
+	require.True(t, ok)
+	require.Equal(t, []string{"root", "admin"}, ssh.Ssh.Logins)
 }
 
 func TestPrintRequestableRoles(t *testing.T) {

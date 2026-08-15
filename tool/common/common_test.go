@@ -210,6 +210,85 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.Equal(t, "[\"/cluster/app/aws_console (role_arns=)\"]", out)
 	})
 
+	t.Run("with ssh constraints", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{"root", "admin"},
+					},
+				},
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/node/ssh_server (logins=root,admin)\"]", out)
+	})
+
+	t.Run("values containing grammar characters are escaped and round-trip", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{`user,one`, `a&b`, `back\slash`},
+					},
+				},
+			},
+		}
+
+		out := FormatResourceAccessID(rid)
+		require.Equal(t, `/cluster/node/ssh_server (logins=user\,one,a\&b,back\\slash)`, out)
+
+		// The escaped form round-trips through the inline constraint parser.
+		parsed, err := ParseResourceValues([]string{`/cluster/node/ssh_server?logins=user\,one,a\&b,back\\slash`})
+		require.NoError(t, err)
+		require.Len(t, parsed, 1)
+		require.Equal(t, []string{`user,one`, `a&b`, `back\slash`}, parsed[0].Constraints.GetSsh().Logins)
+	})
+
+	t.Run("with empty ssh constraints", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{},
+					},
+				},
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/node/ssh_server (logins=)\"]", out)
+	})
+
+	t.Run("with a constraint variant this build does not know", func(t *testing.T) {
+		t.Parallel()
+
+		// A newer cluster's constraint variant decodes with nil Details; the
+		// display names its presence instead of rendering the resource as
+		// unconstrained.
+		rid := types.ResourceAccessID{
+			Id:          rids[1].Id,
+			Constraints: &types.ResourceConstraints{Version: types.V1},
+		}
+
+		require.Equal(t, "/cluster/node/ssh_server (unrecognized constraints)", FormatResourceAccessID(rid))
+	})
+
 	t.Run("with empty or nil list", func(t *testing.T) {
 		t.Parallel()
 
@@ -255,6 +334,66 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "[\"/cluster/kube:ns:pods/my-kube-cluster/default/nginx\"]", out)
 	})
+}
+
+// TestFormatResourceAccessIDInline checks that the inline form parses back
+// into an equivalent ResourceAccessID, which is what makes it safe to print
+// for a caller that will pass it straight to --resource.
+func TestFormatResourceAccessIDInline(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rid  types.ResourceAccessID
+		want string
+	}{
+		{
+			name: "unconstrained",
+			rid:  types.ResourceAccessID{Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "web-1"}},
+			want: "/cluster/node/web-1",
+		},
+		{
+			name: "ssh logins",
+			rid: types.ResourceAccessID{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "web-1"},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_Ssh{Ssh: &types.SSHResourceConstraints{Logins: []string{"root", "admin"}}},
+				},
+			},
+			want: "/cluster/node/web-1?logins=root,admin",
+		},
+		{
+			// An IAM role name may contain a literal comma, which the inline
+			// grammar escapes rather than reading as a value separator.
+			name: "value containing a comma is escaped",
+			rid: types.ResourceAccessID{
+				Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws_console"},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123456789012:role/a,b"}},
+					},
+				},
+			},
+			want: `/cluster/app/aws_console?role_arns=arn:aws:iam::123456789012:role/a\,b`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := FormatResourceAccessIDInline(tt.rid)
+			require.Equal(t, tt.want, got)
+
+			parsed, err := ParseResourceValues([]string{got})
+			require.NoError(t, err)
+			require.Len(t, parsed, 1)
+			require.Equal(t, tt.rid.GetResourceID(), parsed[0].GetResourceID())
+			require.Equal(t, tt.rid.GetConstraints().GetDetails(), parsed[0].GetConstraints().GetDetails())
+		})
+	}
 }
 
 // The output forms, plus the all-empty input.
