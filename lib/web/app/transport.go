@@ -152,6 +152,12 @@ func newTransport(c *transportConfig) (*transport, error) {
 	return t, nil
 }
 
+func (t *transport) CloseIdleConnections() {
+	if httpTransport, ok := t.tr.(*http.Transport); ok {
+		httpTransport.CloseIdleConnections()
+	}
+}
+
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
