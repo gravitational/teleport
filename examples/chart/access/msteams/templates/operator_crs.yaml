@@ -1,0 +1,40 @@
+{{- if .Values.crd.create -}}
+{{- if not .Values.tbot.enabled -}}
+{{- fail "Custom resources cannot be deployed without tbot enabled" -}}
+{{- end -}}
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV8
+metadata:
+  name: {{ include "msteams.fullname" . }}
+  namespace: {{ include "msteams.crd.namespace" . }}
+  labels:
+    {{- include "msteams.labels" . | nindent 4 }}
+spec:
+  allow:
+    rules:
+      - resources: ['event', 'session']
+        verbs: ['list','read']
+---
+apiVersion: resources.teleport.dev/v1
+kind: TeleportBotV1
+metadata:
+  name: {{ include "msteams.fullname" . }}
+  namespace: {{ include "msteams.crd.namespace" . }}
+  labels:
+    {{- include "msteams.labels" . | nindent 4 }}
+spec:
+  roles:
+    - {{ include "msteams.fullname" . }}
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: {{ include "msteams.tbot.tokenName" . }}
+  namespace: {{ include "msteams.crd.namespace" . }}
+  labels:
+    {{- include "msteams.labels" . | nindent 4 }}
+spec:
+  roles: [Bot]
+  bot_name: {{ include "msteams.fullname" . }}
+  {{- include "msteams.crd.tokenJoinSpec" . | nindent 2 -}}
+{{- end -}}
