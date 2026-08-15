@@ -119,6 +119,7 @@ export interface UnifiedResourceNode {
 export interface UnifiedResourceKube {
   kind: 'kube_cluster';
   name: string;
+  description?: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
   targetHealth?: ResourceTargetHealth;
