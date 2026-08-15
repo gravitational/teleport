@@ -1568,6 +1568,7 @@ checksum = "d98f6fed1fde3f8c21bc40a1abb88dd75e67924f9cffc3ef95607bad8017f8e2"
 name = "ironrdp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "console_error_panic_hook",
  "getrandom 0.2.17",
  "getrandom 0.4.3",

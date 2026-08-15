@@ -38,6 +38,12 @@ export interface CanvasRendererRef {
   clear(): void;
   focus(): void;
   getSize(): { width: number; height: number; scale: number };
+  /**
+   * Returns the underlying canvas element, or null before mount. Used in
+   * WebGL mode so the caller can hand the canvas to the wasm painter, which
+   * then owns the drawing buffer and all pixel painting.
+   */
+  getCanvas(): HTMLCanvasElement | null;
 }
 
 export const CanvasRenderer = forwardRef<
@@ -66,6 +72,14 @@ export const CanvasRenderer = forwardRef<
      * When false, the scale is always 100 (1x).
      */
     isHiDpi?: boolean;
+    /**
+     * When true, the canvas is driven by the wasm WebGL painter instead of a
+     * 2D context: no 2D context is ever acquired, and the paint/clear/resolution
+     * methods on the ref become no-ops (the painter owns the drawing buffer).
+     * The caller obtains the element via `getCanvas()` and attaches it to the
+     * FastPath processor. Leave off (default) for the legacy 2D / PNG path.
+     */
+    webgl?: boolean;
     style?: CSSProperties;
   }
 >((props, ref) => {
@@ -87,6 +101,9 @@ export const CanvasRenderer = forwardRef<
   }>(null);
   const isHiDpiRef = useRef(props.isHiDpi ?? false);
   isHiDpiRef.current = props.isHiDpi ?? false;
+  // WebGL mode is fixed for a component's lifetime (set by the consumer), so
+  // capturing it once is safe for the empty-dep effects/handle below.
+  const webgl = props.webgl ?? false;
 
   function getScale(): number {
     const dpr = isHiDpiRef.current ? window.devicePixelRatio || 1 : 1;
@@ -94,38 +111,67 @@ export const CanvasRenderer = forwardRef<
   }
 
   useEffect(() => {
+    // In WebGL mode the wasm painter owns the canvas — we must NOT acquire a
+    // 2D context here (a canvas can hold only one context type, and doing so
+    // would make getContext('webgl2') return null).
+    if (webgl) {
+      return;
+    }
     const pngRenderer = makePngFrameRenderer(canvasRef.current);
     pngRendererRef.current = pngRenderer;
     return () => pngRenderer.stop();
-  }, []);
+  }, [webgl]);
 
-  useImperativeHandle(ref, () => {
-    const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
-    return {
-      setPointer: pointer => setPointer(canvasRef.current, pointer),
-      renderPngFrame: frame => pngRendererRef.current?.pushFrame(frame),
-      renderBitmapFrame: frame => renderBimapFrame(frame),
-      setResolution: ({ width, height }) => {
-        const canvas = canvasRef.current;
-        canvas.width = width;
-        canvas.height = height;
-        logger.debug(`Canvas resolution set to ${width}x${height}.`);
-      },
-      clear: () => {
-        const canvas = canvasRef.current;
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-      },
-      focus: () => canvasRef.current.focus(),
-      getSize: () => {
+  useImperativeHandle(
+    ref,
+    () => {
+      const getSize = () => {
         const rect = canvasRef.current.getBoundingClientRect();
         return {
           width: Math.round(rect.width),
           height: Math.round(rect.height),
           scale: getScale(),
         };
-      },
-    };
-  }, []);
+      };
+
+      // In WebGL mode the wasm painter owns the drawing buffer and all pixel
+      // painting, so the paint/clear/resolution methods are no-ops here; the
+      // caller drives them through the FastPath processor instead.
+      if (webgl) {
+        return {
+          setPointer: pointer => setPointer(canvasRef.current, pointer),
+          renderPngFrame: () => {},
+          renderBitmapFrame: () => {},
+          setResolution: () => {},
+          clear: () => {},
+          focus: () => canvasRef.current.focus(),
+          getSize,
+          getCanvas: () => canvasRef.current,
+        };
+      }
+
+      const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
+      return {
+        setPointer: pointer => setPointer(canvasRef.current, pointer),
+        renderPngFrame: frame => pngRendererRef.current?.pushFrame(frame),
+        renderBitmapFrame: frame => renderBimapFrame(frame),
+        setResolution: ({ width, height }) => {
+          const canvas = canvasRef.current;
+          canvas.width = width;
+          canvas.height = height;
+          logger.debug(`Canvas resolution set to ${width}x${height}.`);
+        },
+        clear: () => {
+          const canvas = canvasRef.current;
+          canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        },
+        focus: () => canvasRef.current.focus(),
+        getSize,
+        getCanvas: () => canvasRef.current,
+      };
+    },
+    [webgl]
+  );
 
   useEffect(() => {
     if (
