@@ -29,6 +29,7 @@ The following GCP Services are required to run Teleport in high availability mod
 - [Access: Service accounts](#access-service-accounts)
 - [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
 - [Compute Engine: Health Checks](#compute-engine-health-checks)
+- [Network Services: Firewall Rules](#network-services-firewall-rules)
 - [Storage: Cloud Firestore](#storage-cloud-firestore)
 - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
 - [Network Services: Load Balancing](#network-services-load-balancing)
@@ -159,10 +160,19 @@ $ gcloud projects get-iam-policy Example_GCP_PROJECT \
 You should see the custom IAM role, `roles/datastore.owner`, and `roles/storage.objectAdmin` listed.
 </Checkpoint>
 
-**Download JSON Service Key**
+**Credentials for the Auth Service**
 
-The credentials for this service account should be exported in JSON format
-and provided to Teleport throughout the remainder of this guide.
+If your Auth Service runs on the GCE VM template created in the next section
+(with `$SERVICE_ACCOUNT` attached via `--service-account`), Teleport
+automatically picks up Application Default Credentials from the instance's
+attached identity — **you can skip downloading a JSON key entirely**, and omit
+`credentials_path` from the `storage` config shown later in this guide.
+
+<Admonition type="tip" title="When you do need a JSON key">
+Only follow the steps below if your Auth Service runs somewhere that can't
+have a GCP service account attached directly — for example on-prem, or on
+another cloud provider.
+</Admonition>
 
 <Tabs>
 <TabItem label="Console">
@@ -175,11 +185,21 @@ and provided to Teleport throughout the remainder of this guide.
 **Run on your workstation:**
 
 ```code
-$ gcloud iam service-accounts keys create /var/lib/teleport/google.json \
+$ gcloud iam service-accounts keys create teleport-gcp-credentials.json \
     --iam-account=$SERVICE_ACCOUNT
-
-$ chmod 600 /var/lib/teleport/google.json
 ```
+
+This downloads the key to your workstation, not to the Auth Service host.
+Securely copy it to each Auth Service instance — for example with
+`gcloud compute scp` — to the path you'll reference as `credentials_path`
+(`Example_GCP_CREDENTIALS`), then restrict its permissions on that host:
+
+```code
+$ gcloud compute scp teleport-gcp-credentials.json INSTANCE_NAME:/tmp/google.json --zone=ZONE
+$ gcloud compute ssh INSTANCE_NAME --zone=ZONE --command="sudo mkdir -p /var/lib/teleport && sudo mv /tmp/google.json /var/lib/teleport/google.json && sudo chown root:root /var/lib/teleport/google.json && sudo chmod 600 /var/lib/teleport/google.json"
+```
+
+Delete the local copy once it's been distributed to every Auth Service host.
 
 </TabItem>
 </Tabs>
@@ -218,6 +238,63 @@ instance groups instead, spreading replicas across multiple zones in the
 region, so a single zone failure doesn't remove every Auth or Proxy replica.
 </Admonition>
 
+<Admonition type="warning" title="Provision Teleport in the instance template, not manually after boot">
+These instance templates boot a bare Ubuntu image. If you configure Teleport
+by hand on the first VMs and stop there, the template itself is still blank —
+so the next time the managed instance group repairs an unhealthy instance or
+resizes the group, it creates a fresh VM from the unmodified template with no
+Teleport installed. That silently drops your replica count and defeats the
+purpose of using instance groups for HA. Bake installation and configuration
+into a startup script (or a custom image) so every VM the group creates is
+already running Teleport.
+
+Save the following as `teleport-auth-startup.sh`, filling in your own token
+values to match the tokens you configure on the Auth Service in
+[GCP Quickstart](#2-install--configure-teleport):
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+curl https://goteleport.com/static/install.sh | bash -s -- (=teleport.version=)
+
+cat <<'EOF' > /etc/teleport.yaml
+version: v3
+teleport:
+  nodename: teleport-auth-server
+  data_dir: /var/lib/teleport
+  pid_file: /run/teleport.pid
+  log:
+    output: stderr
+    severity: DEBUG
+  storage:
+    type: firestore
+    collection_name: Example_FIRESTORE_CLUSTER_STATE
+    project_id: Example_GCP_PROJECT
+    audit_events_uri: 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT'
+    audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT'
+auth_service:
+  enabled: true
+  tokens:
+    - "proxy:REPLACE_WITH_PROXY_TOKEN"
+    - "node:REPLACE_WITH_NODE_TOKEN"
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+EOF
+
+systemctl enable teleport
+systemctl restart teleport
+```
+
+Save an equivalent `teleport-proxy-startup.sh` using the Proxy `teleport.yaml`
+shown in [GCP Quickstart](#2-install--configure-teleport). Since the storage
+config above omits `credentials_path`, it relies on the attached service
+account for Application Default Credentials — see the note on this in
+[Access: Service accounts](#access-service-accounts).
+</Admonition>
+
 **Run on your workstation:**
 
 ```code
@@ -228,7 +305,8 @@ $ gcloud compute instance-templates create teleport-auth-template \
     --boot-disk-size=20GB \
     --service-account=$SERVICE_ACCOUNT \
     --scopes=cloud-platform \
-    --tags=teleport-auth
+    --tags=teleport-auth \
+    --metadata-from-file=startup-script=teleport-auth-startup.sh
 
 $ gcloud compute instance-groups managed create teleport-auth-group \
     --template=teleport-auth-template \
@@ -243,7 +321,8 @@ $ gcloud compute instance-templates create teleport-proxy-template \
     --boot-disk-size=20GB \
     --service-account=$PROXY_SERVICE_ACCOUNT \
     --scopes=cloud-platform \
-    --tags=teleport-proxy
+    --tags=teleport-proxy \
+    --metadata-from-file=startup-script=teleport-proxy-startup.sh
 
 $ gcloud compute instance-groups managed create teleport-proxy-group \
     --template=teleport-proxy-template \
@@ -309,6 +388,49 @@ You should see `teleport-auth-healthcheck` in the first list and
 `teleport-proxy-healthcheck` in the second — they're different resource types.
 </Checkpoint>
 
+### Network Services: Firewall Rules
+
+GCP denies all ingress traffic by default outside of a few built-in rules
+(SSH, RDP, ICMP on the `default` network). Without explicit firewall rules,
+GCP's health check probes can't reach your instances — leaving every backend
+`UNHEALTHY` — and client traffic to the Proxy is dropped entirely.
+
+**Run on your workstation:**
+
+```code
+# Allow GCP's health check probes to reach the diagnostics port on Auth and
+# Proxy instances. These are Google's documented health-checker ranges.
+$ gcloud compute firewall-rules create teleport-allow-health-checks \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:3000 \
+    --source-ranges=130.211.0.0/22,35.191.0.0/16 \
+    --target-tags=teleport-auth,teleport-proxy
+
+# Allow client traffic to reach the Proxy on its public ports. Narrow
+# --source-ranges to your known client CIDRs where possible instead of
+# opening it to the internet.
+$ gcloud compute firewall-rules create teleport-allow-proxy-clients \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:443,tcp:3023,tcp:3024,tcp:3025,tcp:3026,tcp:3036 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags=teleport-proxy
+```
+
+<Checkpoint>
+Verify the firewall rules were created:
+
+```code
+$ gcloud compute firewall-rules list --filter="name~teleport-allow" --format="table(name, sourceRanges.list(), allowed[].map().firewall_rule().list())"
+```
+
+You should see both rules listed with the expected source ranges and ports.
+Once instances are running, confirm health checks are passing with
+`gcloud compute target-pools get-health teleport-proxy-pool --region=us-central1`
+(covered in [Network Services: Load Balancing](#network-services-load-balancing)).
+</Checkpoint>
+
 ### Storage: Cloud Firestore
 
 The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
@@ -336,6 +458,13 @@ teleport:
     credentials_path: Example_GCP_CREDENTIALS
     audit_events_uri: [ 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS' ]
 ```
+
+<Admonition type="tip">
+Omit `credentials_path` (and `credentialsPath` in the URIs) entirely if your
+Auth Service runs on a GCE VM with `$SERVICE_ACCOUNT` attached — Teleport will
+use Application Default Credentials automatically. See
+[Access: Service accounts](#access-service-accounts) for details.
+</Admonition>
 
 <Admonition type="warning" title="Table Names">
 Be careful to ensure that `Example_FIRESTORE_CLUSTER_STATE` and `Example_FIRESTORE_AUDIT_LOGS`

@@ -222,11 +222,19 @@ $ gcloud kms keys versions destroy --keyring "<Var name="teleport-keyring"/>" --
 Before proceeding, verify that the service account can access the key ring from the Auth Service host:
 
 ```code
-$ gcloud kms keyrings describe "<Var name="teleport-keyring"/>" --location <Var name="location"/> --format="value(name)"
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
 ```
 
 If this command fails with a permission error, review the IAM policy binding in Step 2.
 </Checkpoint>
+
+<Admonition type="note">
+Use `gcloud kms keys list` rather than `gcloud kms keyrings describe` for this
+check. `keyrings describe` requires the `cloudkms.keyRings.get` permission,
+which `teleport_kms_role` doesn't grant — the role only covers `cryptoKeys`
+and `cryptoKeyVersions` operations, so a `keyrings describe` here would fail
+even when the service account has exactly the access it needs.
+</Admonition>
 
 ## Step 4/5. Configure the Auth Service to use KMS keys
 
