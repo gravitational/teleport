@@ -40,6 +40,7 @@ import (
 
 const (
 	ApprovalTeamName = "teleport-approval"
+	NotifyTeamName   = "teleport-notify"
 )
 
 // DatadogBaseSuite is the Datadog Incident Management plugin test suite.
@@ -85,6 +86,29 @@ func (s *DatadogBaseSuite) startApp() {
 
 	app := datadog.NewDatadogApp(s.appConfig)
 	integration.RunAndWaitReady(t, app)
+}
+
+// clearRequesterRoleAccessRequestAnnotation removes an access request annotation
+// from the requester roles. The roles are shared by the whole suite, so a test
+// that relies on an annotation being absent has to clear it explicitly.
+func (s *DatadogBaseSuite) clearRequesterRoleAccessRequestAnnotation(ctx context.Context, annotationKey string) {
+	t := s.T()
+	t.Helper()
+	adminClient := s.Ruler()
+
+	roles := []string{integration.OSSRequesterRoleName}
+	if s.TeleportFeatures().AdvancedAccessWorkflows {
+		roles = append(roles, integration.AdvancedRequesterRoleName)
+	}
+	for _, roleName := range roles {
+		role, err := adminClient.GetRole(ctx, roleName)
+		require.NoError(t, err)
+		conditions := role.GetAccessRequestConditions(types.Allow)
+		delete(conditions.Annotations, annotationKey)
+		role.SetAccessRequestConditions(types.Allow, conditions)
+		_, err = adminClient.UpdateRole(ctx, role)
+		require.NoError(t, err)
+	}
 }
 
 // DatadogSuiteOSS contains all tests that support running against a Teleport
@@ -133,6 +157,69 @@ func (s *DatadogSuiteOSS) TestIncidentCreation() {
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
 	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer1UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
 	assert.Equal(t, "active", incident.Data.Attributes.Fields.State.Value)
+}
+
+// TestIncidentCreationForNotifyServices validates that when the requesting role
+// carries the notify-services annotation, the incident is routed to the
+// annotated Datadog teams instead of the suggested reviewers.
+func (s *DatadogSuiteOSS) TestIncidentCreationForNotifyServices() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel,
+		[]string{NotifyTeamName},
+	)
+
+	s.startApp()
+
+	// Test setup: we create an access request and wait for its incident.
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, []string{
+		integration.Reviewer1UserName,
+	})
+
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	require.Len(t, pluginData.SentMessages, 1)
+
+	incident, err := s.fakeDatadog.CheckNewIncident(ctx)
+	require.NoError(t, err, "no new incidents stored")
+
+	require.NotNil(t, incident.Data.Attributes.Fields.Teams)
+	assert.Equal(t, []string{NotifyTeamName}, incident.Data.Attributes.Fields.Teams.Value)
+	assert.Empty(t, incident.Data.Attributes.NotificationHandles,
+		"the annotation is authoritative, suggested reviewers must not be notified")
+}
+
+// TestNoIncidentWithoutRecipients validates that a request resolving to no
+// recipients creates no incident. Here no Access Monitoring Rule matches, the
+// requesting role carries no notify-services annotation, role_to_recipients is
+// empty and the request suggests no reviewers.
+func (s *DatadogSuiteOSS) TestNoIncidentWithoutRecipients() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// Other tests in the suite annotate the requester roles, and roles are
+	// shared by the whole suite.
+	s.clearRequesterRoleAccessRequestAnnotation(
+		ctx,
+		types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel,
+	)
+
+	s.startApp()
+
+	// Test setup: we create an access request without suggested reviewers.
+	_ = s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer timeoutCancel()
+
+	_, err := s.fakeDatadog.CheckNewIncident(timeoutCtx)
+	assert.Error(t, err, "no incident should be created when the request has no recipients")
 }
 
 // TestApproval tests that when a request is approved, its corresponding incident

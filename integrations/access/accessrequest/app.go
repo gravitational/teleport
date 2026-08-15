@@ -443,6 +443,24 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 			recipientSet.Add(*rec)
 		}
 		return recipientSet.ToSlice()
+	case types.PluginTypeDatadog:
+		// When a request carries the notify-services annotation, it is
+		// authoritative for that request: only the annotated Datadog team
+		// handles or user emails are notified. Requests without the annotation
+		// keep resolving recipients from role_to_recipients and the suggested
+		// reviewers below.
+		recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
+		if ok {
+			for _, recipient := range recipients {
+				rec, err := a.bot.FetchRecipient(ctx, recipient)
+				if err != nil {
+					log.WarnContext(ctx, "Failed to fetch Datadog recipient", "error", err)
+					continue
+				}
+				recipientSet.Add(*rec)
+			}
+			return recipientSet.ToSlice()
+		}
 	}
 
 	validEmailSuggReviewers := []string{}

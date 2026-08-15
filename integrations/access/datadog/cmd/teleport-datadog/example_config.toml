@@ -37,7 +37,10 @@ severity = "SEV-3"
 #
 # Provide datadog user_email/team recipients for access requests for specific roles.
 # role.suggested_reviewers will automatically be treated as additional email recipients.
-# "*" must be provided to match non-specified roles.
+# "*" matches the roles that have no entry of their own. Omit it to only create
+# incidents for the roles listed here, for requests routed by an Access
+# Monitoring Rule, or for requests whose role carries the
+# "teleport.dev/notify-services" annotation.
 #
 # "dev" = "dev-team"
 # "*" = ["cloud@email.com", "cloud-team"]

@@ -22,6 +22,34 @@ tests:
     asserts:
       - matchSnapshot: {}
 
+  - it: should render role_to_recipients entries when defined
+    set:
+      datadog:
+        fallbackRecipient: admin@example.com
+        roleToRecipients:
+          prod-admin: ["sre-oncall", "security@example.com"]
+    asserts:
+      - matchRegex:
+          path: data["teleport-datadog.toml"]
+          pattern: '"\*" = \["admin@example\.com"\]'
+      - matchRegex:
+          path: data["teleport-datadog.toml"]
+          pattern: '"prod-admin" = \["sre-oncall","security@example\.com"\]'
+
+  - it: should omit the catch-all recipient when no fallback recipient is set
+    set:
+      datadog:
+        fallbackRecipient: ""
+        roleToRecipients:
+          prod-admin: ["sre-oncall"]
+    asserts:
+      - notMatchRegex:
+          path: data["teleport-datadog.toml"]
+          pattern: '"\*" ='
+      - matchRegex:
+          path: data["teleport-datadog.toml"]
+          pattern: '"prod-admin" = \["sre-oncall"\]'
+
   - it: should not contain annotations when not defined
     asserts:
       - isNull:
