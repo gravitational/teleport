@@ -76,6 +76,12 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.DetectionsList
 	case c.detections.get.cmd.FullCommand():
 		commandFunc = c.DetectionsGet
+	case c.detections.triage.cmd.FullCommand():
+		commandFunc = c.DetectionsTriage
+	case c.detections.resolve.cmd.FullCommand():
+		commandFunc = c.DetectionsResolve
+	case c.detections.close.cmd.FullCommand():
+		commandFunc = c.DetectionsClose
 	case c.investigate.cmd.FullCommand():
 		commandFunc = c.Investigate
 	case c.accessChanges.ls.cmd.FullCommand():

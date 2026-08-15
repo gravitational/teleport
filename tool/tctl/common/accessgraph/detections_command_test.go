@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -237,9 +238,12 @@ func newDetectionsCommand(t *testing.T, format string) (*AccessGraphCommand, *by
 	c := &AccessGraphCommand{
 		stdout: &buf,
 		detections: detectionsArgs{
-			format: format,
-			from:   fixtureFromArg,
-			to:     fixtureToArg,
+			ls: detectionsListArgs{
+				format: format,
+				from:   fixtureFromArg,
+				to:     fixtureToArg,
+			},
+			get: detectionsGetArgs{format: format},
 		},
 	}
 	return c, &buf
@@ -254,12 +258,11 @@ func TestDetectionsList(t *testing.T) {
 			[]accessgraph.SecurityAlert{alertFixture(t)}, &got, 0, ""))
 
 		c, _ := newDetectionsCommand(t, teleport.JSON)
-		c.detections.ls = detectionsListArgs{
-			status:   []string{"in_progress", "triaged"},
-			source:   []string{"aws"},
-			typ:      []string{"privilege_escalation"},
-			severity: []string{"high", "critical"},
-		}
+		// Set fields individually so the helper's from/to window survives.
+		c.detections.ls.status = []string{"in_progress", "triaged"}
+		c.detections.ls.source = []string{"aws"}
+		c.detections.ls.typ = []string{"privilege_escalation"}
+		c.detections.ls.severity = []string{"high", "critical"}
 		require.NoError(t, c.DetectionsList(context.Background(), ag))
 
 		// The DSL is assembled by ranging over a map, so the AND-joined
@@ -382,9 +385,9 @@ func TestDetectionsList(t *testing.T) {
 func TestDetectionsGet(t *testing.T) {
 	t.Run("invalid uuid returns BadParameter without hitting the server", func(t *testing.T) {
 		// Handler fails on any request — the uuid guard must trip first.
-		var called atomic.Int64
+		var calls atomic.Int64
 		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			called.Add(1)
+			calls.Add(1)
 			t.Errorf("server reached despite invalid uuid: %s", r.URL.Path)
 		}))
 
@@ -392,7 +395,7 @@ func TestDetectionsGet(t *testing.T) {
 		c.detections.get.id = "not-a-uuid"
 		err := c.DetectionsGet(context.Background(), ag)
 		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
-		require.EqualValues(t, 0, called.Load())
+		require.EqualValues(t, 0, calls.Load())
 	})
 
 	t.Run("alert with log entries walks the logs cursor across pages", func(t *testing.T) {
@@ -529,6 +532,203 @@ func TestDetectionsGet(t *testing.T) {
 	})
 }
 
+// updateStatusRequest captures the wire-level PUT that detectionsSetStatus drove.
+type updateStatusRequest struct {
+	method string
+	path   string
+	body   accessgraph.PutAlertStatusRequest
+}
+
+// newUpdateAlertStatusHandler serves the status-update route, recording the
+// inbound request. Pass statusCode != 0 to drive the error paths.
+func newUpdateAlertStatusHandler(t *testing.T, captured *updateStatusRequest, statusCode int, errBody string) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body accessgraph.PutAlertStatusRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if captured != nil {
+			*captured = updateStatusRequest{method: r.Method, path: r.URL.Path, body: body}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if statusCode != 0 && statusCode != http.StatusOK {
+			w.WriteHeader(statusCode)
+			_, _ = w.Write([]byte(errBody))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func TestDetectionsSetStatus(t *testing.T) {
+	// The route detectionsSetStatus PUTs to for the fixture id.
+	updateStatusPath := getAlertPath + fixtureAlertID.String() + "/status"
+
+	t.Run("each verb maps to its status and sends the reason", func(t *testing.T) {
+		cases := []struct {
+			verb   string
+			status accessgraph.AlertStatus
+			set    func(c *AccessGraphCommand, args detectionSetStatusArgs)
+			run    func(c *AccessGraphCommand, ctx context.Context, ag *accessgraph.ClientWithResponses) error
+		}{
+			{"triage", accessgraph.Triaged,
+				func(c *AccessGraphCommand, a detectionSetStatusArgs) { c.detections.triage = a },
+				(*AccessGraphCommand).DetectionsTriage},
+			{"resolve", accessgraph.Resolved,
+				func(c *AccessGraphCommand, a detectionSetStatusArgs) { c.detections.resolve = a },
+				(*AccessGraphCommand).DetectionsResolve},
+			{"close", accessgraph.Closed,
+				func(c *AccessGraphCommand, a detectionSetStatusArgs) { c.detections.close = a },
+				(*AccessGraphCommand).DetectionsClose},
+		}
+		for _, tc := range cases {
+			t.Run(tc.verb, func(t *testing.T) {
+				var got updateStatusRequest
+				ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, &got, 0, ""))
+
+				c, buf := newDetectionsCommand(t, teleport.Text)
+				tc.set(c, detectionSetStatusArgs{id: fixtureAlertID.String(), reason: "looking into it"})
+				require.NoError(t, tc.run(c, context.Background(), ag))
+
+				require.Equal(t, http.MethodPut, got.method)
+				require.Equal(t, updateStatusPath, got.path)
+				require.Equal(t, tc.status, got.body.Status)
+				require.NotNil(t, got.body.Reason)
+				require.Equal(t, "looking into it", *got.body.Reason)
+				require.Equal(t, "Detection "+fixtureAlertID.String()+" set to "+string(tc.status)+".\n", buf.String())
+			})
+		}
+	})
+
+	t.Run("allow-empty omits the reason", func(t *testing.T) {
+		var got updateStatusRequest
+		ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, &got, 0, ""))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.triage = detectionSetStatusArgs{id: fixtureAlertID.String(), allowEmpty: true}
+		require.NoError(t, c.DetectionsTriage(context.Background(), ag))
+
+		require.Equal(t, accessgraph.Triaged, got.body.Status)
+		require.Nil(t, got.body.Reason)
+	})
+
+	t.Run("reason is trimmed and wins over allow-empty", func(t *testing.T) {
+		var got updateStatusRequest
+		ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, &got, 0, ""))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.triage = detectionSetStatusArgs{id: fixtureAlertID.String(), reason: "  spot checked  ", allowEmpty: true}
+		require.NoError(t, c.DetectionsTriage(context.Background(), ag))
+
+		require.NotNil(t, got.body.Reason)
+		require.Equal(t, "spot checked", *got.body.Reason)
+	})
+
+	t.Run("whitespace-only reason is treated as unset", func(t *testing.T) {
+		var got updateStatusRequest
+		ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, &got, 0, ""))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.triage = detectionSetStatusArgs{id: fixtureAlertID.String(), reason: "   ", allowEmpty: true}
+		require.NoError(t, c.DetectionsTriage(context.Background(), ag))
+
+		require.Nil(t, got.body.Reason)
+	})
+
+	t.Run("reason from editor has comments stripped", func(t *testing.T) {
+		var got updateStatusRequest
+		ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, &got, 0, ""))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.resolve = detectionSetStatusArgs{id: fixtureAlertID.String()}
+		// Whole-line comments are dropped; a '#' mid-line is kept.
+		c.detections.editor = func(_ context.Context, filename string) error {
+			return os.WriteFile(filename, []byte("# header comment\nrotated the key for incident #42\n   # indented comment\n"), 0o600)
+		}
+		require.NoError(t, c.DetectionsResolve(context.Background(), ag))
+
+		require.NotNil(t, got.body.Reason)
+		require.Equal(t, "rotated the key for incident #42", *got.body.Reason)
+	})
+
+	t.Run("empty editor reason aborts without a request", func(t *testing.T) {
+		var calls atomic.Int64
+		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			t.Errorf("server reached despite empty reason: %s", r.URL.Path)
+		}))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.close = detectionSetStatusArgs{id: fixtureAlertID.String()}
+		c.detections.editor = func(_ context.Context, filename string) error {
+			return os.WriteFile(filename, []byte("# only comments\n\n"), 0o600)
+		}
+		err := c.DetectionsClose(context.Background(), ag)
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.EqualValues(t, 0, calls.Load())
+	})
+
+	t.Run("editor failure aborts without a request", func(t *testing.T) {
+		var calls atomic.Int64
+		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			t.Errorf("server reached despite editor failure: %s", r.URL.Path)
+		}))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.close = detectionSetStatusArgs{id: fixtureAlertID.String()}
+		c.detections.editor = func(context.Context, string) error {
+			return trace.BadParameter("editor exploded")
+		}
+		err := c.DetectionsClose(context.Background(), ag)
+		// Match the message, not just BadParameter: the empty-reason fallthrough is one too.
+		require.ErrorContains(t, err, "editor exploded")
+		require.EqualValues(t, 0, calls.Load())
+	})
+
+	t.Run("no terminal without a reason flag errors without a request", func(t *testing.T) {
+		// Tests run without a terminal and inject no editor, so the reason
+		// cannot be collected: the command must require an explicit flag.
+		var calls atomic.Int64
+		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			t.Errorf("server reached despite no way to collect a reason: %s", r.URL.Path)
+		}))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.triage = detectionSetStatusArgs{id: fixtureAlertID.String()}
+		err := c.DetectionsTriage(context.Background(), ag)
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.EqualValues(t, 0, calls.Load())
+	})
+
+	t.Run("invalid uuid returns BadParameter without hitting the server", func(t *testing.T) {
+		var calls atomic.Int64
+		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			t.Errorf("server reached despite invalid uuid: %s", r.URL.Path)
+		}))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.triage = detectionSetStatusArgs{id: "not-a-uuid", allowEmpty: true}
+		err := c.DetectionsTriage(context.Background(), ag)
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.EqualValues(t, 0, calls.Load())
+	})
+
+	t.Run("HTTP 404 surfaces as apiResponseError", func(t *testing.T) {
+		ag := newAccessGraphTestClient(t, newUpdateAlertStatusHandler(t, nil,
+			http.StatusNotFound, `{"message":"no such alert"}`))
+
+		c, _ := newDetectionsCommand(t, teleport.Text)
+		c.detections.resolve = detectionSetStatusArgs{id: fixtureAlertID.String(), allowEmpty: true}
+		err := c.DetectionsResolve(context.Background(), ag)
+		var agErr *apiResponseError
+		require.ErrorAs(t, err, &agErr)
+		require.Equal(t, http.StatusNotFound, agErr.StatusCode)
+		require.Equal(t, "no such alert", agErr.Message)
+	})
+}
+
 func TestDisplayDetectionTextAffectedEntity(t *testing.T) {
 
 	cases := []struct {
@@ -636,7 +836,7 @@ func TestInitDetectionsFlags(t *testing.T) {
 		after := time.Now()
 		require.NoError(t, err)
 
-		require.Equal(t, teleport.Text, got.format)
+		require.Equal(t, teleport.Text, got.ls.format)
 		require.Equal(t, []string{"in_progress", "triaged"}, got.ls.status)
 		require.Empty(t, got.ls.severity, "no default severity filter — unset means all")
 		require.False(t, got.ls.detailed)
@@ -644,8 +844,8 @@ func TestInitDetectionsFlags(t *testing.T) {
 
 		// --from defaults to "30d" → ~30d before parse time. Allow the
 		// parse window (before..after) to absorb any clock drift.
-		require.WithinRange(t, got.from, before.Add(-30*24*time.Hour-time.Second), after.Add(-30*24*time.Hour+time.Second))
-		require.WithinRange(t, got.to, before, after.Add(time.Second))
+		require.WithinRange(t, got.ls.from, before.Add(-30*24*time.Hour-time.Second), after.Add(-30*24*time.Hour+time.Second))
+		require.WithinRange(t, got.ls.to, before, after.Add(time.Second))
 	})
 
 	t.Run("ls rejects unknown status enum", func(t *testing.T) {
@@ -672,8 +872,14 @@ func TestInitDetectionsFlags(t *testing.T) {
 		got, err := parse(t, "detections", "ls", "--detailed", "--format", teleport.JSON, "--limit", "250")
 		require.NoError(t, err)
 		require.True(t, got.ls.detailed)
-		require.Equal(t, teleport.JSON, got.format)
+		require.Equal(t, teleport.JSON, got.ls.format)
 		require.Equal(t, 250, got.ls.limit)
+	})
+
+	t.Run("get accepts --format", func(t *testing.T) {
+		got, err := parse(t, "detections", "get", fixtureAlertID.String(), "--format", teleport.YAML)
+		require.NoError(t, err)
+		require.Equal(t, teleport.YAML, got.get.format)
 	})
 
 	t.Run("get requires id argument", func(t *testing.T) {
@@ -685,6 +891,37 @@ func TestInitDetectionsFlags(t *testing.T) {
 		got, err := parse(t, "detections", "get", fixtureAlertID.String())
 		require.NoError(t, err)
 		require.Equal(t, fixtureAlertID.String(), got.get.id)
+	})
+
+	t.Run("status verbs require id argument", func(t *testing.T) {
+		for _, verb := range []string{"triage", "resolve", "close"} {
+			t.Run(verb, func(t *testing.T) {
+				_, err := parse(t, "detections", verb)
+				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("status verbs capture id, reason, and allow-empty", func(t *testing.T) {
+		cases := []struct {
+			verb string
+			pick func(detectionsArgs) detectionSetStatusArgs
+		}{
+			{"triage", func(a detectionsArgs) detectionSetStatusArgs { return a.triage }},
+			{"resolve", func(a detectionsArgs) detectionSetStatusArgs { return a.resolve }},
+			{"close", func(a detectionsArgs) detectionSetStatusArgs { return a.close }},
+		}
+		for _, tc := range cases {
+			t.Run(tc.verb, func(t *testing.T) {
+				// -r is the short form of --reason.
+				got, err := parse(t, "detections", tc.verb, fixtureAlertID.String(), "-r", "because", "--allow-empty")
+				require.NoError(t, err)
+				args := tc.pick(got)
+				require.Equal(t, fixtureAlertID.String(), args.id)
+				require.Equal(t, "because", args.reason)
+				require.True(t, args.allowEmpty)
+			})
+		}
 	})
 }
 

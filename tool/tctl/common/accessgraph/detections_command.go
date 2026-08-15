@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -30,12 +31,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/editor"
 )
 
 // descriptionTextMaxLen caps Description in the detailed text table so a long
@@ -47,16 +50,22 @@ type detectionsArgs struct {
 	ls  detectionsListArgs
 	get detectionsGetArgs
 
-	// Date filters
-	from time.Time
-	to   time.Time
+	// Status-change subcommands, one per lifecycle verb.
+	triage  detectionSetStatusArgs
+	resolve detectionSetStatusArgs
+	close   detectionSetStatusArgs
 
-	// Output format
-	format string
+	// editor is used by tests to inject the editing mechanism so that
+	// different scenarios can be asserted.
+	editor func(ctx context.Context, filename string) error
 }
 
 type detectionsListArgs struct {
 	cmd *kingpin.CmdClause
+
+	// Date filters
+	from time.Time
+	to   time.Time
 
 	// General filters
 	status   []string
@@ -69,28 +78,36 @@ type detectionsListArgs struct {
 
 	// detailed expands the ls command to carry extra columns
 	detailed bool
+
+	// Output format
+	format string
 }
 
+// Output and time-window flags are declared per subcommand rather than on the
+// `detections` parent so the status verbs don't advertise options they ignore.
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
 	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.")
-	detectionsCmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)", time.RFC3339, time.DateOnly)).
-		Default("30d").
-		SetValue(timeValue{target: &c.detections.from})
-	detectionsCmd.Flag("to", fmt.Sprintf("Include activity at or before this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: now)", time.RFC3339, time.DateOnly)).
-		Default("now").
-		SetValue(timeValue{target: &c.detections.to})
-	detectionsCmd.Flag("format", "Output format. (Values: text, json, yaml)").
-		Default(teleport.Text).
-		EnumVar(&c.detections.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.detections.cmd = detectionsCmd
 
-	c.initDetectionsList(c.detections.cmd)
-	c.initDetectionsGet(c.detections.cmd)
+	c.initDetectionsList(detectionsCmd)
+	c.initDetectionsGet(detectionsCmd)
+	c.initDetectionsSetStatus(detectionsCmd, "triage", "Mark a detection as triaged.", &c.detections.triage)
+	c.initDetectionsSetStatus(detectionsCmd, "resolve", "Mark a detection as resolved.", &c.detections.resolve)
+	c.initDetectionsSetStatus(detectionsCmd, "close", "Mark a detection as closed.", &c.detections.close)
 }
 
 func (c *AccessGraphCommand) initDetectionsList(parent *kingpin.CmdClause) {
 	lsCmd := parent.Command("ls", "List Identity Security detections.")
 
+	lsCmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)", time.RFC3339, time.DateOnly)).
+		Default("30d").
+		SetValue(timeValue{target: &c.detections.ls.from})
+	lsCmd.Flag("to", fmt.Sprintf("Include activity at or before this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: now)", time.RFC3339, time.DateOnly)).
+		Default("now").
+		SetValue(timeValue{target: &c.detections.ls.to})
+	lsCmd.Flag("format", "Output format. (Values: text, json, yaml)").
+		Default(teleport.Text).
+		EnumVar(&c.detections.ls.format, teleport.Text, teleport.JSON, teleport.YAML)
 	lsCmd.Flag("status", "Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.").
 		AllowDuplicate().
 		Default("in_progress", "triaged").
@@ -114,15 +131,15 @@ func (c *AccessGraphCommand) initDetectionsList(parent *kingpin.CmdClause) {
 
 // DetectionsList executes `tctl detections ls`.
 func (c *AccessGraphCommand) DetectionsList(ctx context.Context, client *accessgraph.ClientWithResponses) error {
-	if err := validateTimeWindow(c.detections.from, c.detections.to); err != nil {
+	if err := validateTimeWindow(c.detections.ls.from, c.detections.ls.to); err != nil {
 		return trace.Wrap(err)
 	}
-	params := constructAlertsListQuery(c.detections)
+	params := constructAlertsListQuery(c.detections.ls)
 	alerts, err := fetchAlerts(ctx, client, params, c.detections.ls.limit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return displayDetections(c.stdout, alerts, c.detections.format, c.detections.ls.detailed)
+	return displayDetections(c.stdout, alerts, c.detections.ls.format, c.detections.ls.detailed)
 }
 
 // fetchAlerts paginates ListAlertsV1 until limit alerts have been collected or
@@ -162,13 +179,13 @@ func fetchAlerts(
 	}
 }
 
-func constructAlertsListQuery(args detectionsArgs) accessgraph.ListAlertsV1Params {
+func constructAlertsListQuery(args detectionsListArgs) accessgraph.ListAlertsV1Params {
 	var queryParts []string
 	for field, values := range map[string][]string{
-		"status":   args.ls.status,
-		"source":   args.ls.source,
-		"type":     args.ls.typ,
-		"severity": args.ls.severity,
+		"status":   args.status,
+		"source":   args.source,
+		"type":     args.typ,
+		"severity": args.severity,
 	} {
 		if clause := dslClause(field, values); clause != "" {
 			queryParts = append(queryParts, clause)
@@ -293,11 +310,17 @@ func displayDetectionsText(out io.Writer, alerts []accessgraph.SecurityAlert, de
 type detectionsGetArgs struct {
 	cmd *kingpin.CmdClause
 	id  string
+
+	// Output format
+	format string
 }
 
 func (c *AccessGraphCommand) initDetectionsGet(parent *kingpin.CmdClause) {
 	getCmd := parent.Command("get", "Get Identity Security detection details.")
 	getCmd.Arg("id", "The detection ID to retrieve.").Required().StringVar(&c.detections.get.id)
+	getCmd.Flag("format", "Output format. (Values: text, json, yaml)").
+		Default(teleport.Text).
+		EnumVar(&c.detections.get.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.detections.get.cmd = getCmd
 }
 
@@ -332,7 +355,7 @@ func (c *AccessGraphCommand) DetectionsGet(ctx context.Context, client *accessgr
 	if eventsErr != nil {
 		out.EventsError = eventsErr.Error()
 	}
-	return writeOutput(c.stdout, out, c.detections.format, func(w io.Writer) error {
+	return writeOutput(c.stdout, out, c.detections.get.format, func(w io.Writer) error {
 		return displayDetectionText(w, alert, events, eventsErr)
 	})
 }
@@ -421,4 +444,140 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 		fmt.Fprintln(out, changes.String())
 	}
 	return nil
+}
+
+// detectionSetStatusArgs backs the triage/resolve/close subcommands.
+type detectionSetStatusArgs struct {
+	cmd        *kingpin.CmdClause
+	id         string
+	reason     string
+	allowEmpty bool
+}
+
+func (c *AccessGraphCommand) initDetectionsSetStatus(parent *kingpin.CmdClause, verb, help string, target *detectionSetStatusArgs) {
+	cmd := parent.Command(verb, help)
+	cmd.Arg("id", "The detection ID to update.").Required().StringVar(&target.id)
+	cmd.Flag("reason", "Reason for the status change. If omitted, an editor is opened to collect one.").
+		Short('r').
+		StringVar(&target.reason)
+	cmd.Flag("allow-empty", "Change the status without a reason instead of prompting for one.").
+		BoolVar(&target.allowEmpty)
+	target.cmd = cmd
+}
+
+// DetectionsTriage executes `tctl detections triage <id>`.
+func (c *AccessGraphCommand) DetectionsTriage(ctx context.Context, client *accessgraph.ClientWithResponses) error {
+	return c.detectionsSetStatus(ctx, client, c.detections.triage, accessgraph.Triaged)
+}
+
+// DetectionsResolve executes `tctl detections resolve <id>`.
+func (c *AccessGraphCommand) DetectionsResolve(ctx context.Context, client *accessgraph.ClientWithResponses) error {
+	return c.detectionsSetStatus(ctx, client, c.detections.resolve, accessgraph.Resolved)
+}
+
+// DetectionsClose executes `tctl detections close <id>`.
+func (c *AccessGraphCommand) DetectionsClose(ctx context.Context, client *accessgraph.ClientWithResponses) error {
+	return c.detectionsSetStatus(ctx, client, c.detections.close, accessgraph.Closed)
+}
+
+// detectionsSetStatus writes status to the detection identified by args.id.
+func (c *AccessGraphCommand) detectionsSetStatus(ctx context.Context, client *accessgraph.ClientWithResponses, args detectionSetStatusArgs, status accessgraph.AlertStatus) error {
+	id, err := uuid.Parse(args.id)
+	if err != nil {
+		return trace.BadParameter("invalid detection id %q: %v", args.id, err)
+	}
+
+	reason, err := c.resolveReason(ctx, args, status)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	body := accessgraph.PutAlertStatusRequest{Status: status}
+	if reason != "" {
+		body.Reason = &reason
+	}
+
+	// UpdateAlertStatusV1Response has no success body; doRequest's status check is the only success signal.
+	if _, err := doRequest(client.UpdateAlertStatusV1WithResponse(ctx, id, body)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = fmt.Fprintf(c.stdout, "Detection %s set to %s.\n", id, status)
+	return trace.Wrap(err)
+}
+
+// resolveReason returns the --reason flag, "" when --allow-empty is set, or an interactively collected reason.
+func (c *AccessGraphCommand) resolveReason(ctx context.Context, args detectionSetStatusArgs, status accessgraph.AlertStatus) (string, error) {
+	if reason := strings.TrimSpace(args.reason); reason != "" {
+		return reason, nil
+	}
+	if args.allowEmpty {
+		return "", nil
+	}
+
+	reason, err := c.collectReason(ctx, args.id, status)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if reason == "" {
+		return "", trace.BadParameter("empty reason, aborting; pass --allow-empty to change the status without one")
+	}
+	return reason, nil
+}
+
+// reasonTemplate seeds the editor buffer, leaving the cursor on a blank first line.
+const reasonTemplate = `
+# Please enter a reason for setting detection %s to %q.
+# Lines starting with '#' are ignored, and an empty reason aborts the change.
+`
+
+// collectReason opens the editor on a seeded temporary file and returns what
+// the user typed, minus the seeded comments.
+func (c *AccessGraphCommand) collectReason(ctx context.Context, id string, status accessgraph.AlertStatus) (string, error) {
+	f, err := os.CreateTemp("", "teleport-detection-reason*.txt")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := fmt.Fprintf(f, reasonTemplate, id, status); err != nil {
+		_ = f.Close()
+		return "", trace.Wrap(err)
+	}
+	if err := f.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := c.runReasonEditor(ctx, f.Name()); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	edited, err := os.ReadFile(f.Name())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return stripComments(string(edited)), nil
+}
+
+// runReasonEditor opens filename in the user's editor, which requires a terminal.
+func (c *AccessGraphCommand) runReasonEditor(ctx context.Context, filename string) error {
+	if c.detections.editor != nil {
+		return trace.Wrap(c.detections.editor(ctx, filename))
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return trace.BadParameter("no terminal available to prompt for a reason; pass --reason/-r or --allow-empty")
+	}
+	return trace.Wrap(editor.Run(ctx, filename))
+}
+
+// stripComments drops whole-line '#' comments and trims the result.
+func stripComments(s string) string {
+	var kept []string
+	for line := range strings.SplitSeq(s, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n"))
 }

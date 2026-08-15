@@ -1402,6 +1402,29 @@ Flags:
 |`--format`|`text`|Output format, 'text', 'json' or 'yaml'|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
+## tctl detections close
+
+Mark a detection as closed.
+
+Usage:
+
+```code
+$ tctl detections close [<flags>] <id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]allow-empty`|`false`|Change the status without a reason instead of prompting for one.|
+|`-r`, `--reason`|*no default*|Reason for the status change. If omitted, an editor is opened to collect one.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|*no default* (required)|The detection ID to update.|
+
 ## tctl detections get
 
 Get Identity Security detection details.
@@ -1417,8 +1440,6 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
-|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
-|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 
 Arguments:
 
@@ -1449,6 +1470,52 @@ Flags:
 |`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
 |`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 |`--type`|*no default*|Filter detections by type.|
+
+## tctl detections resolve
+
+Mark a detection as resolved.
+
+Usage:
+
+```code
+$ tctl detections resolve [<flags>] <id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]allow-empty`|`false`|Change the status without a reason instead of prompting for one.|
+|`-r`, `--reason`|*no default*|Reason for the status change. If omitted, an editor is opened to collect one.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|*no default* (required)|The detection ID to update.|
+
+## tctl detections triage
+
+Mark a detection as triaged.
+
+Usage:
+
+```code
+$ tctl detections triage [<flags>] <id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]allow-empty`|`false`|Change the status without a reason instead of prompting for one.|
+|`-r`, `--reason`|*no default*|Reason for the status change. If omitted, an editor is opened to collect one.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|*no default* (required)|The detection ID to update.|
 
 ## tctl devices add
 
