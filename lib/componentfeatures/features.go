@@ -20,6 +20,7 @@ package componentfeatures
 
 import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // FeatureID is used to wrap [componentfeaturesv1.ComponentFeatureID] for convenience methods.
@@ -57,4 +58,17 @@ func (f FeatureID) String() string {
 // ToProto converts the FeatureID to its corresponding [componentfeaturesv1.ComponentFeatureID].
 func (f FeatureID) ToProto() componentfeaturesv1.ComponentFeatureID {
 	return componentfeaturesv1.ComponentFeatureID(f)
+}
+
+// ConstraintFeatureForKind maps a constrained resource kind to the feature ID
+// every component on its access path must advertise for the constraint to be
+// enforceable. Kinds without constraint support report false.
+func ConstraintFeatureForKind(kind string) (FeatureID, bool) {
+	switch kind {
+	case types.KindNode:
+		return FeatureResourceConstraintsSSHV1, true
+	case types.KindApp:
+		return FeatureResourceConstraintsV1, true
+	}
+	return FeatureUnspecified, false
 }

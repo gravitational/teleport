@@ -181,10 +181,13 @@ func TestAccessRequestSearch(t *testing.T) {
 				kind:            types.KindKubernetesCluster,
 			},
 			wantTable: func() string {
+				// kube_cluster now lists via ListUnifiedResources. That adds
+				// the granted/requestable Access column, which stays empty
+				// for kinds with no selectable principals.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Name", "Hostname", "Labels", "Resource ID"},
+					[]string{"Name", "Hostname", "Labels", "Access", "Resource ID"},
 					[][]string{
-						{leafKubeCluster, "", "", fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster)},
+						{leafKubeCluster, "", "", "", fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
 				return table.AsBuffer().String()

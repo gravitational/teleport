@@ -180,6 +180,9 @@ type CLIConf struct {
 	// RequestedResourcesFile is a path (or "-" for stdin) to a JSON
 	// ResourceAccessIDList used to request access to resources with constraints.
 	RequestedResourcesFile string
+	// RequestShowPrincipalsResourceID is the resource ID whose granted and
+	// requestable principals are shown by `tsh request show-principals`.
+	RequestShowPrincipalsResourceID string
 	// RequestID is an access request ID
 	RequestID string
 	// RequestIDs is a list of access request IDs
@@ -1454,6 +1457,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request.").Required().StringVar(&cf.RequestID)
 
+	reqShowPrincipals := req.Command("show-principals", "Show the granted and requestable principals for a resource.")
+	reqShowPrincipals.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	reqShowPrincipals.Arg("resource-id", "Resource ID to show principals for (e.g. /cluster/node/web-1).").Required().StringVar(&cf.RequestShowPrincipalsResourceID)
+	reqShowPrincipals.Flag("verbose", "Verbose output, shows full label output.").Short('v').BoolVar(&cf.Verbose)
+
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
@@ -1986,6 +1994,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onRequestList(&cf)
 	case reqShow.FullCommand():
 		err = onRequestShow(&cf)
+	case reqShowPrincipals.FullCommand():
+		err = onRequestShowPrincipals(&cf)
 	case reqCreate.FullCommand():
 		err = onRequestCreate(&cf)
 	case reqReview.FullCommand():
