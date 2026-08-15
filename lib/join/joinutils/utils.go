@@ -36,6 +36,7 @@ import (
 func GlobMatch(pattern, str string) (bool, error) {
 	pattern = regexp.QuoteMeta(pattern)
 	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	// note: unlike utils.GlobToRegexp, we also support `?` here
 	pattern = strings.ReplaceAll(pattern, `\?`, ".")
 	pattern = "^" + pattern + "$"
 	matched, err := regexp.MatchString(pattern, str)
