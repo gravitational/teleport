@@ -38,6 +38,10 @@ fi
 # shellcheck disable=SC1090
 source "${USE_CONFD_DIR}/conf"
 
+if [[ -z "${TELEPORT_LOG_OUTPUT}" ]]; then
+  TELEPORT_LOG_OUTPUT="stderr"
+fi
+
 ## Helper functions
 aws_metadata_get() {
     # request path is the part after /latest/ i.e. meta-data/local-ipv4
@@ -246,7 +250,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
   storage:
@@ -326,7 +330,7 @@ teleport:
     max_connections: 65000
     max_users: 10000
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
   storage:
@@ -409,7 +413,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
   storage:
@@ -460,7 +464,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
 EOF
@@ -613,7 +617,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
   storage:
@@ -697,7 +701,7 @@ if [[ "${TELEPORT_ROLE}" == "agent" ]]; then
 version: v3
 teleport:
   log:
-    output: stderr
+    output: ${TELEPORT_LOG_OUTPUT}
     severity: INFO
   data_dir: /var/lib/teleport
   auth_token: ${TELEPORT_JOIN_TOKEN}
