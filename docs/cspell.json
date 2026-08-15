@@ -878,6 +878,7 @@
     "pgvector",
     "pidof",
     "pingfederate",
+    "pipefail",
     "pipx",
     "pkill",
     "pkinit",
