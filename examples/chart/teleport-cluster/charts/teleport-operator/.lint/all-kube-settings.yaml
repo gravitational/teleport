@@ -1,0 +1,45 @@
+teleportAddress: "example.teleport.sh:443"
+token: "my-operator-bot"
+teleportClusterName: "example.teleport.sh"
+updater:
+  enabled: true
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: gravitational.io/dedicated
+              operator: In
+              values:
+                - teleport
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - teleport
+          topologyKey: kubernetes.io/hostname
+        weight: 1
+nodeSelector:
+  gravitational.io/k8s-role: node
+imagePullSecrets:
+  - name: myRegistryKeySecretName
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "teleport"
+    effect: "NoExecute"
+  - key: "dedicated"
+    operator: "Equal"
+    value: "teleport"
+    effect: "NoSchedule"
+imagePullPolicy: Always
+serviceAccount:
+  name: teleport-operator
+tls:
+  existingCASecretName: "helm-lint-existing-tls-secret-ca"
+  existingCASecretKeyName: "helm-lint-existing-tls-secret-key-name"
+priorityClassName: teleport-operator
