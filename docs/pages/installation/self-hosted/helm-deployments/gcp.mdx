@@ -306,6 +306,24 @@ $ kubectl --namespace teleport get secret teleport-gcp-credentials -o jsonpath='
 You should see `teleport-gcp-credentials` in the output.
 </Checkpoint>
 
+<Admonition type="warning" title="Delete the local key file once the Secret exists">
+The JSON key now lives inside your cluster as a Secret, and Kubernetes is
+where Teleport reads it from — the copy on your workstation (or wherever it
+was downloaded) is no longer needed. This key belongs to a service account
+holding `storage-bucket-creator-role`, `dns-updater-role`,
+`roles/datastore.owner`, and `roles/storage.objectAdmin`, so a leftover copy
+sitting in a home directory, backup, or accidentally committed to a repo
+gives an attacker write/delete access to your cluster state, session
+recordings, and DNS. Once the Checkpoint above confirms the Secret exists,
+delete the local file:
+
+```code
+$ rm teleport-gcp-credentials.json
+```
+
+(or the equivalent path if you used the Console download instead).
+</Admonition>
+
 ## Step 3/6. Install and configure cert-manager
 
 Reference the [cert-manager docs](https://cert-manager.io/docs/).
@@ -489,7 +507,7 @@ Verify the Helm installation succeeded and pods are running:
 $ kubectl --namespace teleport get pods
 ```
 
-You should see Auth Service and Proxy Service pods in `Running` state. If pods are in `CrashLoopBackOff` or `Error` state, check logs:
+You should see auth and proxy pods in `Running` state. If pods are in `CrashLoopBackOff` or `Error` state, check logs:
 
 ```code
 $ kubectl --namespace teleport logs deploy/teleport-auth --tail=50

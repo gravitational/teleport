@@ -238,6 +238,7 @@ see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagno
 
 ```code
 $ gcloud compute health-checks create http teleport-auth-healthcheck \
+    --region=us-central1 \
     --port=3000 \
     --request-path=/healthz \
     --check-interval=10s \
@@ -245,6 +246,14 @@ $ gcloud compute health-checks create http teleport-auth-healthcheck \
     --unhealthy-threshold=3 \
     --healthy-threshold=2
 ```
+
+<Admonition type="note" title="Why this health check is regional">
+The internal load balancer for the Auth Service (below) uses a regional
+`INTERNAL`-scheme backend service, which needs a health check in the same
+region — a global health check would require an extra
+`--global-health-checks` flag on the backend service instead, so creating it
+regional here is simpler and matches the region used throughout this guide.
+</Admonition>
 
 <Admonition type="warning" title="Target pools require a legacy HTTP health check">
 The Proxy load balancer later in this guide uses a target pool
@@ -275,7 +284,7 @@ the service is healthy.
 Verify the health checks were created:
 
 ```code
-$ gcloud compute health-checks list --format="value(name, type)"
+$ gcloud compute health-checks list --regions=us-central1 --format="value(name, type)"
 $ gcloud compute http-health-checks list --format="value(name, port)"
 ```
 
@@ -305,9 +314,7 @@ purpose of using instance groups for HA. Bake installation and configuration
 into a startup script (or a custom image) so every VM the group creates is
 already running Teleport.
 
-Save the following as `teleport-auth-startup.sh`, filling in your own token
-values to match the tokens you configure on the Auth Service in
-[GCP Quickstart](#2-install--configure-teleport). Note `diag_addr` — this is
+Save the following as `teleport-auth-startup.sh`. Note `diag_addr` — this is
 what makes the health check above actually see a live endpoint on port 3000;
 without it Teleport's diagnostics listener stays disabled and every health
 check fails even though Teleport itself is running fine.
@@ -336,9 +343,6 @@ teleport:
     audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT'
 auth_service:
   enabled: true
-  tokens:
-    - "proxy:REPLACE_WITH_PROXY_TOKEN"
-    - "node:REPLACE_WITH_NODE_TOKEN"
 proxy_service:
   enabled: false
 ssh_service:
@@ -349,12 +353,110 @@ systemctl enable teleport
 systemctl restart teleport
 ```
 
+<Admonition type="warning" title="Don't embed static join tokens in instance metadata">
+An earlier version of this script set static `proxy:`/`node:` tokens under
+`auth_service.tokens`. Since `--metadata-from-file=startup-script=...`
+uploads this script verbatim into the instance template, anyone with read
+access to the template or a VM's metadata could recover those non-expiring
+tokens and enroll an unauthorized Teleport service — so this version omits
+them entirely.
+
+Instead, since the Proxy and Node instances already have dedicated GCP
+service accounts, use the **GCP join method** — the same approach covered in
+[Join Services with GCP](../agents/gcp.mdx), scoped by service account rather
+than a shared secret. Once at least one Auth instance is up and reachable
+(via the internal load balancer set up below), create a dynamic join token
+from your workstation:
+
+```code
+$ cat << EOF > proxy-token.yaml
+kind: token
+version: v2
+metadata:
+  name: teleport-proxy-token
+  expires: "2038-01-01T00:00:00Z"
+spec:
+  roles: [Proxy]
+  join_method: gcp
+  gcp:
+    allow:
+      - project_ids: ["Example_GCP_PROJECT"]
+        service_accounts: ["teleport-proxy-server@Example_GCP_PROJECT.iam.gserviceaccount.com"]
+EOF
+
+$ tctl create proxy-token.yaml
+```
+
+Reference `teleport-proxy-token` (not a static secret) in
+`teleport-proxy-startup.sh` below.
+</Admonition>
+
+<Admonition type="warning" title="Don't rely on built-in ACME with multiple Proxy replicas">
+The Proxy `teleport.yaml` sample in [GCP Quickstart](#2-install--configure-teleport)
+enables Teleport's built-in ACME support (`acme.enabled: true`), which is
+[only supported for a single Proxy replica](../../../reference/helm-reference/teleport-cluster.mdx).
+Behind the passthrough load balancer set up in this guide, the ACME HTTP-01
+challenge can land on a different Proxy than the one that requested it, and
+certificates aren't shared between replicas — so issuance and renewal become
+unreliable with 2+ replicas. Use a single certificate obtained once (for
+example via a one-off `certbot` DNS-01 run, or a purchased certificate) for
+`teleport.example.com`, store it in Secret Manager, and have every Proxy VM
+fetch it at boot instead of requesting its own:
+
+```code
+# Run once, from your workstation, after obtaining fullchain.pem and privkey.pem
+$ gcloud secrets create teleport-proxy-cert --data-file=fullchain.pem
+$ gcloud secrets create teleport-proxy-key --data-file=privkey.pem
+
+$ gcloud secrets add-iam-policy-binding teleport-proxy-cert \
+    --member="serviceAccount:$PROXY_SERVICE_ACCOUNT" \
+    --role="roles/secretmanager.secretAccessor"
+$ gcloud secrets add-iam-policy-binding teleport-proxy-key \
+    --member="serviceAccount:$PROXY_SERVICE_ACCOUNT" \
+    --role="roles/secretmanager.secretAccessor"
+```
+
+In `teleport-proxy-startup.sh`, fetch the secrets before starting Teleport,
+and replace `acme` with `https_keypairs` in the Proxy config:
+
+```bash
+mkdir -p /var/lib/teleport
+gcloud secrets versions access latest --secret=teleport-proxy-cert > /var/lib/teleport/fullchain.pem
+gcloud secrets versions access latest --secret=teleport-proxy-key > /var/lib/teleport/privkey.pem
+chmod 600 /var/lib/teleport/privkey.pem
+```
+
+```yaml
+proxy_service:
+  enabled: true
+  web_listen_addr: 0.0.0.0:443
+  public_addr: teleport.example.com:443
+  https_keypairs:
+    - key_file: /var/lib/teleport/privkey.pem
+      cert_file: /var/lib/teleport/fullchain.pem
+```
+
+Renew the certificate (out-of-band, before it expires) by updating the Secret
+Manager versions — new Proxy VMs pick up the latest version automatically on
+boot, but running instances need a rolling restart to reload it.
+</Admonition>
+
 Save an equivalent `teleport-proxy-startup.sh` using the Proxy `teleport.yaml`
 shown in [GCP Quickstart](#2-install--configure-teleport), with the same
-`diag_addr: 0.0.0.0:3000` line added and `auth_server` set to
+`diag_addr: 0.0.0.0:3000` line added, `acme` replaced with `https_keypairs` as
+shown above, and `auth_server` set to
 `$AUTH_LB_IP:3025` (the internal load balancer created below — do **not** use
 the placeholder `auth.example.com` from that sample as-is, since this guide
-never creates a DNS record or public endpoint for it). Since the storage
+never creates a DNS record or public endpoint for it). Replace the sample's
+`auth_token: (= presets.tokens.first =)` line with:
+
+```yaml
+join_params:
+  token_name: teleport-proxy-token
+  method: gcp
+```
+
+Since the storage
 config above omits `credentials_path`, it relies on the attached service
 account for Application Default Credentials — see the note on this in
 [Access: Service accounts](#access-service-accounts).
@@ -393,7 +495,8 @@ $ gcloud compute backend-services create teleport-auth-backend \
     --region=us-central1 \
     --load-balancing-scheme=INTERNAL \
     --protocol=TCP \
-    --health-checks=teleport-auth-healthcheck
+    --health-checks=teleport-auth-healthcheck \
+    --health-checks-region=us-central1
 
 $ gcloud compute backend-services add-backend teleport-auth-backend \
     --region=us-central1 \

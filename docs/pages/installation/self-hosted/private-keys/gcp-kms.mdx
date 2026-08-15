@@ -183,11 +183,21 @@ to learn how to provide them for your preferred environment.
 If your Teleport Auth Service runs on a GCE VM, you can attach the service account directly to the VM instance instead of using a JSON key file. Replace `INSTANCE_NAME` and `ZONE` with your VM's instance name and zone:
 
 ```code
+$ gcloud compute instances stop INSTANCE_NAME --zone=ZONE
+
 $ gcloud compute instances set-service-account INSTANCE_NAME \
     --service-account=$SERVICE_ACCOUNT \
     --scopes=cloud-platform \
     --zone=ZONE
+
+$ gcloud compute instances start INSTANCE_NAME --zone=ZONE
 ```
+
+GCP requires an instance to be stopped before its service account or scopes
+can change — this command fails on a running VM. If you have multiple Auth
+Service instances for high availability, apply this one instance at a time
+rather than stopping them all at once, so the cluster keeps serving requests
+throughout.
 
 This is the recommended approach as it avoids managing key files.
 </Admonition>
