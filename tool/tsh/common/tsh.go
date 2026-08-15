@@ -252,6 +252,17 @@ type CLIConf struct {
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
 
+	// SelectedPreset is the name of the preset selected via the --preset
+	// flag (or TELEPORT_PRESET). Presets are named sets of global overrides
+	// (proxy, cluster, user, etc.) defined in the tsh config file. If empty,
+	// the config's default_preset (if any) is used.
+	SelectedPreset string
+
+	// activeConfigPreset is the name of the config preset that was actually
+	// applied (the explicitly selected one, or the default_preset fallback).
+	// Empty if no config preset was applied. Used for display in tsh status.
+	activeConfigPreset string
+
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
@@ -352,6 +363,9 @@ type CLIConf struct {
 
 	// MFAMode is the preferred mode for MFA/Passwordless assertions.
 	MFAMode string
+	// mfaModeSetByUser tracks whether --mfa-mode was set explicitly so a preset
+	// does not override it.
+	mfaModeSetByUser bool
 
 	// SkipVersionCheck skips version checking for client and server
 	SkipVersionCheck bool
@@ -414,9 +428,15 @@ type CLIConf struct {
 	//
 	// Deprecated in favor of `AddKeysToAgent`.
 	UseLocalSSHAgent bool
+	// useLocalSSHAgentSetByUser tracks whether --use-local-ssh-agent was set
+	// explicitly by the user, so a selected preset does not override it.
+	useLocalSSHAgentSetByUser bool
 
 	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
+	// addKeysToAgentSetByUser tracks whether --add-keys-to-agent was set
+	// explicitly by the user, so a selected preset does not override it.
+	addKeysToAgentSetByUser bool
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
 	// command/shell execution. This also requires stdin to be an interactive
@@ -620,6 +640,9 @@ type CLIConf struct {
 
 	// Headless uses headless login for the client session.
 	Headless bool
+	// headlessSetByUser tracks whether --headless was set explicitly so a preset
+	// does not override it.
+	headlessSetByUser bool
 
 	// MlockMode determines whether the process memory will be locked, and whether errors will be enforced.
 	// Allowed values include false, strict, and best_effort.
@@ -835,6 +858,7 @@ const (
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
 	browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
+	presetSelectEnvVar        = "TELEPORT_PRESET"
 	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
@@ -951,6 +975,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("preset", "Select a named preset from the tsh config file (defines proxy and other global overrides). See the presets section of the tsh config.").Envar(presetSelectEnvVar).StringVar(&cf.SelectedPreset)
 	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
@@ -993,11 +1018,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		osLogFlag.Hidden()
 	}
 	osLogFlag.BoolVar(&cf.OSLog)
-	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
+	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).IsSetByUser(&cf.addKeysToAgentSetByUser).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
 		Default("true").
+		IsSetByUser(&cf.useLocalSSHAgentSetByUser).
 		BoolVar(&cf.UseLocalSSHAgent)
 	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
 		Default("true").
@@ -1009,8 +1035,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("mfa-mode", "Preferred mode for MFA and Passwordless assertions.").
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
+		IsSetByUser(&cf.mfaModeSetByUser).
 		EnumVar(&cf.MFAMode, modes...)
-	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
+	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).IsSetByUser(&cf.headlessSetByUser).BoolVar(&cf.Headless)
 	app.Flag("mlock", fmt.Sprintf("Determines whether process memory will be locked and whether failure to do so will be accepted (%v).", strings.Join(mlockModes, ", "))).
 		Default(mlockModeAuto).
 		Envar(mlockModeEnvVar).
@@ -1556,6 +1583,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scan := newScanCommand(app)
 	// scopes subcommands.
 	scopes := newScopesCommand(app)
+	// Preset subcommands.
+	presets := newPresetCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1706,9 +1735,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	// Did we initially get the Username from flags/env?
-	cf.ExplicitUsername = cf.Username != ""
-
 	cf.command = command
 	// Convert --disable-access-request for compatibility.
 	if cf.disableAccessRequest {
@@ -1725,6 +1751,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err := configureProxyStatusOutput(&cf, proxyStatusOutput); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Apply a named preset selected via --preset / TELEPORT_PRESET (or the
+	// config's default_preset). This runs after app.Parse and after the
+	// CliOptions so that explicit CLI flags, environment variables, and any
+	// test/programmatic overrides take precedence over the preset's values,
+	// and so the preset is resolved against the final TSHConfig.
+	if !presets.isManagementCommand(command) {
+		if err := applySelectedPreset(ctx, &cf); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Did we get the Username from flags/env or a selected preset?
+	cf.ExplicitUsername = cf.Username != ""
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
@@ -1936,6 +1976,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = scan.keys.run(&cf)
 	case scopes.ls.FullCommand():
 		err = scopes.ls.run(&cf)
+	case presets.ls.FullCommand():
+		err = presets.ls.run(&cf)
+	case presets.add.FullCommand():
+		err = presets.add.run(&cf)
+	case presets.use.FullCommand():
+		err = presets.use.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():
@@ -5624,6 +5670,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	}
 
 	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
+	if len(p.Presets) != 0 {
+		fmt.Fprintf(w, "  Presets:            %v\n", strings.Join(p.Presets, ", "))
+	}
 	if debug {
 		switch {
 		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
@@ -5753,6 +5802,7 @@ func rolesToString(debug bool, roles []string) string {
 func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
+	setMatchingPresets(cf.TSHConfig.Presets, append([]*profileInfo{active}, others...)...)
 
 	format := strings.ToLower(cf.Format)
 	switch format {
@@ -5775,6 +5825,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 		// Print all other profiles.
 		for _, p := range others {
 			printStatus(cf.Stdout(), cf.Debug, p, env, false)
+		}
+
+		// Print the active config preset selected via --preset / TELEPORT_PRESET
+		// (or default_preset), if any.
+		if cf.activeConfigPreset != "" {
+			fmt.Fprintf(cf.Stdout(), "Active Config Preset: %s\n", cf.activeConfigPreset)
 		}
 
 		// Print relevant active env vars, if they are set.
@@ -5852,6 +5908,7 @@ func onStatus(cf *CLIConf) error {
 
 type profileInfo struct {
 	ProxyURL                 string                   `json:"profile_url"`
+	Presets                  []string                 `json:"presets,omitempty"`
 	RelayAddr                string                   `json:"relay_addr,omitempty"`
 	DefaultRelayAddr         string                   `json:"default_relay_addr,omitempty"`
 	Username                 string                   `json:"username"`
@@ -5872,6 +5929,31 @@ type profileInfo struct {
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
+}
+
+// setMatchingPresets annotates profiles with presets that select the same web
+// proxy endpoint. Invalid preset proxy values are ignored here because a
+// malformed unrelated preset must not prevent tsh status from being displayed.
+func setMatchingPresets(presets map[string]client.TSHConfigPreset, profiles ...*profileInfo) {
+	for _, profile := range profiles {
+		if profile == nil {
+			continue
+		}
+		profile.Presets = nil
+		if _, err := normalizePresetProxy(profile.ProxyURL); err != nil {
+			continue
+		}
+
+		for name, preset := range presets {
+			if preset.Proxy == "" {
+				continue
+			}
+			if presetProxyMatchesProfile(preset.Proxy, profile.ProxyURL) {
+				profile.Presets = append(profile.Presets, name)
+			}
+		}
+		sort.Strings(profile.Presets)
+	}
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -6406,6 +6488,80 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		out, err = yaml.Marshal(env)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+// applySelectedPreset applies a named preset selected via --preset /
+// TELEPORT_PRESET (or the tsh config's default_preset) to cf. It only fills
+// in values that the user has not already provided via an explicit CLI flag or
+// environment variable, so explicit input always takes precedence over the
+// selected preset.
+//
+// Precedence (highest to lowest): explicit CLI flag / env var > selected
+// preset > tsh defaults.
+func applySelectedPreset(ctx context.Context, cf *CLIConf) error {
+	name := cf.SelectedPreset
+	// If no preset was explicitly selected, fall back to the configured
+	// default preset (if any).
+	if name == "" {
+		name = cf.TSHConfig.DefaultPreset
+	}
+	if name == "" {
+		return nil
+	}
+
+	preset, err := cf.TSHConfig.GetPreset(name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	logger.DebugContext(ctx, "Applying selected tsh preset", "preset", name)
+
+	// Record the effective preset name for display in tsh status.
+	cf.activeConfigPreset = name
+
+	// String overrides: only apply when the user has not already set the value
+	// via flag or env var (an unset string field is empty at this point).
+	if cf.Proxy == "" && preset.Proxy != "" {
+		cf.Proxy = preset.Proxy
+	}
+	if cf.SiteName == "" && preset.Cluster != "" {
+		cf.SiteName = preset.Cluster
+	}
+	if cf.Username == "" && preset.User != "" {
+		cf.Username = preset.User
+	}
+	if cf.NodeLogin == "" && preset.Login != "" {
+		cf.NodeLogin = preset.Login
+	}
+	if cf.AuthConnector == "" && preset.AuthConnector != "" {
+		cf.AuthConnector = preset.AuthConnector
+	}
+	if cf.KubernetesCluster == "" && preset.KubeCluster != "" {
+		cf.KubernetesCluster = preset.KubeCluster
+	}
+	if preset.MFAMode != "" && !cf.mfaModeSetByUser && os.Getenv(mfaModeEnvVar) == "" {
+		cf.MFAMode = preset.MFAMode
+	}
+	if cf.HomePath == "" && preset.Home != "" {
+		cf.HomePath = filepath.Clean(preset.Home)
+	}
+
+	// Boolean overrides: --headless defaults to false, so apply the preset value
+	// only when the user has not turned it on.
+	if preset.Headless != nil && !cf.headlessSetByUser && os.Getenv(headlessEnvVar) == "" {
+		cf.Headless = *preset.Headless
+	}
+
+	// These two flags carry non-empty defaults, so use the explicit
+	// "set by user" tracking to decide whether to apply the preset.
+	if preset.AddKeysToAgent != "" && !cf.addKeysToAgentSetByUser && os.Getenv(addKeysToAgentEnvVar) == "" {
+		cf.AddKeysToAgent = preset.AddKeysToAgent
+	}
+	if preset.UseLocalSSHAgent != nil && !cf.useLocalSSHAgentSetByUser && os.Getenv(useLocalSSHAgentEnvVar) == "" {
+		cf.UseLocalSSHAgent = *preset.UseLocalSSHAgent
+	}
+
+	return nil
 }
 
 // setEnvFlags sets flags that can be set via environment variables.
