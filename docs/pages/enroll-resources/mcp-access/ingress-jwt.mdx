@@ -1,0 +1,147 @@
+---
+title: MCP Ingress Authentication (JWT)
+sidebar_label: MCP Ingress JWT
+sidebar_position: 5
+description: Authenticate MCP clients to Teleport-proxied MCP servers using JWTs from your IdP.
+tags:
+- how-to
+- mcp
+- zero-trust
+---
+
+Teleport supports custom MCP ingress authentication, letting MCP clients connect
+to MCP servers proxied by Teleport using externally issued JWT tokens.
+
+<Admonition type="note">
+This guide covers client-to-Teleport authentication. If you want Teleport to
+authenticate to the upstream MCP server using Teleport-signed JWTs, see
+[JWT Authentication to MCP Servers](jwt.mdx).
+</Admonition>
+
+## How it works
+
+1. Your MCP client obtains a JWT from a trusted issuer (usually an identity
+   provider).
+2. The MCP client sends requests to the Teleport MCP proxy endpoint with the token
+   in an HTTP header (default `Authorization: Bearer <token>`).
+3. Teleport verifies the token signature and claims (issuer, audience, resource),
+   maps the token to a Teleport user, enforces RBAC, and proxies the request to
+   the MCP server.
+
+## Prerequisites
+
+- A Teleport cluster with MCP Access enabled and an MCP server enrolled.
+- A JWT token issuer with JSON Web Key Set (JWKS) support.
+- Teleport users that match the JWT claim used for usernames (defaults to
+  `email`).
+
+## Step 1/2. Create an app auth config (JWT)
+
+Create an `app_auth_config` resource that matches your MCP servers and tells
+Teleport how to validate JWTs:
+
+```yaml
+kind: app_auth_config
+version: v1
+metadata:
+  name: mcp-ingress-jwt
+spec:
+  # Defines the matching labels of the apps that can use this auth method.
+  # For example, this match rule matches all MCP servers.
+  app_labels:
+    teleport.internal/app-sub-kind: mcp
+  jwt:
+    # JWT issuer used to validate tokens.
+    issuer: https://idp.example.com/realms/acme
+    # Expected audience in the JWT (usually the IdP client ID for Teleport).
+    audience: teleport
+    # Optional: claim used as the Teleport username. Defaults to "email".
+    username_claim: email
+    # Optional: header that carries the token. Defaults to "Authorization".
+    authorization_header: Authorization
+    # JWKS endpoint used to verify signatures.
+    jwks_url: https://idp.example.com/realms/acme/.well-known/jwks.json
+    # Alternatively, you can set a static JWKS instead of fetching from the issuer (with `jwks_url`).
+    # static_jwks: |
+    #   {"keys":[--snip--]}
+```
+
+Create the config:
+
+```code
+$ tctl create app-auth-config.yaml
+```
+
+## Step 2/2. Configure the MCP client
+
+Teleport exposes MCP servers at the proxy using the following endpoints:
+
+- **Current cluster:**
+  ```code
+  https://<Var name="teleport.example.com" />/mcp/apps/<Var name="app-name" />
+  ```
+- **Trusted cluster:**
+  ```code
+  https://<Var name="teleport.example.com" />/mcp/sites/<Var name="cluster-name" />/apps/<Var name="app-name" />
+  ```
+
+Your MCP client should use one of these URLs as the MCP server endpoint and send
+the token in the configured header.
+
+The JWT provided by your issuer must include claims that Teleport can verify:
+
+- `iss` must match `spec.jwt.issuer`.
+- `aud` must match `spec.jwt.audience`.
+- The claim named by `spec.jwt.username_claim` (default `email`) must map to an
+  existing Teleport user who has access to the MCP app.
+
+Example payload:
+
+```json
+{
+  "iss": "https://idp.example.com/realms/acme",
+  "aud": "teleport",
+  "email": "alice@example.com",
+  "iat": 1738331091,
+  "exp": 1738331391
+}
+```
+
+Here's an example of the MCP client configuration using the [Python SDK](https://github.com/modelcontextprotocol/python-sdk):
+
+```python
+from mcp import ClientSession
+from mcp.client.http import create_http_client
+from mcp.client.streamable_http import streamablehttp_client
+
+async def main():
+    token = "<access-token>"
+    endpoint = "https://<Var name="teleport.example.com" />/mcp/apps/<Var name="app-name" />"
+
+    http_client = create_http_client(
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    async with streamablehttp_client(
+        endpoint,
+        http_client=http_client,
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+```
+
+## Troubleshooting
+
+Start by checking the `app_auth_config.verify.failure` audit event for details
+about claim validation and signature verification issues.
+
+### Invalid token
+
+If you receive `invalid_token`, verify the JWT issuer, audience, and signature
+(JWKS URL or static JWKS), and ensure the token is not expired.
+
+### Access denied
+
+If you receive `access denied`, make sure the mapped Teleport user exists and
+has RBAC permissions to access the MCP app. See
+[MCP access controls](rbac.mdx).
