@@ -108,6 +108,23 @@ func (s SystemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
+// clientInstallHint describes how users can install a missing database client.
+type clientInstallHint struct {
+	// binary is the primary binary for the database client.
+	binary string
+	// alternateBinary is the secondary binary for the database client. For
+	// example, CRDB can use psql.
+	alternateBinary string
+	// downloadURL is the official URL the binary can be downloaded from.
+	downloadURL string
+	// brewPackage is the package installed with Homebrew.
+	brewPackage string
+	// aptPackage is the package installed with Apt.
+	aptPackage string
+	// yumPackage is the package installed using Yum/Dnf.
+	yumPackage string
+}
+
 // CLICommandBuilder holds data needed to build a CLI command from args passed to NewCmdBuilder.
 // Any calls to the exec package within CLICommandBuilder methods that need to be mocked should
 // use the exe field rather than calling the package directly.
@@ -189,10 +206,10 @@ func NewCmdBuilder(
 func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
-		return c.getPostgresCommand(), nil
+		return c.getPostgresCommand()
 
 	case defaults.ProtocolCockroachDB:
-		return c.getCockroachCommand(), nil
+		return c.getCockroachCommand()
 
 	case defaults.ProtocolMySQL:
 		return c.getMySQLCommand()
@@ -201,13 +218,13 @@ func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, e
 		return c.getMongoCommand(ctx)
 
 	case defaults.ProtocolRedis:
-		return c.getRedisCommand(), nil
+		return c.getRedisCommand()
 
 	case defaults.ProtocolSQLServer:
-		return c.getSQLServerCommand(), nil
+		return c.getSQLServerCommand()
 
 	case defaults.ProtocolSnowflake:
-		return c.getSnowflakeCommand(), nil
+		return c.getSnowflakeCommand()
 
 	case defaults.ProtocolCassandra:
 		return c.getCassandraCommand()
@@ -264,19 +281,55 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives(ctx context.Context) (
 	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
 }
 
-func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
+// postgresClientRequirement describes how users can install psql.
+var postgresClientRequirement = clientInstallHint{
+	binary:      postgresBin,
+	downloadURL: "https://www.postgresql.org/download",
+	brewPackage: "libpq && brew link --force libpq",
+	aptPackage:  "postgresql-client",
+	yumPackage:  "postgresql",
+}
+
+// getPostgresCommand validates psql availability and returns the psql command.
+func (c *CLICommandBuilder) getPostgresCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(postgresClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.buildPostgresCommand(), nil
+}
+
+// buildPostgresCommand constructs the psql command without validating client availability.
+func (c *CLICommandBuilder) buildPostgresCommand() *exec.Cmd {
 	return exec.Command(postgresBin, c.getPostgresConnString())
 }
 
-func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
+// cockroachClientRequirement describes how users can install the CockroachDB client.
+var cockroachClientRequirement = clientInstallHint{
+	binary:          cockroachBin,
+	alternateBinary: postgresBin,
+	downloadURL:     "https://www.cockroachlabs.com/docs/stable/install-cockroachdb",
+	brewPackage:     "cockroachdb/tap/cockroach",
+}
+
+// getCockroachCommand validates client availability and returns a CockroachDB SQL command.
+func (c *CLICommandBuilder) getCockroachCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(cockroachClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.buildCockroachCommand(), nil
+}
+
+// buildCockroachCommand constructs a CockroachDB SQL command without validating client availability.
+func (c *CLICommandBuilder) buildCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
-		c.options.logger.DebugContext(context.Background(), "Couldn't find cockroach client in PATH, falling back to postgres client",
+		c.options.logger.DebugContext(context.Background(),
+			"Couldn't find cockroach client in PATH, falling back to postgres client",
 			"cockroach_client", cockroachBin,
 			"postgres_client", postgresBin,
 			"error", err,
 		)
-		return c.getPostgresCommand()
+		return c.buildPostgresCommand()
 	}
 	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
 }
@@ -488,7 +541,19 @@ func (c *CLICommandBuilder) shouldUseMongoshBin(db types.Database) bool {
 	return c.isMongoshBinAvailable() || !c.isBinAvailable(mongoBin)
 }
 
+// mongoClientRequirement describes how users can install a MongoDB client.
+var mongoClientRequirement = clientInstallHint{
+	binary:          mongoshBin,
+	alternateBinary: mongoBin,
+	downloadURL:     "https://www.mongodb.com/docs/mongodb-shell/install",
+	brewPackage:     "mongosh",
+}
+
 func (c *CLICommandBuilder) getMongoCommand(ctx context.Context) (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(mongoClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	db, err := c.getDatabase(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -602,7 +667,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
-func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getRedisCommand() (*exec.Cmd, error) {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"-h", c.host,
@@ -634,7 +699,15 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return exec.Command(redisBin, args...)
+	return exec.Command(redisBin, args...), nil
+}
+
+// sqlServerClientRequirement describes how users can install a SQL Server client.
+var sqlServerClientRequirement = clientInstallHint{
+	binary:          sqlcmdBin,
+	alternateBinary: mssqlBin,
+	downloadURL:     "https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-download-install",
+	brewPackage:     "sqlcmd",
 }
 
 // getSQLServerCommand returns a command to connect to SQL Server.
@@ -646,7 +719,11 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 // (e.g., Teleport Connect launched from a desktop environment where $PATH is
 // not set), the printed command falls back to sqlcmd, which is the actively
 // maintained client.
-func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getSQLServerCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(sqlServerClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	args := []string{
 		// Host and port must be comma-separated.
 		"-S", fmt.Sprintf("%v,%v", c.host, c.port),
@@ -661,13 +738,24 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	}
 
 	if !c.isBinAvailable(sqlcmdBin) && c.isBinAvailable(mssqlBin) {
-		return exec.Command(mssqlBin, args...)
+		return exec.Command(mssqlBin, args...), nil
 	}
 
-	return exec.Command(sqlcmdBin, args...)
+	return exec.Command(sqlcmdBin, args...), nil
 }
 
-func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
+// snowflakeClientRequirement describes how users can install SnowSQL.
+var snowflakeClientRequirement = clientInstallHint{
+	binary:      snowsqlBin,
+	downloadURL: "https://docs.snowflake.com/en/user-guide/snowsql-install-config",
+	brewPackage: "--cask snowflake-snowsql",
+}
+
+func (c *CLICommandBuilder) getSnowflakeCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(snowflakeClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	args := []string{
 		"-a", "teleport", // Account name doesn't matter as it will be overridden in the backend anyway.
 		"-u", c.db.Username,
@@ -682,10 +770,20 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	cmd := exec.Command(snowsqlBin, args...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
 
-	return cmd
+	return cmd, nil
+}
+
+// cassandraClientRequirement describes how users can install cqlsh.
+var cassandraClientRequirement = clientInstallHint{
+	binary:      cqlshBin,
+	downloadURL: "https://cassandra.apache.org/_/download.html",
 }
 
 func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(cassandraClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	args := []string{
 		"-u", c.db.Username,
 		c.host, strconv.Itoa(c.port),
@@ -749,10 +847,22 @@ func (c *CLICommandBuilder) checkLocalProxyTunnelOnly(requirePrint bool) error {
 	return nil
 }
 
+// dynamoDBClientRequirement describes how users can install the AWS CLI.
+var dynamoDBClientRequirement = clientInstallHint{
+	binary:      awsBin,
+	downloadURL: "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html",
+	brewPackage: "awscli",
+	aptPackage:  "awscli",
+	yumPackage:  "awscli",
+}
+
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	// we can't guess at what the user wants to do, so this command is for print
 	// purposes only, and it only works with a local proxy tunnel.
 	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.validateClientInstalled(dynamoDBClientRequirement); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	args := []string{
@@ -763,8 +873,17 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	return exec.Command(awsBin, args...), nil
 }
 
+// spannerClientRequirement describes how users can install spanner-cli.
+var spannerClientRequirement = clientInstallHint{
+	binary:      spannerBin,
+	downloadURL: "https://docs.cloud.google.com/spanner/docs/spanner-cli",
+}
+
 func (c *CLICommandBuilder) getSpannerCommand(ctx context.Context) (*exec.Cmd, error) {
 	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.validateClientInstalled(spannerClientRequirement); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -839,7 +958,18 @@ func (c *CLICommandBuilder) getOracleJDBCConnectionString() string {
 	return connString
 }
 
+// oracleClientRequirement describes how users can install SQLcl.
+var oracleClientRequirement = clientInstallHint{
+	binary:      sqlclBin,
+	downloadURL: "https://www.oracle.com/database/sqldeveloper/technologies/sqlcl",
+	brewPackage: "--cask sqlcl",
+}
+
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	if err := c.validateClientInstalled(oracleClientRequirement); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	alternatives := c.getOracleAlternativeCommands()
 	if len(alternatives) == 0 {
 		return nil, trace.BadParameter("no alternative commands found")
@@ -1077,6 +1207,88 @@ func WithOracleOpts(canUseTCP bool, hasTCPServers bool) ConnectCommandFunc {
 
 // GetDatabaseFunc is a callback to retrieve types.Database.
 type GetDatabaseFunc func(context.Context, *client.TeleportClient, string) (types.Database, error)
+
+// validateClientInstalled verifies that at least one required client binary exists.
+func (c *CLICommandBuilder) validateClientInstalled(h clientInstallHint) error {
+	// Commands like "tsh db config --format=cmd" look up the binary but don't
+	// need to validate that it exists. In those cases, don't return an error.
+	if c.options.tolerateMissingCLIClient {
+		return nil
+	}
+
+	// If either binary exists, don't return an error.
+	if _, err := c.options.exe.LookPath(h.binary); err == nil {
+		return nil
+	}
+	if h.alternateBinary != "" {
+		if _, err := c.options.exe.LookPath(h.alternateBinary); err == nil {
+			return nil
+		}
+	}
+
+	return trace.NotFound("%v", c.clientNotFoundHint(h))
+}
+
+// clientNotFoundHint builds a user-facing installation hint for a missing client.
+func (c *CLICommandBuilder) clientNotFoundHint(h clientInstallHint) string {
+	var b strings.Builder
+
+	binaries := h.binary
+	if h.alternateBinary != "" {
+		binaries = h.binary + " or " + h.alternateBinary
+	}
+
+	fmt.Fprintf(&b, "tsh needs %v to connect to this database.\n\n", binaries)
+	fmt.Fprintf(&b, "Install %v, then try again: ", h.binary)
+
+	pm := c.findPackageManager()
+	switch {
+	case pm == packageManagerBrew && h.brewPackage != "":
+		fmt.Fprintf(&b, "sudo brew install %v", h.brewPackage)
+	case pm == packageManagerApt && h.aptPackage != "":
+		fmt.Fprintf(&b, "sudo apt install %v", h.aptPackage)
+	case pm == packageManagerYum && h.yumPackage != "":
+		fmt.Fprintf(&b, "sudo yum install %v", h.yumPackage)
+	case pm == packageManagerDnf && h.yumPackage != "":
+		fmt.Fprintf(&b, "sudo dnf install %v", h.yumPackage)
+	default:
+		fmt.Fprintf(&b, "download at %v", h.downloadURL)
+	}
+
+	return b.String()
+}
+
+// findPackageManager finds the package manager in PATH.
+func (c *CLICommandBuilder) findPackageManager() packageManager {
+	// Debian-based distros.
+	if _, err := c.options.exe.LookPath("apt"); err == nil {
+		return packageManagerApt
+	}
+	// RHEL-based distros.
+	if _, err := c.options.exe.LookPath("dnf"); err == nil {
+		return packageManagerDnf
+	}
+	if _, err := c.options.exe.LookPath("yum"); err == nil {
+		return packageManagerYum
+	}
+	// macOS.
+	if _, err := c.options.exe.LookPath("brew"); err == nil {
+		return packageManagerBrew
+	}
+
+	return packageManagerUnknown
+}
+
+// packageManager identifies a package manager for client installation hints.
+type packageManager int
+
+const (
+	packageManagerUnknown packageManager = iota
+	packageManagerApt
+	packageManagerDnf
+	packageManagerYum
+	packageManagerBrew
+)
 
 const (
 	// envVarMongoServerSelectionTimeoutMS is the environment variable that
