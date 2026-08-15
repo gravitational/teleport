@@ -25,6 +25,7 @@ cat > "$dynamo_policy" <<EOF
             "Sid": "ClusterStateStorage",
             "Effect": "Allow",
             "Action": [
+                "dynamodb:ConditionCheckItem",
                 "dynamodb:BatchWriteItem",
                 "dynamodb:UpdateTimeToLive",
                 "dynamodb:PutItem",
