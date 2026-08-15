@@ -487,11 +487,6 @@ type Server struct {
 
 	// azureClientCache caches instances of integration-specific Azure clients.
 	azureClientCache *utils.FnCache
-
-	// azureSubscriptionCache caches integration-to-subscription-list mapping.
-	// This cache avoids repeated API calls when multiple discovery matchers for
-	// the same integration use a wildcard subscription.
-	azureSubscriptionCache *utils.FnCache
 }
 
 // New initializes a discovery Server
@@ -905,53 +900,14 @@ func (s *Server) handleAzureSubscriptionListError(integration string, err error)
 	}
 }
 
-func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {
+func (s *Server) getAzureSubscriptionList(ctx context.Context, integration string) ([]string, error) {
 	azureClients, err := s.getAzureClients(ctx, integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	subsClient, err := azureClients.GetSubscriptionClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subscriptions, err := subsClient.ListSubscriptionIDs(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return subscriptions, nil
-}
-
-func (s *Server) getAzureSubscriptionList(ctx context.Context, integration string) ([]string, error) {
-	err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if s.azureSubscriptionCache == nil {
-			azureSubscriptionCache, err := utils.NewFnCache(utils.FnCacheConfig{
-				// Making an API call to list subscriptions at most once per
-				// minute is fine and limits the delay before changes to Azure
-				// permissions or subscriptions are seen by discovery services.
-				TTL:   time.Minute,
-				Clock: s.clock,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			s.azureSubscriptionCache = azureSubscriptionCache
-		}
-		return nil
-	}()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := utils.FnCacheGet(ctx, s.azureSubscriptionCache, integration, func(ctx context.Context) ([]string, error) {
-		return s.getAzureSubscriptionListNoCache(ctx, integration)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
+	subIDs, err := azure.ExpandSubscriptionIDs(ctx, azureClients, []string{types.Wildcard})
+	return subIDs, trace.Wrap(err)
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
@@ -1020,19 +976,31 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig
 func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName string) ([]common.Fetcher, error) {
 	var result []common.Fetcher
 
-	// AWS.
-	awsKubeMatchers, _ := splitMatchers(matchers.AWS, func(matcherType string) bool {
-		return matcherType == types.AWSMatcherEKS
-	})
-	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, s.GetAWSRegionsLister, awsKubeMatchers, discoveryConfigName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result = append(result, eksFetchers...)
+	awsEKSFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(
+		s.Log,
+		s.AWSFetchersClients,
+		s.GetAWSRegionsLister,
+		matchers.AWS,
+		discoveryConfigName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	result = append(result, awsEKSFetchers...)
 
-	// There can't be kube fetchers for other matcher types.
+	azureAKSFetchers, err := fetchers.MakeAKSFetchersFromAzureMatchers(
+		s.ctx,
+		s.Log,
+		s.getAzureClients,
+		matchers.Azure,
+		discoveryConfigName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result = append(result, azureAKSFetchers...)
+
+	// TODO(marco): add GKE fetchers.
 
 	return result, nil
 }
@@ -1078,52 +1046,19 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (azure
 	return out, nil
 }
 
-// initAzureWatchers starts Azure resource watchers based on types provided.
+// initAzureWatchers converts Azure AKS matchers into fetchers to later be used by the server.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
-	// Filter out VM matchers
-	_, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == types.AzureMatcherVM
-	})
-
-	// Database fetchers were added in databaseFetchersFromMatchers.
-	_, otherMatchers = splitMatchers(otherMatchers, db.IsAzureMatcherType)
-
-	// Add kube fetchers.
-	for _, matcher := range otherMatchers {
-		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Integration, matcher.Subscriptions)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, subscription := range subscriptions {
-			for _, t := range matcher.Types {
-				switch t {
-				case types.AzureMatcherKubernetes:
-					azureClients, err := s.getAzureClients(ctx, matcher.Integration)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					kubeClient, err := azureClients.GetKubernetesClient(ctx, subscription)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-
-					fetcher, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
-						Client:              kubeClient,
-						Regions:             matcher.Regions,
-						FilterLabels:        matcher.ResourceTags,
-						ResourceGroups:      matcher.ResourceGroups,
-						Logger:              s.Log,
-						DiscoveryConfigName: noDiscoveryConfig,
-						Integration:         matcher.Integration,
-					})
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					s.kubeFetchers = append(s.kubeFetchers, fetcher)
-				}
-			}
-		}
+	kubeFetchers, err := fetchers.MakeAKSFetchersFromAzureMatchers(
+		ctx,
+		s.Log,
+		s.getAzureClients,
+		matchers,
+		noDiscoveryConfig,
+	)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	s.kubeFetchers = append(s.kubeFetchers, kubeFetchers...)
 	return nil
 }
 
@@ -2498,27 +2433,6 @@ func (s *Server) Wait() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, subs []string) ([]string, error) {
-	subscriptionIds := subs
-	if slices.Contains(subs, types.Wildcard) {
-		// TODO(gavin): instead of listing subscriptions during init, do it
-		// on every fetch to prevent stale discovery configuration when
-		// subscriptions are added or removed
-		azureClients, err := s.getAzureClients(ctx, integration)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		subsClient, err := azureClients.GetSubscriptionClient(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		subscriptionIds, err = subsClient.ListSubscriptionIDs(ctx)
-		return subscriptionIds, trace.Wrap(err)
-	}
-
-	return subscriptionIds, nil
 }
 
 func (s *Server) initTeleportNodeWatcher() (err error) {
