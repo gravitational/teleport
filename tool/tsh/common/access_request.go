@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"path"
 	"slices"
 	"sort"
@@ -713,6 +714,60 @@ func ignoreDuplicateResourceID(deduplicateResourceIDs map[string]struct{}, resou
 	}
 	deduplicateResourceIDs[resourceID] = struct{}{}
 	return false
+}
+
+// createdRequestJSON is the structured output of `tsh request create --format
+// json`.
+type createdRequestJSON struct {
+	ID        string   `json:"id"`
+	State     string   `json:"state"`
+	User      string   `json:"user"`
+	Roles     []string `json:"roles"`
+	Resources []string `json:"resources,omitempty"`
+}
+
+// structuredRequestOutput reports whether the user asked for machine-readable
+// output, in which case human progress messages move off stdout.
+func structuredRequestOutput(cf *CLIConf) bool {
+	switch strings.ToLower(cf.Format) {
+	case teleport.JSON, teleport.YAML:
+		return true
+	default:
+		return false
+	}
+}
+
+// requestProgressWriter returns the stream human progress messages belong on:
+// stdout normally, stderr when stdout is carrying a structured document.
+func requestProgressWriter(cf *CLIConf) io.Writer {
+	if structuredRequestOutput(cf) {
+		return cf.Stderr()
+	}
+	return cf.Stdout()
+}
+
+// printCreatedRequest writes the created request as a single JSON or YAML
+// document.
+func printCreatedRequest(cf *CLIConf, req types.AccessRequest) error {
+	payload := createdRequestJSON{
+		ID:    req.GetName(),
+		State: req.GetState().String(),
+		User:  req.GetUser(),
+		Roles: req.GetRoles(),
+	}
+	if payload.Roles == nil {
+		payload.Roles = []string{}
+	}
+	for _, raid := range req.GetRequestedResourceAccessIDs() {
+		// The inline form lets a reader pass these values straight back to
+		// --resource.
+		payload.Resources = append(payload.Resources, common.FormatResourceAccessIDInline(raid))
+	}
+
+	if strings.ToLower(cf.Format) == teleport.YAML {
+		return trace.Wrap(utils.WriteYAML(cf.Stdout(), payload))
+	}
+	return trace.Wrap(utils.WriteJSON(cf.Stdout(), payload))
 }
 
 func onRequestDrop(cf *CLIConf) error {

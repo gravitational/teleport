@@ -177,6 +177,9 @@ type CLIConf struct {
 	NoWait bool
 	// RequestedResourceIDs is a list of resources to request access to.
 	RequestedResourceIDs []string
+	// RequestedResourcesFile is a path (or "-" for stdin) to a JSON
+	// ResourceAccessIDList used to request access to resources with constraints.
+	RequestedResourcesFile string
 	// RequestID is an access request ID
 	RequestID string
 	// RequestIDs is a list of access request IDs
@@ -1459,11 +1462,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
-	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource", "Resource to be requested, as a resource ID (\"/cluster/node/web-1\"), optionally with inline constraints (\"/cluster/node/web-1?logins=root,admin\", quoted). Repeatable.").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource-file", "Path to a JSON ResourceAccessID list (\"-\" for stdin), an alternative to repeated flags for large or generated requests.").StringVar(&cf.RequestedResourcesFile)
 	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
+	reqCreate.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
@@ -3296,12 +3301,20 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+
+	resourceAccessIDs, err := common.ParseResourceValues(cf.RequestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cf.RequestedResourcesFile != "" {
+		fromFile, err := common.ParseResourceAccessIDListFile(cf.RequestedResourcesFile, cf.Stdin())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resourceAccessIDs = append(resourceAccessIDs, fromFile...)
+	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, resourceAccessIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3335,7 +3348,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
+	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 && cf.RequestedResourcesFile == "" {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.RequestTTL < 0 {
@@ -3361,7 +3374,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			err := onRequestResolution(cf, tc, req)
 			return trace.Wrap(err)
 		}
-		fmt.Fprint(os.Stdout, "Request pending...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Request pending...\n")
 	} else {
 		// This is a new access request, create it. This just creates the local
 		// object, it is not yet sent to the backend.
@@ -3373,7 +3386,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
-		fmt.Fprint(os.Stdout, "Creating request...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
@@ -3390,8 +3403,16 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		cf.RequestID = req.GetName()
 	}
 
-	onRequestShow(cf)
-	fmt.Println("")
+	// Structured output keeps stdout to a single document. The human table
+	// gives way to that document, and progress messages go to stderr.
+	if structuredRequestOutput(cf) {
+		if err := printCreatedRequest(cf, req); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		onRequestShow(cf)
+		fmt.Println("")
+	}
 
 	// Don't wait for request to get resolved, just print out request info.
 	if cf.NoWait {
@@ -3399,7 +3420,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	}
 
 	// Wait for the request to be resolved.
-	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	fmt.Fprintf(requestProgressWriter(cf), "Waiting for request approval...\n")
 
 	var resolvedReq types.AccessRequest
 	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {

@@ -225,26 +225,63 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	return r.GetName()
 }
 
-// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present.
+// formatConstraintPairs renders a ResourceConstraints in the inline grammar
+// ("key=v1,v2"), escaping values so they round-trip through the parser.
+// Constraints this build cannot name render as the empty string.
+func formatConstraintPairs(c *types.ResourceConstraints) string {
+	if c == nil || c.GetDetails() == nil {
+		return ""
+	}
+
+	pair := func(key string, vals []string) string {
+		escaped := make([]string, 0, len(vals))
+		for _, v := range vals {
+			escaped = append(escaped, EscapeConstraintValue(v))
+		}
+		return fmt.Sprintf("%s=%s", key, strings.Join(escaped, ","))
+	}
+
+	switch d := c.GetDetails().(type) {
+	case *types.ResourceConstraints_AwsConsole:
+		if d.AwsConsole == nil {
+			return ""
+		}
+		return pair("role_arns", d.AwsConsole.RoleArns)
+	case *types.ResourceConstraints_Ssh:
+		if d.Ssh == nil {
+			return ""
+		}
+		return pair("logins", d.Ssh.Logins)
+	}
+	return ""
+}
+
+// FormatResourceAccessID returns the provided ResourceAccessID in the display
+// form used by request views, "<resource-id> (key=value,value)". Use
+// FormatResourceAccessIDInline for output a client is expected to feed back
+// into --resource.
 func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
-	constraintsString := ""
-
-	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
-		switch d := c.GetDetails().(type) {
-		case *types.ResourceConstraints_AwsConsole:
-			if d.AwsConsole == nil {
-				break
-			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
-		}
+	if constraints := formatConstraintPairs(rid.GetConstraints()); constraints != "" {
+		return fmt.Sprintf("%s (%s)", resourceIDString, constraints)
 	}
-
-	if constraintsString != "" {
-		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+	if rid.GetConstraints().Unenforceable() {
+		// A newer cluster's constraint variant decodes with no details. Name
+		// its presence rather than showing the resource as unconstrained.
+		return fmt.Sprintf("%s (unrecognized constraints)", resourceIDString)
 	}
+	return resourceIDString
+}
 
+// FormatResourceAccessIDInline returns the provided ResourceAccessID in the
+// inline --resource grammar, "<resource-id>?key=value,value", which parses
+// back into an equivalent ResourceAccessID; emit this form wherever the value
+// will be reused.
+func FormatResourceAccessIDInline(rid types.ResourceAccessID) string {
+	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
+	if constraints := formatConstraintPairs(rid.GetConstraints()); constraints != "" {
+		return resourceIDString + "?" + constraints
+	}
 	return resourceIDString
 }
 
