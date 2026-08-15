@@ -489,7 +489,7 @@ Verify the Helm installation succeeded and pods are running:
 $ kubectl --namespace teleport get pods
 ```
 
-You should see auth and proxy pods in `Running` state. If pods are in `CrashLoopBackOff` or `Error` state, check logs:
+You should see Auth Service and Proxy Service pods in `Running` state. If pods are in `CrashLoopBackOff` or `Error` state, check logs:
 
 ```code
 $ kubectl --namespace teleport logs deploy/teleport-auth --tail=50
