@@ -40,6 +40,7 @@ export type DesktopSessionWithSharingProps = {
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
   keyboardLayout?: number;
+  linuxDesktop?: boolean;
 };
 
 /**
@@ -58,11 +59,9 @@ export function DesktopSessionWithSharing(
           isConnected={controls.isConnected}
           onDisconnect={controls.onDisconnect}
           userHost={`${props.username} on ${props.desktop}`}
-          canShareDirectory={controls.canShareDirectory}
-          isSharingDirectory={controls.isSharingDirectory}
+          canShareDirectory={!props.linuxDesktop && controls.canShareDirectory}
           isSharingClipboard={controls.isSharingClipboard}
           clipboardSharingMessage={controls.clipboardSharingMessage}
-          onShareDirectory={controls.onShareDirectory}
           onCtrlAltDel={controls.onCtrlAltDel}
           alerts={controls.alerts}
           onRemoveAlert={controls.onRemoveAlert}
@@ -71,6 +70,11 @@ export function DesktopSessionWithSharing(
           onToggleHiDpi={controls.onToggleHiDpi}
           screenIsHiDpi={controls.screenIsHiDpi}
           hiDpiSupported={controls.hiDpiSupported}
+          sharedDirectories={controls.sharedDirectories}
+          onAddSharedDirectory={controls.onAddSharedDirectory}
+          maxSharedDirectories={controls.maxSharedDirectories}
+          directorySharingMessage={controls.directorySharingMessage}
+          multidirectorySharingSupported={controls.canShareMultipleDirectories}
         />
       )}
     />

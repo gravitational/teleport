@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
 // The collection of attributes that result from the join process.
@@ -51,6 +53,10 @@ message JoinAttrs {
   JoinAttrsAzureDevops azure_devops = 14;
   // Attributes that are specific to the Env0 (`env0`) join method.
   JoinAttrsEnv0 env0 = 15;
+  // Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+  JoinAttrsGenericOIDC generic_oidc = 16;
+  // Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.
+  JoinAttrsBoundKeypair bound_keypair = 17;
 }
 
 // The collection of attributes that result from the join process but are not
@@ -406,4 +412,22 @@ message JoinAttrsEnv0 {
   string deployer_email = 12;
   // A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
   string env0_tag = 13;
+}
+
+// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+message JoinAttrsGenericOIDC {
+  // A complete set of token claims.
+  google.protobuf.Struct claims = 1;
+}
+
+// Attributes that are specific to the Bound Keypair (`bound_keypair`) join
+// method.
+message JoinAttrsBoundKeypair {
+  // The bound public key verified during this join, in SSH authorized_keys
+  // format.
+  string public_key = 1;
+  // The token's configured recovery mode, e.g. `standard` or `relaxed`.
+  string recovery_mode = 2;
+  // The token's recovery counter after this join.
+  uint32 recovery_count = 3;
 }

@@ -210,22 +210,6 @@ func (s *MockHardwareKeyService) AddUnknownAgentKey(ref *PrivateKeyRef) {
 	}] = true
 }
 
-// TODO(Joerger): DELETE IN v19.0.0
-func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error) {
-	s.fakeHardwarePrivateKeysMux.Lock()
-	defer s.fakeHardwarePrivateKeysMux.Unlock()
-
-	priv, ok := s.fakeHardwarePrivateKeys[hardwareKeySlot{
-		serialNumber: serialNumber,
-		slot:         slotKey,
-	}]
-	if !ok {
-		return nil, trace.NotFound("key not found in slot 0x%x", slotKey)
-	}
-
-	return priv.ref, nil
-}
-
 func (s *MockHardwareKeyService) MockTouch() {
 	s.mockTouch <- struct{}{}
 }

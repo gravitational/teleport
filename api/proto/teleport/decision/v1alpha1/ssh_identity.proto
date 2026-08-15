@@ -186,6 +186,14 @@ message SSHIdentity {
   // HeadlessAuthenticationID is the ID of the headless authentication
   // resource this certificate was created for.
   string headless_authentication_id = 40;
+
+  // Beam this SSH identity is associated with, derived from the delegation
+  // session's beam ID label.
+  string beam_id = 41;
+
+  // BotScope is the scope of the Machine ID bot this identity was issued to,
+  // if any. Empty for unscoped bots and non-bot identities.
+  string bot_scope = 42;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

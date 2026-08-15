@@ -124,9 +124,8 @@ func (s *TerraformSuiteOSS) TestImportDiscoveryConfig() {
 					require.Equal(t, existing.Metadata.Name, state[0].Attributes["header.metadata.name"])
 					require.Equal(t, existing.Metadata.Description, state[0].Attributes["header.metadata.description"])
 					require.Equal(t, "test", state[0].Attributes["header.metadata.labels.purpose"])
-					require.Equal(t, existing.Metadata.Revision, state[0].Attributes["header.metadata.revision"])
 					require.Equal(t, "test_group", state[0].Attributes["spec.discovery_group"])
-
+					require.Empty(t, state[0].Attributes["header.metadata.revision"])
 					return nil
 				},
 			},
@@ -276,6 +275,35 @@ resource "teleport_discovery_config" "test" {
 			},
 			{
 				Config:   configWithoutScriptName,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestDiscoveryConfigAWSComputedFields() {
+	t := s.T()
+	name := "teleport_discovery_config.aws_example"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories:  s.terraformProviders,
+		PreventPostDestroyRefresh: true,
+		IsUnitTest:                true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("discovery_config_aws.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.enroll_mode", "1"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.install_teleport", "true"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.join_method", "iam"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.join_token", "aws-discovery-iam-token"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.script_name", "default-installer"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.install.sshd_config", "/etc/ssh/sshd_config"),
+					resource.TestCheckResourceAttr(name, "spec.aws.0.ssm.document_name", "TeleportDiscoveryInstaller"),
+				),
+			},
+			{
+				Config:   s.getFixture("discovery_config_aws.tf"),
 				PlanOnly: true,
 			},
 		},

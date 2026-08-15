@@ -14,7 +14,7 @@ resource "teleport_scoped_role" "scoped_operator" {
     assignable_scopes = [local.scope_path]
     rules = [{
       resources = ["scoped_role", "scoped_token", "scoped_role_assignment"]
-      verbs     = ["create", "readnosecrets", "list", "update", "delete"]
+      verbs     = ["create", "read", "list", "update", "delete"]
     }]
   }
 }
@@ -45,10 +45,9 @@ resource "teleport_scoped_role_assignment" "bot_assignment" {
   }
   scope = local.scope_path
   spec = {
-    bot_name  = teleport_bot.test_scoped.metadata.name
-    bot_scope = teleport_bot.test_scoped.scope
+    bot = "${teleport_bot.test_scoped.scope}::${teleport_bot.test_scoped.metadata.name}"
     assignments = [{
-      role  = teleport_scoped_role.scoped_operator.metadata.name
+      role  = "${teleport_scoped_role.scoped_operator.scope}::${teleport_scoped_role.scoped_operator.metadata.name}"
       scope = local.scope_path
     }]
   }

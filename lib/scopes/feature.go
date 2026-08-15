@@ -63,17 +63,6 @@ func FeaturesFromEnv() Features {
 	return f
 }
 
-// AssertFeatureEnabled checks if the scopes feature is enabled, and returns a helpful
-// error message if it is not.
-// Deprecated: inject scopes.Features instead.
-func AssertFeatureEnabled() error {
-	if !FeaturesFromEnv().Enabled {
-		return trace.Errorf("scoping features are not enabled, set " + featureVarName + "=yes to enable scoping features (caution: not ready for production use)")
-	}
-
-	return nil
-}
-
 // ScopesStatusToString returns a user friendly status message based on [proto.ScopesStatus].
 func ScopesStatusToString(s proto.ScopesStatus) string {
 	switch s {

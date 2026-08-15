@@ -19,18 +19,19 @@ package joining
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -44,6 +45,7 @@ type Config struct {
 	Logger           *slog.Logger
 	Backend          services.ScopedTokenService
 	MaxPageSize      int
+	Emitter          apievents.Emitter
 }
 
 // Server is the [scopedjoiningv1.ScopedJoiningServiceServer] returned by [New].
@@ -53,6 +55,7 @@ type Server struct {
 	authorizer  authz.ScopedAuthorizer
 	logger      *slog.Logger
 	backend     services.ScopedTokenService
+	emitter     apievents.Emitter
 	maxPageSize uint32
 }
 
@@ -67,6 +70,10 @@ func New(c Config) (*Server, error) {
 		return nil, trace.BadParameter("missing Backend")
 	}
 
+	if c.Emitter == nil {
+		return nil, trace.BadParameter("missing Emitter")
+	}
+
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "scopes")
 	}
@@ -75,64 +82,97 @@ func New(c Config) (*Server, error) {
 		authorizer:  c.ScopedAuthorizer,
 		logger:      c.Logger,
 		backend:     c.Backend,
+		emitter:     c.Emitter,
 		maxPageSize: cmp.Or(uint32(c.MaxPageSize), defaultTokenPageSize),
 	}, nil
 }
 
 // CreateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
-func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.CreateScopedTokenRequest) (*scopedjoiningv1.CreateScopedTokenResponse, error) {
+func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.CreateScopedTokenRequest) (res *scopedjoiningv1.CreateScopedTokenResponse, err error) {
 	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		token := res.GetToken()
+		if err != nil {
+			token = req.GetToken()
+		}
+		s.emitEvent(ctx, events.ScopedTokenCreateEvent, token, err)
+	}()
 	ruleCtx := authzContext.RuleContext()
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Create)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to create scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.CreateScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	res, err = s.backend.CreateScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 // DeleteScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
-func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.DeleteScopedTokenRequest) (*scopedjoiningv1.DeleteScopedTokenResponse, error) {
+func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.DeleteScopedTokenRequest) (res *scopedjoiningv1.DeleteScopedTokenResponse, err error) {
 	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Delete events don't capture ScopedTokenMetadata, but they do include the scope in ResourceMetadata when it's available.
+	// We declare tokenForEvent so we can pass along the extant token's scope.
+	tokenForEvent := scopedjoiningv1.ScopedToken_builder{
+		Metadata: headerv1.Metadata_builder{
+			Name: req.GetName(),
+		}.Build(),
+	}.Build()
+	defer func() {
+		s.emitEvent(ctx, events.ScopedTokenDeleteEvent, tokenForEvent, err)
+	}()
 	ruleCtx := authzContext.RuleContext()
 
 	// perform an early check for root scope delete permission to allow us to short-circuit
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting tokens that are so malformed that they cannot be read.
 	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Delete)
 	}); err == nil {
-		return s.backend.DeleteScopedToken(ctx, req)
+		res, err := s.backend.DeleteScopedToken(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return res, nil
 	}
 
 	// fetch the token so we can determine the resource scope
 	preAuthzRes, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name: req.GetName(),
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// capture token to be used in deferred event emission
+	tokenForEvent = preAuthzRes.GetToken()
 	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRes.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Delete)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to delete scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", preAuthzRes.GetToken().GetScope())
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.DeleteScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	res, err = s.backend.DeleteScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
 }
 
 // GetScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -142,9 +182,9 @@ func (s *Server) GetScopedToken(ctx context.Context, req *scopedjoiningv1.GetSco
 		return nil, trace.Wrap(err)
 	}
 
-	readVerb := types.VerbReadNoSecrets
+	readVerb := scopedaccess.Read
 	if req.GetWithSecret() {
-		readVerb = types.VerbRead
+		readVerb = scopedaccess.Secrets
 	}
 
 	ruleCtx := authzContext.RuleContext()
@@ -172,8 +212,7 @@ func makeCursor(token *scopedjoiningv1.ScopedToken) string {
 	if token == nil {
 		return ""
 	}
-	hash := sha256.Sum256([]byte(token.GetMetadata().GetName()))
-	return base64.StdEncoding.EncodeToString(hash[:])
+	return scopes.MakeResourceCursor(token.GetScope(), token.GetMetadata().GetName())
 }
 
 func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListScopedTokensRequest) iter.Seq2[*scopedjoiningv1.ScopedToken, error] {
@@ -181,20 +220,24 @@ func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListS
 		iterReq := proto.CloneOf(req)
 		iterReq.SetLimit(s.maxPageSize)
 
-		var cursorFound bool
+		// Public cursors identify the last token returned. Backend cursors are
+		// inclusive, so skip that token once if it is still present.
+		cursor := req.GetCursor()
 		for {
 			res, err := s.backend.ListScopedTokens(ctx, iterReq)
 			if err != nil {
-				if !yield(nil, trace.Wrap(err)) {
-					return
-				}
+				yield(nil, trace.Wrap(err))
+				return
 			}
 
 			for _, tok := range res.GetTokens() {
-				if !cursorFound && req.GetCursor() != "" && makeCursor(tok) != req.GetCursor() {
-					continue
+				if cursor != "" {
+					if makeCursor(tok) == cursor {
+						cursor = ""
+						continue
+					}
+					cursor = ""
 				}
-				cursorFound = true
 				if !yield(tok, nil) {
 					return
 				}
@@ -216,15 +259,18 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		return nil, trace.Wrap(err)
 	}
 
-	readVerb := types.VerbReadNoSecrets
+	readVerb := scopedaccess.Read
 	if req.GetWithSecrets() {
-		readVerb = types.VerbRead
+		readVerb = scopedaccess.Secrets
 	}
 
 	ruleCtx := authzContext.RuleContext()
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, types.VerbList); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, scopedaccess.List); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
 
 	limit := int(req.GetLimit())
 	if limit == 0 {
@@ -238,7 +284,7 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		}
 
 		if err := authzContext.CheckerContext.Decision(ctx, token.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, types.VerbList)
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, readVerb, scopedaccess.List)
 		}); err != nil {
 			continue
 		}
@@ -261,41 +307,59 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 }
 
 // UpsertScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
-func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.UpsertScopedTokenRequest) (*scopedjoiningv1.UpsertScopedTokenResponse, error) {
+func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.UpsertScopedTokenRequest) (res *scopedjoiningv1.UpsertScopedTokenResponse, err error) {
 	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		token := res.GetToken()
+		if err != nil {
+			token = req.GetToken()
+		}
+		s.emitEvent(ctx, events.ScopedTokenUpsertEvent, token, err)
+	}()
 	// We rely on the backend guarantee that scoped tokens updates won't overwrite an existing token if it has a different scope, usage mode, or secret.
 	ruleCtx := authzContext.RuleContext()
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Update, scopedaccess.Create)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to upsert scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	res, err = s.backend.UpsertScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
 
 // UpdateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
-func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.UpdateScopedTokenRequest) (*scopedjoiningv1.UpdateScopedTokenResponse, error) {
+func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.UpdateScopedTokenRequest) (res *scopedjoiningv1.UpdateScopedTokenResponse, err error) {
 	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		token := res.GetToken()
+		if err != nil {
+			token = req.GetToken()
+		}
+		s.emitEvent(ctx, events.ScopedTokenUpdateEvent, token, err)
+	}()
 	ruleCtx := authzContext.RuleContext()
 
 	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	extant, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name: req.GetToken().GetMetadata().GetName(),
+		Name:  req.GetToken().GetMetadata().GetName(),
+		Scope: req.GetToken().GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -306,12 +370,116 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 	}
 
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Update)
 	}); err != nil {
 		s.logger.WarnContext(ctx, "user does not have permission to update scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpdateScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	res, err = s.backend.UpdateScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
+}
+
+func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoiningv1.ScopedToken, err error) {
+	userMetadata := authz.ClientUserMetadata(ctx)
+
+	// AsTime() will return the epoch if GetExpires() is nil, so we need to convert it to
+	// the time.Time zero value in that case
+	expires := token.GetMetadata().GetExpires().AsTime()
+	if token.GetMetadata().GetExpires() == nil {
+		expires = time.Time{}
+	}
+	resourceMetadata := apievents.ResourceMetadata{
+		Name:      token.GetMetadata().GetName(),
+		Expires:   expires,
+		UpdatedBy: userMetadata.GetUser(),
+		Scope:     token.GetScope(),
+	}
+	scopedTokenMetadata := apievents.ScopedTokenMetadata{
+		Roles:         token.GetSpec().GetRoles(),
+		JoinMethod:    token.GetSpec().GetJoinMethod(),
+		UsageMode:     token.GetSpec().GetUsageMode(),
+		AssignedScope: token.GetSpec().GetAssignedScope(),
+	}
+
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+	status := apievents.Status{
+		Success: err == nil,
+		Error:   errMsg,
+	}
+
+	var event apievents.AuditEvent
+	switch kind {
+	case events.ScopedTokenCreateEvent:
+		code := events.ScopedTokenCreateCode
+		if err != nil {
+			code = events.ScopedTokenCreateFailureCode
+		}
+		event = &apievents.ScopedTokenCreate{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenCreateEvent,
+				Code: code,
+			},
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			Status:              status,
+			ScopedTokenMetadata: scopedTokenMetadata,
+		}
+	case events.ScopedTokenUpsertEvent:
+		code := events.ScopedTokenUpsertCode
+		if err != nil {
+			code = events.ScopedTokenUpsertFailureCode
+		}
+		event = &apievents.ScopedTokenCreate{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenUpsertEvent,
+				Code: code,
+			},
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			Status:              status,
+			ScopedTokenMetadata: scopedTokenMetadata,
+		}
+	case events.ScopedTokenUpdateEvent:
+		code := events.ScopedTokenUpdateCode
+		if err != nil {
+			code = events.ScopedTokenUpdateFailureCode
+		}
+		event = &apievents.ScopedTokenUpdate{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenUpdateEvent,
+				Code: code,
+			},
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			Status:              status,
+			ScopedTokenMetadata: scopedTokenMetadata,
+		}
+	case events.ScopedTokenDeleteEvent:
+		code := events.ScopedTokenDeleteCode
+		if err != nil {
+			code = events.ScopedTokenDeleteFailureCode
+		}
+		event = &apievents.ScopedTokenDelete{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenDeleteEvent,
+				Code: code,
+			},
+			ResourceMetadata: resourceMetadata,
+			UserMetadata:     userMetadata,
+			Status:           status,
+		}
+	default:
+		return
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
+		s.logger.WarnContext(ctx, "failed to emit scoped token event", "error", err, "type", kind)
+	}
 }

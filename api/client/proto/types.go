@@ -109,6 +109,8 @@ func (h *UpstreamInventoryGoodbye) sealedUpstreamInventoryMessage() {}
 
 func (h *UpstreamInventoryStopHeartbeat) sealedUpstreamInventoryMessage() {}
 
+func (s *InstanceStatus) sealedUpstreamInventoryMessage() {}
+
 // DownstreamInventoryMessage is a sealed interface representing the possible
 // downstream messages of the inventory controls stream after initial hello.
 type DownstreamInventoryMessage interface {
@@ -123,5 +125,6 @@ func (u *DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}
 
 // AllowsMFAReuse returns true if the MFA response provided allows reuse.
 func (r *UserCertsRequest) AllowsMFAReuse() bool {
-	return r.RequesterName == UserCertsRequest_TSH_DB_EXEC
+	return r.RequesterName == UserCertsRequest_TSH_DB_EXEC ||
+		r.RequesterName == UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI
 }

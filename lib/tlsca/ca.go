@@ -202,6 +202,9 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and non-bot identities.
+	BotScope string
 	// BotInternal is a flag that indicates an identity is specifically a bot
 	// internal identity, rather than output certificates intended for direct
 	// consumption by users or user-facing bot services.
@@ -241,6 +244,10 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
 
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
@@ -290,6 +297,11 @@ type RouteToApp struct {
 	// This is a JSON string that conforms with
 	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
 	AWSCredentialProcessCredentials string
+
+	// Scope is the scope of the target application.
+	// TODO (williamo/scopes): consider creating a TargetScope parameter in the root
+	// Identity struct, and removing this.
+	Scope string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -423,6 +435,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
+		BotScopeOfOrigin:         id.BotScope,
 		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
@@ -667,6 +680,20 @@ var (
 	// encoding the agent's pinned scope and system roles.
 	AgentScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
 
+	// BeamIDASN1ExtensionOID is an extension OID that contains the identifier of
+	// the Beam this certificate was created for.
+	BeamIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
+
+	// BotScopeASN1ExtensionOID is an extension OID that encodes the scope of
+	// the Machine ID bot the certificate was issued to, if any.
+	BotScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
+
+	// TargetScopeASN1ExtensionOID is an extension OID used to encode the scope of the
+	// target resource. A single TargetScope OID hinges on the fact that
+	// certificates are only issued for one resource at a time.
+	// If this is changed, we will need additional per protocol target scopes.
+	TargetScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -800,6 +827,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AppNameASN1ExtensionOID,
 				Value: id.RouteToApp.Name,
+			})
+	}
+	if id.RouteToApp.Scope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  TargetScopeASN1ExtensionOID,
+				Value: id.RouteToApp.Scope,
 			})
 	}
 	if id.RouteToApp.AWSRoleARN != "" {
@@ -998,6 +1032,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotScope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotScopeASN1ExtensionOID,
+				Value: id.BotScope,
+			})
+	}
+
 	if id.BotInternal {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1051,6 +1093,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  DelegationSessionIDASN1ExtensionOID,
 				Value: id.DelegationSessionID,
+			})
+	}
+
+	if id.BeamID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BeamIDASN1ExtensionOID,
+				Value: id.BeamID,
 			})
 	}
 
@@ -1259,6 +1309,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.RouteToApp.Name = val
 			}
+		case attr.Type.Equal(TargetScopeASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.Scope = val
+			}
 		case attr.Type.Equal(AppAWSRoleARNASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1394,6 +1449,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(BotScopeASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotScope = val
+			}
 		case attr.Type.Equal(BotInternalASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1435,6 +1495,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.DelegationSessionID = val
+			}
+		case attr.Type.Equal(BeamIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.BeamID = val
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
@@ -1580,10 +1644,12 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
+		BotScopeOfOrigin:  id.BotScope,
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,
 		ScopePin:          pinning.ToEventsPin(id.ScopePin),
+		BeamID:            id.BeamID,
 	}
 }
 

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -539,7 +540,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 
 		return patched, nil
 	case *joining.Token:
-		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}, func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
 				return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
 			}
@@ -610,6 +611,7 @@ func emitBoundKeypairRecoveryEvent(
 		}
 	}
 
+	botName, botScope := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRecovery{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRecovery,
@@ -619,11 +621,12 @@ func emitBoundKeypairRecoveryEvent(
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
-		TokenName:     token.GetName(),
-		BotName:       token.GetBotName(),
-		PublicKey:     boundPublicKey,
-		RecoveryCount: recoveryCount,
-		RecoveryMode:  token.GetBoundKeypair().Recovery.Mode,
+		TokenName:        token.GetName(),
+		BotName:          botName,
+		BotScopeOfOrigin: botScope,
+		PublicKey:        boundPublicKey,
+		RecoveryCount:    recoveryCount,
+		RecoveryMode:     token.GetBoundKeypair().Recovery.Mode,
 	}); err != nil {
 		params.Logger.WarnContext(ctx, "Failed to emit failed bound keypair recovery event", "error", err)
 	}
@@ -650,6 +653,7 @@ func emitBoundKeypairRotationEvent(
 		}
 	}
 
+	botName, botScope := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRotation{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairRotation,
@@ -660,7 +664,8 @@ func emitBoundKeypairRotationEvent(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName:         token.GetName(),
-		BotName:           token.GetBotName(),
+		BotName:           botName,
+		BotScopeOfOrigin:  botScope,
 		PreviousPublicKey: prevPublicKey,
 		NewPublicKey:      newPublicKey,
 	}); err != nil {
@@ -676,6 +681,7 @@ func tryLockTokenInvalidJoinState(
 ) {
 	log := params.Logger.With("join_token", token.GetName(), "validation_error", validationError)
 
+	botName, botScope := token.GetBot()
 	if auditErr := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairJoinStateVerificationFailed{
 		Metadata: apievents.Metadata{
 			Type: events.BoundKeypairJoinStateVerificationFailed,
@@ -688,8 +694,9 @@ func tryLockTokenInvalidJoinState(
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
-		TokenName: token.GetName(),
-		BotName:   token.GetBotName(),
+		TokenName:        token.GetName(),
+		BotName:          botName,
+		BotScopeOfOrigin: botScope,
 	}); auditErr != nil {
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
@@ -700,7 +707,7 @@ func tryLockTokenInvalidJoinState(
 			"The join token %q has been locked by bot %q after a client "+
 				"failed to verify its join state, possibly indicating a "+
 				"stolen keypair.",
-			token.GetName(), token.GetBotName(),
+			token.GetName(), botName,
 		)
 	} else {
 		message = fmt.Sprintf(
@@ -713,7 +720,7 @@ func tryLockTokenInvalidJoinState(
 	// Create a lock against this token.
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
 		Target: types.LockTarget{
-			JoinToken: token.GetName(),
+			JoinToken: scopes.QualifiedName{Name: token.GetName(), Scope: token.GetScope()}.String(),
 		},
 		Message:   message,
 		CreatedAt: params.Clock.Now(),
@@ -807,7 +814,9 @@ func verifyLocksForBoundKeypairToken(ctx context.Context, params *JoinParams, to
 
 	return trace.Wrap(params.AuthService.CheckLockInForce(
 		readOnlyAuthPref.GetLockingMode(),
-		[]types.LockTarget{{JoinToken: token.GetName()}},
+		[]types.LockTarget{
+			{JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}.String()},
+		},
 	))
 }
 
@@ -837,7 +846,7 @@ type JoinParams struct {
 	// validator, used to override the validator in tests.
 	CreateBoundKeypairValidator CreateBoundKeypairValidator
 	// GenerateBotCerts is a function that generates bot certificates.
-	GenerateBotCerts func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error)
+	GenerateBotCerts func(ctx context.Context, previousBotInstanceID string, claims *boundkeypair.Claims) (*messages.Certificates, string, error)
 	// GenerateHostCerts is a function that generates host certificates. Unlike
 	// bots, hosts do not maintain an ID lineage and are expected to retain
 	// their host IDs indefinitely (or else start over from a clean slate
@@ -907,7 +916,7 @@ type AuthService interface {
 type ScopedTokenService interface {
 	PatchScopedToken(
 		ctx context.Context,
-		tokenName string,
+		tokenName scopes.QualifiedName,
 		updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 	) (*joiningv1.ScopedToken, error)
 }

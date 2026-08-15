@@ -56,6 +56,7 @@ export const Moon = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-moon"
+
       {...otherProps}
       ref={ref}
     >

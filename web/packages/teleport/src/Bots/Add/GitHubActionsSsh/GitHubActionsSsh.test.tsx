@@ -22,6 +22,7 @@ import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
+import auth from 'teleport/services/auth';
 import * as botService from 'teleport/services/bot/bot';
 import TeleportContext from 'teleport/teleportContext';
 
@@ -41,6 +42,9 @@ describe('gitHub component', () => {
   };
 
   const setup = ({ hasAccess = true }: SetupProps) => {
+    jest
+      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+      .mockResolvedValue(undefined);
     const ctx = new TeleportContext();
     ctx.storeUser.setState({
       username: 'joe@example.com',

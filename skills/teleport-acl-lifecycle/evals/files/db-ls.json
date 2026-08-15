@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "db_server",
+    "metadata": {
+      "name": "mysql-server"
+    },
+    "spec": {
+      "database": {
+        "metadata": {
+          "name": "mysql-name",
+          "labels": {
+            "teleport.dev/origin": "config-file",
+            "testing": "common's",
+            "testing2": "hello world",
+            "testing3": "hello world's",
+            "testing4": "prod $(rm -rf doesnotexist)"
+          }
+        },
+        "spec": {
+          "protocol": "mysql",
+          "uri": "mysql.example.com:3306"
+        }
+      }
+    }
+  }
+]

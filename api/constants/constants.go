@@ -112,6 +112,9 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
+	// KeepAliveLinuxDesktop is the keep alive type for a Linux desktop.
+	KeepAliveLinuxDesktop = "linux_desktop"
+
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
 
@@ -419,6 +422,10 @@ const (
 	// to store allowed Windows logins.
 	TraitWindowsLogins = "windows_logins"
 
+	// TraitLinuxDesktopLogins is the name of the role variable used
+	// to store allowed Linux desktop logins.
+	TraitLinuxDesktopLogins = "linux_desktop_logins"
+
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
 	TraitKubeGroups = "kubernetes_groups"
@@ -607,6 +614,10 @@ const (
 	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
 	// GitLab CI job.
 	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
+	// EnvVarTerraformScoped is the environment variable indicating that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	EnvVarTerraformScoped = "TF_TELEPORT_SCOPED"
 )
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.

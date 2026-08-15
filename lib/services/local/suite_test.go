@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -371,7 +372,10 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
-	node, err := s.PresenceS.GetNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	node, err := s.PresenceS.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name:  srv.GetName(),
+		Scope: srv.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(node, srv, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -380,7 +384,10 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{srv}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteNode(ctx, srv.Metadata.Namespace, srv.GetName())
+	err = s.PresenceS.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  srv.GetName(),
+		Scope: srv.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
@@ -463,7 +470,11 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Remove the application.
-	err = s.PresenceS.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	err = s.PresenceS.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server.GetHostID(),
+		Name:   server.GetName(),
+		Scope:  server.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -38,9 +37,15 @@ func SupportedCATypes() []string {
 	return slices.Clone(allowedCAOverrideSubKinds)
 }
 
+// SPIFFECAOverrideSubKind is the sub_kind for SPIFFE CA overrides.
+// The SPIFFE CA has both X.509 (TLS) and JWT signing components, and this
+// sub_kind targets the TLS signing component.
+const SPIFFECAOverrideSubKind = "spiffe-tls"
+
 var (
 	allowedCAOverrideSubKinds = []string{
 		string(types.DatabaseClientCA),
+		SPIFFECAOverrideSubKind,
 		string(types.WindowsCA),
 	}
 
@@ -48,6 +53,16 @@ var (
 	// with exactly 64 characters. See PublicKeyHash.
 	certificateOverridePublicKeyRE = regexp.MustCompile(`^[0-9A-Fa-f]{64}$`)
 )
+
+// SubKindToCertAuthType maps a CA override sub_kind to its CertAuthType.
+func SubKindToCertAuthType(subKind string) types.CertAuthType {
+	switch subKind {
+	case SPIFFECAOverrideSubKind:
+		return types.SPIFFECA
+	default:
+		return types.CertAuthType(subKind)
+	}
+}
 
 // ParsedCertAuthorityOverride is a CertAuthorityOverride with a
 // ParsedCertificateOverride list.
@@ -131,7 +146,7 @@ func parseCertificateAndPublicKey(co *subcav1.CertificateOverride) (_ *x509.Cert
 	}
 
 	// Normalize user-supplied public keys.
-	pkh := strings.ToLower(co.GetPublicKey())
+	pkh := NormalizePublicKey(co.GetPublicKey())
 	return nil, pkh, nil
 }
 
@@ -220,7 +235,7 @@ func validateCertificateOverride(
 		if !certificateOverridePublicKeyRE.MatchString(co.GetPublicKey()) {
 			return nil, "", errors.New("invalid public key")
 		}
-		if wantPublicKey != "" && !strings.EqualFold(co.GetPublicKey(), wantPublicKey) {
+		if wantPublicKey != "" && NormalizePublicKey(co.GetPublicKey()) != wantPublicKey {
 			return nil, "public_key", fmt.Errorf("certificate public key mismatch (want %q)", wantPublicKey)
 		}
 	}
@@ -289,7 +304,7 @@ func validateCertificateOverride(
 
 	// Normalize public key to lowercase so it matches HashPublicKey.
 	publicKey := cmp.Or(wantPublicKey, co.GetPublicKey())
-	publicKey = strings.ToLower(publicKey)
+	publicKey = NormalizePublicKey(publicKey)
 
 	return &ParsedCertificateOverride{
 		CertificateOverride: co,

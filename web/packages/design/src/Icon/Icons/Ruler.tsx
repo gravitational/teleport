@@ -56,6 +56,7 @@ export const Ruler = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-ruler"
+
       {...otherProps}
       ref={ref}
     >

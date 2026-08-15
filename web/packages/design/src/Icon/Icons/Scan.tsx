@@ -56,6 +56,7 @@ export const Scan = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-scan"
+
       {...otherProps}
       ref={ref}
     >

@@ -6,6 +6,7 @@ tags:
  - reference
  - mwi
  - infrastructure-identity
+page_type: reference
 ---
 
 Attributes are features of an identity which you can use with the
@@ -15,6 +16,9 @@ and template values.
 These attributes come from a variety of sources, such as workload attestations
 performed by `tbot` or the attestation performed by the control plane when
 `tbot` joins.
+
+This page lists the attributes that Workload Identity supports, categorized by
+source.
 
 ## Join attributes
 
@@ -76,6 +80,17 @@ documentation is available at https://support.atlassian.com/bitbucket-cloud/docs
 | `join.bitbucket.workspace_uuid`              | The UUID of the workspace the pipeline belongs to.                      |
 | `join.bitbucket.deployment_environment_uuid` | The UUID of the deployment environment the pipeline is running against. |
 | `join.bitbucket.branch_name`                 | The name of the branch the pipeline is running against.                 |
+
+### `join.bound_keypair`
+
+These attributes are present if the Bot joined using the Bound Keypair join
+method.
+
+| Field                               | Description                                                             |
+|-------------------------------------|-------------------------------------------------------------------------|
+| `join.bound_keypair.public_key`     | The bound public key verified during the join, in SSH authorized_keys format. |
+| `join.bound_keypair.recovery_mode`  | The join token's configured recovery mode, e.g. `standard` or `relaxed`. |
+| `join.bound_keypair.recovery_count` | The join token's recovery counter after the join.                       |
 
 ### `join.circleci`
 

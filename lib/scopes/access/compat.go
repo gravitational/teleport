@@ -41,6 +41,10 @@ func applySSHBlock(src *scopedaccessv1.ScopedRoleSSH, dst *types.RoleConditions)
 		}
 		dst.NodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
 	}
+
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.NodeLabelsExpression = expr
+	}
 }
 
 // applyKubeBlock writes/converts the relevant subset of the scoped role's kube block into the provided
@@ -57,6 +61,53 @@ func applyKubeBlock(src *scopedaccessv1.ScopedRoleKube, dst *types.RoleCondition
 		}
 		dst.KubernetesLabels[label.GetName()] = apiutils.Strings(label.GetValues())
 	}
+
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.KubernetesLabelsExpression = expr
+	}
+
+	for i, resource := range src.GetResources() {
+		if dst.KubernetesResources == nil {
+			dst.KubernetesResources = make([]types.KubernetesResource, len(src.GetResources()))
+		}
+		dst.KubernetesResources[i] = types.KubernetesResource{
+			Kind:      resource.GetKind(),
+			Namespace: resource.GetNamespace(),
+			Name:      resource.GetName(),
+			Verbs:     resource.GetVerbs(),
+			APIGroup:  resource.GetApiGroup(),
+		}
+	}
+}
+
+// applyAppBlock writes/converts the relevant subset of the scoped role's app block into the provided
+// classic role allow block. This helper only writes fields relevant to initial app access *checks*. We
+// reuse the initial access check logic from classic RBAC when performing access checks for scoped identities.
+// Secondary protocol-level controls such as client idle timeout are not converted, and
+// are pulled directly from the scoped role.
+func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions) {
+	for _, label := range src.GetLabels() {
+		if dst.AppLabels == nil {
+			dst.AppLabels = make(types.Labels)
+		}
+		dst.AppLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.AppLabelsExpression = expr
+	}
+}
+
+// applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity
+// block into the provided classic role allow block. This helper only writes fields relevant to issuance
+// access *checks*. We reuse the initial access check logic from classic RBAC (WorkloadIdentityLabels)
+// when performing issuance access checks for scoped identities.
+func applyWorkloadIdentityBlock(src *scopedaccessv1.ScopedRoleWorkloadIdentity, dst *types.RoleConditions) {
+	for _, label := range src.GetLabels() {
+		if dst.WorkloadIdentityLabels == nil {
+			dst.WorkloadIdentityLabels = make(types.Labels)
+		}
+		dst.WorkloadIdentityLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
 }
 
 // applyRules merges the rules of a scoped role into the provided classic role
@@ -70,7 +121,8 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 		for _, resource := range r.GetResources() {
 			var verbs []string
 			for _, verb := range r.GetVerbs() {
-				if !isAllowedScopedRule(resource, verb) {
+				classicVerb, ok := compileScopedVerb(resource, verb)
+				if !ok {
 					// skip verbs that are not allowed for the resource kind. note that this differs from
 					// classic teleport role behavior, where we don't worry about unsupported resource:verb
 					// combinations because we theoretically won't have any access checks for unsupported
@@ -83,7 +135,7 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 					// the new rule.
 					continue
 				}
-				verbs = append(verbs, verb)
+				verbs = append(verbs, classicVerb)
 			}
 			if len(verbs) == 0 {
 				// skip rules that have no allowed verbs.
@@ -99,13 +151,21 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 
 // ScopedRoleToRole converts a scoped role to an equivalent classic role. Scoped roles do not implement their
 // own access-control logic for the most part, and instead rely on converting to classic roles for the final
-// step of evaluation. This functiona also accepts the assigned scope as a parameter because we conventionally
+// step of evaluation. This function also accepts the assigned scope as a parameter because we conventionally
 // format converted role names as "<role-name>@<assigned-scope>" to help ensure reasonable error messages from
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+	// role conversion applies unwanted wildcards for kube resources when left unassigned, so we
+	// explicitly validate the kube block as a sanity check
+	if err := validateKubeBlock(sr.GetSpec().GetKube()); err != nil {
+		return nil, trace.BadParameter("scoped role %q's kube %s", sr.GetMetadata().GetName(), err)
+	}
+
 	var conditions types.RoleConditions
 	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
 	applyKubeBlock(sr.GetSpec().GetKube(), &conditions)
+	applyWorkloadIdentityBlock(sr.GetSpec().GetWorkloadIdentity(), &conditions)
+	applyAppBlock(sr.GetSpec().GetApp(), &conditions)
 	applyRules(sr.GetSpec().GetRules(), &conditions)
 
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{

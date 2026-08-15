@@ -56,6 +56,7 @@ export const ListMagnifyingGlass = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-listmagnifyingglass"
+
       {...otherProps}
       ref={ref}
     >

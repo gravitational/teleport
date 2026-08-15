@@ -16,8 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { LegacyThemeColors } from '@gravitational/design-system';
 import { useMemo } from 'react';
-import { type DefaultTheme } from 'styled-components';
+
+type ResolvedTerminalColors = Record<
+  keyof LegacyThemeColors['terminal'],
+  string | undefined
+>;
 
 export function useThumbnailSvg(svg: string, styles: string) {
   return useMemo(
@@ -36,33 +41,36 @@ export function injectSVGStyles(svg: string, styles: string) {
   return svg.replace(/<svg[^>]*>/, match => `${match}${styleTag}`);
 }
 
-export function generateTerminalSVGStyleTag(theme: DefaultTheme): string {
+export function generateTerminalSVGStyleTag(
+  terminal: ResolvedTerminalColors,
+  monoFont: string
+): string {
   const colorMap = [
-    theme.colors.terminal.black,
-    theme.colors.terminal.red,
-    theme.colors.terminal.green,
-    theme.colors.terminal.yellow,
-    theme.colors.terminal.blue,
-    theme.colors.terminal.magenta,
-    theme.colors.terminal.cyan,
-    theme.colors.terminal.white,
-    theme.colors.terminal.brightBlack,
-    theme.colors.terminal.brightRed,
-    theme.colors.terminal.brightGreen,
-    theme.colors.terminal.brightYellow,
-    theme.colors.terminal.brightBlue,
-    theme.colors.terminal.brightMagenta,
-    theme.colors.terminal.brightCyan,
-    theme.colors.terminal.brightWhite,
+    terminal.black,
+    terminal.red,
+    terminal.green,
+    terminal.yellow,
+    terminal.blue,
+    terminal.magenta,
+    terminal.cyan,
+    terminal.white,
+    terminal.brightBlack,
+    terminal.brightRed,
+    terminal.brightGreen,
+    terminal.brightYellow,
+    terminal.brightBlue,
+    terminal.brightMagenta,
+    terminal.brightCyan,
+    terminal.brightWhite,
   ];
 
   const rules: string[] = [
     '.i { font-style: italic; }',
     '.b { font-weight: bold; }',
     '.u { text-decoration: underline; }',
-    `* { font-family: ${theme.fonts.mono} }`,
-    `.terminal { fill: ${theme.colors.terminal.foreground}; }`,
-    `.bg-default { fill: ${theme.colors.terminal.background}; }`,
+    `* { font-family: ${monoFont} }`,
+    `.terminal { fill: ${terminal.foreground}; }`,
+    `.bg-default { fill: ${terminal.background}; }`,
   ];
 
   for (let i = 0; i < colorMap.length; i++) {

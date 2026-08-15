@@ -24,29 +24,16 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/mfatypes"
 )
-
-// TODO(Joerger): DELETE IN v19.0.0 and use mfatypes.MFAChallengeResponse instead.
-// Before v17, the WebUI sends a flattened webauthn response instead of a full
-// MFA challenge response. Newer WebUI versions v17+ will send both for
-// backwards compatibility.
-type challengeResponse struct {
-	mfatypes.MFAChallengeResponse
-	*wantypes.CredentialAssertionResponse
-}
 
 // Decode parses a JSON-encoded MFA authentication response.
 // Only webauthn (type="n") is currently supported.
 func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
-	var resp challengeResponse
+	var resp mfatypes.MFAChallengeResponse
 	if err := json.Unmarshal(b, &resp); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Move flattened webauthn response into resp.
-	resp.MFAChallengeResponse.WebauthnAssertionResponse = resp.CredentialAssertionResponse
 
 	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
 	if err != nil {

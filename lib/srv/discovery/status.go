@@ -382,42 +382,39 @@ func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) 
 // ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
 // It will emit an audit event with the result and update the DiscoveryConfig status
 func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *server.SSMInstallationResult) error {
-	if err := s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Only failed runs are counted.
 	// Successful ones only mean that the teleport was installed in the target host.
 	// If they succeed in joining the cluster, during the next iteration, they will be countd as "enrolled"
-	if result.SSMRunEvent.Metadata.Code == libevents.SSMRunSuccessCode {
-		return nil
+	if result.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode {
+		// Record failure status before emitting the audit event. Audit emission
+		// errors are reported to the caller, but must not hide the failed
+		// enrollment from DiscoveryConfig status or UserTasks.
+		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+			discoveryConfigName: result.DiscoveryConfigName,
+			integration:         result.IntegrationName,
+		}, 1)
+
+		s.awsEC2Tasks.addFailedEnrollment(
+			awsEC2TaskKey{
+				integration:     result.IntegrationName,
+				issueType:       result.IssueType,
+				accountID:       result.SSMRunEvent.AccountID,
+				region:          result.SSMRunEvent.Region,
+				ssmDocument:     result.SSMDocumentName,
+				installerScript: result.InstallerScript,
+			},
+			usertasksv1.DiscoverEC2Instance_builder{
+				InvocationUrl:   result.SSMRunEvent.InvocationURL,
+				DiscoveryConfig: result.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+				InstanceId:      result.SSMRunEvent.InstanceID,
+				Name:            result.InstanceName,
+			}.Build(),
+		)
 	}
 
-	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-		discoveryConfigName: result.DiscoveryConfigName,
-		integration:         result.IntegrationName,
-	}, 1)
-
-	s.awsEC2Tasks.addFailedEnrollment(
-		awsEC2TaskKey{
-			integration:     result.IntegrationName,
-			issueType:       result.IssueType,
-			accountID:       result.SSMRunEvent.AccountID,
-			region:          result.SSMRunEvent.Region,
-			ssmDocument:     result.SSMDocumentName,
-			installerScript: result.InstallerScript,
-		},
-		usertasksv1.DiscoverEC2Instance_builder{
-			InvocationUrl:   result.SSMRunEvent.InvocationURL,
-			DiscoveryConfig: result.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(s.clock.Now()),
-			InstanceId:      result.SSMRunEvent.InstanceID,
-			Name:            result.InstanceName,
-		}.Build(),
-	)
-
-	return nil
+	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 }
 
 // awsEC2Tasks contains the Discover EC2 User Tasks that must be reported to the user.
@@ -431,7 +428,14 @@ type awsEC2Tasks struct {
 	issuesSyncQueue map[awsEC2TaskKey]struct{}
 }
 
-// awsEC2TaskKey identifies a UserTask group.
+// awsEC2TaskKey identifies a unique UserTask group for EC2
+// discovery errors.
+//
+// Note: DiscoveryConfigName is intentionally excluded from the
+// key. EC2 permission and execution issues are account and
+// region scoped, so failures from multiple discovery configs
+// sharing the same credentials or installation parameters
+// deduplicate into a single UserTask.
 type awsEC2TaskKey struct {
 	integration     string
 	issueType       string
@@ -451,10 +455,13 @@ func (d *awsEC2Tasks) reset() {
 	d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 }
 
-// addFailedEnrollment adds an enrollment failure of a given instance.
+// addFailedEnrollment records an EC2 enrollment failure.
+//
+// Instance may be nil for failures that occur before any instance metadata is
+// known.
 func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1.DiscoverEC2Instance) {
-	// Only failures associated with an Integration are reported.
-	// There's no major blocking for showing non-integration User Tasks, but this keeps scope smaller.
+	// Only failures with non-empty Integration are reported. UserTask validation
+	// requires an Integration, so ambient-credential failures are intentionally skipped.
 	if g.integration == "" {
 		return
 	}
@@ -476,12 +483,20 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 			InstallerScript: g.installerScript,
 		}.Build()
 	}
-	d.instancesIssues[g].GetInstances()[instance.GetInstanceId()] = instance
+	if instance != nil {
+		d.instancesIssues[g].GetInstances()[instance.GetInstanceId()] = instance
+	}
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 	}
 	d.issuesSyncQueue[g] = struct{}{}
+}
+
+// addFailedPermissionEnrollment records an EC2 permission failure
+// with no associated instance data.
+func (d *awsEC2Tasks) addFailedPermissionEnrollment(g awsEC2TaskKey) {
+	d.addFailedEnrollment(g, nil)
 }
 
 // awsEKSTasks contains the Discover EKS User Tasks that must be reported to the user.
@@ -667,10 +682,6 @@ func (s *taskUpdater) acquireSemaphoreForUserTask(userTaskName string) (releaseF
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
-	if len(failedInstances.GetInstances()) == 0 {
-		return nil
-	}
-
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
 		Integration:     taskGroup.integration,
 		IssueType:       taskGroup.issueType,
@@ -930,6 +941,7 @@ type azureVMTaskKey struct {
 
 // azureVMTasks contains the Discover Azure VM User Tasks that must be reported to the user.
 type azureVMTasks struct {
+	mu         sync.Mutex
 	taskGroups map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM
 }
 
@@ -942,6 +954,9 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 	if tg.IssueType == "" {
 		return
 	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.taskGroups == nil {
 		t.taskGroups = make(map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM)
@@ -971,6 +986,8 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 func (t *azureVMTasks) upsertAll(s *taskUpdater) {
 	expiryTime := s.clock.Now().Add(2 * s.PollInterval)
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for taskGroup, group := range t.taskGroups {
 		for azureKey, vmData := range group {
 			// skip empty entries
@@ -1029,6 +1046,26 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
+func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType, tenantID, clientID string) error {
+	task, err := usertasks.NewDiscoverAzureVMUserTask(
+		usertasks.TaskGroup{
+			Integration: integration,
+			IssueType:   issueType,
+		},
+		s.clock.Now().Add(2*s.PollInterval),
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			TenantId:  tenantID,
+			ClientId:  clientID,
+		}.Build(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.mergeUpsertUserTask(task, s.mergeAzure))
+}
+
 func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUserTasks func(oldTask *usertasksv1.UserTaskSpec, newTask *usertasksv1.UserTaskSpec)) error {
 	taskName := newTask.GetMetadata().GetName()
 
@@ -1068,6 +1105,12 @@ func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *use
 	if newSpec.GetDiscoverAzureVm().GetInstances() == nil {
 		newSpec.GetDiscoverAzureVm().SetInstances(make(map[string]*usertasksv1.DiscoverAzureVMInstance))
 	}
+	if newSpec.GetDiscoverAzureVm().GetTenantId() == "" {
+		newSpec.GetDiscoverAzureVm().SetTenantId(oldSpec.GetDiscoverAzureVm().GetTenantId())
+	}
+	if newSpec.GetDiscoverAzureVm().GetClientId() == "" {
+		newSpec.GetDiscoverAzureVm().SetClientId(oldSpec.GetDiscoverAzureVm().GetClientId())
+	}
 	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
 }
 
@@ -1086,6 +1129,7 @@ type discoveryGroupStatus struct {
 // discovery group key (discovery config + integration combination).
 type discoveryStatus struct {
 	resourceType string
+	statusesMu   sync.Mutex
 	statuses     map[discoveryGroupStatusKey]*discoveryGroupStatus
 	syncStart    *time.Time
 	syncEnd      *time.Time
@@ -1103,12 +1147,20 @@ func (s *discoveryStatus) syncEnded(syncEnd time.Time) {
 	s.syncEnd = &syncEnd
 }
 
-func (s *discoveryStatus) add(key discoveryGroupStatusKey, update discoveryGroupStatus) {
-	if s.statuses[key] == nil {
+func (s *discoveryStatus) add(key discoveryGroupStatusKey) {
+	if status := s.statuses[key]; status == nil {
+		s.statuses[key] = &discoveryGroupStatus{}
+	}
+}
+
+func (s *discoveryStatus) updateConcurrently(key discoveryGroupStatusKey, update discoveryGroupStatus) {
+	s.statusesMu.Lock()
+	defer s.statusesMu.Unlock()
+	status := s.statuses[key]
+	if status == nil {
 		s.statuses[key] = &update
 		return
 	}
-	status := s.statuses[key]
 	status.found += update.found
 	status.enrolled += update.enrolled
 	status.failed += update.failed

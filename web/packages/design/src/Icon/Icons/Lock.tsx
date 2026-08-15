@@ -56,6 +56,7 @@ export const Lock = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-lock"
+
       {...otherProps}
       ref={ref}
     >

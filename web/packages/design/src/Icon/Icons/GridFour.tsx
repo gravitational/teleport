@@ -56,6 +56,7 @@ export const GridFour = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-gridfour"
+
       {...otherProps}
       ref={ref}
     >

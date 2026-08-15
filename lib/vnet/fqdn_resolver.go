@@ -381,6 +381,7 @@ func (r *fqdnResolver) makeAppInfo(ctx context.Context, candidate clusterResolut
 			Profile:     candidate.profileName,
 			LeafCluster: candidate.leafClusterName,
 			Name:        app.GetName(),
+			Scope:       app.GetScope(),
 		}.Build(),
 		Cluster:       candidate.clusterName,
 		App:           app,

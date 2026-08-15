@@ -109,6 +109,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
+	case AgentForwardEvent:
+		e = &events.AgentForward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
 	case PortForwardLocalEvent:
@@ -191,10 +193,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
+	case AppSessionTargetDialDeniedEvent:
+		e = &events.AppSessionTargetDialDenied{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
 	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
 		e = &events.AppSessionLLMRequest{}
+	case AppSessionHTTPRequestEvent:
+		e = &events.AppSessionHTTPRequest{}
+	case AppSessionHTTPRequestBodyChunkEvent:
+		e = &events.AppSessionHTTPRequestBodyChunk{}
+	case AppSessionHTTPResponseEvent:
+		e = &events.AppSessionHTTPResponse{}
+	case AppSessionHTTPResponseBodyChunkEvent:
+		e = &events.AppSessionHTTPResponseBodyChunk{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -284,7 +296,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		DeviceAuthenticateEvent,
 		DeviceEnrollTokenCreateEvent,
 		DeviceWebTokenCreateEvent,
-		DeviceAuthenticateConfirmEvent:
+		DeviceAuthenticateConfirmEvent,
+		DeviceEnrollPairingRequestEvent,
+		DeviceEnrollPairingApproveEvent,
+		DeviceEnrollPairingDenyEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
@@ -302,6 +317,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
 	case DesktopRecordingEvent:
 		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
@@ -583,16 +602,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case ClientIPRestrictionsUpdateEvent:
 		e = &events.ClientIPRestrictionsUpdate{}
 
-	case AppAuthConfigCreateEvent:
-		e = &events.AppAuthConfigCreate{}
-	case AppAuthConfigUpdateEvent:
-		e = &events.AppAuthConfigUpdate{}
-	case AppAuthConfigDeleteEvent:
-		e = &events.AppAuthConfigDelete{}
-	case AppAuthConfigVerifySuccessCode:
-		e = &events.AppAuthConfigVerify{}
-	case AppAuthConfigVerifyFailureEvent:
-		e = &events.AppAuthConfigVerify{}
 	case VnetConfigCreateEvent:
 		e = &events.VnetConfigCreate{}
 	case VnetConfigUpdateEvent:
@@ -634,6 +643,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case RetrievalModelDeleteEvent:
 		e = &events.RetrievalModelDelete{}
 
+	case ClassifierCreateEvent:
+		e = &events.ClassifierCreate{}
+	case ClassifierUpdateEvent:
+		e = &events.ClassifierUpdate{}
+	case ClassifierDeleteEvent:
+		e = &events.ClassifierDelete{}
+
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
 
@@ -642,14 +658,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideUpsertEvent,
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
-
+	case ScopedTokenCreateEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpsertEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpdateEvent:
+		e = &events.ScopedTokenUpdate{}
+	case ScopedTokenDeleteEvent:
+		e = &events.ScopedTokenDelete{}
 	case BeamsConfigCreateEvent:
 		e = &events.BeamsConfigCreate{}
 	case BeamsConfigUpdateEvent:
 		e = &events.BeamsConfigUpdate{}
 	case BeamsConfigDeleteEvent:
 		e = &events.BeamsConfigDelete{}
-
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

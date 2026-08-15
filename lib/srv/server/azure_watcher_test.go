@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,7 +43,8 @@ import (
 type mockClients struct {
 	azure.Clients
 
-	vmClients map[string]azure.VirtualMachinesClient
+	vmClients  map[string]azure.VirtualMachinesClient
+	nicClients map[string]azure.NetworkInterfacesClient
 }
 
 func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
@@ -51,6 +53,14 @@ func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription
 		return nil, trace.NotFound("subscription %s not found", subscription)
 	}
 	return vmClient, nil
+}
+
+func (c *mockClients) GetNetworkInterfacesClient(ctx context.Context, subscription string) (azure.NetworkInterfacesClient, error) {
+	nicClient, ok := c.nicClients[subscription]
+	if !ok {
+		return nil, trace.NotFound("subscription %s not found", subscription)
+	}
+	return nicClient, nil
 }
 
 func TestAzureWatcher(t *testing.T) {
@@ -97,6 +107,17 @@ func TestAzureWatcher(t *testing.T) {
 							{
 								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
 								Location: to.Ptr("location2"),
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm7")),
+								Location: to.Ptr("location2"),
+								Properties: &armcompute.VirtualMachineProperties{
+									StorageProfile: &armcompute.StorageProfile{
+										OSDisk: &armcompute.OSDisk{
+											OSType: to.Ptr(armcompute.OperatingSystemTypesWindows),
+										},
+									},
+								},
 							},
 						},
 					},
@@ -235,6 +256,16 @@ func TestAzureWatcher(t *testing.T) {
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6", "vm7", "vm8", "vm9", "vm10", "vm11", "vm12"},
 		},
+		{
+			name: "filter by operating system",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg2"},
+				Regions:        []string{"location1", "location2"},
+				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
+				Subscriptions:  []string{sub1},
+			},
+			wantVMs: []string{"vm2", "vm4"},
+		},
 	}
 
 	logger := logtest.NewLogger()
@@ -247,20 +278,20 @@ func TestAzureWatcher(t *testing.T) {
 			watcher := NewWatcher[*AzureInstances](ctx, logger)
 
 			const noDiscoveryConfig = ""
-			watcher.SetFetchers(noDiscoveryConfig,
-				MatchersToAzureInstanceFetchers(
-					t.Context(),
-					logger,
-					[]types.AzureMatcher{tc.matcher},
-					func(ctx context.Context, integration string) (azure.Clients, error) {
-						return &clients, nil
-					},
-					noDiscoveryConfig,
-					func(ctx context.Context, integration string) (subscriptions []string, err error) {
-						return []string{sub1, sub2}, nil
-					},
-				),
+			fetchers, err := MatcherToAzureInstanceFetchers(
+				t.Context(),
+				logger,
+				tc.matcher,
+				func(ctx context.Context, integration string) (azure.Clients, error) {
+					return &clients, nil
+				},
+				noDiscoveryConfig,
+				func(ctx context.Context, integration string) (subscriptions []string, err error) {
+					return []string{sub1, sub2}, nil
+				},
 			)
+			require.NoError(t, err)
+			watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 			go watcher.Run()
 			t.Cleanup(watcher.Stop)
@@ -286,6 +317,50 @@ func TestAzureWatcher(t *testing.T) {
 			require.ElementsMatch(t, tc.wantVMs, vmIDs)
 		})
 	}
+}
+
+func TestMatcherToAzureInstanceFetchersSubscriptionListError(t *testing.T) {
+	t.Parallel()
+
+	permissionErr := trace.AccessDenied("missing subscriptions/read")
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, permissionErr },
+	)
+
+	require.Empty(t, fetchers)
+	require.ErrorIs(t, err, permissionErr)
+}
+
+func TestMatcherToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
+	t.Parallel()
+
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, nil },
+	)
+
+	require.Empty(t, fetchers)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {
@@ -696,4 +771,380 @@ func TestMakeUsageEvent(t *testing.T) {
 			require.Equal(t, tc.want, evt)
 		})
 	}
+}
+
+func TestPrimaryPrivateIP(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		nics []*azure.NetworkInterface
+		want string
+	}{
+		{name: "no NICs", nics: nil, want: ""},
+		{
+			name: "single primary NIC with primary IP config",
+			nics: []*azure.NetworkInterface{{
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
+			}},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers the primary NIC over the first one",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9", Primary: true}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}}},
+			},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers the primary IP config on the primary NIC",
+			nics: []*azure.NetworkInterface{{
+				Primary: true,
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.0.9"},
+					{PrivateIP: "10.0.0.1", Primary: true},
+				},
+			}},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers a non-primary IP config on the primary NIC over other NICs",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9"}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1"}}},
+			},
+			want: "10.0.0.1",
+		},
+		{
+			name: "falls back to the first usable IP when no NIC is primary",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: ""}}},
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.5"}}},
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.6"}}},
+			},
+			want: "10.0.0.5",
+		},
+		{
+			name: "skips CIDR-notation IPs",
+			nics: []*azure.NetworkInterface{{
+				Primary: true,
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.1.4/24"},
+					{PrivateIP: "10.0.0.4"},
+				},
+			}},
+			want: "10.0.0.4",
+		},
+		{
+			name: "returns empty when no NIC has a usable IP",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: ""}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.7/16", Primary: true}}},
+			},
+			want: "",
+		},
+		{
+			name: "prefers the primary IP config when the NIC primary flag is unset",
+			nics: []*azure.NetworkInterface{{
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.0.9"},
+					{PrivateIP: "10.0.0.1", Primary: true},
+				},
+			}},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers any IP on the primary NIC over a primary config on another NIC",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9", Primary: true}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1"}}},
+			},
+			want: "10.0.0.1",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, primaryPrivateIP(tc.nics))
+		})
+	}
+}
+
+// fakeNetworkInterfacesClient is an azure.NetworkInterfacesClient that returns
+// canned NICs, used to drive the Windows VM discovery path without real Azure
+// API calls.
+type fakeNetworkInterfacesClient struct {
+	nics    []*azure.NetworkInterface
+	listErr error
+	// gotResourceGroups and gotScaleSetIDs record the arguments of each
+	// ListNetworkInterfaces call.
+	gotResourceGroups []string
+	gotScaleSetIDs    []string
+}
+
+func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, scaleSetIDs ...string) ([]*azure.NetworkInterface, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	f.gotResourceGroups = append(f.gotResourceGroups, resourceGroup)
+	f.gotScaleSetIDs = append(f.gotScaleSetIDs, scaleSetIDs...)
+	return f.nics, nil
+}
+
+func windowsVMFetcher(t *testing.T, clients azure.Clients, regions []string) *azureInstanceFetcher {
+	t.Helper()
+	const (
+		sub = "00000000-0000-0000-0000-000000000000"
+		rg  = "rg1"
+	)
+	return newAzureInstanceFetcher(azureFetcherConfig{
+		Matcher: types.AzureMatcher{
+			Types:        []string{types.AzureMatcherWindowsVM},
+			Regions:      regions,
+			ResourceTags: types.Labels{"*": []string{"*"}},
+		},
+		MatcherType:   types.AzureMatcherWindowsVM,
+		Subscription:  sub,
+		ResourceGroup: rg,
+		AzureClientGetter: func(context.Context, string) (azure.Clients, error) {
+			return clients, nil
+		},
+		Logger: logtest.NewLogger(),
+	})
+}
+
+// windowsVMClients builds mock Azure clients whose VM client returns a  mix of
+// Windows, Linux, and unknown-OS VMs across two regions in resource group rg1.
+func windowsVMClients(t *testing.T) (*mockClients, map[string]string) {
+	t.Helper()
+	const (
+		sub = "00000000-0000-0000-0000-000000000000"
+		rg  = "rg1"
+	)
+	windowsOS := armcompute.OperatingSystemTypesWindows
+	linuxOS := armcompute.OperatingSystemTypesLinux
+
+	makeVM := func(name, location string, os *armcompute.OperatingSystemTypes) *armcompute.VirtualMachine {
+		vm := &armcompute.VirtualMachine{
+			ID:       to.Ptr(makeAzureVMID(sub, rg, name)),
+			Location: to.Ptr(location),
+		}
+		if os != nil {
+			vm.Properties = &armcompute.VirtualMachineProperties{
+				StorageProfile: &armcompute.StorageProfile{
+					OSDisk: &armcompute.OSDisk{OSType: os},
+				},
+			}
+		}
+		return vm
+	}
+
+	ids := map[string]string{
+		"winvm1":     makeAzureVMID(sub, rg, "winvm1"),
+		"winvm2":     makeAzureVMID(sub, rg, "winvm2"),
+		"linuxvm":    makeAzureVMID(sub, rg, "linuxvm"),
+		"unknownvm":  makeAzureVMID(sub, rg, "unknownvm"),
+		"winvm-west": makeAzureVMID(sub, rg, "winvm-west"),
+	}
+
+	vmClient := azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+		VirtualMachineAPI: &azure.ARMComputeMock{
+			VirtualMachines: map[string][]*armcompute.VirtualMachine{
+				rg: {
+					makeVM("winvm1", "eastus", &windowsOS),
+					makeVM("winvm2", "eastus", &windowsOS),
+					makeVM("linuxvm", "eastus", &linuxOS),
+					makeVM("unknownvm", "eastus", nil),
+					makeVM("winvm-west", "westus", &windowsOS),
+				},
+			},
+		},
+		ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
+		ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
+	})
+
+	return &mockClients{
+		vmClients: map[string]azure.VirtualMachinesClient{sub: vmClient},
+	}, ids
+}
+
+func TestAzureFetcherGetInstancesWindows(t *testing.T) {
+	t.Parallel()
+
+	const sub = "00000000-0000-0000-0000-000000000000"
+
+	clients, ids := windowsVMClients(t)
+
+	// NICs reference their VM via AttachedVMID. winvm1 uses an upper-cased ID to
+	// verify the case-insensitive join between compute and network resource IDs.
+	nicClient := &fakeNetworkInterfacesClient{
+		nics: []*azure.NetworkInterface{
+			{
+				AttachedVMID:     strings.ToUpper(ids["winvm1"]),
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
+			},
+			// winvm2 has two NICs; the non-primary one comes first to
+			// verify the primary NIC's IP is preferred.
+			{
+				AttachedVMID:     ids["winvm2"],
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.99"}},
+			},
+			{
+				AttachedVMID:     ids["winvm2"],
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.2", Primary: true}},
+			},
+			{
+				AttachedVMID:     ids["unknownvm"],
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.3", Primary: true}},
+			},
+			// A NIC not attached to any VM must not affect the results.
+			{
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.50", Primary: true}},
+			},
+		},
+	}
+	clients.nicClients = map[string]azure.NetworkInterfacesClient{sub: nicClient}
+
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
+
+	instances, err := fetcher.GetInstances(t.Context(), false)
+	require.NoError(t, err)
+
+	// NICs are listed once, subscription-wide, because a NIC can live in a
+	// different resource group than its VM.
+	require.Equal(t, []string{types.Wildcard}, nicClient.gotResourceGroups)
+
+	gotIPByName := map[string]string{}
+	for _, group := range instances {
+		require.Equal(t, "eastus", group.Metadata.Region)
+		for _, vm := range group.Instances {
+			parsed, err := arm.ParseResourceID(vm.ID)
+			require.NoError(t, err)
+			gotIPByName[parsed.Name] = vm.PrimaryPrivateIP
+		}
+	}
+
+	// Only Windows and unknown-OS VMs in the eastus region, each carrying the
+	// primary NIC's private IP. The Linux VM and the westus Windows VM are excluded.
+	require.Equal(t, map[string]string{
+		"winvm1":    "10.0.0.1",
+		"winvm2":    "10.0.0.2",
+		"unknownvm": "10.0.0.3",
+	}, gotIPByName)
+}
+
+func TestAzureFetcherGetInstancesWindowsNICListError(t *testing.T) {
+	t.Parallel()
+
+	const sub = "00000000-0000-0000-0000-000000000000"
+
+	clients, _ := windowsVMClients(t)
+	clients.nicClients = map[string]azure.NetworkInterfacesClient{
+		sub: &fakeNetworkInterfacesClient{listErr: trace.AccessDenied("no network access")},
+	}
+
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
+
+	// A NIC listing failure must fail the whole fetch rather than silently
+	// discovering Windows VMs without private IPs.
+	_, err := fetcher.GetInstances(t.Context(), false)
+	require.ErrorContains(t, err, "no network access")
+}
+
+func TestAzureFetcherGetInstancesWindowsUniformVMSS(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sub          = "00000000-0000-0000-0000-000000000000"
+		scaleSetName = "scaleset1"
+	)
+	windowsOS := armcompute.OperatingSystemTypesWindows
+
+	// Mixed case to test that the ID is compared case-insensitively
+	scaleSetID := fmt.Sprintf(
+		"/subscriptions/%s/resourceGroups/RG1/providers/Microsoft.Compute/virtualMachineScaleSets/%s",
+		sub, scaleSetName,
+	)
+	vmssVMID := scaleSetID + "/virtualMachines/0"
+
+	vmClient := azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+		VirtualMachineAPI: &azure.ARMComputeMock{},
+		ScaleSetsAPI: &azure.ARMScaleSetsMock{
+			ScaleSetRecords: []*armcompute.VirtualMachineScaleSet{{
+				ID:   to.Ptr(scaleSetID),
+				Name: to.Ptr(scaleSetName),
+			}},
+		},
+		ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
+			GetResult: armcompute.VirtualMachineScaleSetVM{
+				ID:         to.Ptr(vmssVMID),
+				Name:       to.Ptr(scaleSetName + "_0"),
+				InstanceID: to.Ptr("0"),
+				Location:   to.Ptr("eastus"),
+				Properties: &armcompute.VirtualMachineScaleSetVMProperties{
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{OSType: &windowsOS},
+					},
+				},
+			},
+		},
+	})
+
+	nicClient := &fakeNetworkInterfacesClient{
+		nics: []*azure.NetworkInterface{{
+			AttachedVMID:     vmssVMID,
+			Primary:          true,
+			IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.42", Primary: true}},
+		}},
+	}
+
+	clients := &mockClients{
+		vmClients:  map[string]azure.VirtualMachinesClient{sub: vmClient},
+		nicClients: map[string]azure.NetworkInterfacesClient{sub: nicClient},
+	}
+
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
+
+	instances, err := fetcher.GetInstances(t.Context(), false)
+	require.NoError(t, err)
+
+	// A single subscription-wide NIC listing, carrying the full resource ID of
+	// the matched VM's scale set so the client can list uniform VMSS NICs,
+	// which are absent from the flat NIC list.
+	require.Equal(t, []string{types.Wildcard}, nicClient.gotResourceGroups)
+	require.Equal(t, []string{scaleSetID}, nicClient.gotScaleSetIDs)
+
+	// The scale-set VM is discovered with the private IP joined from its NIC.
+	require.Len(t, instances, 1)
+	require.Len(t, instances[0].Instances, 1)
+	vm := instances[0].Instances[0]
+	require.Equal(t, scaleSetName, vm.UniformScaleSetName)
+	require.Equal(t, "10.0.0.42", vm.PrimaryPrivateIP)
+}
+
+func TestMatcherToAzureInstanceFetchersMatcherTypes(t *testing.T) {
+	t.Parallel()
+
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM},
+			Subscriptions:  []string{"sub1"},
+			ResourceGroups: []string{"rg1"},
+		},
+		nil,
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+
+	var matcherTypes []string
+	for _, fetcher := range fetchers {
+		matcherTypes = append(matcherTypes, fetcher.(*azureInstanceFetcher).MatcherType)
+	}
+	require.ElementsMatch(t, []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM}, matcherTypes)
 }

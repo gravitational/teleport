@@ -20,17 +20,18 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"log/slog"
 	"net"
 	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
@@ -38,19 +39,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type certificateAuthorityGetter interface {
-	// GetCertAuthority returns cert authority by id.
-	GetCertAuthority(context.Context, apitypes.CertAuthID, bool) (apitypes.CertAuthority, error)
-}
-
 type tcpServer struct {
-	emitter      apievents.Emitter
-	hostID       string
-	log          *slog.Logger
-	caGetter     certificateAuthorityGetter
-	clusterName  string
-	cipherSuites []uint16
-	insecureMode bool
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	hostID           string
+	log              *slog.Logger
+	accessPoint      authclient.AppsAccessPoint
+	authClient       authclient.ClientI
+	clusterName      string
+	cipherSuites     []uint16
+	insecureMode     bool
+	targetHostPolicy common.TargetHostPolicy
 }
 
 // handleConnection handles connection from a TCP application.
@@ -61,42 +60,9 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultIOTimeout,
-	}
 	dialTarget, err := pickDialTarget(app, uriAddr, identity.RouteToApp.TargetPort)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	var serverConn net.Conn
-	switch {
-	case isTLS:
-		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
-			Logger:       s.log,
-			CAGetter:     s.caGetter,
-			ClusterName:  s.clusterName,
-			App:          app,
-			CipherSuites: s.cipherSuites,
-			InsecureMode: s.insecureMode,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		tlsDialer := tls.Dialer{
-			NetDialer: &dialer,
-			Config:    tlsConfig,
-		}
-		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	audit, err := common.NewAudit(common.AuditConfig{
@@ -105,6 +71,53 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	dialer := common.NewTargetDialer(s.targetHostPolicy, common.TargetHostAuditConfig{
+		Emitter:  s.emitter,
+		Logger:   s.log,
+		ServerID: s.hostID,
+		Identity: identity,
+		App:      app,
+	})
+
+	var serverConn net.Conn
+	switch {
+	case isTLS:
+		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
+			Logger:                       s.log,
+			AccessPoint:                  s.accessPoint,
+			ClusterName:                  s.clusterName,
+			App:                          app,
+			CipherSuites:                 s.cipherSuites,
+			InsecureMode:                 s.insecureMode,
+			Clock:                        s.clock,
+			WorkloadIdentityClientGetter: s.authClient,
+			GetUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig = tlsConfig.Clone()
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = uriAddr.Host()
+		}
+
+		serverConn, err = dialer.DialTLS(ctx, uriAddr.AddrNetwork, dialTarget, tlsConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {

@@ -36,6 +36,7 @@ import type {
 import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
 import { RoleResource } from 'teleport/services/resources';
+import { User } from 'teleport/services/user';
 import Ctx from 'teleport/teleportContext';
 import useTeleport from 'teleport/useTeleport';
 
@@ -44,6 +45,7 @@ import { ServerSideListProps, TableWrapper } from '../common';
 import { Desktops } from './Desktops';
 import { Nodes } from './Nodes';
 import { Roles } from './Roles';
+import Users from './Users';
 
 export function ServerSideSupportedList(props: CommonListProps) {
   const ctx = useTeleport();
@@ -119,6 +121,8 @@ export function ServerSideSupportedList(props: CommonListProps) {
     };
 
     switch (props.selectedResourceKind) {
+      case 'user':
+        return <Users users={resources as User[]} {...listProps} />;
       case 'role':
         return <Roles roles={resources as RoleResource[]} {...listProps} />;
       case 'node':
@@ -148,7 +152,11 @@ export function ServerSideSupportedList(props: CommonListProps) {
           to: pageIndicators.to,
           total: pageIndicators.totalCount,
         }}
-        hideAdvancedSearch={props.selectedResourceKind === 'role'} // Roles don't support advanced search.
+        // Roles and users don't support advanced search.
+        hideAdvancedSearch={
+          props.selectedResourceKind === 'role' ||
+          props.selectedResourceKind === 'user'
+        }
         filter={resourceFilter}
         disableSearch={fetchStatus === 'loading'}
       />
@@ -194,6 +202,13 @@ function getFetchFuncForServerSidePaginating(
   clusterId: string,
   params: UrlResourcesParams
 ) => Promise<ResourcesResponse<unknown>> {
+  if (resourceKind === 'user') {
+    return async (clusterId, params) => {
+      const { items, startKey } = await ctx.userService.fetchUsersV2(params);
+      return { agents: items, startKey };
+    };
+  }
+
   if (resourceKind === 'role') {
     return async (clusterId, params) => {
       const { items, startKey } = await ctx.resourceService.fetchRoles(params);

@@ -52,6 +52,7 @@ export function LoginComponent({
   motd,
   showMotd,
   acknowledgeMotd,
+  scope,
 }: State) {
   // while we are checking if a session is valid, we don't return anything
   // to prevent flickering. The check only happens for a frame or two so
@@ -68,7 +69,11 @@ export function LoginComponent({
 
   return (
     <>
-      <LogoHero />
+      <div>
+        <Box pt={3}>
+          <LogoHero />
+        </Box>
+      </div>
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (
@@ -85,6 +90,7 @@ export function LoginComponent({
           clearAttempt={clearAttempt}
           isPasswordlessEnabled={isPasswordlessEnabled}
           primaryAuthType={primaryAuthType}
+          scope={scope}
         />
       )}
     </>

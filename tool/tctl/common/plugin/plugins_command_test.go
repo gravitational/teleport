@@ -23,13 +23,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -291,7 +293,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 						},
 						Spec: &types.PluginStaticCredentialsSpecV1{
 							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-								APIToken: "scim-token-goes-here",
+								APIToken: "i am a scim token",
 							},
 						},
 					},
@@ -355,6 +357,21 @@ func TestPluginsInstallOkta(t *testing.T) {
 							},
 						},
 					},
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta-barebones-test-scim-token",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "OktaCredPurposeSCIMToken",
+							},
+						},
+					},
 				},
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
@@ -412,6 +429,21 @@ func TestPluginsInstallOkta(t *testing.T) {
 						Spec: &types.PluginStaticCredentialsSpecV1{
 							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta-scim-token",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.OktaCredPurposeSCIMToken,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "test-scim-token",
 							},
 						},
 					},
@@ -485,20 +517,6 @@ func TestPluginsInstallOkta(t *testing.T) {
 		},
 	}
 
-	cmpOptions := []cmp.Option{
-		// Ignore extraneous fields for protobuf bookkeeping
-		cmpopts.IgnoreUnexported(pluginsv1.CreatePluginRequest{}),
-
-		// Ignore any SCIM-token credentials because the bcrypt hash of the token
-		// will change on every run.
-		// TODO: Find a way to only exclude the token hash from the comparison,
-		//       rather than the whole credential
-		cmpopts.IgnoreSliceElements(func(c *types.PluginStaticCredentialsV1) bool {
-			l, _ := c.GetLabel(types.OktaCredPurposeLabel)
-			return l == types.OktaCredPurposeSCIMToken
-		}),
-	}
-
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			var args pluginServices
@@ -512,7 +530,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 					Run(func(args mock.Arguments) {
 						require.IsType(t, (*pluginsv1.CreatePluginRequest)(nil), args.Get(1))
 						request := args.Get(1).(*pluginsv1.CreatePluginRequest)
-						require.Empty(t, cmp.Diff(testCase.expectRequest, request, cmpOptions...))
+						request = normalizeSCIMTokenHashes(t, testCase.expectRequest, request)
+						require.Empty(t, cmp.Diff(testCase.expectRequest, request, protocmp.Transform()))
 					}).
 					Return(&emptypb.Empty{}, nil)
 
@@ -533,7 +552,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 			if testCase.expectPing {
 				authClient.
 					On("Ping", anyContext).
-					Return(proto.PingResponse{
+					Return(clientproto.PingResponse{
 						ProxyPublicAddr: "example.com",
 					}, nil)
 			}
@@ -548,6 +567,36 @@ func TestPluginsInstallOkta(t *testing.T) {
 			testCase.expectError(t, err)
 		})
 	}
+}
+
+func normalizeSCIMTokenHashes(t *testing.T, expected, actual *pluginsv1.CreatePluginRequest) *pluginsv1.CreatePluginRequest {
+	t.Helper()
+
+	expectedTokens := make(map[string]string)
+	for _, cred := range expected.GetStaticCredentialsList() {
+		if !isSCIMTokenCredential(cred) {
+			continue
+		}
+		expectedTokens[cred.GetName()] = cred.GetAPIToken()
+	}
+
+	normalized := proto.CloneOf(actual)
+	for _, cred := range normalized.GetStaticCredentialsList() {
+		if !isSCIMTokenCredential(cred) {
+			continue
+		}
+
+		expectedToken, ok := expectedTokens[cred.GetName()]
+		require.True(t, ok, "unexpected SCIM token credential %q", cred.GetName())
+		require.NoError(t, bcrypt.CompareHashAndPassword([]byte(cred.GetAPIToken()), []byte(expectedToken)))
+		cred.Spec.Credentials = &types.PluginStaticCredentialsSpecV1_APIToken{APIToken: expectedToken}
+	}
+	return normalized
+}
+
+func isSCIMTokenCredential(cred *types.PluginStaticCredentialsV1) bool {
+	label, _ := cred.GetLabel(types.OktaCredPurposeLabel)
+	return label == types.OktaCredPurposeSCIMToken
 }
 
 func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {

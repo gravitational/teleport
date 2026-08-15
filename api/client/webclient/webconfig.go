@@ -18,6 +18,7 @@ package webclient
 
 import (
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -26,19 +27,19 @@ const (
 	WebConfigAuthProviderOIDCType = "oidc"
 	// WebConfigAuthProviderOIDCURL is OIDC webapi endpoint.
 	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
-	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect"
+	WebConfigAuthProviderOIDCURL = "/v1/webapi/oidc/login/web?connector_id=:providerName&login_hint=:loginHint?&scope=:scope?&redirect_url=:redirect"
 
 	// WebConfigAuthProviderSAMLType is SAML provider type
 	WebConfigAuthProviderSAMLType = "saml"
 	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint.
 	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
-	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect"
+	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&login_hint=:loginHint?&scope=:scope?&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
 	// WebConfigAuthProviderGitHubURL is GitHub webapi endpoint
 	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
-	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&redirect_url=:redirect"
+	WebConfigAuthProviderGitHubURL = "/v1/webapi/github/login/web?connector_id=:providerName&scope=:scope?&redirect_url=:redirect"
 )
 
 // WebConfig is web application configuration served by the backend to be used in frontend apps.
@@ -95,17 +96,19 @@ type WebConfig struct {
 	// IdentitySecurity contains identity security features and settings.
 	// The individual identity security entitlements should be read from the Entitlements field.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
-	// IsPolicyEnabled is true if [Features.Policy] = true
-	// Deprecated, use entitlements
+	// IsPolicyEnabled is true if [Features.Policy] = true.
+	// Deprecated; use the feature-specific identity security entitlements.
 	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 	// BeamsUI indicates whether the Beams lite-mode UI is enabled
 	BeamsUI bool `json:"beamsUi"`
+	// ScopesEnabled indicates whether authorization scopes are enabled.
+	ScopesEnabled bool `json:"scopesEnabled"`
 }
 
 // IdentitySecurity contains identity security features and settings.
 type IdentitySecurity struct {
-	// IsClusterLicensed indicates whether identity security features are licensed
-	// for this cluster.
+	// IsClusterLicensed indicates whether any identity security feature is
+	// licensed for this cluster. Deprecated; use the individual entitlements.
 	IsClusterLicensed bool `json:"licensed"`
 	// AccessGraphConfigSet indicates whether access graph configuration is set in
 	// Auth and/or Proxy.
@@ -150,7 +153,10 @@ type WebConfigAuthProvider struct {
 // WebConfigAuthSettings describes auth configuration
 type WebConfigAuthSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
+	// TODO(Joerger): DELETE IN v20 - v19 webui prefers SecondFactors.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// SecondFactors is the list of allowed second factor types.
+	SecondFactors []types.SecondFactorType `json:"second_factors,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication

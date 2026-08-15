@@ -244,6 +244,7 @@ func TestFeatures_GetEntitlement(t *testing.T) {
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.AccessLists: {Enabled: true, Limit: 111},
 			entitlements.K8s:         {Enabled: false},
+			entitlements.Policy:      {Enabled: true},
 			entitlements.SAML:        {},
 		},
 	}
@@ -259,6 +260,50 @@ func TestFeatures_GetEntitlement(t *testing.T) {
 
 	actual = f.GetEntitlement(entitlements.UsageReporting)
 	require.Equal(t, modules.EntitlementInfo{}, actual)
+
+	actual = f.GetEntitlement(entitlements.AccessGraph)
+	require.Equal(t, modules.EntitlementInfo{Enabled: true}, actual)
+
+	actual = f.GetEntitlement(entitlements.ActivityCenter)
+	require.Equal(t, modules.EntitlementInfo{Enabled: true}, actual)
+
+	actual = f.GetEntitlement(entitlements.SessionSummaries)
+	require.Equal(t, modules.EntitlementInfo{Enabled: true}, actual)
+
+	f.Entitlements[entitlements.AccessGraph] = modules.EntitlementInfo{Enabled: false}
+	actual = f.GetEntitlement(entitlements.AccessGraph)
+	require.Equal(t, modules.EntitlementInfo{Enabled: false}, actual)
+}
+
+func TestGetProtoEntitlementLegacyPolicyFallback(t *testing.T) {
+	features := &proto.Features{
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.Policy):      {Enabled: true},
+			string(entitlements.AccessGraph): {Enabled: false},
+		},
+	}
+
+	require.False(t, modules.GetProtoEntitlement(features, entitlements.AccessGraph).Enabled)
+	require.True(t, modules.GetProtoEntitlement(features, entitlements.ActivityCenter).Enabled)
+	require.True(t, modules.GetProtoEntitlement(features, entitlements.SessionSummaries).Enabled)
+	require.False(t, modules.GetProtoEntitlement(features, entitlements.AccessLists).Enabled)
+
+	protoFeatures := modules.Features{
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Policy:      {Enabled: true},
+			entitlements.AccessGraph: {Enabled: false},
+		},
+	}.ToProto()
+	require.False(t, protoFeatures.Entitlements[string(entitlements.AccessGraph)].Enabled)
+	require.True(t, protoFeatures.Entitlements[string(entitlements.ActivityCenter)].Enabled)
+	require.True(t, protoFeatures.Entitlements[string(entitlements.SessionSummaries)].Enabled)
+
+	legacyFeatures := &proto.Features{
+		Policy: &proto.PolicyFeature{Enabled: true},
+	}
+	require.True(t, modules.GetProtoEntitlement(legacyFeatures, entitlements.AccessGraph).Enabled)
+	require.True(t, modules.GetProtoEntitlement(legacyFeatures, entitlements.ActivityCenter).Enabled)
+	require.True(t, modules.GetProtoEntitlement(legacyFeatures, entitlements.SessionSummaries).Enabled)
 }
 
 func TestEntitlementInfo_UnderLimit(t *testing.T) {

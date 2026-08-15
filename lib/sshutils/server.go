@@ -150,6 +150,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
+// ConnectionLimitExceededCallback records connection limit hits rejected by a
+// limiter.Listener before they reach this server's accept loop.
+func ConnectionLimitExceededCallback(ctx context.Context, logger *slog.Logger) limiter.ListenerOption {
+	return limiter.WithLimitExceededCallback(func(remoteAddr string, err error) {
+		proxyConnectionLimitHitCount.Inc()
+		logger.ErrorContext(ctx, "connection limit exceeded", "client_ip", remoteAddr, "error", err)
+	})
+}
+
 // SetShutdownPollPeriod sets a polling period for graceful shutdowns of SSH servers
 func SetShutdownPollPeriod(period time.Duration) ServerOption {
 	return func(s *Server) error {
@@ -336,7 +345,10 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		listener, err = s.limiter.WrapListener(listener)
+		listener, err = s.limiter.WrapListener(listener, ConnectionLimitExceededCallback(
+			s.closeContext,
+			s.logger.With("listen_addr", listener.Addr().String()),
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}

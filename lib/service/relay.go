@@ -407,11 +407,6 @@ func (process *TeleportProcess) runRelayService() error {
 		GetResource: func(context.Context) (*presencev1.RelayServer, error) {
 			return relayServer.Load(), nil
 		},
-
-		// there's no fallback announce mode, the relay service only works with
-		// clusters recent enough to support relay heartbeats through the ICS
-		Announcer: nil,
-
 		OnHeartbeat: process.OnHeartbeat(teleport.ComponentRelay),
 	}, sublogger("heartbeat"))
 	if err != nil {
@@ -477,6 +472,8 @@ func (process *TeleportProcess) runRelayService() error {
 		return nil
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
+
+	shutdownEmitter(process, asyncEmitter, exitEvent.Payload, log)
 
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)

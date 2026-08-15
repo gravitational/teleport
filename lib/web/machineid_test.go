@@ -883,7 +883,7 @@ func TestListBotInstancesPaging(t *testing.T) {
 
 					// remove instances before next test
 					for n := range tc.numInstances {
-						err = env.server.Auth().DeleteBotInstance(ctx, "bot-1", "instance-"+strconv.Itoa(n))
+						err = env.server.Auth().DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: "bot-1", InstanceId: "instance-" + strconv.Itoa(n)}.Build())
 						require.NoError(t, err)
 					}
 				})
@@ -1130,7 +1130,7 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 					assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 
 					// remove before next test
-					err = env.server.Auth().DeleteBotInstance(ctx, spec.GetBotName(), spec.GetInstanceId())
+					err = env.server.Auth().DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: spec.GetBotName(), InstanceId: spec.GetInstanceId()}.Build())
 					require.NoError(t, err)
 				})
 			}
@@ -1243,7 +1243,7 @@ func TestGetBotInstance(t *testing.T) {
 	var resp GetBotInstanceResponse
 	require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
 
-	require.Empty(t, cmp.Diff(resp.BotInstance, machineidv1.BotInstance{
+	require.Empty(t, cmp.Diff(resp.BotInstance, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
 		Spec: machineidv1.BotInstanceSpec_builder{
@@ -1258,7 +1258,7 @@ func TestGetBotInstance(t *testing.T) {
 				},
 			}.Build(),
 		}.Build(),
-	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
+	}.Build(), protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
 	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.GetMetadata().GetRevision()), resp.YAML)
 }
 

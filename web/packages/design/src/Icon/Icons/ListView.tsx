@@ -56,6 +56,7 @@ export const ListView = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-listview"
+
       {...otherProps}
       ref={ref}
     >

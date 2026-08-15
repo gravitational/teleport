@@ -21,8 +21,13 @@ import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from 'styled-components';
 
-import lightTheme from 'design/theme/themes/lightTheme';
-import { enableMswServer, render, screen, server } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  theme,
+} from 'design/utils/testing';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
@@ -59,7 +64,7 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -68,9 +73,9 @@ describe('user context - success state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: light/i);
+    const themeText = await screen.findByText(/theme: light/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 });
 
@@ -86,7 +91,7 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -95,9 +100,9 @@ describe('user context - error state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: light/i);
+    const themeText = await screen.findByText(/theme: light/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 
   it('should render with the settings from local storage', async () => {
@@ -109,7 +114,7 @@ describe('user context - error state', () => {
     );
 
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -118,8 +123,8 @@ describe('user context - error state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: dark/i);
+    const themeText = await screen.findByText(/theme: dark/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 });

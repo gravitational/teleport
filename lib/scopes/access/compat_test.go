@@ -149,17 +149,18 @@ func TestRulesConversion(t *testing.T) {
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRoleAssignment},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+					Verbs:     EncodeScopedVerbs(List, Read, Create, Update, Delete),
 				}.Build(),
 			},
 			expect: []types.Rule{
 				{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					// the secret-exclusive spec "read" compiles to the classic "readnosecrets".
+					Verbs: []string{types.VerbList, types.VerbReadNoSecrets},
 				},
 				{
 					Resources: []string{KindScopedRoleAssignment},
@@ -168,11 +169,44 @@ func TestRulesConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported verb",
+			name: "secrets opt-in on secret-bearing kind",
+			rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{types.KindScopedToken},
+					Verbs:     EncodeScopedVerbs(List, Read, Secrets),
+				}.Build(),
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{types.KindScopedToken},
+					// scoped "read" verb becomes classic "readnosecrets" verb, and the scoped "secrets" verb becomes classic "read" verb.
+					Verbs: []string{types.VerbList, types.VerbReadNoSecrets, types.VerbRead},
+				},
+			},
+		},
+		{
+			name: "secrets dropped on non-secret kind",
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbRead},
+					Verbs:     EncodeScopedVerbs(List, Secrets),
+				}.Build(),
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{KindScopedRole},
+					// "secrets" is not valid on a kind that carries no secrets, and is dropped during compilation.
+					Verbs: []string{types.VerbList},
+				},
+			},
+		},
+		{
+			name: "legacy readnosecrets dropped",
+			rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{KindScopedRole},
+					// the classic "readnosecrets" string is not a scoped verb and is dropped during compilation.
+					Verbs: []string{List.String(), types.VerbReadNoSecrets},
 				}.Build(),
 			},
 			expect: []types.Rule{
@@ -187,11 +221,11 @@ func TestRulesConversion(t *testing.T) {
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{types.KindCertAuthority},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 			},
 			expect: []types.Rule{
@@ -231,7 +265,23 @@ func baseScopedRole() *scopedaccessv1.ScopedRole {
 		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo/bar"},
 			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
-			Kube:             &scopedaccessv1.ScopedRoleKube{},
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "*",
+						Values: []string{"*"},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "*",
+						Namespace: "*",
+						Name:      "*",
+						ApiGroup:  "*",
+						Verbs:     []string{"*"},
+					}.Build(),
+				},
+			}.Build(),
 		}.Build(),
 		Version: types.V1,
 	}.Build()
@@ -260,7 +310,11 @@ func TestX11ForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().PermitX11Forwarding = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetPermitX11Forwarding(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearPermitX11Forwarding()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -271,7 +325,11 @@ func TestForwardAgentNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().ForwardAgent = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetForwardAgent(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearForwardAgent()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -282,7 +340,11 @@ func TestMaxSessionsNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().MaxSessions = ptr(int64(10))
+	if x := ptr(int64(10)); x != nil {
+		sr.GetSpec().GetSsh().SetMaxSessions(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearMaxSessions()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -320,7 +382,11 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().FileCopy = ptr(false)
+	if x := ptr(false); x != nil {
+		sr.GetSpec().GetSsh().SetFileCopy(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearFileCopy()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -346,7 +412,11 @@ func TestDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().DisconnectExpiredCert = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetDisconnectExpiredCert(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearDisconnectExpiredCert()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -359,6 +429,21 @@ func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	sr := baseScopedRole()
 	sr.GetSpec().SetKube(scopedaccessv1.ScopedRoleKube_builder{
 		DisconnectExpiredCert: ptr(true),
+		Labels: []*labelv1.Label{
+			labelv1.Label_builder{
+				Name:   "*",
+				Values: []string{"*"},
+			}.Build(),
+		},
+		Resources: []*scopedaccessv1.KubeResource{
+			scopedaccessv1.KubeResource_builder{
+				Kind:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Name:      types.Wildcard,
+				ApiGroup:  types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+			}.Build(),
+		},
 	}.Build())
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
@@ -431,7 +516,7 @@ func TestKubeConversion(t *testing.T) {
 	}{
 		{
 			name:   "empty conditions",
-			kube:   &scopedaccessv1.ScopedRoleKube{},
+			kube:   nil,
 			expect: types.RoleConditions{},
 		},
 		{
@@ -443,6 +528,15 @@ func TestKubeConversion(t *testing.T) {
 					labelv1.Label_builder{
 						Name:   "team",
 						Values: []string{"red"},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						ApiGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
 					}.Build(),
 				},
 			}.Build(),
@@ -470,6 +564,20 @@ func TestKubeConversion(t *testing.T) {
 						Values: []string{"blue"},
 					}.Build(),
 				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						ApiGroup:  "pod-group",
+					}.Build(),
+				},
+				ClientIdleTimeout:     "30m",
+				DisconnectExpiredCert: new(bool),
+				Lock: scopedaccessv1.Lock_builder{
+					Mode: "strict",
+				}.Build(),
 			}.Build(),
 			expect: types.RoleConditions{
 				KubeUsers:  []string{"system:user", "system:admin"},
@@ -478,7 +586,15 @@ func TestKubeConversion(t *testing.T) {
 					"env":  apiutils.Strings{"prod", "staging"},
 					"team": apiutils.Strings{"blue"},
 				},
-				KubernetesResources: wildcardResources,
+				KubernetesResources: []types.KubernetesResource{
+					types.KubernetesResource{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						APIGroup:  "pod-group",
+					},
+				},
 			},
 		},
 	}
@@ -492,6 +608,123 @@ func TestKubeConversion(t *testing.T) {
 				}.Build(),
 				Scope: "/foo",
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					Kube:             tt.kube,
+					AssignableScopes: []string{"/foo/bar"},
+				}.Build(),
+				Version: types.V1,
+			}.Build(), "/foo/bar")
+			require.NoError(t, err)
+			tt.expect.Namespaces = []string{"default"}
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
+		})
+	}
+}
+
+// TestLabelConversion verifies that the scoped role protocol blocks converts its labels and
+// label_expression into the classic role's AppLabels/AppLabelsExpression conditions.
+func TestLabelConversion(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name string
+		app  *scopedaccessv1.ScopedRoleApp
+		kube *scopedaccessv1.ScopedRoleKube
+		ssh  *scopedaccessv1.ScopedRoleSSH
+
+		expect types.RoleConditions
+	}{
+		{
+			name:   "empty conditions",
+			app:    &scopedaccessv1.ScopedRoleApp{},
+			expect: types.RoleConditions{},
+		},
+		{
+			name: "labels only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod", "staging"},
+					}.Build(),
+					labelv1.Label_builder{
+						Name:   "team",
+						Values: []string{"blue"},
+					}.Build(),
+				},
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env":  apiutils.Strings{"prod", "staging"},
+					"team": apiutils.Strings{"blue"},
+				},
+			},
+		},
+		{
+			name: "label expression only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `contains(labels["env"], "prod")`,
+			}.Build(),
+			kube: scopedaccessv1.ScopedRoleKube_builder{
+				LabelExpression: `contains(labels["env"], "prod")`,
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						ApiGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
+			ssh: scopedaccessv1.ScopedRoleSSH_builder{
+				LabelExpression: `contains(labels["env"], "prod")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabelsExpression:        `contains(labels["env"], "prod")`,
+				KubernetesLabelsExpression: `contains(labels["env"], "prod")`,
+				NodeLabelsExpression:       `contains(labels["env"], "prod")`,
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						APIGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+		{
+			name: "labels and expression",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod"},
+					}.Build(),
+				},
+				LabelExpression: `contains(labels["team"], "blue")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": apiutils.Strings{"prod"},
+				},
+				AppLabelsExpression: `contains(labels["team"], "blue")`,
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/foo",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					App:              tt.app,
+					Ssh:              tt.ssh,
 					Kube:             tt.kube,
 					AssignableScopes: []string{"/foo/bar"},
 				}.Build(),

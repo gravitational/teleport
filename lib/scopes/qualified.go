@@ -25,7 +25,7 @@ import (
 )
 
 // QualifiedNameSeparator is the separator between scope and name in a
-// scope-qualified name. This separator must never appear in scope segements.
+// scope-qualified name. This separator must never appear in scope segments.
 const QualifiedNameSeparator = "::"
 
 // QualifiedName pairs a scope with a resource name to uniquely identify a scoped
@@ -35,6 +35,10 @@ const QualifiedNameSeparator = "::"
 // is necessary to fully specify the unique identifier of a scoped resource. Internally,
 // teleport APIs should generally continue to use separate scope and name fields, as
 // should structured logs/events.
+//
+// A QualifiedName may be used in APIs that need to refer to a resource that
+// may be scoped or unscoped. In these cases the Scope field may be empty, and
+// WeakValidate and StrongValidate will return an error.
 type QualifiedName struct {
 	// Scope is the resource's scope path, e.g. "/staging/west".
 	Scope string
@@ -42,9 +46,32 @@ type QualifiedName struct {
 	Name string
 }
 
-// String returns encodes the string representation of the QualifiedName.
+// String returns the string representation of the QualifiedName.
+// If the Scope is empty, the Name is returned verbatim.
 func (q QualifiedName) String() string {
+	if q.Scope == "" {
+		return q.Name
+	}
 	return q.Scope + QualifiedNameSeparator + q.Name
+}
+
+// Set sets a possible scope qualified name. Input that does not look like an
+// SQN (see [MaybeSQN]) becomes a bare name with an empty scope. This implements
+// the flag/kingping Value interface.
+func (q *QualifiedName) Set(val string) error {
+	if !MaybeSQN(val) {
+		*q = QualifiedName{Name: val}
+		return nil
+	}
+	sqn, err := ParseQualifiedName(val)
+	if err != nil {
+		return err
+	}
+	if err := sqn.StrongValidate(); err != nil {
+		return err
+	}
+	*q = sqn
+	return nil
 }
 
 // StrongValidate validates this QualifiedName using strong validation rules. This method
@@ -56,7 +83,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := StrongValidateSegment(q.Name); err != nil {
+	if err := StrongValidateResourceName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 
@@ -85,19 +112,24 @@ func (q QualifiedName) WeakValidate() error {
 	return nil
 }
 
+// MaybeSQN returns true if the given string *might* be a scope-qualified name. This function is intended to be used
+// for testing fields that may contain a mix of scope-qualified and unscoped names. Generally, any string that trips
+// this check should be considered to have been intended to be an SQN by the user, and treated as a typo if it fails
+// to parse as one.
+func MaybeSQN(s string) bool {
+	return strings.HasPrefix(s, separator) || strings.Contains(s, QualifiedNameSeparator)
+}
+
 // ParseQualifiedName parses a scope-qualified name string into its scope and name
 // components by splitting on the first occurrence of "::". Returns an error if the
 // separator is absent or either component is empty. This function does not validate
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	idx := strings.Index(sqn, QualifiedNameSeparator)
-	if idx < 0 {
+	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
+	if !ok {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
-
-	scope := sqn[:idx]
-	name := sqn[idx+len(QualifiedNameSeparator):]
 
 	if scope == "" {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)

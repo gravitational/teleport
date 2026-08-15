@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -306,7 +307,7 @@ func TestJoin_Bot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withClock(clockwork.NewRealClock()))
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,

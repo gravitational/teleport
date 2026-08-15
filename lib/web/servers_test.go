@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
@@ -154,7 +155,7 @@ func TestCreateNode(t *testing.T) {
 			}
 
 			// Ensure node exists
-			node, err := env.proxies[0].client.GetNode(ctx, "default", tt.req.Name)
+			node, err := env.proxies[0].client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: tt.req.Name}.Build())
 			require.NoError(t, err)
 
 			require.Equal(t, tt.req.Name, node.GetName())

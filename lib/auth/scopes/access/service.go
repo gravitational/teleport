@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -103,10 +102,10 @@ func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.Creat
 	ruleCtx := authzContext.RuleContext()
 
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Create)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to create scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -130,7 +129,7 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	ruleCtx := authzContext.RuleContext()
 
 	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbCreate); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Create); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -155,10 +154,10 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	}
 
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetAssignment().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Create)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to create scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -181,14 +180,15 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting roles that are so malformed that they cannot be read.
 	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Delete)
 	}); err == nil {
 		return s.cfg.Writer.DeleteScopedRole(ctx, req)
 	}
 
 	// load the role so we can determine the resource scope.
 	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: req.GetName(),
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -202,10 +202,10 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 
 	// evaluate the access to the role based on its scope
 	if err := authzContext.CheckerContext.Decision(ctx, grsp.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Delete)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to delete scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", grsp.GetRole().GetScope(),
 			"role", req.GetName(),
 			"error", err,
@@ -235,7 +235,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting assignments that are so malformed that they cannot be read.
 	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Delete)
 	}); err == nil {
 		return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 	}
@@ -244,6 +244,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
+		Scope:   req.GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -257,10 +258,10 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 	// evaluate the access to the assignment based on its scope
 	if err := authzContext.CheckerContext.Decision(ctx, grsp.GetAssignment().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Delete)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to delete scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", grsp.GetAssignment().GetScope(),
 			"assignment", req.GetName(),
 			"error", err,
@@ -287,7 +288,7 @@ func (s *Server) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScope
 	ruleCtx := authzContext.RuleContext()
 
 	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -297,12 +298,21 @@ func (s *Server) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScope
 		return nil, trace.Wrap(err)
 	}
 
-	// evaluate the access to the role based on its scope
-	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRsp.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets)
-	}); err != nil {
+	// Evaluate access to the role based on its scope. Only agents are allowed to read ancestor scopes.
+	if authz.ScopedIsLocalOrRemoteService(authzContext) {
+		err = authzContext.CheckerContext.RiskyAuthorizeUnpinnedReadWithScope(
+			ctx,
+			services.UnpinnedReadScopedRole,
+			&ruleCtx,
+			preAuthzRsp.GetRole().GetScope())
+	} else {
+		err = authzContext.CheckerContext.Decision(ctx, preAuthzRsp.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Read)
+		})
+	}
+	if err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to read scoped role",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", preAuthzRsp.GetRole().GetScope(),
 			"role", req.GetName(),
 			"error", err,
@@ -329,7 +339,7 @@ func (s *Server) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv
 	ruleCtx := authzContext.RuleContext()
 
 	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -341,10 +351,10 @@ func (s *Server) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv
 
 	// evaluate the access to the assignment based on its scope
 	if err := authzContext.CheckerContext.Decision(ctx, preAuthzRsp.GetAssignment().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Read)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to read scoped role assignment",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", preAuthzRsp.GetAssignment().GetScope(),
 			"assignment", req.GetName(),
 			"error", err,
@@ -383,21 +393,25 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 		req.SetUser(authzContext.User.GetName())
 	} else {
 		// do a pre-check to weed out requests that definitely won't be authorized.
-		if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Read, scopedaccess.List); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
 
 	// list scoped role assignments with a filter that only passes assignments the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRoleAssignmentsWithFilter(ctx, req, func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		if req.GetAllCallerAssignments() {
 			// note that this short-circuit doesn't just bypass verb checks, it also bypasses scope pinning. this is
 			// intended behavior and an important part of what makes the all_caller_assignments mode useful, as it allows
-			// users to get an overview of their available privileges across all scopes.
+			// users to get an overview of their available privileges across all scopes (assuming the scope filter mode
+			// has been set to ALL).
 			return authzContext.User.GetName() == assignment.GetSpec().GetUser()
 		}
 		err := authzContext.CheckerContext.Decision(ctx, assignment.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList)
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Read, scopedaccess.List)
 		})
 		return err == nil
 	})
@@ -418,14 +432,23 @@ func (s *Server) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSc
 	ruleCtx := authzContext.RuleContext()
 
 	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets, types.VerbList); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Read, scopedaccess.List); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// the resource_scope field was renamed to scope_filter and is now deprecated. honor it as equivalent to
+	// scope_filter for back-compat with clients that have not yet been updated to set scope_filter.
+	if req.HasResourceScope() && !req.HasScopeFilter() { //nolint:staticcheck // SA1019. Reading deprecated field for backwards compatibility.
+		req.SetScopeFilter(req.GetResourceScope()) //nolint:staticcheck // SA1019. Reading deprecated field for backwards compatibility.
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
 
 	// list scoped roles with a filter that only passes roles the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRolesWithFilter(ctx, req, func(role *scopedaccessv1.ScopedRole) bool {
 		err := authzContext.CheckerContext.Decision(ctx, role.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets, types.VerbList)
+			return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Read, scopedaccess.List)
 		})
 		return err == nil
 	})
@@ -451,10 +474,10 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 	// the sanity of this check is dependent on the invariant enforced by the backend that updates cannot change
 	// resource scope.
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Update)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to update scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -480,10 +503,10 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// the sanity of this check is dependent on the invariant enforced by the backend that updates cannot change
 	// resource scope.
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetAssignment().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Update)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to update scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -512,10 +535,10 @@ func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.Upser
 	ruleCtx := authzContext.RuleContext()
 
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetRole().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbCreate, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Create, scopedaccess.Update)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to upsert scoped roles in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetRole().GetScope())
 		return nil, trace.Wrap(err)
 	}
@@ -537,10 +560,10 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 	ruleCtx := authzContext.RuleContext()
 
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetAssignment().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbCreate, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Create, scopedaccess.Update)
 	}); err != nil {
 		s.cfg.Logger.WarnContext(ctx, "user does not have permission to upsert scoped role assignments in the requested scope",
-			"user", authzContext.User.GetName(),
+			"user", authzContext.DisplayName(),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}

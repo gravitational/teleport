@@ -23,12 +23,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -66,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -104,6 +109,7 @@ type AuthService interface {
 	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
+	GetGenericOIDCIDTokenValidator() GenericOIDCTokenValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
 	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
@@ -125,12 +131,27 @@ type ServerConfig struct {
 	OracleHTTPClient   utils.HTTPDoClient
 	Logger             *slog.Logger
 	Modules            modules.Modules
+	Emitter            apievents.Emitter
+	ScopesFeatures     scopes.Features
+	// AlertCreator, if set, raises a cluster alert when a client is rejected
+	// for running an unsupported version.
+	AlertCreator func(context.Context, types.ClusterAlert) error
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
 	cfg               *ServerConfig
 	oracleRootCACache *oraclejoin.RootCACache
+	// oldestSupportedVersion is the oldest client version that is allowed to
+	// join the cluster. If "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set,
+	// this will be nil and no version checks will be performed.
+	oldestSupportedVersion *semver.Version
+	// mu is used to rate limit the creation of rejected client alerts to at
+	// most once per day.
+	mu sync.Mutex
+	// nextAllowedAlertTime is the earliest time at which a new client
+	// rejection alert can be created.
+	nextAllowedAlertTime time.Time
 }
 
 // NewServer returns a new [Server] instance.
@@ -138,89 +159,86 @@ func NewServer(cfg *ServerConfig) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "join")
 	}
+	oldestSupportedVersion := teleport.MinClientSemVer()
+	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = nil
+	}
 	return &Server{
-		cfg:               cfg,
-		oracleRootCACache: oraclejoin.NewRootCACache(),
+		cfg:                    cfg,
+		oracleRootCACache:      oraclejoin.NewRootCACache(),
+		oldestSupportedVersion: oldestSupportedVersion,
 	}
 }
 
-// getProvisionToken attempts to resolve a name to a [provision.Token] by first attempting to
-// fetch a [joiningv1.ScopedToken] and then falling back to a [types.ProvisionTokenV2] if a
-// scoped token can not be found.
+// getProvisionToken attempts to resolve a [provision.Token] from the provided name. If
+// the name is a Scope Qualified Name, then only [joiningv1.ScopedTokens] are considered
+// for a match. If the name is _not_ a Scope Qualified Name, then a legacy [types.ProvisionTokenV2]
+// is returned.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
-	var scoped provision.Token
-	var scopedErr error
-
-	var classic provision.Token
-	var classicErr error
-
-	wg := &sync.WaitGroup{}
-	wg.Go(func() {
-		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+	// The token name was NOT a SQN so it must only match a [types.ProvisionTokenV2].
+	if !scopes.MaybeSQN(name) || !s.cfg.ScopesFeatures.Enabled {
+		classic, err := s.cfg.AuthService.ValidateToken(ctx, name)
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
-			}
+			return nil, trace.Wrap(err)
 		}
 
-		// short circuit if a matching static scoped token is found
-		for _, tok := range staticTokens.GetSpec().GetTokens() {
-			if tok.GetMetadata().GetName() == name {
-				scoped, scopedErr = joining.NewToken(tok)
-				return
-			}
-		}
-
-		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-			Name:       name,
-			WithSecret: true,
-		}.Build())
-		if err != nil {
-			scopedErr = err
-			return
-		}
-		if err := joining.ValidateTokenForUse(res.GetToken()); err != nil {
-			scopedErr = err
-			return
-		}
-
-		scoped, scopedErr = joining.NewToken(res.GetToken())
-	})
-	wg.Go(func() {
-		// Fetch the provision token and validate that it is not expired.
-		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
-	})
-	wg.Wait()
-
-	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
-	if scoped != nil && classic != nil {
-		return nil, trace.AccessDenied("joining with an ambiguous token name is not permitted")
-	}
-
-	if scoped != nil {
-		return scoped, nil
-	}
-
-	if classic != nil {
 		return classic, nil
 	}
 
-	// if both errors are [trace.NotFoundError], just return a single err
-	if trace.IsNotFound(scopedErr) && trace.IsNotFound(classicErr) {
-		return nil, trace.NotFound("token expired or not found")
+	qn, err := scopes.ParseQualifiedName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// prefer reporting errors other than [trace.NotFoundError]
-	if trace.IsNotFound(scopedErr) {
-		return nil, trace.Wrap(classicErr)
+	// The token name was a SQN so it must only match a [joiningv1.ScopedToken].
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if trace.IsNotFound(classicErr) {
-		return nil, trace.Wrap(scopedErr)
+	staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
 	}
 
-	// return both errors as an aggregate if we couldn't reasonably return one
-	return nil, trace.NewAggregate(scopedErr, classicErr)
+	// short circuit if a matching static scoped token is found
+	for _, tok := range staticTokens.GetSpec().GetTokens() {
+		if tok.GetMetadata().GetName() == qn.Name && tok.GetScope() == qn.Scope {
+			if err := joining.ValidateTokenForUse(tok, s.cfg.ScopesFeatures); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			token, err := joining.NewToken(tok)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return token, nil
+		}
+	}
+
+	res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:       qn.Name,
+		Scope:      qn.Scope,
+		WithSecret: true,
+	}.Build())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("token expired or not found")
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	if err := joining.ValidateTokenForUse(res.GetToken(), s.cfg.ScopesFeatures); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := joining.NewToken(res.GetToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // Join implements cluster joining for nodes and bots.
@@ -256,6 +274,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if clientInit.JoinMethod != nil {
 			i.RequestedJoinMethod = joinutils.SanitizeUntrustedString(*clientInit.JoinMethod)
 		}
+		if clientInit.HostName != "" {
+			// Sanitizing won't prevent an invalid hostname from being used
+			// but we don't care about that because the ClientInit.HostName
+			// is only used for diagnostic purposes.
+			i.NodeName = joinutils.SanitizeUntrustedString(clientInit.HostName)
+		}
 	})
 	if err := clientInit.Check(); err != nil {
 		return trace.Wrap(err, "validating ClientInit message")
@@ -268,21 +292,37 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Must run after authenticate, which records the client version on the
+	// diagnostic for proxy-forwarded requests.
+	if err := s.validateClientVersion(ctx, diag.Get()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	token, err := s.getProvisionToken(ctx, clientInit.TokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// collect the union of already assigned system roles, if any, and any system roles
+	// that will be added by the join token
+	var resultingSystemRoles types.SystemRoles
+	for _, role := range slices.Concat(authCtx.SystemRoles, token.GetRoles()) {
+		if role.IsLocalService() && !resultingSystemRoles.Include(role) {
+			resultingSystemRoles = append(resultingSystemRoles, role)
+		}
+	}
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
 		i.SafeTokenName = token.GetSafeName()
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
-		i.BotName = token.GetBotName()
+		i.BotName, i.BotScope = token.GetBot()
+		i.AssignedScope = token.GetAssignedScope()
+		i.SystemRoles = resultingSystemRoles.StringSlice()
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
-		i.BotScope = token.GetBotScope()
+		i.BotName, i.BotScope = token.GetBot()
 	})
 
 	// Validate that the requested join method matches the join method
@@ -323,6 +363,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 	// Finally, send the result back to the client.
 	return trace.Wrap(stream.Send(result))
 }
@@ -351,6 +392,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodGCP:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
+	case types.JoinMethodGenericOIDC:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGenericOIDCToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
@@ -372,6 +415,87 @@ func (s *Server) handleJoinMethod(
 	default:
 		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
 	}
+}
+
+// validateClientVersion checks the version of the joining client against the
+// server's oldest supported version. If the client is too old or reports a
+// version that cannot be parsed, it returns an error. A client that reports no
+// version is allowed.
+func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info) error {
+	if s.oldestSupportedVersion == nil {
+		return nil // TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes is set, don't enforce version checks
+	}
+
+	clientVersion := info.ClientVersion
+	if clientVersion == "" {
+		return nil
+	}
+
+	minVersion := *s.oldestSupportedVersion
+	minVersion.PreRelease = ""
+
+	clientSemVer, err := semver.NewVersion(clientVersion)
+	if err != nil || clientSemVer.LessThan(*s.oldestSupportedVersion) {
+		s.displayRejectedClientAlert(ctx)
+		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
+	}
+	return nil
+}
+
+const (
+	// rejectedAlertInterval is the minimum interval between successfully
+	// created rejected-client alerts.
+	rejectedAlertInterval = 24 * time.Hour
+	// failedAlertCooldown is the shorter interval before retrying after a
+	// failed alert write, so a degraded backend isn't hammered.
+	failedAlertCooldown = 5 * time.Minute
+)
+
+// displayRejectedClientAlert raises a once-per-day cluster alert for rejected
+// outdated clients. It shares the auth middleware's alert name so rejections
+// coalesce into a single alert. If the alert write fails, it sets a short
+// cooldown before retrying so a degraded backend isn't hammered.
+func (s *Server) displayRejectedClientAlert(ctx context.Context) {
+	if s.cfg.AlertCreator == nil {
+		return
+	}
+
+	alert, err := types.NewClusterAlert(
+		"rejected-unsupported-connection",
+		"One or more agents or bots were rejected from joining due to running unsupported versions. Check the audit log for more details.",
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+	)
+	if err != nil {
+		s.cfg.Logger.WarnContext(ctx, "failed to create rejected-unsupported-connection alert", "error", err)
+		return
+	}
+
+	clock := s.cfg.AuthService.GetClock()
+	now := clock.Now()
+	reserved := now.Add(rejectedAlertInterval)
+	s.mu.Lock()
+	if now.Before(s.nextAllowedAlertTime) {
+		s.mu.Unlock()
+		return
+	}
+	s.nextAllowedAlertTime = reserved
+	s.mu.Unlock()
+
+	alertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaults.DefaultIOTimeout)
+	defer cancel()
+	err = s.cfg.AlertCreator(alertCtx, alert)
+	if err == nil {
+		return
+	}
+
+	s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
+	s.mu.Lock()
+	if s.nextAllowedAlertTime.Equal(reserved) {
+		s.nextAllowedAlertTime = clock.Now().Add(failedAlertCooldown)
+	}
+	s.mu.Unlock()
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
@@ -509,6 +633,10 @@ func (s *Server) makeResult(
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (messages.Response, error) {
+	// Validate the requested SystemRole with the payload the client sent.
+	if err := clientParams.CheckForRole(types.SystemRole(clientInit.SystemRole)); err != nil {
+		return nil, trace.Wrap(err, "validating client parameters")
+	}
 	switch types.SystemRole(clientInit.SystemRole) {
 	case types.RoleInstance:
 		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, token, rawClaims)
@@ -540,6 +668,9 @@ func (s *Server) makeHostResult(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.HostID = certsParams.HostID
+	})
 	return &messages.HostResult{
 		Certificates:    *certificates,
 		HostID:          certsParams.HostID,
@@ -557,6 +688,9 @@ func makeHostCertsParams(
 	joinMethod types.JoinMethod,
 	rawClaims any,
 ) (*HostCertsParams, error) {
+	if hostParams == nil {
+		return nil, trace.BadParameter("HostParams is required to join as an Instance")
+	}
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
 	tlsPub, err := x509.ParsePKIXPublicKey(hostParams.PublicKeys.PublicTLSKey)
 	if err != nil {
@@ -624,6 +758,9 @@ func (s *Server) makeBotResult(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.BotInstanceID = botInstanceID
+	})
 	certificates, err := convertCerts(certs)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -642,6 +779,9 @@ func makeBotCertsParams(
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (*BotCertsParams, error) {
+	if botParams == nil {
+		return nil, trace.BadParameter("BotParams is required to join as a Bot")
+	}
 	// GenerateBotCertsForJoin requires the TLS key to be PEM-encoded.
 	tlsPub, err := x509.ParsePKIXPublicKey(botParams.PublicKeys.PublicTLSKey)
 	if err != nil {
@@ -755,25 +895,57 @@ func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *dia
 	}
 
 	log.LogAttrs(ctx, slog.LevelWarn, "Failure to join cluster occurred", slogAttrs...)
-	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(ctx, diagInfo, attributesStruct)); err != nil {
 		log.WarnContext(ctx, "Failed to emit failed join event", "error", err)
 	}
 }
 
-func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
-	errorMessage := info.Error.Error()
-	if errors.Is(info.Error, context.Canceled) || status.Code(info.Error) == codes.Canceled {
+func handleJoinSuccess(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
+	diagInfo := diag.Get()
+
+	// Fetch and encode RawJoinAttrs if they are available.
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(diagInfo.RawJoinAttrs)
+	if err != nil {
+		log.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
+	}
+
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(ctx, diagInfo, attributesStruct)); err != nil {
+		log.WarnContext(ctx, "Failed to emit join event", "error", err)
+	}
+}
+
+func makeAuditEvent(ctx context.Context, info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
+	var errorMessage string
+	switch {
+	case errors.Is(info.Error, context.Canceled), status.Code(info.Error) == codes.Canceled:
 		errorMessage = "join attempt timed out or was aborted"
+	case info.Error != nil:
+		errorMessage = info.Error.Error()
 	}
 	status := apievents.Status{
-		Success: false,
+		Success: info.Error == nil,
 		Error:   errorMessage,
 	}
+	var code string
 	if info.Role == types.RoleBot.String() {
+		switch {
+		case errors.Is(info.Error, joining.ErrTokenExhausted):
+			code = events.BotJoinLimitCode
+		case info.Error != nil:
+			code = events.BotJoinFailureCode
+		default:
+			code = events.BotJoinCode
+		}
+		botUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: info.BotScope, Name: info.BotName})
+		if err != nil {
+			// Best-effort: emit the event with the bare name rather than drop it.
+			log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
+			botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: info.BotName})
+		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
-				Code: events.BotJoinFailureCode,
+				Code: code,
 				Time: time.Now(),
 			},
 			Status: status,
@@ -782,28 +954,40 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			},
 			Method:        cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 			TokenName:     info.SafeTokenName,
+			UserName:      botUserName,
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
 			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
 	}
+	switch {
+	case errors.Is(info.Error, joining.ErrTokenExhausted):
+		code = events.InstanceJoinLimitCode
+	case info.Error != nil:
+		code = events.InstanceJoinFailureCode
+	default:
+		code = events.InstanceJoinCode
+	}
 	return &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
 			Type: events.InstanceJoinEvent,
-			Code: events.InstanceJoinFailureCode,
+			Code: code,
 			Time: time.Now(),
 		},
 		Status: status,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: info.RemoteAddr,
 		},
+		HostID:       info.HostID,
 		Method:       cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 		TokenName:    info.SafeTokenName,
 		TokenExpires: info.TokenExpires,
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 		Attributes:   attributesStruct,
+		Scope:        info.AssignedScope,
+		Roles:        info.SystemRoles,
 	}
 }
 

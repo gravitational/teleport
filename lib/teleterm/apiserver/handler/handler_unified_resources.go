@@ -60,9 +60,9 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		return nil, trace.Wrap(err)
 	}
 
-	response := api.ListUnifiedResourcesResponse{
+	response := api.ListUnifiedResourcesResponse_builder{
 		Resources: []*api.PaginatedResource{}, NextKey: daemonResponse.NextKey,
-	}
+	}.Build()
 
 	for _, resource := range daemonResponse.Resources {
 		if resource.Server != nil {
@@ -103,7 +103,7 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		}
 	}
 
-	return &response, nil
+	return response, nil
 }
 
 func newAPIServer(server clusters.Server) *api.Server {

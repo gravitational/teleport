@@ -20,6 +20,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 )
 
 func TestDefaultAppFQDN(t *testing.T) {
@@ -63,6 +66,67 @@ func TestDefaultAppFQDN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := DefaultAppFQDN(tt.appName, tt.proxyPublicAddrHost, tt.clusterName)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAssembleAppFQDN(t *testing.T) {
+	const (
+		cluster = "cluster.example.com"
+		proxy   = "proxy.example.com"
+	)
+
+	tests := []struct {
+		name        string
+		appName     string
+		publicAddr  string
+		scope       string
+		useAnyProxy bool
+		want        string
+	}{
+		{
+			name:       "unscoped uses public_addr",
+			appName:    "grafana",
+			publicAddr: "grafana.example.com",
+			want:       "grafana.example.com",
+		},
+		{
+			name:        "unscoped use_any_proxy_public_addr falls back to <name>.<proxy>",
+			appName:     "grafana",
+			publicAddr:  "grafana.example.com",
+			useAnyProxy: true,
+			want:        "grafana.proxy.example.com",
+		},
+		{
+			name:        "scoped app derives hash under selected proxy despite use_any_proxy_public_addr",
+			appName:     "grafana",
+			scope:       "/staging/west",
+			publicAddr:  scopedapp.ScopedAppPublicAddr("/staging/west", "grafana", proxy),
+			useAnyProxy: true,
+			want:        scopedapp.ScopedAppPublicAddr("/staging/west", "grafana", proxy),
+		},
+		{
+			name:    "scoped app in /east derives its own hash",
+			appName: "grafana",
+			scope:   "/east",
+			want:    scopedapp.ScopedAppPublicAddr("/east", "grafana", proxy),
+		},
+		{
+			name:    "scoped app in /west derives its own hash",
+			appName: "grafana",
+			scope:   "/west",
+			want:    scopedapp.ScopedAppPublicAddr("/west", "grafana", proxy),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := types.NewAppV3(types.Metadata{Name: tt.appName}, types.AppSpecV3{
+				URI:                   "http://localhost:8080",
+				PublicAddr:            tt.publicAddr,
+				UseAnyProxyPublicAddr: tt.useAnyProxy,
+			}, tt.scope)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, AssembleAppFQDN(cluster, proxy, cluster, app))
 		})
 	}
 }

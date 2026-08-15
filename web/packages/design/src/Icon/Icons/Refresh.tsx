@@ -56,6 +56,7 @@ export const Refresh = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-refresh"
+
       {...otherProps}
       ref={ref}
     >

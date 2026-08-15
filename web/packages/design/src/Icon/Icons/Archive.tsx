@@ -56,6 +56,7 @@ export const Archive = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-archive"
+
       {...otherProps}
       ref={ref}
     >

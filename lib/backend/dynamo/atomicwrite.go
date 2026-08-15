@@ -42,19 +42,13 @@ const (
 	txnAttemptLogInterval = 8
 )
 
-var (
-	existsExpr          = "attribute_exists(FullPath)"
-	notExistsExpr       = "attribute_not_exists(FullPath)"
-	revisionExpr        = "Revision = :rev AND attribute_exists(FullPath)"
-	missingRevisionExpr = "attribute_not_exists(Revision) AND attribute_exists(FullPath)"
-)
-
 func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error) {
 	if err := backend.ValidateAtomicWrite(condacts); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	revision = backend.CreateRevision()
+	now := b.clock.Now()
 
 	tableName := aws.String(b.TableName)
 
@@ -69,9 +63,15 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		case backend.KindWhatever:
 			// no comparison to assert
 		case backend.KindExists:
-			condExpr = &existsExpr
+			condExpr = aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+			exprAttrValues = map[string]types.AttributeValue{
+				":now": timeToAttributeValue(now),
+			}
 		case backend.KindNotExists:
-			condExpr = &notExistsExpr
+			condExpr = aws.String("attribute_not_exists(FullPath) OR Expires < :now")
+			exprAttrValues = map[string]types.AttributeValue{
+				":now": timeToAttributeValue(now),
+			}
 		case backend.KindRevision:
 			switch ca.Condition.Revision {
 			case "":
@@ -79,44 +79,39 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(backend.ErrConditionFailed)
 			case backend.BlankRevision:
 				// item has not been modified since the introduction of the revision attr
-				condExpr = &missingRevisionExpr
+				condExpr = aws.String("attribute_exists(FullPath) AND attribute_not_exists(Revision) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+				exprAttrValues = map[string]types.AttributeValue{
+					":now": timeToAttributeValue(now),
+				}
 			default:
 				// revision is expected to be present and well-defined
-				condExpr = &revisionExpr
+				condExpr = aws.String("Revision = :rev AND (attribute_not_exists(Expires) OR Expires >= :now)")
 				exprAttrValues = map[string]types.AttributeValue{
 					":rev": &types.AttributeValueMemberS{Value: ca.Condition.Revision},
+					":now": timeToAttributeValue(now),
 				}
 			}
 		default:
-			return "", trace.BadParameter("unexpected condition kind %v in conditional action against key %q", ca.Condition.Kind, ca.Key)
+			return "", trace.BadParameter("unexpected condition kind %v in conditional action against key %+q", ca.Condition.Kind, ca.Key.String())
 		}
-
-		fullPath := prependPrefix(ca.Key)
 
 		var txnItem types.TransactWriteItem
 
 		switch ca.Action.Kind {
 		case backend.KindNop:
-			av, err := attributevalue.MarshalMap(keyLookup{
-				HashKey:  hashKey,
-				FullPath: fullPath,
-			})
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
 			txnItem.ConditionCheck = &types.ConditionCheck{
+				TableName: tableName,
+				Key:       keyToAttributeValueMap(ca.Key),
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Key:                       av,
-				TableName:                 tableName,
 			}
 
 		case backend.KindPut:
 			includesPut = true
 			r := record{
 				HashKey:   hashKey,
-				FullPath:  fullPath,
+				FullPath:  prependPrefix(ca.Key),
 				Value:     ca.Action.Item.Value,
 				Timestamp: time.Now().UTC().Unix(),
 				Revision:  revision,
@@ -131,29 +126,24 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			}
 
 			txnItem.Put = &types.Put{
+				TableName: tableName,
+
+				Item: av,
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Item:                      av,
-				TableName:                 tableName,
 			}
 		case backend.KindDelete:
-			av, err := attributevalue.MarshalMap(keyLookup{
-				HashKey:  hashKey,
-				FullPath: fullPath,
-			})
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
 			txnItem.Delete = &types.Delete{
+				TableName: tableName,
+				Key:       keyToAttributeValueMap(ca.Key),
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Key:                       av,
-				TableName:                 tableName,
 			}
 
 		default:
-			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %q", ca.Action.Kind, ca.Key)
+			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %+q", ca.Action.Kind, ca.Key.String())
 		}
 
 		txnItems = append(txnItems, txnItem)

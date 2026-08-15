@@ -6,6 +6,7 @@ tags:
  - conceptual
  - zero-trust
  - privileged-access
+page_type: conceptual
 ---
 
 You can use Teleport's role-based access control (RBAC) system to set up
@@ -15,6 +16,9 @@ An example of a policy could be, *Server administrators have access to
 everything, the QA team and engineers have full access to staging servers, and
 engineers can gain temporary access to production servers in case of
 emergency.*
+
+This page describes the configuration options available in Teleport roles for
+configuring access to Teleport-protected servers.
 
 For a more general description of Teleport roles and examples see our [Access Controls guides](../../zero-trust-access/authentication/authentication.mdx), as
 this section focuses on configuring RBAC for servers connected to Teleport.
@@ -47,7 +51,7 @@ spec:
       # regular expressions start with ^ and end with $
       # Teleport uses Go's regexp syntax (https://github.com/google/re2/wiki/Syntax)
       # the list example above can be expressed as:
-      'reg': '^us-west-1|eu-central-1$'
+      'region': '^us-west-1|eu-central-1$'
 
     # List of host groups the created user will be added to. Any that don't
     # already exist are created. Only applies when create_host_user_mode
@@ -103,7 +107,7 @@ server environment types and allowed logins from the user's Okta `environments` 
 spec:
   allow:
     node_labels:
-    - env:  '{{external.environments}}'
+      env:  '{{external.environments}}'
     logins:
     - '{{external.allowedlogins}}'
 ```
@@ -149,7 +153,7 @@ spec:
   allow:
     #....
   options:
-    # Sets the default shell for automatically provisioned SSH users. An absolute path to a shell or a name
+    # Sets the default shell for automatically provisioning SSH users. An absolute path to a shell or a name
     # reachable through the system PATH are both valid values. Only applies when
     # create_host_user_mode is not set to off.
     create_host_user_default_shell: bash

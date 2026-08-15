@@ -38,6 +38,7 @@ import {
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { useStore } from 'shared/libs/stores';
 
 import { BannerList } from 'teleport/components/BannerList';
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
@@ -46,6 +47,7 @@ import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
+import { canShowFeature } from 'teleport/features';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
 import {
@@ -53,6 +55,8 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
+import history from 'teleport/services/history/history';
+import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
@@ -70,6 +74,7 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
+  const storeUser = useStore(ctx.storeUser);
   const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
@@ -87,9 +92,15 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
+  const scope = storeUser?.getScope();
   const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
-    [featureFlags, props.features]
+    () =>
+      props.features.filter(
+        feature =>
+          canShowFeature(feature, featureFlags) &&
+          supportsCurrentScope(feature, scope)
+      ),
+    [featureFlags, props.features, scope]
   );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
@@ -113,6 +124,26 @@ export function Main(props: MainProps) {
         <Indicator />
       </StyledIndicator>
     );
+  }
+
+  const availableScopes = ctx.storeUser.getAvailableScopes();
+  const isScopePickerRoute = !!matchPath(
+    { path: cfg.routes.scopePicker, end: true },
+    location.pathname
+  );
+
+  // TODO(bl-nero): Don't redirect once the user picks a scope.
+  // For now, as the scope picker is not fully operational, we only enable it
+  // if a local storage flag is on.
+  if (storageService.getUseLoginScopePicker()) {
+    if (
+      cfg.scopesEnabled &&
+      availableScopes.length > 0 &&
+      !isScopePickerRoute &&
+      !storageService.getScopeSelected()
+    ) {
+      return <Redirect to={history.getScopePickerUrl()} />;
+    }
   }
 
   // redirect to the default feature when hitting the root /web URL
@@ -140,19 +171,20 @@ export function Main(props: MainProps) {
     return 'danger';
   };
 
-  const banners: BannerType[] = alerts.map(
-    (alert): BannerType => ({
-      message: alert.spec.message,
-      severity: mapSeverity(alert.spec.severity),
-      linkDestination: alert.metadata.labels[LINK_DESTINATION_LABEL],
-      linkText: alert.metadata.labels[LINK_TEXT_LABEL],
-      id: alert.metadata.name,
-    })
-  );
+  const banners: BannerType[] = alerts.map((alert): BannerType => ({
+    message: alert.spec.message,
+    severity: mapSeverity(alert.spec.severity),
+    linkDestination: alert.metadata.labels[LINK_DESTINATION_LABEL],
+    linkText: alert.metadata.labels[LINK_TEXT_LABEL],
+    id: alert.metadata.name,
+  }));
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar CustomLogo={props.CustomLogo} />
+      <TopBar
+        CustomLogo={props.CustomLogo}
+        scopePickerMode={isScopePickerRoute}
+      />
       <Wrapper>
         <MainContainer>
           <Navigation showPoweredByLogo={!!props.CustomLogo} />
@@ -232,6 +264,13 @@ function renderRoutes(
   }
 
   return routes;
+}
+
+function supportsCurrentScope(
+  feature: TeleportFeature,
+  scope: string
+): boolean {
+  return !scope || feature.supportsScopes;
 }
 
 function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {

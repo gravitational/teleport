@@ -56,6 +56,7 @@ export const Cluster = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cluster"
+
       {...otherProps}
       ref={ref}
     >

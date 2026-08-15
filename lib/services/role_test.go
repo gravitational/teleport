@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1564,6 +1565,56 @@ func BenchmarkValidateRole(b *testing.B) {
 	}
 }
 
+func TestUnmarshalRoleV9DeniesAppAccessForUnknownField(t *testing.T) {
+	// A stored allow_all rule that also carries a field this version does not
+	// recognize must not read as unrestricted access. JSON drops the unknown
+	// field, so the guard empties the rule instead of serving a bare allow_all.
+	widened := `{
+		"kind": "role",
+		"version": "v9",
+		"metadata": {"name": "test"},
+		"spec": {"allow": {"app_resources": [{"allow_all": true, "future_paths": ["/admin"]}]}}
+	}`
+	role, err := UnmarshalRole([]byte(widened))
+	require.NoError(t, err)
+	require.False(t,
+		types.AppResourcesAllowAll(role.GetAppResources(types.Allow), role.GetAppResources(types.Deny)),
+		"a stored allow_all rule with an unknown field must not read as allow-all")
+
+	// A clean allow_all rule is left untouched.
+	clean := `{
+		"kind": "role",
+		"version": "v9",
+		"metadata": {"name": "test"},
+		"spec": {"allow": {"app_resources": [{"allow_all": true}]}}
+	}`
+	role, err = UnmarshalRole([]byte(clean))
+	require.NoError(t, err)
+	require.True(t,
+		types.AppResourcesAllowAll(role.GetAppResources(types.Allow), role.GetAppResources(types.Deny)),
+		"a clean allow_all rule must read as allow-all")
+}
+
+func TestAppResourcesUnknownFieldRejectedOnWrite(t *testing.T) {
+	t.Parallel()
+
+	role := func(rules string) []byte {
+		return fmt.Appendf(nil, `{"kind": "role", "version": "v9", "metadata": {"name": "test"}, "spec": {"allow": {"app_resources": %s}}}`, rules)
+	}
+	for _, rules := range []string{
+		`[{"future_paths": ["/admin"]}]`,
+		`[{"allow_all": true, "future_paths": ["/admin"]}]`,
+	} {
+		parsed, err := UnmarshalRole(role(rules))
+		require.NoError(t, err)
+		require.Error(t, ValidateRole(parsed), "rules %s must not be storable", rules)
+	}
+
+	parsed, err := UnmarshalRole(role(`[{"allow_all": true}]`))
+	require.NoError(t, err)
+	require.NoError(t, ValidateRole(parsed))
+}
+
 func TestUnmarshalRole(t *testing.T) {
 	t.Parallel()
 
@@ -1646,6 +1697,93 @@ func TestUnmarshalRole(t *testing.T) {
 	}
 }
 
+// TestMarshalRoleV9RoundTrip guards the UnmarshalRoleV6 version allow-list.
+// A v9 role must survive a marshal/unmarshal round-trip with its
+// app_resources intact, since backend reads and the cache watcher decode
+// roles this way.
+func TestMarshalRoleV9RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRoleWithVersion("v9-role", types.V9, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:    types.Labels{"env": []string{"dev"}},
+			AppResources: []types.AppResource{{AllowAll: true}},
+		},
+	})
+	require.NoError(t, err)
+
+	data, err := MarshalRole(role)
+	require.NoError(t, err)
+
+	got, err := UnmarshalRole(data)
+	require.NoError(t, err)
+	require.Equal(t, types.V9, got.GetVersion())
+	require.Equal(t, role.GetAppResources(types.Allow), got.GetAppResources(types.Allow))
+}
+
+// TestValidateRoleAppResources covers the write-path app_resources
+// rules. The field is allow-only and every rule must set allow_all
+// and nothing else.
+func TestValidateRoleAppResources(t *testing.T) {
+	t.Parallel()
+
+	newV9Role := func(allow, deny []types.AppResource) types.Role {
+		return &types.RoleV6{
+			Metadata: types.Metadata{Name: "v9-role"},
+			Version:  types.V9,
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels:    types.Labels{"env": []string{"dev"}},
+					AppResources: allow,
+				},
+				Deny: types.RoleConditions{AppResources: deny},
+			},
+		}
+	}
+
+	err := ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}}, nil))
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role(nil, nil))
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {}}, nil))
+	require.ErrorContains(t, err, "app_resources[1]: this version implements allow_all only")
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {AllowAll: true}}, nil))
+	require.ErrorContains(t, err, "app_resources: a rule setting allow_all must be the only rule")
+
+	// Unknown proto bytes from a newer client must be rejected. The JSON
+	// marshal into the backend would drop them and widen the rule.
+	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
+	err = ValidateRole(newV9Role([]types.AppResource{combined}, nil))
+	require.ErrorContains(t, err, "a rule must set allow_all and nothing else")
+
+	err = ValidateRole(newV9Role(nil, []types.AppResource{{AllowAll: true}}))
+	require.ErrorContains(t, err, "app_resources is not allowed under deny")
+
+	// A declared field is rejected at write, so a stored rule is never
+	// wider than the agent honors.
+	for name, rule := range map[string]types.AppResource{
+		"paths":   {AllowAll: true, Paths: []string{"/api/**"}},
+		"methods": {AllowAll: true, Methods: []string{"GET"}},
+		"where":   {AllowAll: true, Where: "true"},
+	} {
+		err := ValidateRole(newV9Role([]types.AppResource{rule}, nil))
+		require.ErrorContains(t, err, "a rule must set allow_all and nothing else", "field %s", name)
+	}
+
+	exprRole := newV9Role([]types.AppResource{{AllowAll: true}}, nil).(*types.RoleV6)
+	exprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	err = ValidateRole(exprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not supported")
+
+	denyExprRole := newV9Role(nil, nil).(*types.RoleV6)
+	denyExprRole.Spec.Deny.AppResourcesExpressions = []string{"true"}
+	err = ValidateRole(denyExprRole)
+	require.ErrorContains(t, err, "app_resources_expressions is not allowed under deny")
+}
+
 func TestValidateRoleName(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1657,7 +1795,7 @@ func TestValidateRoleName(t *testing.T) {
 			name:         "reserved role name proxy",
 			roleName:     string(types.RoleProxy),
 			err:          trace.BadParameter(""),
-			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+			matchMessage: "reserved role: \"Proxy\"",
 		},
 		{
 			name:     "valid role name test-1",
@@ -3376,6 +3514,36 @@ func TestCheckRuleSorting(t *testing.T) {
 		out := MakeRuleSet(tc.rules)
 		require.Equal(t, tc.set, out, comment)
 	}
+}
+
+// A trait that expands to a wildcard mixed with other verbs is normalized to
+// just the wildcard, since role validation can't catch this post-expansion.
+func TestApplyTraits_NormalizesWildcardKubeVerbAfterExpansion(t *testing.T) {
+	role, err := types.NewRoleWithVersion("kube-verb-tmpl", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard,
+				Verbs: []string{types.Wildcard},
+			}},
+		},
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: "prod", Name: types.Wildcard,
+				Verbs: []string{"{{external.kube_verbs}}"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	out, err := ApplyTraits(role, map[string][]string{
+		"kube_verbs": {types.KubeVerbCreate, types.KubeVerbUpdate, types.KubeVerbDelete, types.Wildcard},
+	})
+	require.NoError(t, err)
+
+	denied := out.GetKubeResources(types.Deny)
+	require.Len(t, denied, 1)
+	require.Equal(t, []string{types.Wildcard}, denied[0].Verbs)
 }
 
 func TestApplyTraits(t *testing.T) {
@@ -10186,6 +10354,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 				Labels: map[string]string{},
 			}.Build(),
 		}.Build()),
+		types.Resource153ToResourceWithLabels(linuxdesktopv1.LinuxDesktop_builder{
+			Kind:    types.KindLinuxDesktop,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Labels: map[string]string{},
+			}.Build(),
+		}.Build()),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -10391,6 +10566,34 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			name: "deny path matches, but dns and ip sans do not",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+			},
+			ipSANs: []net.IP{
+				{10, 0, 0, 32},
+			},
+
+			roles: []types.Role{
+				makeRole(
+					[]*types.SPIFFERoleCondition{{
+						Path:    "/foo/*",
+						DNSSANs: []string{"*"},
+						IPSANs:  []string{"0.0.0.0/0"},
+					}},
+					[]*types.SPIFFERoleCondition{{
+						Path:    "/foo/bar",
+						DNSSANs: []string{"never.example.com"},
+						IPSANs:  []string{"127.0.0.1/32"},
+					}},
+				),
+			},
+
+			requireErr: require.NoError,
+		},
+		{
 			name: "regex success",
 
 			spiffeIDPath: "/foo/bar",
@@ -10500,11 +10703,71 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: requireAccessDenied,
 		},
 		{
+			name: "explicit deny - multiple ip sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs: []net.IP{
+				{10, 0, 0, 42},
+				{8, 8, 8, 8},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{"10.0.0.1/8"},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						IPSANs: []string{
+							"10.0.0.42/32",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
 			name: "explicit deny - dns san",
 
 			spiffeIDPath: "/foo/bar",
 			dnsSANs: []string{
 				"foo.example.com",
+			},
+			ipSANs: []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: "/foo/*",
+						DNSSANs: []string{
+							"*",
+						},
+						IPSANs: []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						DNSSANs: []string{
+							"foo.example.com",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - multiple dns sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"bar.example.com",
 			},
 			ipSANs: []net.IP{},
 
@@ -10982,6 +11245,9 @@ func TestSessionRecordingRBAC(t *testing.T) {
 					NodeLabels: types.Labels{
 						"env": []string{"prod"},
 					},
+					AppLabels: types.Labels{
+						"env": []string{"prod"},
+					},
 					Rules: allowRules,
 				},
 				Deny: types.RoleConditions{
@@ -11004,6 +11270,25 @@ func TestSessionRecordingRBAC(t *testing.T) {
 	})
 
 	serverWithoutAccess := newServer("server-without-access", map[string]string{
+		"env": "dev",
+	})
+
+	newApp := func(name string, labels map[string]string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	appWithAccess := newApp("app-with-access", map[string]string{
+		"env": "prod",
+	})
+
+	appWithoutAccess := newApp("app-without-access", map[string]string{
 		"env": "dev",
 	})
 
@@ -11501,6 +11786,70 @@ func TestSessionRecordingRBAC(t *testing.T) {
 			},
 			errCheck: require.NoError,
 		},
+		{
+			name: "24 - bob can read app session because his group matches with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "25 - john can not read app session because his group does not match with env label for app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `contains(user.spec.traits["group"], session.app_labels["env"])`,
+				}, nil),
+			},
+			context: Context{
+				User:     john,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "26 - bob can read app session because he has access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithAccess,
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "27 - bob can not read app session because he has no access to the app",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `can_view()`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newAppSessionChunkEvent(),
+				Resource: appWithoutAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -11599,6 +11948,37 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		},
 		StartTime: startTime,
 		EndTime:   endTime,
+	}
+}
+
+func newAppSessionChunkEvent() *apievents.AppSessionChunk {
+	return &apievents.AppSessionChunk{
+		Metadata: apievents.Metadata{
+			Index: 20,
+			Type:  "app.session.chunk",
+			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:  "T2008I",
+			Time:  time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName:       "app-with-access",
+			AppURI:        "http://localhost:8080",
+			AppPublicAddr: "app.example.com",
+			AppLabels:     map[string]string{"env": "prod"},
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			Protocol: apievents.EventProtocolApp,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:      "alice",
+			UserRoles: []string{"role1"},
+			UserTraits: map[string][]string{
+				"group": {"prod"},
+				"team":  {"engineering"},
+			},
+		},
+		Participants:   []string{"alice"},
+		SessionChunkID: "cb116fb0-9227-4889-9392-aedd13a914a6",
 	}
 }
 
@@ -11820,5 +12200,16 @@ func TestCheckImpersonateRoles(t *testing.T) {
 			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
 			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
 		})
+	}
+}
+
+// TestDefaultImplicitRulesHaveNoWildcardVerbs verifies the assumption newScopedImplicitRole relies on,
+// that the default implicit rules contain no wildcards (if they did, our secret-inclusive -> secret-exclusive
+// conversion would break).
+func TestDefaultImplicitRulesHaveNoWildcardVerbs(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range DefaultImplicitRules {
+		require.NotContains(t, rule.Verbs, types.Wildcard, "resources %v", rule.Resources)
 	}
 }

@@ -329,7 +329,7 @@ func TestValidateClassifier(t *testing.T) {
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
 	valid := NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
-		Kinds:  []string{"ssh", "k8s", "db"},
+		Kinds:  []string{"ssh", "k8s", "db", "desktop"},
 		Filter: `equals(resource.metadata.labels["env"], "prod") || equals(user.metadata.name, "admin")`,
 		Model:  "my-model",
 	})
@@ -376,7 +376,7 @@ func TestValidateInferencePolicy(t *testing.T) {
 		},
 		{
 			fn:  func(p *summarizerv1.InferencePolicy) { p.Spec.Kinds = []string{"foo"} },
-			msg: "unsupported kind in spec.kinds: foo, supported: ssh, k8s, db",
+			msg: "unsupported kind in spec.kinds: foo, supported: ssh, k8s, db, desktop",
 		},
 		{
 			fn:  func(p *summarizerv1.InferencePolicy) { p.Spec.Model = "" },

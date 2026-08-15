@@ -19,10 +19,14 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
+	"net"
 	"slices"
+	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -54,6 +58,9 @@ type AzureInstancesMetadata struct {
 
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
+
+	// MatcherType is the type of matcher that discovered these instances.
+	MatcherType string
 }
 
 func (md AzureInstancesMetadata) LogValue() slog.Value {
@@ -158,13 +165,10 @@ func (instances *AzureInstances) LogValue() slog.Value {
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
-		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.Metadata.SubscriptionID {
+		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabelInternal]
-		if vmID != "" {
+		if vmID := types.GetAzureVMID(node); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}
@@ -179,44 +183,51 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
-// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(
+// MatcherToAzureInstanceFetchers converts an Azure VM matcher into Azure VM fetchers.
+func MatcherToAzureInstanceFetchers(
 	ctx context.Context,
 	logger *slog.Logger,
-	matchers []types.AzureMatcher,
+	matcher types.AzureMatcher,
 	getClient azureClientGetter,
 	discoveryConfigName string,
 	listSubs listSubscriptionsFunc,
-) []Fetcher[*AzureInstances] {
-	ret := make([]Fetcher[*AzureInstances], 0)
-	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
-		for _, subscription := range matcher.Subscriptions {
+) ([]Fetcher[*AzureInstances], error) {
+	subscriptions, err := expandAzureMatcherSubscriptions(ctx, matcher.Subscriptions, matcher.Integration, listSubs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetchers := make([]Fetcher[*AzureInstances], 0, len(matcher.Types)*len(subscriptions)*len(matcher.ResourceGroups))
+	for _, matcherType := range matcher.Types {
+		if matcherType != types.AzureMatcherVM && matcherType != types.AzureMatcherWindowsVM {
+			logger.WarnContext(ctx, "Skipping unsupported matcher type", "matcher_type", matcherType)
+			continue
+		}
+		for _, subscription := range subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
+				fetchers = append(fetchers, newAzureInstanceFetcher(azureFetcherConfig{
 					Matcher:             matcher,
+					MatcherType:         matcherType,
 					Subscription:        subscription,
 					ResourceGroup:       resourceGroup,
 					AzureClientGetter:   getClient,
 					DiscoveryConfigName: discoveryConfigName,
 					Logger:              logger,
-				})
-				ret = append(ret, fetcher)
+				}))
 			}
 		}
 	}
-	return ret
+	return fetchers, nil
 }
 
 // expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
 // subscriptions and replaces the wildcard with the subscriptions list.
 func expandAzureMatcherSubscriptions(
 	ctx context.Context,
-	logger *slog.Logger,
 	subscriptions []string,
 	integration string,
 	listSubs listSubscriptionsFunc,
-) []string {
+) ([]string, error) {
 	var out []string
 	for _, sub := range subscriptions {
 		if sub != types.Wildcard {
@@ -224,21 +235,23 @@ func expandAzureMatcherSubscriptions(
 			continue
 		}
 		subs, err := listSubs(ctx, integration)
+		// Azure can return a successful response with no subscriptions when the
+		// identity has no subscription-scoped access. Treat this as a resolution
+		// failure so wildcard discovery doesn't silently produce 0 fetchers.
+		if err == nil && len(subs) == 0 {
+			err = trace.NotFound("Azure returned no subscriptions for wildcard in discovery configuration")
+		}
 		if err != nil {
-			// TODO(gavin): make a user task
-			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
-				"integration", integration,
-				"error", err,
-			)
-			continue
+			return nil, trace.Wrap(err)
 		}
 		out = append(out, subs...)
 	}
-	return utils.Deduplicate(out)
+	return utils.Deduplicate(out), nil
 }
 
 type azureFetcherConfig struct {
 	Matcher             types.AzureMatcher
+	MatcherType         string
 	Subscription        string
 	ResourceGroup       string
 	AzureClientGetter   azureClientGetter
@@ -256,10 +269,12 @@ type azureInstanceFetcher struct {
 	DiscoveryConfigName string
 	Integration         string
 	Logger              *slog.Logger
+	MatcherType         string
+	osMatches           func(vm *azure.VirtualMachine) bool
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
-	return &azureInstanceFetcher{
+	fetcher := &azureInstanceFetcher{
 		InstallerParams:     cfg.Matcher.Params,
 		AzureClientGetter:   cfg.AzureClientGetter,
 		Regions:             cfg.Matcher.Regions,
@@ -269,7 +284,13 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 		Integration:         cfg.Matcher.Integration,
 		Logger:              cfg.Logger,
+		MatcherType:         cfg.MatcherType,
 	}
+	fetcher.osMatches = (*azure.VirtualMachine).IsLinuxOrUnknown
+	if cfg.MatcherType == types.AzureMatcherWindowsVM {
+		fetcher.osMatches = (*azure.VirtualMachine).IsWindowsOrUnknown
+	}
+	return fetcher
 }
 
 func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*AzureInstances, error) {
@@ -298,12 +319,12 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
+	vmClient, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
+	vms, err := vmClient.ListVirtualMachines(ctx, f.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,7 +333,16 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
+	skippedVMIDs := make([]string, 0)
 	for _, vm := range vms {
+		// Skip VMs where the OS doesn't match this fetcher's matcher type. VMs with
+		// an unknown OS are kept because the OS type is not always present in the
+		// API response.
+		if !f.osMatches(vm) {
+			skippedVMIDs = append(skippedVMIDs, vm.ID)
+			continue
+		}
+
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
@@ -327,6 +357,35 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 		instanceGroups[batchGroup] = append(instanceGroups[batchGroup], vm)
 	}
+	if len(skippedVMIDs) > 0 {
+		// Show at most 10 skipped VM IDs in the log message to avoid spamming the logs.
+		sampleSize := min(len(skippedVMIDs), 10)
+		skippedVMIDsSample := make([]string, sampleSize)
+		copy(skippedVMIDsSample, skippedVMIDs[:sampleSize])
+
+		f.Logger.DebugContext(ctx, "Skipped VMs with non-matching OS in Azure Server Discovery",
+			"fetcher", f,
+			"matcher_type", f.MatcherType,
+			"total_vms", len(vms),
+			"skipped_vms", len(skippedVMIDs),
+			"skipped_vms_sample", skippedVMIDsSample,
+		)
+	}
+
+	// Windows VM discovery needs each VM's private IP to register a dynamic
+	// Windows desktop, but the compute API doesn't return it. Resolve the IPs
+	// from the VMs' network interfaces and join them to the VMs by resource ID.
+	if f.MatcherType == types.AzureMatcherWindowsVM {
+		privateIPByVM, err := f.primaryPrivateIPByVM(ctx, azureClients, instanceGroups)
+		if err != nil {
+			return nil, trace.Wrap(err, "listing network interfaces for Windows VM discovery")
+		}
+		for _, vms := range instanceGroups {
+			for _, vm := range vms {
+				vm.PrimaryPrivateIP = privateIPByVM[strings.ToLower(vm.ID)]
+			}
+		}
+	}
 
 	var instances []*AzureInstances
 	for batchGroup, vms := range instanceGroups {
@@ -338,12 +397,108 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 				Integration:         f.Integration,
 				InstallerParams:     f.InstallerParams,
 				DiscoveryConfigName: f.DiscoveryConfigName,
+				MatcherType:         f.MatcherType,
 			},
 			Instances: vms,
 		})
 	}
 
 	return instances, nil
+}
+
+// primaryPrivateIPByVM gets the primary private IP address for each VM.
+func (f *azureInstanceFetcher) primaryPrivateIPByVM(
+	ctx context.Context,
+	azureClients azure.Clients,
+	instanceGroups map[resourceGroupLocation][]*azure.VirtualMachine,
+) (map[string]string, error) {
+	if len(instanceGroups) == 0 {
+		return nil, nil
+	}
+
+	nicClient, err := azureClients.GetNetworkInterfacesClient(ctx, f.Subscription)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting network interfaces client")
+	}
+
+	// Get a list of scaleSetIDs (this slice is deduped by the NIC client)
+	scaleSetIDs := []string{}
+	for _, vms := range instanceGroups {
+		for _, vm := range vms {
+			if vm.UniformScaleSetName != "" {
+				id, err := arm.ParseResourceID(vm.ID)
+				if err != nil {
+					f.Logger.WarnContext(ctx, "Skipping uniform scale set with unparsable resource id", "resource_id", vm.ID)
+					continue
+				}
+				if id.Parent == nil {
+					f.Logger.WarnContext(ctx, "Skipping uniform scale set because parent of uniform scale set instance not found", "resource_id", vm.ID)
+					continue
+				}
+				scaleSetIDs = append(scaleSetIDs, id.Parent.String())
+			}
+		}
+	}
+
+	// Gather all NICs for the matched resource groups
+	var nicsByAttachedVM = make(map[string][]*azure.NetworkInterface)
+	// We have to list NICs in the whole subscription because a NIC can be in a
+	// different resource group than the VM it is attached to. There is currently
+	// no way to filter this API call by any other means (e.g. location, tags, etc.)
+	nics, err := nicClient.ListNetworkInterfaces(ctx, types.Wildcard, scaleSetIDs...)
+	if err != nil {
+		return nil, trace.Wrap(err, "listing network interfaces")
+	}
+	for _, nic := range nics {
+		// Skip NICs that aren't attached to a VM
+		if nic.AttachedVMID == "" {
+			continue
+		}
+		nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)] = append(nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)], nic)
+	}
+
+	// For each VM, find the primary private IP
+	var privateIPByVM = make(map[string]string)
+	for vmId, nics := range nicsByAttachedVM {
+		privateIPByVM[vmId] = primaryPrivateIP(nics)
+	}
+	return privateIPByVM, nil
+}
+
+// primaryPrivateIP returns the private IP to register for a VM given its
+// network interfaces. It prefers the IP of the NIC and IP config that Azure
+// flagged as primary. If no NIC/IP config is flagged primary (which would be an
+// Azure error) it falls back to the first NIC with a usable private IP.
+func primaryPrivateIP(nics []*azure.NetworkInterface) string {
+	var fallback, primaryNICFallback, primaryConfigFallback string
+	for _, nic := range nics {
+		for _, ipConfig := range nic.IPConfigurations {
+			// Some non-primary IP Configurations can have a CIDR address as their
+			// private IP, so skip them.
+			if net.ParseIP(ipConfig.PrivateIP) == nil {
+				continue
+			}
+			// If the NIC is primary and the IP configuration is primary,
+			// return that IP.
+			if nic.Primary && ipConfig.Primary {
+				return ipConfig.PrivateIP
+			}
+			// If the NIC is primary but the IP configuration is not, save it as a
+			// fallback in case no primary IP configuration is found.
+			if nic.Primary && primaryNICFallback == "" {
+				primaryNICFallback = ipConfig.PrivateIP
+			}
+			// If the IP configuration is primary but the NIC is not, save it as a
+			// fallback in case no primary NIC is found.
+			if ipConfig.Primary && primaryConfigFallback == "" {
+				primaryConfigFallback = ipConfig.PrivateIP
+			}
+			if fallback == "" {
+				fallback = ipConfig.PrivateIP
+			}
+		}
+	}
+	return cmp.Or(primaryNICFallback, primaryConfigFallback, fallback)
 }
 
 // LogValue implements [slog.LogValuer].

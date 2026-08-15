@@ -20,6 +20,8 @@ package services
 
 import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
@@ -30,6 +32,20 @@ import (
 func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checker AccessChecker) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+	if linuxEnd, ok := sessionEnd.(*apievents.LinuxDesktopSessionEnd); ok {
+		ctx.Resource153 = linuxdesktopv1.LinuxDesktop_builder{
+			Kind:    types.KindLinuxDesktop,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name:   linuxEnd.DesktopName,
+				Labels: linuxEnd.DesktopLabels,
+			}.Build(),
+			Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+				Addr: linuxEnd.DesktopAddr,
+			}.Build(),
+		}.Build()
+	}
 	// AccessCheker is set here to allow access checks to other resources
 	// in the where clause.
 	ctx.AccessChecker = checker
@@ -88,6 +104,23 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 			Spec: types.WindowsDesktopSpecV3{
 				Addr:   sEnd.DesktopAddr,
 				Domain: sEnd.Domain,
+			},
+		}
+	case *apievents.AppSessionChunk:
+		if sEnd == nil {
+			return nil
+		}
+		return &types.AppV3{
+			Kind:    types.KindApp,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      sEnd.AppName,
+				Namespace: apidefaults.Namespace,
+				Labels:    sEnd.AppLabels,
+			},
+			Spec: types.AppSpecV3{
+				URI:        sEnd.AppURI,
+				PublicAddr: sEnd.AppPublicAddr,
 			},
 		}
 	case *apievents.DatabaseSessionEnd:

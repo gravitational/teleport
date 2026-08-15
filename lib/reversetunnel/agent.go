@@ -677,12 +677,7 @@ func (a *agent) sendKeepalives() error {
 		}
 
 		a.mu.Lock()
-		rtt := a.clock.Since(now)
-		if a.smoothedRTT == 0 {
-			a.smoothedRTT = rtt
-		} else {
-			a.smoothedRTT = (7*a.smoothedRTT + rtt) / 8
-		}
+		a.smoothedRTT = calculateSmoothedRTT(a.smoothedRTT, a.clock.Since(now))
 		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
 		a.mu.Unlock()
 
@@ -747,6 +742,20 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.tracker.TrackExpected(r.TrackProxies()...)
 		}
 	}
+}
+
+// calculateSmoothedRTT computes a weighted average of the previous smoothed
+// round trip time and a new round trip time measurement. The new measurement
+// has a weight of 1/8 to avoid overreacting to temporary network jitter.
+func calculateSmoothedRTT(srtt time.Duration, rtt time.Duration) time.Duration {
+	if srtt == 0 {
+		return rtt
+	}
+	const (
+		newRttWeight    = 1
+		smoothingFactor = 8
+	)
+	return ((smoothingFactor-newRttWeight)*srtt + newRttWeight*rtt) / smoothingFactor
 }
 
 const (

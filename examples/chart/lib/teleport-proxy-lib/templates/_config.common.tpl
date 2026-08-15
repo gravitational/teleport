@@ -1,6 +1,11 @@
 {{- define "teleport-proxy-lib.internal.config.common" -}}
 {{- $proxy := (mustDeepCopy .Values) -}}
 {{- $logLevel := (coalesce $proxy.logLevel $proxy.log.level "INFO") -}}
+{{- /*
+  TODO(adamcarheden): Remove join_params and auth_server defaults from this lib
+  chart. Callers should always supply this. The values below only make sense
+  for teleport-cluster.
+*/ -}}
 version: v3
 teleport:
   join_params:

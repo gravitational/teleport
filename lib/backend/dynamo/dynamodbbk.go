@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -45,6 +46,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -183,11 +185,6 @@ type record struct {
 	Revision  string
 	Value     []byte
 	Timestamp int64
-}
-
-type keyLookup struct {
-	HashKey  string
-	FullPath string
 }
 
 const (
@@ -516,7 +513,7 @@ func (b *Backend) GetName() string {
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
-		err = trace.AlreadyExists("%s", err)
+		err = trace.AlreadyExists("%+q already exists", item.Key.String())
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -540,7 +537,7 @@ func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, e
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	rev, err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound("%s", err)
+		err = trace.NotFound("%+q is not found", item.Key.String())
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -601,13 +598,13 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 
 		// filter out expired items, otherwise they might show up in the query
 		// http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/howitworks-ttl.html
-		filter = "attribute_not_exists(Expires) OR Expires >= :timestamp"
+		filter = "attribute_not_exists(Expires) OR Expires >= :now"
 	)
 
 	av := map[string]types.AttributeValue{
 		":rangeStart": &types.AttributeValueMemberS{Value: prependPrefix(params.StartKey)},
 		":rangeEnd":   &types.AttributeValueMemberS{Value: prependPrefix(params.EndKey)},
-		":timestamp":  timeToAttributeValue(b.clock.Now().UTC()),
+		":now":        timeToAttributeValue(b.clock.Now()),
 		":hashKey":    &types.AttributeValueMemberS{Value: hashKey},
 	}
 
@@ -677,21 +674,75 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 	return &result, nil
 }
 
-const (
-	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
-	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
-	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
-	// consisting of up to 25 item put or delete operations.
-	batchOperationItemsLimit = 25
-)
+func (b *Backend) batchWriteItem(ctx context.Context, requests []types.WriteRequest) error {
+	if len(requests) == 0 {
+		return nil
+	}
+
+	requestItems := map[string][]types.WriteRequest{
+		b.TableName: requests,
+	}
+
+	var retry retryutils.Retry
+	previousOutstandingItems := len(requests)
+	for {
+		resp, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+			RequestItems: requestItems,
+		})
+		if err != nil {
+			return trace.Wrap(convertError(err))
+		}
+
+		if resp == nil || len(resp.UnprocessedItems) == 0 {
+			return nil
+		}
+
+		unprocessedItems := len(resp.UnprocessedItems[b.TableName])
+		if unprocessedItems >= previousOutstandingItems {
+			return trace.LimitExceeded("failed to delete all items, dynamodb returned an increased number of unprocessed items")
+		}
+
+		requestItems = resp.UnprocessedItems
+		previousOutstandingItems = unprocessedItems
+
+		if retry == nil {
+			firstRetry := b.RetryPeriod / 10
+			retry, err = retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  firstRetry,
+				Driver: retryutils.NewExponentialDriver(firstRetry),
+				Max:    b.RetryPeriod,
+				Jitter: retryutils.FullJitter,
+				Clock:  b.clock,
+			})
+			if err != nil {
+				return trace.Errorf("failed to setup retry for dynamodb batch write: %v", err)
+			}
+		}
+
+		retry.Inc()
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+}
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
+	const (
+		// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+		// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+		// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+		// consisting of up to 25 item put or delete operations.
+		batchOperationItemsLimit = 25
+		maxDeletionOperations    = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
+	)
+
 	// Attempt to pull all existing items and delete them in batches
 	// in accordance with the BatchWriteItem limits. There is a hard
 	// cap on the total number of items that can be deleted in a single
 	// DeleteRange call to avoid racing with additional records being added.
-	const maxDeletionOperations = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
 	requests := make([]types.WriteRequest, 0, batchOperationItemsLimit)
 	var deletions int
 	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}) {
@@ -705,19 +756,12 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 
 		requests = append(requests, types.WriteRequest{
 			DeleteRequest: &types.DeleteRequest{
-				Key: map[string]types.AttributeValue{
-					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
-					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(item.Key)},
-				},
+				Key: keyToAttributeValueMap(item.Key),
 			},
 		})
 
 		if len(requests) == batchOperationItemsLimit {
-			if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-				RequestItems: map[string][]types.WriteRequest{
-					b.TableName: requests,
-				},
-			}); err != nil {
+			if err := b.batchWriteItem(ctx, requests); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -734,11 +778,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	}
 
 	if len(requests) > 0 {
-		if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]types.WriteRequest{
-				b.TableName: requests,
-			},
-		}); err != nil {
+		if err := b.batchWriteItem(ctx, requests); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -759,7 +799,7 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 		Revision: r.Revision,
 	}
 	if r.Expires != nil {
-		item.Expires = time.Unix(*r.Expires, 0)
+		item.Expires = time.Unix(*r.Expires, 0).UTC()
 	}
 
 	if item.Revision == "" {
@@ -797,24 +837,26 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	input := dynamodb.PutItemInput{
-		Item:                av,
-		TableName:           aws.String(b.TableName),
-		ConditionExpression: aws.String("#v = :prev"),
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(b.TableName),
+
+		Item: av,
+
+		ConditionExpression: aws.String("#v = :prev AND (attribute_not_exists(Expires) OR Expires >= :now)"),
 		ExpressionAttributeNames: map[string]string{
 			"#v": "Value",
 		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":prev": &types.AttributeValueMemberB{Value: expected.Value},
+			":now":  timeToAttributeValue(b.clock.Now()),
 		},
 	}
 
-	_, err = b.svc.PutItem(ctx, &input)
+	_, err = b.svc.PutItem(ctx, input)
 	err = convertError(err)
 	if err != nil {
-		// in this case let's use more specific compare failed error
-		if trace.IsAlreadyExists(err) {
-			return nil, trace.CompareFailed("%s", err)
+		if trace.IsCompareFailed(err) {
+			return nil, trace.CompareFailed("%+q not found or does not match expected", replaceWith.Key.String())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -823,10 +865,36 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 
 // Delete deletes item by key
 func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
-	if _, err := b.getKey(ctx, key); err != nil {
-		return err
+	// since dynamodb's built-in deletion of expired items can be very slow,
+	// instead of filtering the point delete here to only delete if the item is
+	// not expired we unconditionally delete the item, and we return the correct
+	// error by checking if the item that was just deleted was expired
+	now := b.clock.Now().Truncate(time.Second)
+	out, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(b.TableName),
+		Key:       keyToAttributeValueMap(key),
+
+		ReturnValues: types.ReturnValueAllOld,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return b.deleteKey(ctx, key)
+
+	if len(out.Attributes) < 1 {
+		return trace.NotFound("%+q is not found", key.String())
+	}
+
+	var r struct {
+		Expires *attributevalue.UnixTime
+	}
+	if err := attributevalue.UnmarshalMap(out.Attributes, &r); err != nil {
+		return trace.Wrap(err, "checking expiry")
+	}
+	if r.Expires != nil && time.Time(*r.Expires).Before(now) {
+		return trace.NotFound("%+q is not found", key.String())
+	}
+
+	return nil
 }
 
 // ConditionalUpdate updates the matching item in Dynamo if the provided revision matches
@@ -842,6 +910,9 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 
 	rev, err := b.create(ctx, item, modeConditionalUpdate)
 	if err != nil {
+		if trace.IsCompareFailed(err) {
+			err = trace.Wrap(backend.ErrIncorrectRevision)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -856,27 +927,25 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
-	av, err := attributevalue.MarshalMap(keyLookup{
-		HashKey:  hashKey,
-		FullPath: prependPrefix(key),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	input := dynamodb.DeleteItemInput{
-		Key:       av,
+	input := &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
+		Key:       keyToAttributeValueMap(key),
 	}
 
 	if rev == backend.BlankRevision {
-		input.ConditionExpression = aws.String("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+		input.ConditionExpression = aws.String("attribute_exists(FullPath) AND attribute_not_exists(Revision) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":now": timeToAttributeValue(b.clock.Now()),
+		}
 	} else {
-		input.ExpressionAttributeValues = map[string]types.AttributeValue{":rev": &types.AttributeValueMemberS{Value: rev}}
-		input.ConditionExpression = aws.String("Revision = :rev AND attribute_exists(FullPath)")
+		input.ConditionExpression = aws.String("Revision = :rev AND (attribute_not_exists(Expires) OR Expires >= :now)")
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":rev": &types.AttributeValueMemberS{Value: rev},
+			":now": timeToAttributeValue(b.clock.Now()),
+		}
 	}
 
-	if _, err = b.svc.DeleteItem(ctx, &input); err != nil {
+	if _, err := b.svc.DeleteItem(ctx, input); err != nil {
 		err = convertError(err)
 		if trace.IsCompareFailed(err) {
 			return trace.Wrap(backend.ErrIncorrectRevision)
@@ -900,22 +969,20 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		return trace.BadParameter("lease is missing key")
 	}
 	input := &dynamodb.UpdateItemInput{
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":expires":   &types.AttributeValueMemberN{Value: strconv.FormatInt(expires.UTC().Unix(), 10)},
-			":timestamp": &types.AttributeValueMemberN{Value: strconv.FormatInt(b.clock.Now().UTC().Unix(), 10)},
-		},
 		TableName: aws.String(b.TableName),
-		Key: map[string]types.AttributeValue{
-			hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
-			fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(lease.Key)},
-		},
+		Key:       keyToAttributeValueMap(lease.Key),
+
 		UpdateExpression:    aws.String("SET Expires = :expires"),
-		ConditionExpression: aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :timestamp)"),
+		ConditionExpression: aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":expires": timeToAttributeValue(expires),
+			":now":     timeToAttributeValue(b.clock.Now()),
+		},
 	}
 	_, err := b.svc.UpdateItem(ctx, input)
 	err = convertError(err)
 	if trace.IsCompareFailed(err) {
-		err = trace.NotFound("%s", err)
+		err = trace.NotFound("%+q is not found", lease.Key.String())
 	}
 	return err
 }
@@ -1049,16 +1116,6 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 	return trace.Wrap(err)
 }
 
-// isExpired returns 'true' if the given object (record) has a TTL and
-// it's due.
-func (r *record) isExpired(now time.Time) bool {
-	if r.Expires == nil {
-		return false
-	}
-	expiryDateUTC := time.Unix(*r.Expires, 0).UTC()
-	return now.UTC().After(expiryDateUTC)
-}
-
 const (
 	modeCreate = iota
 	modePut
@@ -1074,7 +1131,7 @@ func prependPrefix(key backend.Key) string {
 
 // trimPrefix removes leading 'teleport' from the key
 func trimPrefix(key string) backend.Key {
-	return backend.KeyFromString(key).TrimPrefix(backend.KeyFromString(keyPrefix))
+	return backend.KeyFromString(strings.TrimPrefix(key, keyPrefix))
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.
@@ -1097,105 +1154,77 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		return "", trace.Wrap(err)
 	}
 	input := dynamodb.PutItemInput{
-		Item:      av,
 		TableName: aws.String(b.TableName),
+
+		Item: av,
 	}
 
 	switch mode {
 	case modeCreate:
-		input.ConditionExpression = aws.String("attribute_not_exists(FullPath)")
+		input.ConditionExpression = aws.String("attribute_not_exists(FullPath) OR Expires < :now")
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":now": timeToAttributeValue(b.clock.Now()),
+		}
 	case modeUpdate:
-		input.ConditionExpression = aws.String("attribute_exists(FullPath)")
+		input.ConditionExpression = aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":now": timeToAttributeValue(b.clock.Now()),
+		}
 	case modePut:
 	case modeConditionalUpdate:
 		// If the revision is empty, then the resource existed prior to revision support. Instead of validating that
 		// the revisions match, validate that the revision attribute does not exist. Otherwise, validate that the revision
 		// attribute matches the item revision.
 		if item.Revision == "" {
-			input.ConditionExpression = aws.String("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+			input.ConditionExpression = aws.String("attribute_exists(FullPath) AND attribute_not_exists(Revision) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+			input.ExpressionAttributeValues = map[string]types.AttributeValue{
+				":now": timeToAttributeValue(b.clock.Now()),
+			}
 		} else {
-			input.ExpressionAttributeValues = map[string]types.AttributeValue{":rev": &types.AttributeValueMemberS{Value: item.Revision}}
-			input.ConditionExpression = aws.String("Revision = :rev AND attribute_exists(FullPath)")
+			input.ConditionExpression = aws.String("Revision = :rev AND (attribute_not_exists(Expires) OR Expires >= :now)")
+			input.ExpressionAttributeValues = map[string]types.AttributeValue{
+				":rev": &types.AttributeValueMemberS{Value: item.Revision},
+				":now": timeToAttributeValue(b.clock.Now()),
+			}
 		}
 	default:
-		return "", trace.BadParameter("unrecognized mode")
+		return "", trace.BadParameter("unrecognized write mode %d (this is a bug)", mode)
 	}
 	_, err = b.svc.PutItem(ctx, &input)
 	err = convertError(err)
 	if err != nil {
-		if mode == modeConditionalUpdate && trace.IsCompareFailed(err) {
-			return "", trace.Wrap(backend.ErrIncorrectRevision)
-		}
-
 		return "", trace.Wrap(err)
 	}
 
 	return r.Revision, nil
 }
 
-func (b *Backend) deleteKey(ctx context.Context, key backend.Key) error {
-	av, err := attributevalue.MarshalMap(keyLookup{
-		HashKey:  hashKey,
-		FullPath: prependPrefix(key),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
-	if _, err = b.svc.DeleteItem(ctx, &input); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (b *Backend) deleteKeyIfExpired(ctx context.Context, key backend.Key) error {
-	_, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) {
+	input := &dynamodb.GetItemInput{
 		TableName: aws.String(b.TableName),
 		Key:       keyToAttributeValueMap(key),
 
-		// succeed if the item no longer exists
-		ConditionExpression: aws.String(
-			"attribute_not_exists(FullPath) OR (attribute_exists(Expires) AND Expires <= :timestamp)",
-		),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":timestamp": timeToAttributeValue(b.clock.Now()),
-		},
-	})
-	return trace.Wrap(err)
-}
-
-func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) {
-	av, err := attributevalue.MarshalMap(keyLookup{
-		HashKey:  hashKey,
-		FullPath: prependPrefix(key),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	input := dynamodb.GetItemInput{
-		Key:            av,
-		TableName:      aws.String(b.TableName),
 		ConsistentRead: aws.Bool(true),
 	}
-	out, err := b.svc.GetItem(ctx, &input)
+	now := b.clock.Now().Truncate(time.Second)
+	out, err := b.svc.GetItem(ctx, input)
 	if err != nil {
 		// we deliberately use a "generic" trace error here, since we don't want
 		// callers to make assumptions about the nature of the failure.
-		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", key.String())
+		return nil, trace.WrapWithMessage(err, "failed to get %+q (dynamo error)", key.String())
 	}
 	if len(out.Item) == 0 {
-		return nil, trace.NotFound("%q is not found", key.String())
+		return nil, trace.NotFound("%+q is not found", key.String())
 	}
 	var r record
 	if err := attributevalue.UnmarshalMap(out.Item, &r); err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", key.String())
+		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %+q", key.String())
 	}
-	// Check if key expired, if expired delete it
-	if r.isExpired(b.clock.Now()) {
-		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
-			b.logger.WarnContext(ctx, "Failed deleting expired key", "key", key, "error", err)
-		}
-		return nil, trace.NotFound("%q is not found", key.String())
+	// item expiry is stored as integer seconds since the unix epoch and so are
+	// the time filters in queries, so we replicate the same behavior here by
+	// comparing the expiry against the current clock truncated to the second
+	if r.Expires != nil && time.Unix(*r.Expires, 0).Before(now) {
+		return nil, trace.NotFound("%+q is not found", key.String())
 	}
 	return &r, nil
 }
@@ -1252,15 +1281,11 @@ func convertError(err error) error {
 	return err
 }
 
-func fullPathToAttributeValueMap(fullPath string) map[string]types.AttributeValue {
+func keyToAttributeValueMap(key backend.Key) map[string]types.AttributeValue {
 	return map[string]types.AttributeValue{
 		hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
-		fullPathKey: &types.AttributeValueMemberS{Value: fullPath},
+		fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(key)},
 	}
-}
-
-func keyToAttributeValueMap(key backend.Key) map[string]types.AttributeValue {
-	return fullPathToAttributeValueMap(prependPrefix(key))
 }
 
 func timeToAttributeValue(t time.Time) types.AttributeValue {

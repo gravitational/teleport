@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -84,12 +85,14 @@ func (c *scopesLSCommand) run(cf *CLIConf) error {
 	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
 		assignments, err = stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, clt.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 			// note that we are using the AllCallerAssignments flag here rather than just looking for
-			// our assignments by username. This flag suppresses standard scope-pinning, which allows
-			// us to see assignments in parent/orthogonal scopes. Generally, scoped commands only show
-			// the subset of state subject to the currently pinned scope, but the purpose of 'tsh scopes ls'
-			// is specifically to discover potential 'tsh login --scope=...' targets, so we want to see
-			// everything regardless of current scope.
+			// our assignments by username. This flag bypasses standard access checks in favor of allowing
+			// all assignments belonging to the callert to be readable. Combined with filter mode ALL, this
+			// allows us to always see all assignments for our identity, regardless of our particular permissions
+			// or pinning state.
 			AllCallerAssignments: true,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
 		}.Build()))
 		return trace.Wrap(err)
 	}); err != nil {

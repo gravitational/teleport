@@ -34,6 +34,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -62,6 +63,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -977,6 +979,57 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAppSession_routesByName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	user, _, err := authtest.CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "llamaapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "llamaapp.example.com",
+		})
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	t.Cleanup(func() { userClient.Close() })
+
+	session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    user.GetName(),
+		AppName:     app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: testServer.ClusterName(),
+	})
+	require.NoError(t, err)
+
+	// Make sure that the app name is encoded into the app session cert.
+	// The app name is used to disambiguate when multiple apps share
+	// the same public address.
+	block, _ := pem.Decode(session.GetTLSCert())
+	require.NotNil(t, block, "PEM decode failed")
+	gotCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+
+	gotIdentity, err := tlsca.FromSubject(gotCert.Subject, gotCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, app.GetName(), gotIdentity.RouteToApp.Name)
+	require.Equal(t, app.GetPublicAddr(), gotIdentity.RouteToApp.PublicAddr)
 }
 
 func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
@@ -1904,6 +1957,82 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "fail kube multi with wrong usage",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_App,
+					RequesterName: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.ErrorContains(t, err, "can only request Kubernetes certificates")
+				},
+			},
+		},
+		{
+			desc: "kube multi with reuse",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
+			desc: "fail kube multi with user session scoped response",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+					require.ErrorContains(t, err, "is not satisfied")
+				},
+			},
+		},
+		{
 			desc: "db exec with reuse",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1955,6 +2084,31 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp := registered.webAuthHandler(t, challenge)
+					// Delete the session data to simulate that the session has expired.
+					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
+					return resp
+				},
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+				},
+			},
+		},
+		{
+			desc: "fail kube multi with reuse expired",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
 				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 					resp := registered.webAuthHandler(t, challenge)
 					// Delete the session data to simulate that the session has expired.
@@ -2092,6 +2246,43 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
+			desc: "kube multi with ttl limit disabled",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires:           clock.Now().Add(1000 * time.Hour),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				mfaScope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
 					crt := c.TLS
 					require.NotEmpty(t, crt)
@@ -2612,17 +2803,22 @@ type generateUserSingleUseCertsTestOpts struct {
 	initReq       *proto.UserCertsRequest
 	authnHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaAllowReuse mfav1.ChallengeAllowReuse
+	mfaScope      mfav1.ChallengeScope
 	verifyErr     require.ErrorAssertionFunc
 	verifyCert    func(*testing.T, *proto.Certs)
 }
 
 func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
+	scope := opts.mfaScope
+	if scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	}
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      scope,
 			AllowReuse: opts.mfaAllowReuse,
 		},
 	})
@@ -3365,11 +3561,12 @@ func TestGetSSHTargets(t *testing.T) {
 
 func TestResolveSSHTarget(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
 
 	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
 		Hostname:  "Foo",
@@ -3394,6 +3591,16 @@ func TestResolveSSHTarget(t *testing.T) {
 		_, err = clt.UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
+
+	// Wait for the nodes to show up in the unified resource cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var nodes []string
+		for node, err := range srv.Auth().UnifiedResourceCache.Nodes(ctx, services.UnifiedResourcesIterateParams{}) {
+			assert.NoError(t, err)
+			nodes = append(nodes, node.GetHostname())
+		}
+		assert.Subset(t, nodes, []string{"Foo", "foo", "bar"})
+	}, 15*time.Second, 20*time.Millisecond)
 
 	rsp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		Host: "foo",
@@ -3472,37 +3679,29 @@ func TestNodesCRUD(t *testing.T) {
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
 			// Get Node
-			node, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+			node, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNode should fail if node name isn't provided
-			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
-			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
-
-			// GetNode should fail if namespace isn't provided
-			_, err = clt.GetNode(ctx, "", "node1")
+			_, err = clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: ""}.Build())
 			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	})
 
 	t.Run("DeleteNode", func(t *testing.T) {
-		// Make sure can't delete with empty namespace or name.
-		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
-		require.Error(t, err)
-		require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-		err = clt.DeleteNode(ctx, "", node1.GetName())
+		// Make sure can't delete with empty name.
+		err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: ""}.Build())
 		require.Error(t, err)
 		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete node.
-		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node1.GetName()}.Build())
 		require.NoError(t, err)
 
 		// Expect node not found
-		_, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+		_, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
@@ -3537,10 +3736,21 @@ func TestLocksCRUD(t *testing.T) {
 		return filter
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	clusterName, err := srv.Auth().GetClusterName(ctx)
+	require.NoError(t, err)
+
+	const (
+		scope        = "/aa"
+		scopedHostID = "scoped-host"
+	)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopePinnedHost(clusterName.GetClusterName(), scopedHostID, scope, types.RoleNode))
 	require.NoError(t, err)
 
 	now := srv.Clock().Now()
@@ -3580,145 +3790,154 @@ func TestLocksCRUD(t *testing.T) {
 
 	// Run LockGetters in nested subtests to allow parallelization.
 	t.Run("LockGetters", func(t *testing.T) {
-		t.Run("GetLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, err := clt.GetLocks(ctx, false)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("ListLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, next, err := clt.ListLocks(ctx, 0, "", nil)
-			require.Empty(t, next)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		for _, clt := range []*authclient.Client{clt, scopedClient} {
+			makeTestName := func(name string) string {
+				if clt == scopedClient {
+					return name + " - scoped"
+				}
+				return name
+			}
+			t.Run(makeTestName("GetLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, err := clt.GetLocks(ctx, false)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("ListLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, next, err := clt.ListLocks(ctx, 0, "", nil)
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page1, page2Start, err := clt.ListLocks(ctx, 1, "", nil)
-			require.NotEmpty(t, page2Start)
-			require.NoError(t, err)
-			require.Len(t, page1, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page1, page2Start, err := clt.ListLocks(ctx, 1, "", nil)
+				require.NotEmpty(t, page2Start)
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page2, next, err := clt.ListLocks(ctx, 0, page2Start, nil)
-			require.Empty(t, next)
-			require.NoError(t, err)
-			require.Len(t, page2, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page2, next, err := clt.ListLocks(ctx, 0, page2Start, nil)
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Len(t, page2, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("RangeLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("RangeLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
+				_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
 
-			page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
-			require.NoError(t, err)
-			require.Len(t, page1, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
-			require.NoError(t, err)
-			require.Len(t, page2, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("GetLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
+				require.NoError(t, err)
+				require.Len(t, page2, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("GetLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
-			require.NoError(t, err)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
+				require.NoError(t, err)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, err = clt.GetLocks(ctx, false, roleTarget)
-			require.NoError(t, err)
-			require.Empty(t, locks)
-		})
+				// Match none of the locks.
+				locks, err = clt.GetLocks(ctx, false, roleTarget)
+				require.NoError(t, err)
+				require.Empty(t, locks)
+			})
 
-		t.Run("ListLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, next, err := clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			t.Run(makeTestName("ListLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, next, err := clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Empty(t, locks)
-		})
-		t.Run("RangeLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match none of the locks.
+				locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Empty(t, locks)
+			})
+			t.Run(makeTestName("RangeLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
-			require.NoError(t, err)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
+				require.NoError(t, err)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
-			require.NoError(t, err)
-			require.Empty(t, locks)
-		})
-		t.Run("GetLock", func(t *testing.T) {
-			t.Parallel()
-			// Get one of the locks.
-			lock, err := clt.GetLock(ctx, lock1.GetName())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(lock1, lock,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match none of the locks.
+				locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
+				require.NoError(t, err)
+				require.Empty(t, locks)
+			})
 
-			// Attempt to get a nonexistent lock.
-			_, err = clt.GetLock(ctx, "lock3")
-			require.Error(t, err)
-			require.True(t, trace.IsNotFound(err))
-		})
+			t.Run("GetLock", func(t *testing.T) {
+				t.Parallel()
+				// Get one of the locks.
+				lock, err := clt.GetLock(ctx, lock1.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(lock1, lock,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				// Attempt to get a nonexistent lock.
+				_, err = clt.GetLock(ctx, "lock3")
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			})
+		}
 	})
 
 	t.Run("UpsertLock", func(t *testing.T) {
@@ -3806,7 +4025,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	))
 
 	// Delete an app server.
-	err = clt.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server1.GetHostID(),
+		Name:   server1.GetName(),
+		Scope:  server1.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -4042,7 +4265,11 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
+	require.NoError(t, clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "hostID",
+		Name:   appServer1.GetName(),
+		Scope:  appServer1.GetScope(),
+	}.Build()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,
@@ -4095,7 +4322,11 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
+	require.NoError(t, clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "hostID",
+		Name:   appServer2.GetName(),
+		Scope:  appServer2.GetScope(),
+	}.Build()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,
@@ -5374,16 +5605,18 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
 			name:            "new default installers",
 			hasAgentRollout: true,
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				types.DefaultInstallerScriptName:                 installer.NewDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5392,9 +5625,10 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				"my-custom-installer": "echo test",
 			},
 			expectedInstallers: map[string]string{
-				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				"my-custom-installer":                            "echo test",
+				types.DefaultInstallerScriptName:                 installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 		{
@@ -5403,8 +5637,9 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				installers.InstallerScriptName: "echo test",
 			},
 			expectedInstallers: map[string]string{
-				installers.InstallerScriptName:          "echo test",
-				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptName:                   "echo test",
+				installers.InstallerScriptNameAgentless:          installers.DefaultAgentlessInstaller.GetScript(),
+				installers.InstallerScriptNameWindowsAuthPackage: installer.DefaultWindowsAuthPackageInstaller.GetScript(),
 			},
 		},
 	}
@@ -5837,7 +6072,8 @@ func TestApplicationServerHeartbeatLowercase(t *testing.T) {
 
 	ctx := t.Context()
 	server := newTestTLSServer(t)
-	agent := authtest.TestBuiltin(types.RoleApp)
+	// The RoleApp identity's host ID must match the app server's HostID.
+	agent := authtest.TestServerID(types.RoleApp, "host-id")
 	client, err := server.NewClient(agent)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
@@ -5942,7 +6178,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		withModules(&modulestest.Modules{
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy: {Enabled: true},
+					entitlements.AccessGraph: {Enabled: true},
 				},
 			},
 		}),
@@ -6867,6 +7103,325 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 	}
 }
 
+func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
+	t.Parallel()
+
+	// Some cases use rule forms accepted only for forward compatibility.
+	// The downgrade must strip app access from such roles too.
+	newV9Role := func(rules []types.AppResource) *types.RoleV6 {
+		return &types.RoleV6{
+			Kind:     types.KindRole,
+			Metadata: types.Metadata{Name: "dev"},
+			Version:  types.V9,
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabelsExpression: `labels["vendor"] == "gitlab"`,
+					AppResources:        rules,
+				},
+			},
+		}
+	}
+	clientVersion := func(t *testing.T, version string) *semver.Version {
+		t.Helper()
+		ver, err := semver.NewVersion(version)
+		require.NoError(t, err)
+		return ver
+	}
+	allowAll := []types.AppResource{{AllowAll: true}}
+	ruleWithoutAllowAll := []types.AppResource{{}}
+
+	for _, tc := range []struct {
+		desc          string
+		clientVersion string
+		wantVersion   string
+	}{
+		{
+			desc:          "v19 boundary keeps v9",
+			clientVersion: "19.0.0",
+			wantVersion:   types.V9,
+		},
+		{
+			desc:          "just below the v19 boundary downgrades to v8",
+			clientVersion: "18.999.999",
+			wantVersion:   types.V8,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			input := newV9Role(allowAll)
+			got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, tc.clientVersion))
+			require.Equal(t, tc.wantVersion, got.GetVersion())
+
+			if tc.wantVersion == types.V9 {
+				require.NotEmpty(t, got.Spec.Allow.AppResources)
+				require.Empty(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel])
+				return
+			}
+
+			require.Empty(t, got.Spec.Allow.AppResources)
+			require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role v9 is only supported")
+
+			// The input is shared cache state and must never be mutated.
+			require.Equal(t, types.V9, input.GetVersion())
+			require.NotEmpty(t, input.Spec.Allow.AppResources)
+			require.NotEmpty(t, input.Spec.Allow.AppLabels)
+			require.Empty(t, input.GetMetadata().Labels[types.TeleportDowngradedLabel])
+		})
+	}
+
+	t.Run("allow_all keeps app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(allowAll), clientVersion(t, "18.1.2"))
+		require.NotEmpty(t, got.Spec.Allow.AppLabels)
+		require.NotEmpty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "app access is unchanged")
+	})
+
+	// The strip path moves the role's own allow app selector to the deny side,
+	// so the downgrade fails closed on exactly the apps this role governed and
+	// no other role can re-open them. newV9Role selects with wildcard labels and
+	// a vendor expression, so both deny channels carry over.
+	wantDenyLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
+	const wantDenyExpression = `labels["vendor"] == "gitlab"`
+	assertAppAccessDenied := func(t *testing.T, got *types.RoleV6) {
+		t.Helper()
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
+		require.Equal(t, wantDenyExpression, got.Spec.Deny.AppLabelsExpression)
+		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "no app access")
+	}
+
+	t.Run("rules without allow_all strip app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(ruleWithoutAllowAll), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+	})
+
+	t.Run("default-deny role strips app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(nil), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+	})
+
+	t.Run("deny app rules strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Deny.AppResources = ruleWithoutAllowAll
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Deny.AppResources)
+	})
+
+	t.Run("allow expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Allow.AppResourcesExpressions)
+	})
+
+	t.Run("deny expressions strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Deny.AppResourcesExpressions = []string{`path.match(literal("admin"))`}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Deny.AppResourcesExpressions)
+	})
+
+	t.Run("deny scopes to the role's own labels, not a blanket wildcard", func(t *testing.T) {
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, types.Labels{"vendor": []string{"gitlab"}}, got.Spec.Deny.AppLabels)
+		require.Empty(t, got.Spec.Deny.AppLabelsExpression)
+	})
+
+	t.Run("existing deny labels force a wildcard fallback", func(t *testing.T) {
+		// The role already denies apps by label, so there is no free label
+		// channel to hold the moved allow labels. The downgrade falls back to a
+		// wildcard deny rather than drop the existing deny and fail open.
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		input.Spec.Deny.AppLabels = types.Labels{"env": []string{"prod"}}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
+	})
+
+	t.Run("existing deny expression merges with the moved allow expression", func(t *testing.T) {
+		// Expressions, unlike label maps, have a union: the two are OR-ed.
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Deny.AppLabelsExpression = `labels["env"] == "prod"`
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Equal(t, `(labels["env"] == "prod") || (labels["vendor"] == "gitlab")`, got.Spec.Deny.AppLabelsExpression)
+	})
+
+	t.Run("pre-v9 role untouched", func(t *testing.T) {
+		v8, err := types.NewRoleWithVersion("legacy", types.V8, types.RoleSpecV6{})
+		require.NoError(t, err)
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), v8.(*types.RoleV6), clientVersion(t, "17.0.0"))
+		require.Equal(t, types.V8, got.GetVersion())
+		require.Empty(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel])
+	})
+}
+
+// TestRoleVersionV9Downgrade proves the v9 downgrade is wired into the role
+// serving surfaces and composes with the v8-to-v7 downgrade, the way
+// TestRoleVersionV8ToV7Downgrade proves the v8 path.
+func TestRoleVersionV9Downgrade(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+
+	srv := newTestTLSServer(t)
+
+	newV9Role := func(name string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, types.V9, spec)
+		require.NoError(t, err)
+		return role
+	}
+	allowAllRole := newV9Role("v9_allow_all", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppResources: []types.AppResource{{AllowAll: true}},
+			Rules:        []types.Rule{types.NewRule(types.KindRole, services.RW())},
+		},
+	})
+	denyByDefaultRole := newV9Role("v9_deny_by_default", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+
+	user, err := authtest.CreateUser(t.Context(), srv.Auth(), "v9-downgrade-user", allowAllRole, denyByDefaultRole)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc          string
+		clientVersion string
+		roleName      string
+		wantVersion   string
+		wantAppLabels bool
+	}{
+		{
+			desc:          "v19 client keeps v9 allow-all",
+			clientVersion: "19.0.0",
+			roleName:      "v9_allow_all",
+			wantVersion:   types.V9,
+			wantAppLabels: true,
+		},
+		{
+			desc:          "v18 client gets v8 with app labels kept for allow_all",
+			clientVersion: "18.1.2",
+			roleName:      "v9_allow_all",
+			wantVersion:   types.V8,
+			wantAppLabels: true,
+		},
+		{
+			desc:          "v18 client gets v8 with app labels stripped for default-deny",
+			clientVersion: "18.1.2",
+			roleName:      "v9_deny_by_default",
+			wantVersion:   types.V8,
+			wantAppLabels: false,
+		},
+		{
+			desc:          "v17 client gets v7 via composition with app labels stripped",
+			clientVersion: "17.2.7",
+			roleName:      "v9_deny_by_default",
+			wantVersion:   types.V7,
+			wantAppLabels: false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx := metadata.AddMetadataToContext(t.Context(), map[string]string{
+				metadata.VersionKey: tc.clientVersion,
+			})
+
+			gotRole, err := client.GetRole(ctx, tc.roleName)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantVersion, gotRole.GetVersion())
+			if tc.wantAppLabels {
+				require.NotEmpty(t, gotRole.GetAppLabels(types.Allow))
+			} else {
+				require.Empty(t, gotRole.GetAppLabels(types.Allow))
+			}
+
+			downgraded := tc.wantVersion != types.V9
+			if downgraded {
+				require.Empty(t, gotRole.GetAppResources(types.Allow))
+				require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+			} else {
+				require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+			}
+
+			gotRoles, err := client.GetRoles(ctx)
+			require.NoError(t, err)
+			found := false
+			for _, role := range gotRoles {
+				if role.GetName() != tc.roleName {
+					continue
+				}
+				require.Equal(t, tc.wantVersion, role.GetVersion())
+				found = true
+				break
+			}
+			require.True(t, found, "GetRoles result does not include expected role")
+
+			currentRoles, err := client.GetCurrentUserRoles(ctx)
+			require.NoError(t, err)
+			found = false
+			for _, role := range currentRoles {
+				if role.GetName() != tc.roleName {
+					continue
+				}
+				require.Equal(t, tc.wantVersion, role.GetVersion())
+				found = true
+				break
+			}
+			require.True(t, found, "GetCurrentUserRoles result does not include expected role")
+
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			e := <-watcher.Events()
+			require.Equal(t, types.OpInit, e.Type)
+
+			// Re-upsert the role on the auth server directly so the watcher
+			// sees it without tripping the TeleportDowngradedLabel guard.
+			storedRole, err := srv.Auth().GetRole(ctx, tc.roleName)
+			require.NoError(t, err)
+			_, err = srv.Auth().UpsertRole(ctx, storedRole)
+			require.NoError(t, err)
+			watched, err := func() (types.Role, error) {
+				for {
+					select {
+					case <-watcher.Done():
+						return nil, watcher.Error()
+					case e := <-watcher.Events():
+						if role, ok := e.Resource.(types.Role); ok && role.GetName() == tc.roleName {
+							return role, nil
+						}
+					}
+				}
+			}()
+			require.NoError(t, err)
+			require.Equal(t, tc.wantVersion, watched.GetVersion())
+
+			// A downgraded copy must be rejected on write by the
+			// TeleportDowngradedLabel guard.
+			if downgraded {
+				_, err := client.UpsertRole(ctx, gotRole)
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestGRPCServingStatus(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -6900,7 +7455,7 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
 			},
 		},
 	}))
@@ -7024,7 +7579,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
 			},
 		},
 	}))
@@ -7115,10 +7670,12 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 						}.Build(),
 						Scope: c.scope,
 						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-							BotName:  bot.GetMetadata().GetName(),
-							BotScope: c.scope,
+							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
-								scopedaccessv1.Assignment_builder{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope}.Build(),
+								scopedaccessv1.Assignment_builder{
+									Role:  scopes.QualifiedName{Scope: roleResp.GetRole().GetScope(), Name: roleResp.GetRole().GetMetadata().GetName()}.String(),
+									Scope: c.scope,
+								}.Build(),
 							},
 						}.Build(),
 					}.Build(),
@@ -7126,7 +7683,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)
-				ident = authtest.TestScopedBot(c.botName, c.scope, c.internal)
+				ident = authtest.TestScopedBot(t, scopes.QualifiedName{Scope: c.scope, Name: c.botName}, c.internal)
 			}
 
 			client, err := testServer.NewClient(ident)
@@ -7147,6 +7704,71 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				c.expect(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestScopedWatchEvents(t *testing.T) {
+	t.Parallel()
+	ts := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+	const (
+		hostID = "test-server"
+		scope  = "/test"
+		role   = types.RoleNode
+	)
+
+	scopedClient, err := ts.NewClient(authtest.TestScopedHost(ts.ClusterName(), "scoped-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopedClient.Close() })
+
+	scopePinnedClient, err := ts.NewClient(authtest.TestScopePinnedHost(ts.ClusterName(), "scope-pinned-host", scope, role))
+	require.NoError(t, err)
+	t.Cleanup(func() { scopePinnedClient.Close() })
+
+	tt := []struct {
+		name          string
+		client        *authclient.Client
+		kind          string
+		expectFailure bool
+	}{
+		{
+			name:   "scoped host watching allowed kind",
+			client: scopedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scoped host watching disallowed kind",
+			client:        scopedClient,
+			kind:          types.KindDatabase,
+			expectFailure: true,
+		},
+		{
+			name:   "scope pinned host watching allowed kind",
+			client: scopePinnedClient,
+			kind:   types.KindCertAuthority,
+		},
+		{
+			name:          "scope pinned host watching disallowed kind",
+			client:        scopePinnedClient,
+			kind:          types.KindDatabase,
+			expectFailure: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := tc.client.NewWatcher(t.Context(), types.Watch{Kinds: []types.WatchKind{
+				{Kind: tc.kind},
+			}})
+			require.NoError(t, err)
+
+			select {
+			case <-w.Done():
+				require.True(t, tc.expectFailure, "expected watcher to fail")
+			case <-w.Events():
+				require.False(t, tc.expectFailure, "expected watcher to succeed")
+				w.Close()
 			}
 		})
 	}

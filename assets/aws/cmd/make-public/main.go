@@ -102,7 +102,7 @@ func main() {
 					}
 
 					// Mark the AMI as public
-					log.Printf("Marking %s as public", ami)
+					log.Printf("Marking %s as public (region: %s, arch: %s, edition: %s, FIPS: %s)", ami, region, arch, edition, fips)
 					_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
 						ImageId:   aws.String(ami),
 						Attribute: aws.String("launchPermission"),

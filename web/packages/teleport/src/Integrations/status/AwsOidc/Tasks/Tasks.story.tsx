@@ -46,20 +46,18 @@ export function TasksEmpty() {
     </MockAwsOidcStatusProvider>
   );
 }
-TasksEmpty.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationUserTasksListUrl(integrationName, TaskState.Open),
-        () => {
-          return HttpResponse.json({
-            items: [],
-            nextKey: '1',
-          });
-        }
-      ),
-    ],
-  },
+TasksEmpty.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getIntegrationUserTasksListUrl(integrationName, TaskState.Open),
+      () => {
+        return HttpResponse.json({
+          items: [],
+          nextKey: '1',
+        });
+      }
+    )
+  );
 };
 
 // Populated tasks table
@@ -76,59 +74,58 @@ export function TaskView() {
     </MockAwsOidcStatusProvider>
   );
 }
-TaskView.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationUserTasksListUrl(integrationName, TaskState.Open),
-        () => {
-          return HttpResponse.json({
-            items: [
-              {
-                name: 'rds-detail',
-                taskType: 'discover-rds',
-                state: TaskState.Open,
-                issueType: 'rds-auth-disabled',
-                integration: integrationName,
-                lastStateChange: '2022-02-12T20:32:19.482607921Z',
-                // lib/usertasks/descriptions/rds-iam-auth-disabled.md
-                description: `
-                # IAM Auth disabled
+TaskView.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(
+      cfg.getIntegrationUserTasksListUrl(integrationName, TaskState.Open),
+      () => {
+        return HttpResponse.json({
+          items: [
+            {
+              name: 'rds-detail',
+              taskType: 'discover-rds',
+              state: TaskState.Open,
+              issueType: 'rds-auth-disabled',
+              integration: integrationName,
+              lastStateChange: '2022-02-12T20:32:19.482607921Z',
+              // lib/usertasks/descriptions/rds-iam-auth-disabled.md
+              description: `
+            # IAM Auth disabled
 The Teleport Database Service uses [IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html) to communicate with RDS.
 
 The following RDS databases do not have IAM authentication enabled.
 
 You can enable by modifying the IAM DB Authentication property of the database.
-                `,
-                title: 'rds-auth-disabled',
-                discoverRds: {
-                  databases: {
-                    'i-01568fcc52b7071cd': {
-                      name: 'i-01568fcc52b7071cd',
-                      is_cluster: true,
-                      engine: 'aurora',
-                      discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
-                      discovery_group: 'cloud-discovery-group',
-                      sync_time: {
-                        seconds: -62135596800,
-                      },
-                      resourceUrl:
-                        'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
+            `,
+              title: 'rds-auth-disabled',
+              discoverRds: {
+                databases: {
+                  'i-01568fcc52b7071cd': {
+                    name: 'i-01568fcc52b7071cd',
+                    is_cluster: true,
+                    engine: 'aurora',
+                    discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
+                    discovery_group: 'cloud-discovery-group',
+                    sync_time: {
+                      seconds: -62135596800,
                     },
+                    resourceUrl:
+                      'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
                   },
                 },
               },
-              {
-                name: 'ec2-detail',
-                taskType: 'discover-ec2',
-                state: TaskState.Open,
-                issueType: 'ec2-ssm-invocation-failure',
-                integration: integrationName,
-                lastStateChange: '2025-02-11T20:32:19.482607921Z',
-                title: 'ec2-detail',
-                // lib/usertasks/descriptions/ec2-ssm-invocation-failure.md
-                description: `
-                # SSM Invocation failed
+            },
+            {
+              name: 'ec2-detail',
+              taskType: 'discover-ec2',
+              state: TaskState.Open,
+              issueType: 'ec2-ssm-invocation-failure',
+              integration: integrationName,
+              lastStateChange: '2025-02-11T20:32:19.482607921Z',
+              title: 'ec2-detail',
+              // lib/usertasks/descriptions/ec2-ssm-invocation-failure.md
+              description: `
+            # SSM Invocation failed
 Teleport failed to access the SSM Agent to auto enroll the instance.
 Some instances failed to communicate with the AWS Systems Manager service to execute the install script.
 
@@ -150,52 +147,52 @@ Ensure the following actions are allowed in the IAM Role used by the integration
 Teleport uses an SSM Document to run an installation script.
 If the document is changed or removed, it might no longer work.
 `,
-                discoverEc2: {
-                  instances: {
-                    'i-01568fcc52b7071cd': {
-                      instance_id: 'i-01568fcc52b7071cd',
-                      discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
-                      discovery_group: 'cloud-discovery-group',
-                      sync_time: {
-                        seconds: -62135596800,
-                      },
-                      resourceUrl:
-                        'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
+              discoverEc2: {
+                instances: {
+                  'i-01568fcc52b7071cd': {
+                    instance_id: 'i-01568fcc52b7071cd',
+                    discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
+                    discovery_group: 'cloud-discovery-group',
+                    sync_time: {
+                      seconds: -62135596800,
                     },
-                    'i-019e54b3f58bfa9fd': {
-                      instance_id: 'i-019e54b3f58bfa9fd',
-                      name: 'travis-test-tcp4',
-                      discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
-                      discovery_group: 'cloud-discovery-group',
-                      sync_time: {
-                        seconds: -62135596800,
-                      },
-                      resourceUrl:
-                        'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-019e54b3f58bfa9fd',
+                    resourceUrl:
+                      'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
+                  },
+                  'i-019e54b3f58bfa9fd': {
+                    instance_id: 'i-019e54b3f58bfa9fd',
+                    name: 'travis-test-tcp4',
+                    discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
+                    discovery_group: 'cloud-discovery-group',
+                    sync_time: {
+                      seconds: -62135596800,
                     },
+                    resourceUrl:
+                      'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-019e54b3f58bfa9fd',
                   },
                 },
               },
-              {
-                name: 'no match',
-                state: TaskState.Open,
-                issueType: 'side panel error',
-                integration: integrationName,
-                title: 'no match',
-                lastStateChange: '0',
-                instances: [],
-              },
-              {
-                name: 'eks-detail',
-                taskType: 'discover-eks',
-                state: TaskState.Open,
-                issueType: 'eks-agent-not-connecting',
-                integration: integrationName,
-                lastStateChange: '2025-02-11T20:32:13.61608091Z',
-                title: 'eks-agent-not-connecting',
-                // lib/usertasks/descriptions/eks-agent-not-connecting.md
-                description: `
-                # Teleport Agent not connecting
+            },
+            {
+              name: 'no match',
+              state: TaskState.Open,
+              issueType: 'side panel error',
+              integration: integrationName,
+              title: 'no match',
+              lastStateChange: '0',
+              instances: [],
+            },
+            {
+              name: 'eks-detail',
+              taskType: 'discover-eks',
+              state: TaskState.Open,
+              issueType: 'eks-agent-not-connecting',
+              integration: integrationName,
+              lastStateChange: '2025-02-11T20:32:13.61608091Z',
+              title: 'eks-agent-not-connecting',
+              // lib/usertasks/descriptions/eks-agent-not-connecting.md
+              description: `
+            # Teleport Agent not connecting
 The process of automatically enrolling EKS Clusters into Teleport, starts by installing the [\`teleport-kube-agent\`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/) to the cluster.
 
 If the installation is successful, the EKS Cluster will appear in your Resources list.
@@ -205,37 +202,36 @@ This usually happens when the installation is taking too long or there was an er
 
 Open the Teleport Agent to get more information.
 `,
-                discoverEks: {
-                  clusters: {
-                    'i-01568fcc52b7071cd': {
-                      name: 'i-01568fcc52b7071cd',
-                      discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
-                      discovery_group: 'cloud-discovery-group',
-                      sync_time: {
-                        seconds: -62135596800,
-                      },
-                      resourceUrl:
-                        'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
+              discoverEks: {
+                clusters: {
+                  'i-01568fcc52b7071cd': {
+                    name: 'i-01568fcc52b7071cd',
+                    discovery_config: 'ee2f2480-09d3-4409-80f5-183549706446',
+                    discovery_group: 'cloud-discovery-group',
+                    sync_time: {
+                      seconds: -62135596800,
                     },
+                    resourceUrl:
+                      'https://console.aws.amazon.com/ec2/home?region=us-east-2#InstanceDetails:instanceId=i-01568fcc52b7071cd',
                   },
                 },
               },
-            ],
-            nextKey: '1',
-          });
-        }
-      ),
-      http.get(cfg.getUserTaskUrl('ec2-detail'), () => {
-        return HttpResponse.json(ec2Detail);
-      }),
-      http.get(cfg.getUserTaskUrl('rds-detail'), () => {
-        return HttpResponse.json(rdsDetail);
-      }),
-      http.get(cfg.getUserTaskUrl('eks-detail'), () => {
-        return HttpResponse.json(eksDetail);
-      }),
-    ],
-  },
+            },
+          ],
+          nextKey: '1',
+        });
+      }
+    ),
+    http.get(cfg.getUserTaskUrl('ec2-detail'), () => {
+      return HttpResponse.json(ec2Detail);
+    }),
+    http.get(cfg.getUserTaskUrl('rds-detail'), () => {
+      return HttpResponse.json(rdsDetail);
+    }),
+    http.get(cfg.getUserTaskUrl('eks-detail'), () => {
+      return HttpResponse.json(eksDetail);
+    })
+  );
 };
 
 const ec2Detail = {

@@ -837,6 +837,288 @@ func TestSummarizerService_AllInferencePolicies(t *testing.T) {
 	}
 }
 
+func newClassifier(name string) *summarizerv1.Classifier {
+	return summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+		Kinds:    []string{string(types.SSHSessionKind)},
+		Criteria: "sessions that touch production data",
+	}.Build())
+}
+
+func TestSummarizerService_CreateClassifier(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		want := newClassifier("dummy-classifier")
+		got, err := service.CreateClassifier(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.Classifier),
+		)
+		require.NoError(t, err)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+	})
+	t.Run("invalid criteria", func(t *testing.T) {
+		c := newClassifier("invalid-classifier")
+		c.GetSpec().SetCriteria("")
+		_, err := service.CreateClassifier(
+			ctx,
+			proto.Clone(c).(*summarizerv1.Classifier),
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "spec.criteria is required")
+	})
+	t.Run("invalid filter", func(t *testing.T) {
+		c := newClassifier("invalid-classifier")
+		c.GetSpec().SetFilter("$%^@$")
+		_, err := service.CreateClassifier(
+			ctx,
+			proto.Clone(c).(*summarizerv1.Classifier),
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
+	})
+	t.Run("no upsert", func(t *testing.T) {
+		res := newClassifier("no-upsert")
+		_, err := service.CreateClassifier(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(res).(*summarizerv1.Classifier),
+		)
+		require.NoError(t, err)
+		_, err = service.CreateClassifier(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(res).(*summarizerv1.Classifier),
+		)
+		require.Error(t, err)
+		assert.True(t, trace.IsAlreadyExists(err))
+	})
+}
+
+func TestSummarizerService_UpsertClassifier(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	want := newClassifier("dummy-classifier")
+	got, err := service.UpsertClassifier(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.Classifier),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
+	assert.Empty(t, cmp.Diff(
+		want,
+		got,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+	))
+
+	// Ensure we can upsert over an existing resource
+	_, err = service.UpsertClassifier(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.Classifier),
+	)
+	require.NoError(t, err)
+}
+
+func TestSummarizerService_ListClassifiers(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+	// Create entities to list
+	createdObjects := []*summarizerv1.Classifier{}
+	// Create 49 entities to test an incomplete page at the end.
+	for i := range 49 {
+		created, err := service.CreateClassifier(
+			ctx,
+			newClassifier(fmt.Sprintf("classifier-%d", i)),
+		)
+		require.NoError(t, err)
+		createdObjects = append(createdObjects, created)
+	}
+	t.Run("default page size", func(t *testing.T) {
+		page, nextToken, err := service.ListClassifiers(ctx, 0, "")
+		require.NoError(t, err)
+		assert.Len(t, page, 49)
+		assert.Empty(t, nextToken)
+
+		// Expect that we get all the things we have created
+		for _, created := range createdObjects {
+			assert.True(t, slices.ContainsFunc(page, func(classifier *summarizerv1.Classifier) bool {
+				return proto.Equal(created, classifier)
+			}))
+		}
+	})
+	t.Run("pagination", func(t *testing.T) {
+		fetched := []*summarizerv1.Classifier{}
+		token := ""
+		iterations := 0
+		for {
+			iterations++
+			page, nextToken, err := service.ListClassifiers(ctx, 10, token)
+			require.NoError(t, err)
+			fetched = append(fetched, page...)
+			if nextToken == "" {
+				break
+			}
+			token = nextToken
+		}
+		assert.Equal(t, 5, iterations)
+
+		assert.Len(t, fetched, 49)
+		// Expect that we get all the things we have created
+		for _, created := range createdObjects {
+			assert.True(t, slices.ContainsFunc(fetched, func(classifier *summarizerv1.Classifier) bool {
+				return proto.Equal(created, classifier)
+			}))
+		}
+	})
+}
+
+func TestSummarizerService_GetClassifier(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		want := newClassifier("dummy-classifier")
+		_, err := service.CreateClassifier(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.Classifier),
+		)
+		require.NoError(t, err)
+		got, err := service.GetClassifier(ctx, "dummy-classifier")
+		require.NoError(t, err)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+	})
+	t.Run("not found", func(t *testing.T) {
+		_, err := service.GetClassifier(ctx, "foobar")
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+}
+
+func TestSummarizerService_DeleteClassifier(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		_, err := service.CreateClassifier(
+			ctx,
+			newClassifier("dummy-classifier"),
+		)
+		require.NoError(t, err)
+
+		_, err = service.GetClassifier(ctx, "dummy-classifier")
+		require.NoError(t, err)
+
+		err = service.DeleteClassifier(ctx, "dummy-classifier")
+		require.NoError(t, err)
+
+		_, err = service.GetClassifier(ctx, "dummy-classifier")
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+	t.Run("not found", func(t *testing.T) {
+		err := service.DeleteClassifier(ctx, "foobar")
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+}
+
+func TestSummarizerService_UpdateClassifier(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		// Create resource for us to Update since we can't update a non-existent resource.
+		created, err := service.CreateClassifier(
+			ctx,
+			newClassifier("dummy-classifier"),
+		)
+		require.NoError(t, err)
+		want := proto.Clone(created).(*summarizerv1.Classifier)
+		want.GetSpec().SetKinds([]string{string(types.SSHSessionKind), string(types.DatabaseSessionKind)})
+
+		updated, err := service.UpdateClassifier(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.Classifier),
+		)
+		require.NoError(t, err)
+		assert.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
+		assert.Empty(t, cmp.Diff(
+			want,
+			updated,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+
+		got, err := service.GetClassifier(ctx, "dummy-classifier")
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+		assert.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
+	})
+	t.Run("no create", func(t *testing.T) {
+		_, err := service.UpdateClassifier(
+			ctx,
+			newClassifier("non-existing-classifier"),
+		)
+		require.Error(t, err)
+	})
+}
+
+func TestSummarizerService_RangeClassifiers(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+	// Create entities to retrieve
+	createdObjects := []*summarizerv1.Classifier{}
+	for i := range 5 {
+		created, err := service.CreateClassifier(
+			ctx,
+			newClassifier(fmt.Sprintf("classifier-%d", i)),
+		)
+		require.NoError(t, err)
+		createdObjects = append(createdObjects, created)
+	}
+
+	fetched := []*summarizerv1.Classifier{}
+	for classifier, err := range service.RangeClassifiers(ctx, "", "") {
+		require.NoError(t, err)
+		fetched = append(fetched, classifier)
+	}
+	assert.Len(t, fetched, 5)
+
+	// Expect that we get all the things we have created
+	for _, created := range createdObjects {
+		assert.True(t, slices.ContainsFunc(fetched, func(classifier *summarizerv1.Classifier) bool {
+			return proto.Equal(created, classifier)
+		}))
+	}
+
+	// A bounded range returns only the resources within it, excluding the end.
+	bounded := []*summarizerv1.Classifier{}
+	for classifier, err := range service.RangeClassifiers(ctx, "classifier-1", "classifier-3") {
+		require.NoError(t, err)
+		bounded = append(bounded, classifier)
+	}
+	require.Len(t, bounded, 2)
+	assert.Equal(t, "classifier-1", bounded[0].GetMetadata().GetName())
+	assert.Equal(t, "classifier-2", bounded[1].GetMetadata().GetName())
+}
+
 func newRetrievalModel() *summarizerv1.RetrievalModel {
 	return summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
 		Openai: summarizerv1.OpenAIProvider_builder{

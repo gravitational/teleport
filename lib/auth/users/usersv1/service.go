@@ -67,26 +67,28 @@ type Backend interface {
 // ServiceConfig holds configuration options for
 // the users gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      Cache
-	Backend    Backend
-	Logger     *slog.Logger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            Cache
+	Backend          Backend
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.users.v1.UsersService RPC service.
 type Service struct {
 	userspb.UnimplementedUsersServiceServer
 
-	authorizer authz.Authorizer
-	cache      Cache
-	backend    Backend
-	logger     *slog.Logger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            Cache
+	backend          Backend
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
 
 // NewService returns a new users gRPC service.
@@ -98,6 +100,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
@@ -112,37 +116,53 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		emitter:    cfg.Emitter,
-		reporter:   cfg.Reporter,
-		clock:      cfg.Clock,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		emitter:          cfg.Emitter,
+		reporter:         cfg.Reporter,
+		clock:            cfg.Clock,
 	}, nil
 }
 
 // currentUserAction is a special checker that allows certain actions for users
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
-func currentUserAction(authzContext authz.Context, username string) error {
-	if authz.IsLocalUser(authzContext) && username == authzContext.User.GetName() {
+func currentUserAction(scopedCtx *authz.ScopedContext, username string) error {
+	if authz.ScopedIsCurrentUser(scopedCtx, username) {
 		return nil
 	}
-	return authzContext.Checker.CheckAccessToRule(&services.Context{User: authzContext.User},
+
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		return trace.AccessDenied("scoped users can not create other users")
+	}
+
+	if authz.IsCurrentUser(*unscopedCtx, username) {
+		return nil
+	}
+
+	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: unscopedCtx.User},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
-func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*types.UserV2, error) {
+func (s *Service) getCurrentUser(ctx context.Context, scopedCtx *authz.ScopedContext) (*types.UserV2, error) {
+	// scopedCtx.User can be nil in the case of a scopedCtx built on authz.ScopedBuiltinRole
+	if scopedCtx.User == nil {
+		return nil, trace.BadParameter("expected a current authenticated user, identity likely a builtin system role")
+	}
+
 	// check access to roles
-	for _, role := range authCtx.User.GetRoles() {
+	for _, role := range scopedCtx.User.GetRoles() {
 		_, err := s.cache.GetRole(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	withoutSecrets := authCtx.User.WithoutSecrets()
+	withoutSecrets := scopedCtx.User.WithoutSecrets()
 	user, ok := withoutSecrets.(types.User)
 	if !ok {
 		return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", withoutSecrets)
@@ -157,21 +177,25 @@ func (s *Service) getCurrentUser(ctx context.Context, authCtx *authz.Context) (*
 }
 
 func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*userspb.GetUserResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	scopedCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if req.GetName() == "" && req.GetCurrentUser() {
-		user, err := s.getCurrentUser(ctx, authCtx)
+		user, err := s.getCurrentUser(ctx, scopedCtx)
 		return userspb.GetUserResponse_builder{User: user}.Build(), trace.Wrap(err)
 	}
 
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
 	if req.GetWithSecrets() {
+		if !isUnscoped {
+			return nil, trace.AccessDenied("this request can only be executed by an unscoped admin")
+		}
 		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
 		// migrated to that model.
-		if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-			err := trace.AccessDenied("user %q requested access to user %q with secrets", authCtx.User.GetName(), req.GetName())
+		if !authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)) {
+			err := trace.AccessDenied("user %q requested access to user %q with secrets", unscopedCtx.User.GetName(), req.GetName())
 			s.logger.WarnContext(ctx, "user does not have permission to read user with secrets", "error", err)
 			if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
@@ -187,14 +211,14 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 			}); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
 			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
+			return nil, trace.AccessDenied("this request can only be executed by an admin")
 		}
 	} else {
 		// if secrets are not being accessed, let users always read
 		// their own info.
-		if err := currentUserAction(*authCtx, req.GetName()); err != nil {
-			// not current user, perform normal permission check.
-			if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
+		if err := currentUserAction(scopedCtx, req.GetName()); err != nil {
+			ruleCtx := scopedCtx.RuleContext()
+			if err := scopedCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadUser, &ruleCtx); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}

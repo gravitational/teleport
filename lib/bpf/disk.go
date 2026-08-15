@@ -22,10 +22,12 @@ package bpf
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -34,6 +36,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+)
+
+const (
+	doFilpOpenName = "do_filp_open"
+	doFileOpenName = "do_file_open"
 )
 
 var lostDiskEvents = prometheus.NewCounter(
@@ -71,9 +78,28 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// The disk eBPF program hooks do_file_open by default, which was
+	// renamed from do_filp_open in 7.0. Check if do_file_open is available
+	// and use do_filp_open otherwise; don't rely on the kernel version.
+	attachTarget, err := findOpenAttachTarget()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var objs diskObjects
-	if err := loadDiskObjects(&objs, nil); err != nil {
-		return nil, trace.Wrap(err, "loading disk objects: %v", err)
+	spec, err := loadDisk()
+	if err != nil {
+		return nil, trace.Wrap(err, "reading disk objects")
+	}
+
+	p, ok := spec.Programs["do_file_open_exit"]
+	if !ok {
+		return nil, trace.NotFound("do_file_open_exit not found in disk objects")
+	}
+	p.AttachTo = attachTarget
+
+	if err := spec.LoadAndAssign(&objs, nil); err != nil {
+		return nil, trace.Wrap(err, "loading disk objects")
 	}
 
 	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostDiskEvents)
@@ -91,7 +117,7 @@ func startOpen(bufferSize int) (*open, error) {
 			attachType: ebpf.AttachTraceFEntry,
 		},
 		{
-			prog:       objs.DoFilpOpenExit,
+			prog:       objs.DoFileOpenExit,
 			attachType: ebpf.AttachTraceFExit,
 		},
 	}
@@ -122,6 +148,27 @@ func startOpen(bufferSize int) (*open, error) {
 	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf) })
 
 	return o, nil
+}
+
+func findOpenAttachTarget() (string, error) {
+	kspec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return "", trace.Wrap(err, "loading kernel BTF spec")
+	}
+
+	for _, target := range []string{doFileOpenName, doFilpOpenName} {
+		var fn *btf.Func
+		if err := kspec.TypeByName(target, &fn); err != nil {
+			if errors.Is(err, btf.ErrNotFound) {
+				continue
+			}
+			return "", trace.Wrap(err, "finding %s", target)
+		}
+
+		return target, nil
+	}
+
+	return "", trace.NotFound("do_file_open and do_filp_open not found in kernel BTF spec")
 }
 
 func (o *open) startSession(auditSessionID uint32) error {

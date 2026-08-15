@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	libboundkeypair "github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
@@ -68,6 +70,12 @@ func (s *Server) handleBoundKeypairJoin(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Validate the requested SystemRole with the payload the client sent.
+	if err := boundKeypairInit.ClientParams.CheckForRole(types.SystemRole(clientInit.SystemRole)); err != nil {
+		return nil, trace.Wrap(err, "validating client parameters")
+	}
+	setDiagnosticClientParams(stream.Diagnostic(), &boundKeypairInit.ClientParams)
+
 	issueChallenge := func(challenge *messages.BoundKeypairChallenge) (*messages.BoundKeypairChallengeSolution, error) {
 		if err := stream.Send(challenge); err != nil {
 			return nil, trace.Wrap(err)
@@ -82,13 +90,19 @@ func (s *Server) handleBoundKeypairJoin(
 		rotationResp, err := messages.RecvRequest[*messages.BoundKeypairRotationResponse](stream)
 		return rotationResp, trace.Wrap(err)
 	}
-	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
+	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims *libboundkeypair.Claims) (*messages.Certificates, string, error) {
+		var workloadIDAttrs *workloadidentityv1.JoinAttrs
+		if claims != nil {
+			workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
+				BoundKeypair: claims.JoinAttrs(),
+			}.Build()
+		}
 		botCertsParams, err := makeBotCertsParams(
 			diag,
 			authCtx,
 			boundKeypairInit.ClientParams.BotParams,
 			claims,
-			nil, // TODO(timothyb89): workload id claims
+			workloadIDAttrs,
 		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -98,6 +112,9 @@ func (s *Server) handleBoundKeypairJoin(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -121,6 +138,9 @@ func (s *Server) handleBoundKeypairJoin(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.HostID = certsParams.HostID
+		})
 		certificates, err := convertCerts(certs)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -207,7 +227,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		// The legacy join service does not support scoped tokens, so the bot
+		// scope here is always empty.
+		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {
 		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
@@ -230,13 +252,19 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		PreviousJoinState: req.PreviousJoinState,
 	}
 
-	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
+	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims *libboundkeypair.Claims) (*messages.Certificates, string, error) {
+		var workloadIDAttrs *workloadidentityv1.JoinAttrs
+		if claims != nil {
+			workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
+				BoundKeypair: claims.JoinAttrs(),
+			}.Build()
+		}
 		botCertsParams, err := makeBotCertsParams(
 			diag,
 			authCtx,
 			clientParams.BotParams,
 			claims,
-			nil, // TODO(timothyb89): workload id claims
+			workloadIDAttrs,
 		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -246,6 +274,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -287,6 +318,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		handleJoinSuccess(ctx, a, diag)
 		return &client.BoundKeypairRegistrationResponse{
 			Certs:          certs,
 			BoundPublicKey: string(result.BoundKeypairResult.PublicKey),

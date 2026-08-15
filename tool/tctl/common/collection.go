@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,35 +59,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, tunnel := range r.tunnels {
 		t.AddRow([]string{
 			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type trustedClusterCollection struct {
-	trustedClusters []types.TrustedCluster
-}
-
-func (c *trustedClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.trustedClusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{
-		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map",
-	})
-	for _, tc := range c.trustedClusters {
-		t.AddRow([]string{
-			tc.GetName(),
-			strconv.FormatBool(tc.GetEnabled()),
-			tc.GetToken(),
-			tc.GetProxyAddress(),
-			tc.GetReverseTunnelAddress(),
-			fmt.Sprintf("%v", tc.CombinedMapping()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -267,37 +236,6 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type integrationCollection struct {
-	integrations []types.Integration
-}
-
-func (c *integrationCollection) Resources() (r []types.Resource) {
-	for _, ig := range c.integrations {
-		r = append(r, ig)
-	}
-	return r
-}
-
-func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
-	sort.Sort(types.Integrations(c.integrations))
-	var rows [][]string
-	for _, ig := range c.integrations {
-		specProps := []string{}
-		switch ig.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
-		}
-
-		rows = append(rows, []string{
-			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
-		})
-	}
-	headers := []string{"Name", "Type", "Spec"}
-	t := asciitable.MakeTable(headers, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

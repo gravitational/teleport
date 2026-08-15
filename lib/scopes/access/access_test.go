@@ -37,6 +37,21 @@ import (
 func TestValidateRole(t *testing.T) {
 	t.Parallel()
 
+	wildcardKubeResources := []*scopedaccessv1.KubeResource{
+		scopedaccessv1.KubeResource_builder{
+			Kind:      "*",
+			Namespace: "*",
+			Name:      "*",
+			ApiGroup:  "*",
+			Verbs:     []string{"*"},
+		}.Build(),
+	}
+	wildcardLabels := []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   "*",
+			Values: []string{"*"},
+		}.Build(),
+	}
 	tts := []struct {
 		name     string
 		role     *scopedaccessv1.ScopedRole
@@ -288,6 +303,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels:            wildcardLabels,
 						ClientIdleTimeout: "not-a-duration",
 					}.Build(),
 				}.Build(),
@@ -326,6 +342,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						HostUserCreation: scopedaccessv1.CreateHostUser_builder{
 							Mode: "invalid-mode",
 						}.Build(),
@@ -347,6 +364,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						HostUserCreation: scopedaccessv1.CreateHostUser_builder{
 							Mode: "keep",
 						}.Build(),
@@ -368,6 +386,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels:      wildcardLabels,
 						MaxSessions: proto.Int64(-1),
 					}.Build(),
 				}.Build(),
@@ -387,6 +406,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels:      wildcardLabels,
 						MaxSessions: proto.Int64(1),
 					}.Build(),
 				}.Build(),
@@ -460,6 +480,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: "blah",
 						}.Build(),
@@ -478,10 +499,28 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
 						}.Build(),
 					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh without labels",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh:              scopedaccessv1.ScopedRoleSSH_builder{}.Build(),
 				}.Build(),
 				Version: types.V1,
 			}.Build(),
@@ -497,6 +536,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: string(constants.SessionRecordingModeStrict),
 						}.Build(),
@@ -515,6 +555,7 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
 						}.Build(),
@@ -537,9 +578,48 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Labels: wildcardLabels,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
 						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "ssh block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						LabelExpression: `labels["env"] ==`,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh block with label expression only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						LabelExpression: `labels["env"] == "staging"`,
 					}.Build(),
 				}.Build(),
 				Version: types.V1,
@@ -558,6 +638,8 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Labels:    wildcardLabels,
+						Resources: wildcardKubeResources,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
 						}.Build(),
@@ -579,6 +661,8 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Labels:    wildcardLabels,
+						Resources: wildcardKubeResources,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
 						}.Build(),
@@ -600,6 +684,8 @@ func TestValidateRole(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
 					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Labels:    wildcardLabels,
+						Resources: wildcardKubeResources,
 						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
 						}.Build(),
@@ -673,6 +759,677 @@ func TestValidateRole(t *testing.T) {
 			strongOk: true,
 			weakOk:   true,
 		},
+		{
+			name: "kube block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "app block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "app block with invalid labels",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "{}",
+								Values: []string{"{}"},
+							}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "app block with labels only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "env",
+								Values: []string{"staging"},
+							}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "app block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] ==`,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "empty App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: "",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "test",
+								Values: []string{"test"},
+							}.Build(),
+						},
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: "invalid",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid app.client_idle_timeout",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
+						ClientIdleTimeout: "not-a-duration",
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid app.client_idle_timeout",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
+						ClientIdleTimeout: "1h",
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "valid workload_identity rule",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     EncodeScopedVerbs(Create, Update, Delete, List, Read),
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with secret read verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     EncodeScopedVerbs(Read, Secrets),
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with unsupported verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid workload_identity label name",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{Name: "env^", Values: []string{"prod"}}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid workload_identity label value",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{Name: "env", Values: []string{"pr$od"}}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube without labels",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: wildcardKubeResources,
+						Groups:    []string{"cluster-admin"},
+						Users:     []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						LabelExpression: `labels["env"] ==`,
+						Resources:       wildcardKubeResources,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube block with label expression only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Resources:       wildcardKubeResources,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "kube without resources",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource missing kind",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting wildcard api group for singular resource kind",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "pod",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting legacy api group for singular resource kind",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      types.KindKubeDeployment,
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "apps",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting empty api group for non-core resource",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "apps",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting empty namespace for namespaced kind/api_group combo",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "deployments",
+								Name:      "*",
+								Namespace: "",
+								ApiGroup:  "apps",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting wildcard verb with any other verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*", "get"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting unrecognized verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"scopify"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube with resource setting interpolated verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Name:      "*",
+								Namespace: "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"{{internal.verb}}"},
+							}.Build(),
+						},
+						Labels: wildcardLabels,
+						Groups: []string{"cluster-admin"},
+						Users:  []string{"cluster-user"},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
 	}
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
@@ -715,7 +1472,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -738,7 +1495,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -758,7 +1515,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -779,7 +1536,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -801,7 +1558,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -823,7 +1580,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -846,7 +1603,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -856,26 +1613,26 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "malformed name - long name",
+			name: "name longer than max segment size",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: headerv1.Metadata_builder{
-					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					Name: "thisisaverylongnameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
 				}.Build(),
 				Version: types.V1,
 			}.Build(),
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
@@ -890,7 +1647,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -913,7 +1670,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "foo::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -936,7 +1693,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "foo@bar::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -959,7 +1716,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/foo/bar::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -982,7 +1739,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "foo",
 						}.Build(),
 					},
@@ -1004,7 +1761,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/",
 						}.Build(),
 					},
@@ -1027,7 +1784,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1047,11 +1804,10 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/bar/child",
 						}.Build(),
 					},
@@ -1062,7 +1818,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_name and user both set",
+			name: "bot and user both set",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1071,12 +1827,11 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					User:     "alice",
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					User: "alice",
+					Bot:  "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1087,7 +1842,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_name without bot_scope",
+			name: "bot missing scope qualification",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1096,10 +1851,10 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName: "mybot",
+					Bot: "mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1110,7 +1865,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_scope without bot_name",
+			name: "bot with empty name component",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1119,11 +1874,10 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					User:     "alice",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1134,7 +1888,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "invalid bot_scope",
+			name: "invalid bot scope",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1143,11 +1897,10 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "not-a-scope",
+					Bot: "not-a-scope::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1167,17 +1920,16 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						// Valid
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/bar",
 						}.Build(),
 						// Invalid
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/baz",
 						}.Build(),
 					},
@@ -1276,21 +2028,21 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1300,21 +2052,21 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1324,17 +2076,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo@bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1344,17 +2096,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo/bar",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/bar",
 				}.Build(),
 			},
@@ -1364,17 +2116,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1384,7 +2136,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
@@ -1394,7 +2146,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 			},
@@ -1506,7 +2258,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 		Rules: []*scopedaccessv1.ScopedRule{
 			scopedaccessv1.ScopedRule_builder{
 				Resources: []string{KindScopedRole},
-				Verbs:     []string{types.VerbReadNoSecrets},
+				Verbs:     EncodeScopedVerbs(Read),
 			}.Build(),
 		},
 		Ssh: scopedaccessv1.ScopedRoleSSH_builder{
@@ -1514,6 +2266,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+			LabelExpression:     `contains(labels["env"], "prod")`,
 			ClientIdleTimeout:   "1h",
 			PermitX11Forwarding: proto.Bool(true),
 			FileCopy:            proto.Bool(true),
@@ -1548,6 +2301,32 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+			LabelExpression: `contains(labels["env"], "prod")`,
+			Resources: []*scopedaccessv1.KubeResource{
+				scopedaccessv1.KubeResource_builder{
+					Kind:      "pods",
+					Namespace: "default",
+					Name:      "*",
+					ApiGroup:  "*",
+					Verbs:     []string{"get"},
+				}.Build(),
+			},
+			ClientIdleTimeout:     "1h",
+			DisconnectExpiredCert: ptr(true),
+			Lock: scopedaccessv1.Lock_builder{
+				Mode: "strict",
+			}.Build(),
+		}.Build(),
+		WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+		}.Build(),
+		App: scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+			LabelExpression:       `contains(labels["env"], "prod")`,
 			ClientIdleTimeout:     "1h",
 			DisconnectExpiredCert: ptr(true),
 			Lock: scopedaccessv1.Lock_builder{

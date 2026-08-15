@@ -49,8 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 func init() {
@@ -155,34 +153,6 @@ func (r *record) updates() []firestore.Update {
 	}
 }
 
-// legacyRecord is an older version of record used to marshal backend.Items.
-// The only difference is the Value field: string (legacy) vs []byte (new).
-//
-// Firestore encoder enforces string fields to be valid UTF-8, which Go does
-// not. Some data we store have binary values.
-// Firestore decoder will not transparently unmarshal string records into
-// []byte fields for us, so we have to do it manually.
-// See newRecordFromDoc below.
-type legacyRecord struct {
-	Key       string `firestore:"key,omitempty"`
-	Timestamp int64  `firestore:"timestamp,omitempty"`
-	Expires   int64  `firestore:"expires,omitempty"`
-	Value     string `firestore:"value,omitempty"`
-}
-
-type brokenKey []byte
-
-// brokenRecord is an incorrect version of record used to marshal backend.Items.
-// The Key type was inadvertently changed from a []byte to backend.Key which
-// causes problems reading existing data prior to the conversion.
-type brokenRecord struct {
-	Key        brokenKey `firestore:"key,omitempty"`
-	Timestamp  int64     `firestore:"timestamp,omitempty"`
-	Expires    int64     `firestore:"expires,omitempty"`
-	Value      []byte    `firestore:"value,omitempty"`
-	RevisionV2 string    `firestore:"revision,omitempty"`
-}
-
 func newRecord(from backend.Item, clock clockwork.Clock) record {
 	r := record{
 		Key:       []byte(from.Key.String()),
@@ -202,46 +172,10 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 	return r
 }
 
-// TODO(tigrato|rosstimothy): Simplify this function by removing the brokenRecord and legacyRecord struct in 19.0.0
 func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
-	k, err := doc.DataAt(keyDocProperty)
-	if err != nil {
-		return nil, ConvertGRPCError(err)
-	}
-
 	var r record
-	switch k.(type) {
-	case []any:
-		// If the key is a slice of any, then the key was mistakenly persisted
-		// as a backend.Key directly.
-		var br brokenRecord
-		if err := doc.DataTo(&br); err != nil {
-			return nil, ConvertGRPCError(err)
-		}
-
-		r = record{
-			Key:        br.Key,
-			Value:      br.Value,
-			Timestamp:  br.Timestamp,
-			Expires:    br.Expires,
-			RevisionV2: br.RevisionV2,
-		}
-	default:
-		if err := doc.DataTo(&r); err != nil {
-			// If unmarshal failed, try using the old format of records, where
-			// Value was a string. This document could've been written by an older
-			// version of our code.
-			var rl legacyRecord
-			if legacyErr := doc.DataTo(&rl); legacyErr != nil {
-				return nil, trace.NewAggregate(ConvertGRPCError(err), ConvertGRPCError(legacyErr))
-			}
-			r = record{
-				Key:       []byte(rl.Key),
-				Value:     []byte(rl.Value),
-				Timestamp: rl.Timestamp,
-				Expires:   rl.Expires,
-			}
-		}
+	if err := doc.DataTo(&r); err != nil {
+		return nil, ConvertGRPCError(err)
 	}
 
 	r.snapShot = doc
@@ -439,26 +373,6 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 		go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.logger.With("task_name", "purged_expired_documents"), b.purgeExpiredDocuments)
 	}
 
-	// Migrate incorrect key types to the correct type.
-	// TODO(tigrato|rosstimothy): DELETE in 19.0.0
-	go func() {
-		migrationInterval := interval.New(interval.Config{
-			Duration:      time.Hour * 12,
-			FirstDuration: retryutils.FullJitter(time.Minute * 5),
-			Jitter:        retryutils.SeventhJitter,
-			Clock:         b.clock,
-		})
-		defer migrationInterval.Stop()
-		for {
-			select {
-			case <-migrationInterval.Next():
-				b.migrateIncorrectKeyTypes()
-			case <-b.clientContext.Done():
-				return
-			}
-		}
-	}()
-
 	l.InfoContext(b.clientContext, "Backend created.")
 
 	return b, nil
@@ -525,28 +439,11 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	legacyDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", startKey.String()).
-		Where(keyDocProperty, "<=", endKey.String()).
-		Limit(limit).
-		Documents(ctx).GetAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	brokenDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", brokenKey(startKey.String())).
-		Where(keyDocProperty, "<=", brokenKey(endKey.String())).
-		Limit(limit).
-		Documents(ctx).GetAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	allDocs := append(append(docs, legacyDocs...), brokenDocs...)
-	if len(allDocs) >= backend.DefaultRangeLimit {
+	if len(docs) >= backend.DefaultRangeLimit {
 		b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
-	return allDocs, nil
+	return docs, nil
 }
 
 func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
@@ -577,7 +474,13 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 			}
 		}()
 
-		for r, err := range b.mergedRecords(ctx, params.StartKey.String(), params.EndKey.String(), limit, sort) {
+		snaps := records(b.svc.Collection(b.CollectionName).
+			Where(keyDocProperty, ">=", []byte(params.StartKey.String())).
+			Where(keyDocProperty, "<=", []byte(params.EndKey.String())).
+			Limit(limit).
+			OrderBy(keyDocProperty, sort).
+			Documents(ctx))
+		for r, err := range snaps {
 			if err != nil {
 				yield(backend.Item{}, trace.Wrap(err))
 				return
@@ -613,47 +516,6 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 			count++
 
 			if limit != backend.NoLimit && count >= limit {
-				return
-			}
-		}
-	}
-}
-
-// mergedRecords returns an iterator that aggregates all items in the collection
-// in the desired order. This is required because over the years the key has been
-// stored in three formats. In order to iterate over all keys in the collection in the
-// correct order, documents with keys of all formats need to be considered.
-//
-// TODO(tross|tigrato): DELETE IN V19.0.0 with the background migration
-func (b *Backend) mergedRecords(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*record, error] {
-	return func(yield func(*record, error) bool) {
-		snaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", []byte(startKey)).
-			Where(keyDocProperty, "<=", []byte(endKey)).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		legacySnaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", startKey).
-			Where(keyDocProperty, "<=", endKey).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		brokenSnaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", brokenKey(startKey)).
-			Where(keyDocProperty, "<=", brokenKey(endKey)).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		less := func(a, b *record) bool {
-			return bytes.Compare(a.Key, b.Key) < 0
-		}
-
-		for snap, err := range stream.MergeStreams(stream.MergeStreams(brokenSnaps, legacySnaps, less), snaps, less) {
-			if !yield(snap, err) || err != nil {
 				return
 			}
 		}

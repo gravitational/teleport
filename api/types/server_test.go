@@ -898,3 +898,71 @@ func TestServerGetLabel(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "static", val)
 }
+
+func TestServerAzureLabels(t *testing.T) {
+	tests := []struct {
+		name          string
+		visibleKey    string
+		internalKey   string
+		visibleValue  string
+		internalValue string
+		getter        func(Server) string
+	}{
+		{
+			name:          "VM ID",
+			visibleKey:    VMIDLabel,
+			internalKey:   VMIDLabelInternal,
+			visibleValue:  "visible-vm-id",
+			internalValue: "internal-vm-id",
+			getter:        GetAzureVMID,
+		},
+		{
+			name:          "subscription ID",
+			visibleKey:    SubscriptionIDLabel,
+			internalKey:   SubscriptionIDLabelInternal,
+			visibleValue:  "visible-subscription-id",
+			internalValue: "internal-subscription-id",
+			getter:        GetAzureSubscriptionID,
+		},
+		{
+			name:          "region",
+			visibleKey:    RegionLabel,
+			internalKey:   RegionLabelInternal,
+			visibleValue:  "visible-region",
+			internalValue: "internal-region",
+			getter:        GetAzureRegion,
+		},
+		{
+			name:          "resource group",
+			visibleKey:    ResourceGroupLabel,
+			internalKey:   ResourceGroupLabelInternal,
+			visibleValue:  "visible-resource-group",
+			internalValue: "internal-resource-group",
+			getter:        GetAzureResourceGroup,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Run("ignores visible labels", func(t *testing.T) {
+				server := &ServerV2{Metadata: Metadata{Labels: map[string]string{
+					test.visibleKey:  test.visibleValue,
+					test.internalKey: test.internalValue,
+				}}}
+				require.Equal(t, test.internalValue, test.getter(server))
+			})
+
+			t.Run("returns empty with empty labels", func(t *testing.T) {
+				server := &ServerV2{Metadata: Metadata{Labels: map[string]string{}}}
+				require.Empty(t, test.getter(server))
+			})
+
+			t.Run("returns empty without relevant labels", func(t *testing.T) {
+				server := &ServerV2{Metadata: Metadata{Labels: map[string]string{
+					"foo": "bar",
+				}}}
+				require.Empty(t, test.getter(server))
+			})
+		})
+	}
+}

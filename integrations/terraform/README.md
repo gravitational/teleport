@@ -7,24 +7,25 @@ Please refer to the [official documentation](https://goteleport.com/docs/referen
 ## Development
 
 1. Install [`protobuf`](https://grpc.io/docs/protoc-installation/).
-2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v3.1.0.
+2. Install [`Terraform`](https://learn.hashicorp.com/tutorials/terraform/install-cli) v1.1.0+. Alternatively, you can use [`tfenv`](https://github.com/tfutils/tfenv). Please note that on Mac M1 you need to specify `TFENV_ARCH` (ex: `TFENV_ARCH=arm64 tfenv install 1.1.6`).
 
-    ```go install github.com/gravitational/protoc-gen-terraform/v3@v3.1.0```
-
-3. Install [`Terraform`](https://learn.hashicorp.com/tutorials/terraform/install-cli) v1.1.0+. Alternatively, you can use [`tfenv`](https://github.com/tfutils/tfenv). Please note that on Mac M1 you need to specify `TFENV_ARCH` (ex: `TFENV_ARCH=arm64 tfenv install 1.1.6`).
-
-4. Build and install the plugin:
+3. Build and install the plugin:
 
     ```bash
     cd integrations/terraform
     make install
     ```
 
-5. Run tests:
+4. Run tests:
 
     ```bash
     make test
     ```
+
+5. For provider architecture and resource development, see:
+
+    - [Architecture](./ARCHITECTURE.md)
+    - [Contributing resources](./CONTRIBUTING.md)
 
 # Updating the provider
 

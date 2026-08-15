@@ -56,6 +56,7 @@ export const Detective = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-detective"
+
       {...otherProps}
       ref={ref}
     >

@@ -9,6 +9,7 @@ certs/
 data/
 config/*.yaml
 node/*.yaml
+kube/*-kubeconfig
 *.log
 .auth/
 !config/resources/*.yaml

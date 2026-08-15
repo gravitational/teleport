@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	"github.com/gravitational/teleport/api/utils"
@@ -37,7 +38,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
+	member, err := accesslist.NewAccessListMemberWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
 		AccessList: msg.GetSpec().GetAccessList(),
 		Name:       msg.GetSpec().GetName(),
 		Joined:     utils.TimeFromProto(msg.GetSpec().GetJoined()),
@@ -48,7 +49,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
 		MembershipKind:   msg.Spec.MembershipKind.String(),
-	})
+	}, msg.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +66,7 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 	members := make([]*accesslist.AccessListMember, len(msgs))
 	for i, msg := range msgs {
 		var err error
-		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg), WithMemberStatusField(msg))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -87,6 +88,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
+		Scope:  member.Scope,
 		Spec: &accesslistv1.MemberSpec{
 			AccessList:       member.Spec.AccessList,
 			Name:             member.Spec.Name,
@@ -97,7 +99,43 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			IneligibleStatus: ineligibleStatus,
 			MembershipKind:   membershipKind,
 		},
+		Status: toMemberStatusProto(member.Status),
 	}
+}
+
+func toMemberStatusProto(status *accesslist.AccessListMemberStatus) *accesslistv1.MemberStatus {
+	if status == nil {
+		return nil
+	}
+	return &accesslistv1.MemberStatus{
+		Display:        toUserDisplayProtoOrNil(status.Display),
+		AddedByDisplay: toUserDisplayProtoOrNil(status.AddedByDisplay),
+	}
+}
+
+func fromMemberStatusProto(status *accesslistv1.MemberStatus) *accesslist.AccessListMemberStatus {
+	if status == nil {
+		return nil
+	}
+	return &accesslist.AccessListMemberStatus{
+		Display:        fromUserDisplayProtoOrNil(status.GetDisplay()),
+		AddedByDisplay: fromUserDisplayProtoOrNil(status.GetAddedByDisplay()),
+	}
+}
+
+func toUserDisplayProtoOrNil(display *types.UserDisplay) *accesslistv1.UserDisplay {
+	if display == nil {
+		return nil
+	}
+	return ToUserDisplayProto(*display)
+}
+
+func fromUserDisplayProtoOrNil(display *accesslistv1.UserDisplay) *types.UserDisplay {
+	if display == nil {
+		return nil
+	}
+	out := FromUserDisplayProto(display)
+	return &out
 }
 
 // ToMembersProto converts a list of internal access list members into a list of v1 access list members.
@@ -118,5 +156,12 @@ func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOpt
 			ineligibleStatus = protoIneligibleStatus.String()
 		}
 		m.Spec.IneligibleStatus = ineligibleStatus
+	}
+}
+
+// WithMemberStatusField sets the "status" field to the provided proto value.
+func WithMemberStatusField(protoMember *accesslistv1.Member) MemberOption {
+	return func(m *accesslist.AccessListMember) {
+		m.Status = fromMemberStatusProto(protoMember.GetStatus())
 	}
 }

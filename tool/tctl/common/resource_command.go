@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -111,11 +112,9 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindTrustedCluster:      rc.createTrustedCluster,
 		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
 		types.KindDevice:              rc.createDevice,
 		types.KindOktaImportRule:      rc.createOktaImportRule,
-		types.KindIntegration:         rc.createIntegration,
 		types.KindSecurityReport:      rc.createSecurityReport,
 		types.KindCrownJewel:          rc.createCrownJewel,
 		types.KindPlugin:              rc.createPlugin,
@@ -450,40 +449,6 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 	}
 }
 
-// createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	tc, err := services.UnmarshalTrustedCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// check if such cluster already exists:
-	name := tc.GetName()
-	_, err = client.GetTrustedCluster(ctx, name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("trusted cluster %q already exists", name)
-	}
-
-	//nolint:staticcheck // SA1019. UpsertTrustedCluster is deprecated but will
-	// continue being supported for tctl clients.
-	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
-	out, err := client.UpsertTrustedCluster(ctx, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if out.GetName() != tc.GetName() {
-		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
-	}
-	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
-	return nil
-}
-
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
 func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
@@ -593,60 +558,6 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	integration, err := services.UnmarshalIntegration(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
-		}
-
-		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch integration.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
-		case types.IntegrationSubKindGitHub:
-			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		case types.IntegrationSubKindAWSRolesAnywhere:
-			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
-		case types.IntegrationSubKindAzureOIDC:
-			existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
-		default:
-			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
-		}
-
-		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q has been updated\n", integration.GetName())
-		return nil
-	}
-
-	igV1, ok := integration.(*types.IntegrationV1)
-	if !ok {
-		return trace.BadParameter("unexpected Integration type %T", integration)
-	}
-
-	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Integration %q has been created\n", integration.GetName())
-
-	return nil
-}
-
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	sr, err := ParseScopedRef(rc.ref, rc.id)
@@ -723,11 +634,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", ref.Name)
-	case types.KindTrustedCluster:
-		if err = client.DeleteTrustedCluster(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("trusted cluster %q has been deleted\n", ref.Name)
 	case types.KindRemoteCluster:
 		if err = client.DeleteRemoteCluster(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -790,11 +696,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Device %q removed\n", ref.Name)
 
-	case types.KindIntegration:
-		if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q removed\n", ref.Name)
 	case types.KindOktaAssignment:
 		if err := client.OktaClient().DeleteOktaAssignment(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -929,6 +830,19 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
+	// ParseRef splits on '/', so a scope-qualified name given in the single-arg
+	// form arrives with its scope stranded in the name or the sub-kind. Kinds with
+	// only a scoped handler are already rejected below; kinds with both would
+	// otherwise treat it as an unscoped name and match nothing.
+	_, classicFound := resources.Handlers()[ref.Kind]
+	_, scopedFound := resources.ScopedHandlers()[ref.Kind]
+	if classicFound && scopedFound && (scopes.MaybeSQN(ref.Name) || scopes.MaybeSQN(ref.SubKind)) {
+		return nil, trace.BadParameter(
+			"resource type %q does not accept a scope-qualified name in the single-arg '<kind>/<name>' form, try:\n  tctl get %s <scope>::<name>",
+			ref.Kind, ref.Kind,
+		)
+	}
+
 	if handler, found := resources.Handlers()[ref.Kind]; found {
 		coll, err := handler.Get(ctx, client, ref, opts)
 		if err != nil {
@@ -976,25 +890,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		}
 
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case types.KindTrustedCluster:
-		if ref.Name == "" {
-			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
-			trustedClusters, err := clientutils.CollectWithFallback(
-				ctx,
-				client.ListTrustedClusters,
-				client.GetTrustedClusters,
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
-		}
-		trustedCluster, err := client.GetTrustedCluster(ctx, ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
 	case types.KindRemoteCluster:
 		if ref.Name == "" {
 			remoteClusters, err := client.GetRemoteClusters(ctx)
@@ -1169,21 +1064,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		}
 
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindIntegration:
-		if ref.Name != "" {
-			ig, err := client.GetIntegration(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &integrationCollection{integrations: []types.Integration{ig}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.ListIntegrations))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &integrationCollection{integrations: resources}, nil
 	case types.KindSecurityReport:
 		if ref.Name != "" {
 

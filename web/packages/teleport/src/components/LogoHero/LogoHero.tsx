@@ -20,6 +20,7 @@ import { useTheme } from 'styled-components';
 
 import BeamsLogoDark from 'design/assets/images/beams-dark.svg';
 import BeamsLogoLight from 'design/assets/images/beams-light.svg';
+import Box from 'design/Box';
 import Image from 'design/Image';
 
 import cfg from 'teleport/config';
@@ -42,10 +43,10 @@ const beamsLogos = {
 };
 
 export const LogoHero = ({
-  my = '48px',
+  py = '48px',
   customSrc,
 }: {
-  my?: string;
+  py?: string;
   customSrc?: string;
 }) => {
   const theme = useTheme();
@@ -54,6 +55,8 @@ export const LogoHero = ({
     : logoSrc(theme.type);
   const src = customSrc || defaultSrc;
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
+    <Box py={py}>
+      <Image src={src} maxHeight="120px" maxWidth="200px" mx="auto" />
+    </Box>
   );
 };

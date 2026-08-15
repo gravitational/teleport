@@ -17,6 +17,8 @@
  */
 
 import { renderHook } from '@testing-library/react';
+import { PropsWithChildren } from 'react';
+import { MemoryRouter } from 'react-router';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -45,15 +47,19 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
+function Wrapper({ children }: PropsWithChildren) {
+  return <MemoryRouter>{children}</MemoryRouter>;
+}
+
 it('redirect to root on path not matching "/enterprise/saml-idp/sso"', () => {
   jest.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   expect(history.replace).toHaveBeenCalledWith('/web');
 
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue('http://localhost/web/cluster/name/resources');
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   expect(history.replace).toHaveBeenCalledWith('/web');
 });
 
@@ -63,7 +69,7 @@ it('redirect to SAML SSO path on matching "/enterprise/saml-idp/sso"', () => {
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPath.toString());
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   expect(history.push).toHaveBeenCalledWith(samlIdpPath.toString(), true);
 });
 
@@ -72,7 +78,7 @@ it('non-base domain redirects with base domain for a matching "/enterprise/saml-
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPath.toString());
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   const expectedPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
   expect(history.push).toHaveBeenCalledWith(expectedPath.toString(), true);
 });
@@ -82,7 +88,7 @@ it('base domain with different path is redirected to root', async () => {
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(nonSamlIdpPath.toString());
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   expect(history.replace).toHaveBeenCalledWith('/web');
 });
 
@@ -94,7 +100,7 @@ it('invalid session does nothing', async () => {
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPathWithDifferentBase.toString());
   jest.spyOn(session, 'isValid').mockImplementation(() => false);
-  renderHook(() => useLogin());
+  renderHook(() => useLogin(), { wrapper: Wrapper });
   expect(history.replace).not.toHaveBeenCalled();
   expect(history.push).not.toHaveBeenCalled();
 });

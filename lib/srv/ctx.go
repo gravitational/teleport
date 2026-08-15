@@ -300,6 +300,10 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
+	// BotScope is the scope of the Machine ID bot this identity is associated
+	// with, if any.
+	BotScope string
+
 	// JoinToken is the name of the join token used to join this bot identity,
 	// if any, and will not be set for bot instances that joined using the
 	// `token` join method.
@@ -310,6 +314,9 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
+
+	// BeamID is the identifier of the Beam this session was created for.
+	BeamID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -349,8 +356,9 @@ type ServerContext struct {
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
-	// session holds the active session (if there's an active one).
-	session *session
+	// party holds the active party (if there's an active one). This party should have
+	// already passed basic authz checks (e.g. joining permissions).
+	party *party
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -371,6 +379,10 @@ type ServerContext struct {
 
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
+
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string
 
 	// execRequest is the command to be executed within this session context. Do
 	// not get or set this field directly, use (Get|Set)ExecRequest.
@@ -586,13 +598,9 @@ func (c *ServerContext) ID() int {
 //
 // This value is not set until during and after the "shell" / "exec" channel request.
 func (c *ServerContext) SessionID() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.session != nil {
-		return string(c.session.id)
+	if session := c.getSession(); session != nil {
+		return string(session.id)
 	}
-
 	return ""
 }
 
@@ -695,23 +703,32 @@ func (c *ServerContext) GetNewSessionID() rsession.ID {
 	return c.newSessionID
 }
 
-// setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session) {
+// setParty sets the context's party to an active session.
+func (c *ServerContext) setParty(p *party) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.session = sess
+	if c.party != nil {
+		return trace.BadParameter("already party to another session")
+	}
+	c.party = p
+	c.closers = append(c.closers, p)
+	return nil
 }
 
-// getSession returns the context's session
-//
-// The associated session is not set in the server context until a
-// shell / exec channel has been initiated for the session, so out-of-band
-// session requests that can occur before these channel requests should
-// consider fallback mechanisms.
-func (c *ServerContext) getSession() *session {
+// getParty returns the context's party to an active session, if there is one.
+func (c *ServerContext) getParty() *party {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.session
+	return c.party
+}
+
+// getSession returns the session the context's party belongs to, if there is
+// an active party. Callers that don't need the party itself should prefer this.
+func (c *ServerContext) getSession() *session {
+	if p := c.getParty(); p != nil {
+		return p.s
+	}
+	return nil
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {
@@ -1123,6 +1140,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
+		TestLoginShell:        c.TestLoginShell,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 		RecordWithBPF:         c.recordWithBPF(),
@@ -1150,23 +1168,27 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// not support trusted clusters, the scope pin should always be available
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
+	var beamID string
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
+		beamID = id.UnmappedIdentity.BeamID
 	}
 
 	return apievents.UserMetadata{
-		Login:           id.Login,
-		User:            id.TeleportUser,
-		Impersonator:    id.Impersonator,
-		AccessRequests:  id.ActiveRequests,
-		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:        userKind,
-		BotName:         id.BotName,
-		BotInstanceID:   id.BotInstanceID,
-		UserClusterName: id.OriginClusterName,
-		UserRoles:       slices.Clone(id.MappedRoles),
-		UserTraits:      id.Traits.Clone(),
-		ScopePin:        pinning.ToEventsPin(scopePin),
+		Login:            id.Login,
+		User:             id.TeleportUser,
+		Impersonator:     id.Impersonator,
+		AccessRequests:   id.ActiveRequests,
+		TrustedDevice:    id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:         userKind,
+		BotName:          id.BotName,
+		BotInstanceID:    id.BotInstanceID,
+		BotScopeOfOrigin: id.BotScope,
+		UserClusterName:  id.OriginClusterName,
+		UserRoles:        slices.Clone(id.MappedRoles),
+		UserTraits:       id.Traits.Clone(),
+		ScopePin:         pinning.ToEventsPin(scopePin),
+		BeamID:           beamID,
 	}
 }
 
@@ -1320,6 +1342,25 @@ func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
 		Addr: addr,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+}
+
+func (c *ServerContext) GetAgentForwardEvent() *apievents.AgentForward {
+	sconn := c.ConnectionContext.ServerConn
+	return &apievents.AgentForward{
+		Metadata: apievents.Metadata{
+			Type: events.AgentForwardEvent,
+			Code: events.AgentForwardCode,
+		},
+		UserMetadata: c.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  sconn.LocalAddr().String(),
+			RemoteAddr: sconn.RemoteAddr().String(),
+		},
+		ServerMetadata: c.ServerMetadata(),
 		Status: apievents.Status{
 			Success: true,
 		},
