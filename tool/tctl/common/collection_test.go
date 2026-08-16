@@ -92,6 +92,8 @@ func TestResourceCollection_writeText(t *testing.T) {
 	t.Run("kube servers", testKubeServerCollection_writeText)
 	t.Run("databases", testDatabaseCollection_writeText)
 	t.Run("database servers", testDatabaseServerCollection_writeText)
+	t.Run("nodes", testServerCollection_writeText)
+	t.Run("apps", testAppCollection_writeText)
 }
 
 func testKubeClusterCollection_writeText(t *testing.T) {
@@ -316,6 +318,110 @@ func mustCreateNewKubeCluster(t *testing.T, name, discoveredName string, extraSt
 	)
 	require.NoError(t, err)
 	return cluster
+}
+
+func testServerCollection_writeText(t *testing.T) {
+	nodes := []types.Server{
+		mustCreateNewServer(t, "uuid-1", "node-B", "addr-b:22", nil),
+		mustCreateNewServer(t, "uuid-2", "node-C", "addr-c:22", longLabelFixture),
+		mustCreateNewServer(t, "uuid-3", "aFirstNode", "addr-a:22", longLabelFixture),
+		mustCreateNewServer(t, "uuid-4", "node-D", "addr-d:22", nil),
+	}
+	// servers have only static labels (no dynamic "date" label), so format directly
+	fmtLabels := func(extra map[string]string, verbose bool) string {
+		return common.FormatLabels(makeTestLabels(extra), verbose)
+	}
+	test := writeTextTest{
+		collection: resources.NewServerCollection(nodes),
+		wantNonVerboseTable: func() string {
+			table := asciitable.MakeTableWithTruncatedColumn(
+				[]string{"Host", "UUID", "Public Address", "Labels", "Version"},
+				[][]string{
+					{"aFirstNode", "uuid-3", "addr-a:22", fmtLabels(longLabelFixture, false), api.Version},
+					{"node-B", "uuid-1", "addr-b:22", fmtLabels(nil, false), api.Version},
+					{"node-C", "uuid-2", "addr-c:22", fmtLabels(longLabelFixture, false), api.Version},
+					{"node-D", "uuid-4", "addr-d:22", fmtLabels(nil, false), api.Version},
+				},
+				"Labels")
+			return table.AsBuffer().String()
+		},
+		wantVerboseTable: func() string {
+			table := asciitable.MakeTable(
+				[]string{"Host", "UUID", "Public Address", "Labels", "Version"},
+				[]string{"aFirstNode", "uuid-3", "addr-a:22", fmtLabels(longLabelFixture, true), api.Version},
+				[]string{"node-B", "uuid-1", "addr-b:22", fmtLabels(nil, true), api.Version},
+				[]string{"node-C", "uuid-2", "addr-c:22", fmtLabels(longLabelFixture, true), api.Version},
+				[]string{"node-D", "uuid-4", "addr-d:22", fmtLabels(nil, true), api.Version},
+			)
+			return table.AsBuffer().String()
+		},
+	}
+	test.run(t)
+}
+
+func testAppCollection_writeText(t *testing.T) {
+	apps := []types.Application{
+		mustCreateNewApp(t, "app-B", "desc-b", "https://b.example.com", "b.example.com", nil),
+		mustCreateNewApp(t, "app-C", "desc-c", "https://c.example.com", "c.example.com", longLabelFixture),
+		mustCreateNewApp(t, "aFirstApp", "desc-a", "https://a.example.com", "a.example.com", longLabelFixture),
+		mustCreateNewApp(t, "app-D", "desc-d", "https://d.example.com", "d.example.com", nil),
+	}
+	// apps have only static labels, so format directly without the dynamic "date" label
+	fmtLabels := func(extra map[string]string, verbose bool) string {
+		return common.FormatLabels(makeTestLabels(extra), verbose)
+	}
+	test := writeTextTest{
+		collection: resources.NewAppCollection(apps),
+		wantNonVerboseTable: func() string {
+			table := asciitable.MakeTableWithTruncatedColumn(
+				[]string{"Name", "Description", "URI", "Public Address", "Labels", "Version"},
+				[][]string{
+					{"aFirstApp", "desc-a", "https://a.example.com", "a.example.com", fmtLabels(longLabelFixture, false), "v3"},
+					{"app-B", "desc-b", "https://b.example.com", "b.example.com", fmtLabels(nil, false), "v3"},
+					{"app-C", "desc-c", "https://c.example.com", "c.example.com", fmtLabels(longLabelFixture, false), "v3"},
+					{"app-D", "desc-d", "https://d.example.com", "d.example.com", fmtLabels(nil, false), "v3"},
+				},
+				"Labels")
+			return table.AsBuffer().String()
+		},
+		wantVerboseTable: func() string {
+			table := asciitable.MakeTable(
+				[]string{"Name", "Description", "URI", "Public Address", "Labels", "Version"},
+				[]string{"aFirstApp", "desc-a", "https://a.example.com", "a.example.com", fmtLabels(longLabelFixture, true), "v3"},
+				[]string{"app-B", "desc-b", "https://b.example.com", "b.example.com", fmtLabels(nil, true), "v3"},
+				[]string{"app-C", "desc-c", "https://c.example.com", "c.example.com", fmtLabels(longLabelFixture, true), "v3"},
+				[]string{"app-D", "desc-d", "https://d.example.com", "d.example.com", fmtLabels(nil, true), "v3"},
+			)
+			return table.AsBuffer().String()
+		},
+	}
+	test.run(t)
+}
+
+func mustCreateNewApp(t *testing.T, name, description, uri, publicAddr string, extraStaticLabels map[string]string) types.Application {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels:      makeTestLabels(extraStaticLabels),
+	}, types.AppSpecV3{
+		URI:        uri,
+		PublicAddr: publicAddr,
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func mustCreateNewServer(t *testing.T, uuid, hostname, addr string, extraStaticLabels map[string]string) types.Server {
+	t.Helper()
+	server, err := types.NewServer(uuid, types.KindNode, types.ServerSpecV2{
+		Hostname: hostname,
+		Addr:     addr,
+		Version:  api.Version,
+	})
+	require.NoError(t, err)
+	server.SetStaticLabels(makeTestLabels(extraStaticLabels))
+	return server
 }
 
 func mustCreateNewKubeServer(t *testing.T, name, hostname, discoveredName string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
