@@ -1,0 +1,119 @@
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop0-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop1-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop2-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop3-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop4-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop5-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop6-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop7-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop8-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true
+---
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  description: 'Dummy windows desktop'
+  labels:
+    owner: test
+    real: "false"
+  name: windowsdesktop9-@@JOB_INDEX@@
+spec:
+  addr: localhost:3389
+  non_ad: true

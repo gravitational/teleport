@@ -163,6 +163,7 @@ deploy-app-service:
 	--set proxyAddr=${PROXY_SERVER} \
 	--set authToken=${TOKEN} \
 	--set "appResources[0].labels.*=*" \
+	--set image=${TELEPORT_IMAGE_REPO} \
 	--set teleportVersionOverride="${TELEPORT_VERSION}" \
 	--values ./helm/values/app-service-agent.yaml
 
@@ -180,8 +181,130 @@ create-app-resources:
 	--set proxy=${PROXY_SERVER} \
 	--set clusterName=${CLUSTER_NAME} \
 	--set resources.count=${COUNT} \
-	--set resources.parallelism=${PARALLELISM}
+	--set resources.parallelism=${PARALLELISM} \
+	--set resources.template=resources/apps.yaml
 
-.PHONY: delete-app-resources
-delete-app-resources:
+.PHONY: delete-resources
+delete-resources:
 	helm delete -n resources resources
+
+.PHONY: deploy-windows-desktop-service
+deploy-windows-desktop-service:
+	helm upgrade --install teleport-windows-desktop-agent ./helm/windows-desktop-agent \
+	--create-namespace \
+	--namespace teleport \
+	--set proxyServer=${PROXY_SERVER} \
+	--set joinParams.token_name=${TOKEN} \
+	--set "windowsDesktopResources[0].labels.*=*" \
+	--set image.repository=${TELEPORT_IMAGE_REPO} \
+	--set image.tag="${TELEPORT_VERSION}"
+
+.PHONY: delete-windows-desktop-service
+delete-windows-desktop-service:
+	helm delete -n teleport teleport-windows-desktop-agent
+
+.PHONY: create-windows-desktop-resources
+create-windows-desktop-resources: COUNT ?= 100
+create-windows-desktop-resources: PARALLELISM ?= 10
+create-windows-desktop-resources:
+	helm upgrade --install resources \
+	-n resources --create-namespace \
+	./helm/resources \
+	--set proxy=${PROXY_SERVER} \
+	--set clusterName=${CLUSTER_NAME} \
+	--set resources.count=${COUNT} \
+	--set resources.parallelism=${PARALLELISM} \
+	--set resources.template=resources/windows-desktops.yaml
+
+define REAL_WINDOWS_DESKTOP_YAML
+kind: dynamic_windows_desktop
+version: v1
+metadata:
+  name: real-windows-desktop
+  labels:
+    env: loadtest
+spec:
+  addr: $(REAL_WINDOWS_DESKTOP_ADDR)
+  non_ad: true
+endef
+export REAL_WINDOWS_DESKTOP_YAML
+
+.PHONY: create-real-windows-desktop-resource
+create-real-windows-desktop-resource:
+	@echo "$$REAL_WINDOWS_DESKTOP_YAML"
+	echo "$$REAL_WINDOWS_DESKTOP_YAML" | tctl create -f -
+
+.PHONY: deploy-database-service
+deploy-database-service:
+	helm upgrade --install teleport-database-agent ../../examples/chart/teleport-kube-agent \
+	--create-namespace \
+	--namespace teleport \
+	--set roles=db \
+	--set proxyAddr=${PROXY_SERVER} \
+	--set authToken=${TOKEN} \
+	--set teleportClusterName=${CLUSTER_NAME} \
+	--set "databaseResources[0].labels.*=*" \
+	--set image=${TELEPORT_IMAGE_REPO} \
+	--set teleportVersionOverride="${TELEPORT_VERSION}" \
+	--values ./helm/values/database-agent.yaml
+
+.PHONY: delete-database-service
+delete-database-service:
+	helm delete -n teleport teleport-database-agent
+
+.PHONY: create-database-resources
+create-database-resources: COUNT ?= 100
+create-database-resources: PARALLELISM ?= 10
+create-database-resources:
+	helm upgrade --install resources \
+	-n resources --create-namespace \
+	./helm/resources \
+	--set proxy=${PROXY_SERVER} \
+	--set clusterName=${CLUSTER_NAME} \
+	--set resources.count=${COUNT} \
+	--set resources.parallelism=${PARALLELISM} \
+	--set resources.template=resources/databases.yaml
+
+define REAL_DATABASE_YAML
+kind: db
+version: v3
+metadata:
+  name: real-postgres
+  labels:
+    env: loadtest
+    real: "true"
+spec:
+  protocol: postgres
+  uri: postgres-postgresql.teleport.svc.cluster.local:5432
+endef
+export REAL_DATABASE_YAML
+
+.PHONY: create-real-database-resource
+create-real-database-resource:
+	@echo "$$REAL_DATABASE_YAML"
+	echo "$$REAL_DATABASE_YAML" | tctl create -f -
+
+# Deploys a real PostgreSQL instance and registers it with Teleport.
+# Requires tctl to be authenticated. The server cert is signed by Teleport's
+# DB CA and valid for 90 days (2160h).
+.PHONY: deploy-postgres
+deploy-postgres:
+	tctl auth sign --format=db \
+		--host=postgres-postgresql.teleport.svc.cluster.local \
+		--out=/tmp/postgres-server \
+		--ttl=2160h
+	kubectl create secret generic postgres-tls -n teleport \
+		--from-file=tls.crt=/tmp/postgres-server.crt \
+		--from-file=tls.key=/tmp/postgres-server.key \
+		--from-file=ca.crt=/tmp/postgres-server.cas \
+		--dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install postgres bitnami/postgresql \
+		-n teleport --create-namespace \
+		--values ./helm/values/postgres.yaml
+	$(MAKE) create-real-database-resource
+
+.PHONY: delete-postgres
+delete-postgres:
+	helm delete -n teleport postgres
+	kubectl delete secret postgres-tls -n teleport --ignore-not-found
+	tctl rm db/real-postgres

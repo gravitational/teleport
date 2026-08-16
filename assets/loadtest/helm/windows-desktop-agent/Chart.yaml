@@ -1,0 +1,9 @@
+apiVersion: v2
+name: windows-desktop-agent
+description: Deploys windows_desktop_service in gateway mode for load testing desktop access.
+
+type: application
+
+version: 1.0.0
+
+appVersion: "18.7.3"

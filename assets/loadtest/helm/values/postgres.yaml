@@ -1,0 +1,54 @@
+auth:
+  username: admin
+  password: teleport
+  database: postgres
+
+tls:
+  enabled: true
+  # Secret must contain: tls.crt (server cert), tls.key (server key),
+  # ca.crt (Teleport DB CA from `tctl auth export --type=db-client-ca`)
+  certificatesSecret: postgres-tls
+  certFilename: tls.crt
+  certKeyFilename: tls.key
+  certCAFilename: ca.crt
+
+primary:
+  persistence:
+    enabled: false
+  extendedConfiguration: |
+    max_connections = 200
+  pgHbaConfiguration: |
+    host    all all 127.0.0.1/32      trust
+    host    all all ::1/128           trust
+    hostssl all all 0.0.0.0/0         cert
+    local   all all                   trust
+  # Override probes to avoid presenting the server cert as a client cert.
+  # By default bitnami passes sslcert/sslkey which PostgreSQL rejects
+  # because the server cert isn't signed by the db-client CA in ssl_ca_file.
+  customLivenessProbe:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - exec pg_isready -U "admin" -h 127.0.0.1 -p 5432
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  customReadinessProbe:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - exec pg_isready -U "admin" -h 127.0.0.1 -p 5432
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+commonLabels:
+  env: loadtest
