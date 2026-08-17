@@ -42,6 +42,7 @@ type beamsCommands struct {
 	publish   *beamsPublishCommand
 	unpublish *beamsUnpublishCommand
 	scp       *beamsSCPCommand
+	dev       *beamsDevCommand
 }
 
 func newBeamsCommands(app *kingpin.Application) beamsCommands {
@@ -55,6 +56,7 @@ func newBeamsCommands(app *kingpin.Application) beamsCommands {
 		publish:   newBeamsPublishCommand(beams),
 		unpublish: newBeamsUnpublishCommand(beams),
 		scp:       newBeamsSCPCommand(beams),
+		dev:       newBeamsDevCommand(beams),
 	}
 }
 

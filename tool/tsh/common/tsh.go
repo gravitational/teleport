@@ -2084,6 +2084,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.unpublish.run(&cf)
 	case beamsCmd.scp.FullCommand():
 		err = beamsCmd.scp.run(&cf)
+	case beamsCmd.dev.attach.FullCommand():
+		err = beamsCmd.dev.attach.run(&cf)
+	case beamsCmd.dev.run.FullCommand():
+		err = beamsCmd.dev.run.run(&cf)
+	case beamsCmd.dev.shell.FullCommand():
+		err = beamsCmd.dev.shell.run(&cf)
+	case beamsCmd.dev.status.FullCommand():
+		err = beamsCmd.dev.status.run(&cf)
+	case beamsCmd.dev.detach.FullCommand():
+		err = beamsCmd.dev.detach.run(&cf)
+	case beamsCmd.dev.handoff.FullCommand():
+		err = beamsCmd.dev.handoff.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
