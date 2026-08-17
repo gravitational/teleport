@@ -1,7 +1,7 @@
 ---
 title: Running Teleport on GCP
 sidebar_label: Google Cloud VMs
-description: How to install and configure Teleport on GCP
+description: How to install and configure Teleport on GCP.
 tags:
  - conceptual
  - platform-wide
@@ -48,6 +48,30 @@ and Google Cloud Storage is used for session recordings.
 
 ![GCP Intro Image](../../../../img/gcp/gcp-teleport.svg)
 
+### Prerequisites
+
+Before proceeding, ensure the following GCP APIs are enabled on your project:
+
+- Cloud Resource Manager API
+- Compute Engine API
+- Cloud Firestore API
+- Cloud DNS API
+- IAM API
+- Cloud Storage API
+
+You can enable them with:
+
+```code
+$ gcloud services enable \
+    cloudresourcemanager.googleapis.com \
+    compute.googleapis.com \
+    firestore.googleapis.com \
+    dns.googleapis.com \
+    iam.googleapis.com \
+    storage.googleapis.com \
+    --project Example_GCP_PROJECT
+```
+
 Throughout this guide, we'll make use of the following placeholder variables.
 Please replace them with values appropriate for your environment.
 
@@ -69,14 +93,58 @@ Teleport Proxy Service and Auth Service instances using instance groups for each
 GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
 this is helpful when adding new instances to an instance group.
 
-To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagnostics/troubleshooting.mdx) for more information.
+To enable health checks in Teleport, set `diag_addr` in your `teleport.yaml`.
+Only the **Proxy Service** should bind to all interfaces (`0.0.0.0`) since it
+needs to respond to GCP load balancer health checks. Auth and Node services
+should bind to loopback (`127.0.0.1`) to avoid exposing unauthenticated
+diagnostic endpoints (including `/metrics`) to the network:
+
+```yaml
+# Proxy Service — exposed to GCP health checks
+teleport:
+  diag_addr: 0.0.0.0:3000
+
+# Auth and Node services — loopback only
+teleport:
+  diag_addr: 127.0.0.1:3000
+```
+
+Configure your GCP health check as an **HTTP health check** against the `/readyz`
+path on port 3000. The `/readyz` endpoint returns HTTP 200 only when the service
+is fully ready to handle traffic, unlike `/healthz` which reports liveness
+regardless of whether the service has finished initializing.
+
+Restrict the firewall rule for port 3000 to
+[GCP health check source ranges](https://cloud.google.com/load-balancing/docs/health-check-concepts#ip-ranges)
+(`35.191.0.0/16` and `130.211.0.0/22`).
+
+See [Admin Guide: Monitoring](../../../zero-trust-access/management/diagnostics/monitoring.mdx) for more information on diagnostic endpoints.
 
 ### Storage: Cloud Firestore
 
 The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
 updates to keep individual Auth Service instances in sync, and requires Firestore configured
 in native mode.
+
+<Admonition type="warning" title="Firestore database requirements">
+Teleport requires the **default** Firestore database (database ID `(default)`) in
+**Native mode**. If your project does not have a default Firestore database, create one:
+
+```code
+$ gcloud firestore databases create \
+    --database='(default)' \
+    --location=Example_FIRESTORE_LOCATION \
+    --type=firestore-native \
+    --project=Example_GCP_PROJECT
+```
+
+Replace `Example_FIRESTORE_LOCATION` with a
+[supported Firestore location](https://cloud.google.com/firestore/docs/locations)
+close to your Compute Engine instances (e.g., `us-central1`, `europe-west1`).
+This is a one-time, irreversible setting per project — choose carefully. If your
+project already has Firestore in Datastore mode, you will need to use a different
+project.
+</Admonition>
 
 To configure Teleport to store audit events in Firestore, add the following to
 the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
@@ -91,10 +159,16 @@ teleport:
     audit_events_uri: [ 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS' ]
 ```
 
-<Admonition type="warning" title="Table Names">
+<Admonition type="warning" title="Collection names">
 Be careful to ensure that `Example_FIRESTORE_CLUSTER_STATE` and `Example_FIRESTORE_AUDIT_LOGS`
 refer to *different* Firestore collections. The schema is different for each, and using the same
 collection for both types of data will result in errors.
+</Admonition>
+
+<Admonition type="note" title="First startup">
+On first startup, Teleport creates composite indexes in Firestore. This process
+can take 5-10 minutes during which Teleport will log "Still creating indexes"
+repeatedly. This is expected behavior — do not stop the service during this time.
 </Admonition>
 
 ### Storage: Google Cloud Storage
@@ -104,9 +178,23 @@ Teleport will try to create the bucket on startup if it doesn't already exist.
 If you prefer, you can create the bucket ahead of time. In this case, Teleport
 does not need permissions to create buckets.
 
-When creating the Bucket, we recommend setting it up as `Dual-region` with
+When creating the bucket, we recommend setting it up as `Dual-region` with
 the `Standard` storage class. Provide access using a `Uniform` access control
-with a Google-managed key.
+with a Google-managed key:
+
+```code
+$ gcloud storage buckets create gs://Example_BUCKET_NAME \
+    --project=Example_GCP_PROJECT \
+    --location=us \
+    --default-storage-class=STANDARD \
+    --uniform-bucket-level-access
+```
+
+<Admonition type="note" title="Bucket location">
+The `--location=us` flag creates a multi-region bucket for high availability.
+For a dual-region bucket, use `--placement=us-central1,us-east1` instead of
+`--location`. Choose regions appropriate for your deployment.
+</Admonition>
 
 When setting up `audit_sessions_uri` use the `gs://` prefix.
 
@@ -132,9 +220,10 @@ The Teleport Auth Service will need to read and write to Firestore and
 Google Cloud Storage. For this you will need a Service Account with the
 correct permissions.
 
-If you want Teleport to be able to create its own GCS bucket, you'll need to
-create a role allowing the `storage.buckets.create` permission. You can skip
-this step if you choose to create the bucket before installing Teleport.
+Teleport requires `storage.buckets.get` to verify the GCS bucket on startup. If
+you also want Teleport to create the bucket automatically, add
+`storage.buckets.create`. You can omit `storage.buckets.create` if you
+pre-create the bucket before installing Teleport.
 
 To create this role, start by defining the role in a YAML file:
 
@@ -144,8 +233,10 @@ title: teleport_auth_role
 description: 'Teleport permissions for GCP'
 stage: ALPHA
 includedPermissions:
-# Allow Teleport to create the GCS bucket for session
-# recordings if it doesn't already exist.
+# Required: Teleport verifies the bucket exists on startup.
+- storage.buckets.get
+# Optional: only needed if Teleport should create the bucket itself.
+# Remove this permission if you pre-create the bucket.
 - storage.buckets.create
 ```
 
@@ -208,16 +299,28 @@ $ gcloud projects add-iam-policy-binding Example_GCP_PROJECT \
 The credentials for this service account should be exported in JSON format
 and provided to Teleport throughout the remainder of this guide.
 
-![GCP Service Key](../../../../img/gcp/gcp-service-key.png)
+```code
+$ gcloud iam service-accounts keys create google.json \
+    --iam-account=$SERVICE_ACCOUNT
+```
+
+Copy the resulting `google.json` file to `/var/lib/teleport/google.json` on
+your Auth Service instance and set appropriate permissions:
+
+```code
+$ sudo mkdir -p /var/lib/teleport
+$ sudo mv google.json /var/lib/teleport/google.json
+$ sudo chmod 600 /var/lib/teleport/google.json
+```
 
 ## GCP Quickstart
 
-### 1. Create Resources
+### 1. Create resources
 
 We recommend starting by creating the resources. We highly recommend creating these using
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
 
-### 2. Install & Configure Teleport
+### 2. Install and configure Teleport
 
 Follow install instructions from our [installation page](../../../installation/single-machine/single-machine.mdx).
 
@@ -233,13 +336,14 @@ automatically include the `systemd` configuration.
 #
 # Sample Teleport configuration teleport.yaml file for Auth Service
 #
+version: v3
 teleport:
   nodename: teleport-auth-server
   data_dir: /var/lib/teleport
-  pid_file: /run/teleport.pid
   log:
     output: stderr
     severity: DEBUG
+  diag_addr: 127.0.0.1:3000
   storage:
     type: firestore
     collection_name: Example_FIRESTORE_CLUSTER_STATE
@@ -250,6 +354,8 @@ teleport:
     audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
 auth_service:
   enabled: true
+  listen_addr: 0.0.0.0:3025
+  cluster_name: teleport.example.com
   tokens:
     - "proxy:(= presets.tokens.first =)"
     - "node:(= presets.tokens.second =)"
@@ -258,8 +364,16 @@ proxy_service:
 ssh_service:
   enabled: false
 ```
+
+Generate join tokens with:
+
+```code
+$ openssl rand -hex 16
+```
+
+Use one token for the `proxy:` prefix and a different token for the `node:` prefix.
 	</TabItem>
-	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
+	<TabItem label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
 using [systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd). The DEB/RPM installations will
 automatically include the `systemd` configuration.
@@ -268,13 +382,14 @@ automatically include the `systemd` configuration.
 #
 # Sample Teleport configuration teleport.yaml file for Auth Service
 #
+version: v3
 teleport:
   nodename: teleport-auth-server
   data_dir: /var/lib/teleport
-  pid_file: /run/teleport.pid
   log:
     output: stderr
     severity: DEBUG
+  diag_addr: 127.0.0.1:3000
   storage:
     type: firestore
     collection_name: Example_FIRESTORE_CLUSTER_STATE
@@ -285,6 +400,8 @@ teleport:
     audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
 auth_service:
   enabled: true
+  listen_addr: 0.0.0.0:3025
+  cluster_name: teleport.example.com
   license_file: /var/lib/teleport/license.pem
   tokens:
     - "proxy:(= presets.tokens.first =)"
@@ -307,14 +424,13 @@ Save your license file on the Auth Service instances at the path,
 Save the following configuration file as `/etc/teleport.yaml` on the Proxy Server:
 
 ```yaml
-# enable multiplexing all traffic on TCP port 443
 version: v3
 teleport:
   auth_token: (= presets.tokens.first =)
-  # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in High Availability mode.
+  # Replace with the internal IP or DNS name of your Auth Service instance,
+  # or a TCP load balancer pointed to the Auth Service in HA mode.
   auth_server: auth.example.com:3025
-# enable proxy service, disable auth and ssh
+  diag_addr: 0.0.0.0:3000
 ssh_service:
   enabled: false
 auth_service:
@@ -323,13 +439,31 @@ proxy_service:
   enabled: true
   web_listen_addr: 0.0.0.0:443
   public_addr: teleport.example.com:443
-  # automatically get an ACME certificate for teleport.example.com (works for a single proxy)
   acme:
     enabled: true
     email: example@email.com
 ```
 
-**3. Set up Teleport Nodes**
+<Admonition type="note" title="Auth server address">
+The `auth_server` field must point to the internal IP address or internal DNS name
+of your Auth Service instance (e.g., `10.128.0.6:3025`). In high availability mode,
+use a TCP internal load balancer in front of your Auth Service instances.
+</Admonition>
+
+<Admonition type="warning" title="ACME and high availability">
+Built-in ACME certificate issuance only works with a **single Proxy Service
+instance**. In high availability deployments with multiple proxies, concurrent
+ACME challenges can exhaust failed-authorization rate limits and prevent
+certificate issuance. For HA, provision a certificate externally (e.g., from
+your organization's CA or a load balancer) and share it across all Proxy
+instances.
+
+If you don't have a domain name and are running a single proxy, you can disable
+the `acme` section entirely. Teleport will generate self-signed certificates
+automatically, but clients will need to use `--insecure` or trust the Teleport CA.
+</Admonition>
+
+**3. Set up Teleport nodes**
 
 Save the following configuration file as `/etc/teleport.yaml` on the Node:
 
@@ -341,7 +475,7 @@ teleport:
   # public address. This will establish a reverse tunnel between the Proxy
   # Service and the agent that is used for all traffic.
   proxy_server: teleport.example.com:443
-# enable the SSH Service and disable the Auth and Proxy Services
+  diag_addr: 127.0.0.1:3000
 ssh_service:
   enabled: true
 auth_service:
@@ -350,7 +484,37 @@ proxy_service:
   enabled: false
 ```
 
-**4. Add Users**
+**4. Start services**
+
+On each instance, enable and start Teleport via systemd:
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+<Admonition type="note" title="First startup delay">
+On the Auth Service's first startup, Teleport creates Firestore indexes which
+can take 5-10 minutes. Monitor progress with:
+
+```code
+$ sudo journalctl -u teleport -f
+```
+
+Wait until you see the Auth Service listening on port 3025 before starting the
+Proxy or Node services.
+</Admonition>
+
+**5. Add users**
+
+Once all services are running, create a local user on the Auth Service instance:
+
+```code
+$ sudo tctl users add myuser --roles=access,editor --logins=root,ubuntu
+```
+
+This generates an invite URL that can be opened in a browser to complete
+registration with a password and multi-factor.
 
 Follow our [Local Users](../../../zero-trust-access/rbac-get-started/users.mdx) guide or integrate
 with [Google Workspace](../../../zero-trust-access/sso/integrate-idp/google-workspace.mdx) to
