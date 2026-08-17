@@ -533,6 +533,52 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
+      - name: Configure AWS credentials for managed updates signing
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          role-session-name: managed-updates-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Sign managed updates Linux tarballs
+        working-directory: build/artifacts
+        env:
+          ACTIVE_SIGNING_KEY_ARN: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_key_arn }}
+          ACTIVE_SIGNING_AWS_ROLE: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          ACTIVE_SIGNING_PUBLIC_KEY_PEM: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_public_key_pem }}
+        run: |
+          if [ -z "$ACTIVE_SIGNING_AWS_ROLE" ]; then
+            echo "ACTIVE_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_KEY_ARN" ]; then
+            echo "ACTIVE_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" ]; then
+            echo "ACTIVE_SIGNING_PUBLIC_KEY_PEM is unset or empty, aborting"
+            exit 1
+          fi
+          for file in ./teleport-*-linux-*-bin.tar.gz ./teleport-connect-*-x64.tar.gz; do
+            [[ -e "$file" ]] || continue
+            cosign sign-blob --yes \
+              --key "awskms:///${ACTIVE_SIGNING_KEY_ARN}" \
+              --tlog-upload=false \
+              --use-signing-config=false \
+              --output-signature "${file}.sig" \
+              "$file"
+
+            cosign verify-blob \
+              --key "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" \
+              --insecure-ignore-tlog \
+              --signature "${file}.sig" \
+              "$file"
+          done
+
+          ls -lah ./*.sig
+
       - name: Generate release server manifests
         working-directory: build/artifacts
         env:
@@ -625,52 +671,6 @@ jobs:
           done
 
           ls -lah
-
-      - name: Configure AWS credentials for managed updates signing
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
-        with:
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          role-to-assume: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
-          role-session-name: managed-updates-signing-${{ github.run_number }}
-          role-duration-seconds: 3600
-
-      - name: Sign managed updates Linux tarballs
-        working-directory: build/artifacts
-        env:
-          ACTIVE_SIGNING_KEY_ARN: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_key_arn }}
-          ACTIVE_SIGNING_AWS_ROLE: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
-          ACTIVE_SIGNING_PUBLIC_KEY_PEM: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_public_key_pem }}
-        run: |
-          if [ -z "$ACTIVE_SIGNING_AWS_ROLE" ]; then
-            echo "ACTIVE_SIGNING_AWS_ROLE is unset or empty, aborting"
-            exit 1
-          fi
-          if [ -z "$ACTIVE_SIGNING_KEY_ARN" ]; then
-            echo "ACTIVE_SIGNING_KEY_ARN is unset or empty, aborting"
-            exit 1
-          fi
-          if [ -z "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" ]; then
-            echo "ACTIVE_SIGNING_PUBLIC_KEY_PEM is unset or empty, aborting"
-            exit 1
-          fi
-          for file in ./teleport-*-linux-*-bin.tar.gz; do
-            [[ -e "$file" ]] || continue
-            cosign sign-blob --yes \
-              --key "awskms:///${ACTIVE_SIGNING_KEY_ARN}" \
-              --tlog-upload=false \
-              --use-signing-config=false \
-              --output-signature "${file}.sig" \
-              "$file"
-
-            cosign verify-blob \
-              --key "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" \
-              --insecure-ignore-tlog \
-              --signature "${file}.sig" \
-              "$file"
-          done
-
-          ls -lah ./*.sig
 
       - name: Configure AWS credentials for artifact upload
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
