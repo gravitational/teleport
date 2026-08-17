@@ -199,7 +199,8 @@ func createBotUser(
 
 	metadata := user.GetMetadata()
 	metadata.Labels = map[string]string{
-		types.BotLabel:           botName,
+		types.BotLabel: botName,
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		types.BotGenerationLabel: "0",
 	}
 	user.SetMetadata(metadata)
@@ -303,7 +304,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				// The role can read scoped roles. We will use this to validate its permissions later.
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedRole},
-					Verbs:     []string{types.VerbReadNoSecrets},
+					Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 				}.Build(),
 			},
 		}.Build(),

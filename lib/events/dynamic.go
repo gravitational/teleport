@@ -297,7 +297,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		DeviceEnrollTokenCreateEvent,
 		DeviceWebTokenCreateEvent,
 		DeviceAuthenticateConfirmEvent,
-		DeviceEnrollPairingRequestEvent:
+		DeviceEnrollPairingRequestEvent,
+		DeviceEnrollPairingApproveEvent,
+		DeviceEnrollPairingDenyEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
@@ -600,16 +602,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case ClientIPRestrictionsUpdateEvent:
 		e = &events.ClientIPRestrictionsUpdate{}
 
-	case AppAuthConfigCreateEvent:
-		e = &events.AppAuthConfigCreate{}
-	case AppAuthConfigUpdateEvent:
-		e = &events.AppAuthConfigUpdate{}
-	case AppAuthConfigDeleteEvent:
-		e = &events.AppAuthConfigDelete{}
-	case AppAuthConfigVerifySuccessCode:
-		e = &events.AppAuthConfigVerify{}
-	case AppAuthConfigVerifyFailureEvent:
-		e = &events.AppAuthConfigVerify{}
 	case VnetConfigCreateEvent:
 		e = &events.VnetConfigCreate{}
 	case VnetConfigUpdateEvent:

@@ -164,6 +164,8 @@ type noopTUNDevice struct{}
 
 func (noopTUNDevice) Name() (string, error) { return "noop0", nil }
 
+func (noopTUNDevice) MTU() (int, error) { return vnetTUNMTU, nil }
+
 func (noopTUNDevice) Write(bufs [][]byte, offset int) (int, error) { return len(bufs), nil }
 
 func (noopTUNDevice) Read(bufs [][]byte, sizes []int, offset int) (int, error) { return 0, nil }
@@ -185,6 +187,7 @@ func TestNewNetworkStackClock(t *testing.T) {
 		ipv6Prefix:               testIPv6Prefix,
 		tcpHandlerResolver:       &tcpHandlerResolver{},
 		upstreamNameserverSource: noUpstreamNameservers{},
+		ipv6Disabled:             true,
 		clock:                    fakeClock,
 	})
 	require.NoError(t, err)
@@ -195,9 +198,34 @@ func TestNewNetworkStackClock(t *testing.T) {
 		ipv6Prefix:               testIPv6Prefix,
 		tcpHandlerResolver:       &tcpHandlerResolver{},
 		upstreamNameserverSource: noUpstreamNameservers{},
+		ipv6Disabled:             true,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ns.clock, "networkStack must default to a real clock when none is configured")
 	_, isFake := ns.clock.(*clockwork.FakeClock)
 	require.False(t, isFake, "default clock must not be a fake clock")
+}
+
+// TestTunMTU verifies that the TELEPORT_UNSTABLE_VNET_TUN_MTU override is
+// applied when valid and ignored otherwise.
+func TestTunMTU(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  string
+		want int
+	}{
+		{name: "unset", env: "", want: vnetTUNMTU},
+		{name: "valid override", env: "1500", want: 1500},
+		{name: "not a number", env: "16k", want: vnetTUNMTU},
+		{name: "below IPv6 minimum", env: "1279", want: vnetTUNMTU},
+		{name: "at minimum", env: "1280", want: 1280},
+		{name: "at maximum", env: "65535", want: 65535},
+		{name: "above maximum", env: "65536", want: vnetTUNMTU},
+		{name: "negative", env: "-1500", want: vnetTUNMTU},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(vnetTUNMTUEnvVar, tc.env)
+			require.Equal(t, tc.want, tunMTU(t.Context()))
+		})
+	}
 }

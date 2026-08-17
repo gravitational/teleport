@@ -56,6 +56,7 @@ export const Download = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-download"
+
       {...otherProps}
       ref={ref}
     >

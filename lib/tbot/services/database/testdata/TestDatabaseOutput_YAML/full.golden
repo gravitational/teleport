@@ -1,8 +1,6 @@
 type: database
 destination:
   type: memory
-roles:
-  - access
 format: tls
 service: my-database-service
 database: my-database

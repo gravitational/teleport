@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -241,7 +242,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authorizeIssuance(ctx, authCtx, wi, types.VerbReadNoSecrets); err != nil {
+	if err := s.authorizeIssuance(ctx, authCtx, wi, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -331,7 +332,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	// /any/ workload identity at all.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets, types.VerbList,
+		&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read, scopedaccess.List,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1197,7 +1198,7 @@ func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 
 			// Silently skip WI the caller is not authorized to issue using.
 			if err := s.authorizeIssuance(
-				ctx, authCtx, wid, types.VerbReadNoSecrets, types.VerbList,
+				ctx, authCtx, wid, scopedaccess.Read, scopedaccess.List,
 			); err != nil {
 				continue
 			}
@@ -1213,7 +1214,7 @@ func (s *IssuanceService) authorizeIssuance(
 	ctx context.Context,
 	authCtx *authz.ScopedContext,
 	wi *workloadidentityv1pb.WorkloadIdentity,
-	verbs ...string,
+	verbs ...scopedaccess.Verb,
 ) error {
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = wi

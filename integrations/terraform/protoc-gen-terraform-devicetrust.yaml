@@ -50,6 +50,7 @@ exclude_fields:
     - "DeviceV1.Metadata.Namespace"
     - "DeviceV1.Metadata.Description"
     - "DeviceV1.Metadata.Expires"
+    - "DeviceV1.Metadata.Revision"
     - "DeviceV1.spec.create_time"
     - "DeviceV1.spec.update_time"
     - "DeviceV1.spec.credential"

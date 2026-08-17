@@ -56,6 +56,7 @@ export const MoreHoriz = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-morehoriz"
+
       {...otherProps}
       ref={ref}
     >

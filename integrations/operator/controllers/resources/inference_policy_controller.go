@@ -80,7 +80,7 @@ func (c inferencePolicyClient) Delete(ctx context.Context, key reconcilers.Resou
 // NewInferencePolicyReconciler creates a new Kubernetes controller reconciling
 // inference_policy resources.
 func NewInferencePolicyReconciler(
-	client kclient.Client, tClient *client.Client,
+	client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	inferencePolicyClient := &inferencePolicyClient{
 		teleportClient: tClient,
@@ -92,7 +92,7 @@ func NewInferencePolicyReconciler(
 		client,
 		inferencePolicyClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

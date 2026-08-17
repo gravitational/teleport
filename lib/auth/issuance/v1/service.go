@@ -27,6 +27,7 @@ import (
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -36,6 +37,8 @@ import (
 type authServer interface {
 	AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error)
 	GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error)
+	CreateAppSessionFromReq(ctx context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Service implements teleport.issuance.v1.IssuanceService
@@ -128,7 +131,11 @@ func (s *Service) IssueScopedBotCerts(
 
 	switch req.WhichUsage() {
 	case issuancev1pb.IssueScopedBotCertsRequest_Identity_case:
-	// no special handling.
+		// no special handling.
+	case issuancev1pb.IssueScopedBotCertsRequest_App_case:
+		if err := validateUsageApp(req); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter(
 			"unsupported or unspecified usage variant",
@@ -202,17 +209,6 @@ func (s *Service) IssueScopedBotCerts(
 		SSHPublicKey:   req.GetSshPublicKey(),
 		TLSPublicKey:   req.GetTlsPublicKey(),
 
-		// Explicitly set BotInternal to false as these certs are intended for
-		// outputs/services and not use by the bot internally. This prevents
-		// using them further issuance.
-		BotInternal: false,
-		// Explicitly reject use for further issuance
-		DisallowReissue: true,
-
-		// We do not pass traits from the Bot user here. This is because we do
-		// not currently support traits for scoped Bots. Users shouldn't be able
-		// to set these due to validation but this acts as a back-stop.
-
 		// Propagate certain attributes from current identity to generated
 		// certificates
 		JoinAttributes: currentIdentity.JoinAttributes,
@@ -225,6 +221,25 @@ func (s *Service) IssueScopedBotCerts(
 		BotScope:  botScope,
 		JoinToken: currentIdentity.JoinToken,
 	}
+
+	// Apply per-usage alterations to the cert request.
+	switch req.WhichUsage() {
+	case issuancev1pb.IssueScopedBotCertsRequest_App_case:
+		if err := s.applyUsageApp(ctx, user, botScope, currentIdentity, req.GetApp(), ttl, &certReq); err != nil {
+			return nil, trace.Wrap(err, "configuring App Usage into the certificate request")
+		}
+	}
+
+	// Explicitly set BotInternal to false as these certs are intended for
+	// outputs/services and not use by the bot internally. This prevents
+	// using them further issuance.
+	certReq.BotInternal = false
+	// Explicitly reject use for further issuance
+	certReq.DisallowReissue = true
+	// We do not pass traits from the Bot user here. This is because we do
+	// not currently support traits for scoped Bots. Users shouldn't be able
+	// to set these due to validation but this acts as a back-stop.
+	certReq.Traits = nil
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around
 	// cert generation into this package rather than invoking this via the

@@ -1,15 +1,19 @@
+locals {
+  scope = "/staging"
+}
+
 resource "teleport_scoped_role_assignment" "test" {
   version = "v1"
   metadata = {
     name = "test-scoped-role-assignment"
   }
-  scope    = "/staging"
+  scope    = local.scope
   sub_kind = "dynamic"
   spec = {
     user = "testuser"
     assignments = [{
-      role  = "test-scoped-role"
-      scope = "/staging/aa"
+      role  = "${local.scope}::test-scoped-role"
+      scope = "${local.scope}/aa"
     }]
   }
 }

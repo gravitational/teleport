@@ -21,7 +21,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/sha512"
-	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -59,29 +58,6 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	require.NoError(t, err)
 
 	decodedSigner, err := hardwarekey.DecodeSigner(encoded, s, contextualKeyInfo)
-	require.NoError(t, err)
-	require.Equal(t, hwSigner, decodedSigner)
-}
-
-// Old client logins would only have encoded the serial number and slot key.
-// TODO(Joerger): DELETE IN v19.0.0
-func TestPrivateKey_DecodePartialKeyRef(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	hwSigner, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyNone,
-	})
-	require.NoError(t, err)
-
-	partialKeyRefJSON, err := json.Marshal(&hardwarekey.PrivateKeyRef{
-		SerialNumber: hwSigner.Ref.SerialNumber,
-		SlotKey:      hwSigner.Ref.SlotKey,
-	})
-	require.NoError(t, err)
-
-	decodedSigner, err := hardwarekey.DecodeSigner(partialKeyRefJSON, s, hardwarekey.ContextualKeyInfo{})
 	require.NoError(t, err)
 	require.Equal(t, hwSigner, decodedSigner)
 }

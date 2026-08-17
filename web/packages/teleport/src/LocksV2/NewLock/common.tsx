@@ -102,7 +102,7 @@ export const baseResourceKindOpts: LockResourceOption[] = [
   {
     value: 'user',
     label: 'Users',
-    listKind: 'simple',
+    listKind: 'server-side',
   },
   {
     value: 'role',

@@ -65,12 +65,6 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	if req.MFAResponse == nil && req.WebauthnAssertionResponse != nil {
-		req.MFAResponse = &client.MFAChallengeResponse{
-			WebauthnResponse: req.WebauthnAssertionResponse,
-		}
-	}
-
 	// MFAResponse is required only when accepting a request.
 	mfaResp, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
 	if err != nil {

@@ -254,6 +254,16 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("username must be set"),
 		},
 		{
+			name:          "missing mfa_device.id",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav2.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.GetSpec().SetMfaDevice(mfav2.MFADevice_builder{Id: ""}.Build())
+				return c
+			}(),
+			wantErr: trace.BadParameter("mfa_device.id must be set"),
+		},
+		{
 			name:          "request target_cluster mismatch",
 			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav2.ValidatedMFAChallenge {
@@ -401,6 +411,9 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 			SourceCluster: "src",
 			TargetCluster: "tgt",
 			Username:      "alice",
+			MfaDevice: mfav2.MFADevice_builder{
+				Id: "device-id",
+			}.Build(),
 		}.Build(),
 	}.Build()
 }

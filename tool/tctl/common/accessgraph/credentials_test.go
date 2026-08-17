@@ -150,7 +150,7 @@ func pingResponseAccessGraphReady() proto.PingResponse {
 		ServerFeatures: &proto.Features{
 			AccessGraph: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
-				string(entitlements.Policy): {Enabled: true},
+				string(entitlements.AccessGraph): {Enabled: true},
 			},
 		},
 	}
@@ -658,11 +658,25 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 		wantSubstr []string // every substring must appear in err.Error()
 	}{
 		{
-			name: "Policy entitlement enabled → no error",
+			name: "AccessGraph entitlement enabled → no error",
 			ping: pingResponseAccessGraphReady(),
 			wantErr: func(err error) bool {
 				return err == nil
 			},
+		},
+		{
+			// Older clusters have an entitlements map but no dedicated
+			// AccessGraph key.
+			name: "legacy Policy entitlement enabled → no error",
+			ping: proto.PingResponse{
+				ServerFeatures: &proto.Features{
+					AccessGraph: true,
+					Entitlements: map[string]*proto.EntitlementInfo{
+						string(entitlements.Policy): {Enabled: true},
+					},
+				},
+			},
+			wantErr: func(err error) bool { return err == nil },
 		},
 		{
 			// Older clusters set only the legacy Policy submessage.
@@ -681,7 +695,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 				ServerFeatures: &proto.Features{
 					AccessGraph: false,
 					Entitlements: map[string]*proto.EntitlementInfo{
-						string(entitlements.Policy): {Enabled: true},
+						string(entitlements.AccessGraph): {Enabled: true},
 					},
 				},
 			},
@@ -694,12 +708,13 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			},
 		},
 		{
-			name: "Policy entitlement explicitly disabled → AccessDenied",
+			name: "AccessGraph entitlement explicitly disabled does not fall back to Policy → AccessDenied",
 			ping: proto.PingResponse{
 				ServerFeatures: &proto.Features{
 					AccessGraph: true,
 					Entitlements: map[string]*proto.EntitlementInfo{
-						string(entitlements.Policy): {Enabled: false},
+						string(entitlements.AccessGraph): {Enabled: false},
+						string(entitlements.Policy):      {Enabled: true},
 					},
 				},
 			},
@@ -719,9 +734,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			},
 		},
 		{
-			// Regression guard: the `AccessGraph` entitlement key is
-			// never populated by the modules code — only `Policy` is.
-			name: "AccessGraph-key entitlement on its own is NOT sufficient — Policy is the gate",
+			name: "AccessGraph entitlement on its own is sufficient",
 			ping: proto.PingResponse{
 				ServerFeatures: &proto.Features{
 					AccessGraph: true,
@@ -730,9 +743,8 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 					},
 				},
 			},
-			wantErr: trace.IsAccessDenied,
-			wantSubstr: []string{
-				"Identity Security",
+			wantErr: func(err error) bool {
+				return err == nil
 			},
 		},
 	}

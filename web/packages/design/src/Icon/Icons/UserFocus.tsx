@@ -56,6 +56,7 @@ export const UserFocus = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-userfocus"
+
       {...otherProps}
       ref={ref}
     >

@@ -1,0 +1,37 @@
+Instead of using shared secrets, the `generic_oidc` join method allows Teleport
+Agents and Bots to authenticate to the Teleport Auth Service using a JWT issued
+by any OIDC-compatible provider.
+
+Many CI/CD platforms and cloud providers act as OIDC providers and can issue
+short-lived JWTs to workloads that serve as proof of the workload's identity.
+In fact, this is how many of Teleport's join methods work today, including
+the `github`, `kubernetes` (in `oidc` mode), and `gcp` join methods, among
+others.
+
+The `generic_oidc` join method extends this support to any provider that can
+issue compatible JWTs, allowing you to freely specify any compatible provider
+and a set of free-form joining rules to select exactly which workloads are
+allowed to join, without requiring a dedicated join method for the provider.
+
+Be aware that due to the nature of `generic_oidc`, this guide is meaningfully
+less directed than other deployment guides. The configuration shown here is only
+useful as an example or reference, and you will need to thoroughly customize
+and verify any configuration made before deploying it into a production
+environment.
+
+<Admonition type="warning">
+Be aware that not all OIDC providers are equally secure. When using
+`generic_oidc`, you are responsible for both properly vetting the provider and
+writing secure rules that will not allow unintended clients to join.
+
+Where possible, one of Teleport's [dedicated join
+methods](../../reference/deployment/join-methods.mdx) should be used instead of
+`generic_oidc`, which benefit from dedicated documentation and vetted,
+predefined rules.
+
+Additionally, due to its generic nature, this document cannot fully guide you in
+setting up the `tbot` client to run seamlessly on arbitrary platforms.
+Teleport's dedicated join methods have guides and supporting documentation
+tailored specifically for use with those platforms; with `generic_oidc` you will
+need to determine the best deployment method yourself.
+</Admonition>

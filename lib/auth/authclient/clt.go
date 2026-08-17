@@ -44,6 +44,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -617,6 +618,11 @@ func (c *Client) AccessListClient() services.AccessLists {
 // AccessMonitoringRuleClient returns the access monitoring rules client.
 func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return c.APIClient.AccessMonitoringRulesClient()
+}
+
+// ClientIPRestrictionClient returns the client IP restriction client.
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return c.APIClient.ClientIPRestrictionClient()
 }
 
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
@@ -1221,11 +1227,6 @@ type IdentityService interface {
 // ProvisioningService is a service in control
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
-	// GetTokens returns a list of active invitation tokens for nodes and users
-	// Deprecated: use [ListProvisionTokens] istead.
-	// TODO(hugoShaka): DELETE IN 19.0.0
-	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
-
 	// GetToken returns provisioning token
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
@@ -1644,8 +1645,6 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
-	services.AppAuthConfig
-	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
 	services.SubCAServiceGetter
@@ -1831,6 +1830,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessMonitoringRuleClient() services.AccessMonitoringRules
+
+	// ClientIPRestrictionClient returns a client IP restriction client.
+	// Clients connecting to older Teleport versions still get a client when calling
+	// this method, but all RPCs will return "not implemented" errors (as per the
+	// default gRPC behavior).
+	ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient
 
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient

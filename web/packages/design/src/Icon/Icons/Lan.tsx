@@ -56,6 +56,7 @@ export const Lan = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-lan"
+
       {...otherProps}
       ref={ref}
     >

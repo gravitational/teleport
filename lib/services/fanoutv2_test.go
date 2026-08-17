@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
@@ -234,4 +235,59 @@ func TestFanoutV2StreamOrdering(t *testing.T) {
 	for range 100 {
 		require.Equal(t, inputs, <-results)
 	}
+}
+
+// TestFanoutV2KubeClusterSecretFiltering verifies that kube cluster events have secret
+// filtering correctly applied.
+func TestFanoutV2KubeClusterSecretFiltering(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
+	defer cancel()
+
+	f := NewFanoutV2(FanoutV2Config{})
+
+	censored := f.NewStream(ctx, types.Watch{
+		Name:  "censored",
+		Kinds: []types.WatchKind{{Kind: types.KindKubernetesCluster}},
+	})
+	withSecrets := f.NewStream(ctx, types.Watch{
+		Name:  "with-secrets",
+		Kinds: []types.WatchKind{{Kind: types.KindKubernetesCluster, LoadSecrets: true}},
+	})
+
+	f.SetInit([]types.WatchKind{
+		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubernetesCluster, LoadSecrets: true},
+	})
+
+	for _, s := range []stream.Stream[types.Event]{censored, withSecrets} {
+		require.True(t, s.Next())
+		require.Equal(t, types.OpInit, s.Item().Type)
+	}
+
+	const kubeconfig = "kubeconfig-payload"
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:   "dynamic",
+		Labels: map[string]string{"env": "prod"},
+	}, types.KubernetesClusterSpecV3{
+		Kubeconfig: []byte(kubeconfig),
+	})
+	require.NoError(t, err)
+
+	f.Emit(types.Event{Type: types.OpPut, Resource: cluster})
+
+	require.True(t, censored.Next())
+	got := censored.Item().Resource.(types.KubeCluster)
+	require.Empty(t, got.GetKubeconfig(), "a watch that did not set LoadSecrets must not receive kubeconfigs")
+	// the rest of the resource must survive censorship.
+	require.Equal(t, "dynamic", got.GetName())
+	require.Equal(t, "prod", got.GetAllLabels()["env"])
+
+	require.True(t, withSecrets.Next())
+	require.Equal(t, kubeconfig, string(withSecrets.Item().Resource.(types.KubeCluster).GetKubeconfig()))
+
+	// filtering must not have mutated the caller's resource.
+	require.Equal(t, kubeconfig, string(cluster.GetKubeconfig()))
+
+	require.NoError(t, censored.Done())
+	require.NoError(t, withSecrets.Done())
 }

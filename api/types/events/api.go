@@ -126,4 +126,6 @@ const (
 	EventProtocolTDP = "tdp"
 	// EventProtocolDB specifies database as a type of captured protocol
 	EventProtocolDB = "db"
+	// EventProtocolApp specifies app as a type of captured protocol
+	EventProtocolApp = "app"
 )

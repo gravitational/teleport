@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -372,7 +373,7 @@ func (m *mockAccessAndIdentity) UpdateUser(ctx context.Context, user types.User)
 	return user, nil
 }
 
-func (m *mockAccessAndIdentity) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+func (m *mockAccessAndIdentity) GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error) {
 	if m.nodeErr != nil {
 		return nil, m.nodeErr
 	}

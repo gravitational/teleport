@@ -158,6 +158,8 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+	// ModifyRole mutates the user role before it is created.
+	ModifyRole func(*types.RoleV6)
 	// Rewrite configures the rewrite rules for the app.
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
@@ -243,7 +245,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV6{
+	role := &types.RoleV6{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
@@ -254,6 +256,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			},
 		},
 	}
+	if config.ModifyRole != nil {
+		config.ModifyRole(role)
+	}
+	s.role = role
 	// Create user for regular tests.
 	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
@@ -638,7 +644,6 @@ func TestShutdown(t *testing.T) {
 						return
 					}
 				}, 10*time.Second, 100*time.Millisecond)
-
 			}
 		})
 	}
@@ -869,6 +874,38 @@ func TestHandleConnection(t *testing.T) {
 	})
 }
 
+// TestHandleConnectionV9DefaultDeny verifies that a v9 role without an
+// app_resources rule denies a plain HTTP app request through serveHTTP,
+// while an AWS console app under the same role stays exempt.
+func TestHandleConnectionV9DefaultDeny(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ModifyRole: func(role *types.RoleV6) { role.Version = types.V9 },
+	})
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(buf), "teleport_request_not_allowed")
+	})
+	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+	})
+}
+
+// TestHandleConnectionV9AllowAll verifies that a v9 role with an
+// allow_all rule serves a plain HTTP app request through serveHTTP.
+func TestHandleConnectionV9AllowAll(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ModifyRole: func(role *types.RoleV6) {
+			role.Version = types.V9
+			role.Spec.Allow.AppResources = []types.AppResource{{AllowAll: true}}
+		},
+	})
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
 // TestHandleConnectionWS verifies that websocket requests with valid certificates are forwarded and the
 // request had headers rewritten as expected.
 func TestHandleConnectionWS(t *testing.T) {
@@ -999,7 +1036,6 @@ func TestRewriteJWT(t *testing.T) {
 			})
 		})
 	}
-
 }
 
 // TestAuthorize verifies that only authorized requests are handled.
@@ -1255,7 +1291,12 @@ func TestRequestAuditEvents(t *testing.T) {
 						AppURI:        app.Spec.URI,
 						AppPublicAddr: app.Spec.PublicAddr,
 						AppName:       app.Metadata.Name,
+						AppLabels: map[string]string{
+							"bar": "baz",
+							"qux": "4",
+						},
 					},
+					Participants: []string{"foo"},
 				}
 				require.Empty(t, gocmp.Diff(
 					expectedEvent,
@@ -1332,7 +1373,12 @@ func TestRequestAuditEvents(t *testing.T) {
 			AppURI:        app.Spec.URI,
 			AppPublicAddr: app.Spec.PublicAddr,
 			AppName:       app.Metadata.Name,
+			AppLabels: map[string]string{
+				"bar": "baz",
+				"qux": "4",
+			},
 		},
+		Participants: []string{"foo"},
 	}
 	require.Empty(t, gocmp.Diff(
 		expectedEvent,

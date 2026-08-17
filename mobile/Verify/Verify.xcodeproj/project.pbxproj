@@ -18,9 +18,13 @@
 		CD799A2A2FEB164100133048 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A292FEB164100133048 /* Dependencies */; };
 		CD799A2C2FEB164300133048 /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2B2FEB164300133048 /* DependenciesMacros */; };
 		CD799A2E2FEB164600133048 /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2D2FEB164600133048 /* DependenciesTestSupport */; };
+		CD9AEFAC3022782200E2FC14 /* SystemClients in Frameworks */ = {isa = PBXBuildFile; productRef = CD9AEFAB3022782200E2FC14 /* SystemClients */; };
+		CD9AEFAE3022782900E2FC14 /* SystemClients in Frameworks */ = {isa = PBXBuildFile; productRef = CD9AEFAD3022782900E2FC14 /* SystemClients */; };
 		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
 		CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */; };
 		CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */; };
+		CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7043022A9D4002E6773 /* LogBackends */; };
+		CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7063022A9D4002E6773 /* LogBackends */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -98,6 +102,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */,
+				CD9AEFAC3022782200E2FC14 /* SystemClients in Frameworks */,
 				CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */,
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
 				CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */,
@@ -111,6 +117,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */,
+				CD9AEFAE3022782900E2FC14 /* SystemClients in Frameworks */,
 				CD79992C2FE33F0600133048 /* libresolv.9.tbd in Frameworks */,
 				CD7999332FE345D400133048 /* Dependencies in Frameworks */,
 				CD7999352FE346B800133048 /* DependenciesMacros in Frameworks */,
@@ -199,6 +207,8 @@
 				CD65C8002FF711CE002FB1CD /* IdentifiedCollections */,
 				CDAA8BB12FFD55CC00E6CA87 /* GRDB */,
 				CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */,
+				CD9AEFAB3022782200E2FC14 /* SystemClients */,
+				CDFCE7043022A9D4002E6773 /* LogBackends */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -226,6 +236,8 @@
 			packageProductDependencies = (
 				CD7999322FE345D400133048 /* Dependencies */,
 				CD7999342FE346B800133048 /* DependenciesMacros */,
+				CD9AEFAD3022782900E2FC14 /* SystemClients */,
+				CDFCE7063022A9D4002E6773 /* LogBackends */,
 			);
 			productName = Core;
 			productReference = CD79991B2FE33AE000133048 /* Core.framework */;
@@ -266,7 +278,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					0C94C8512FA232E600C13C9A = {
 						CreatedOnToolsVersion = 26.4.1;
@@ -296,6 +308,8 @@
 				CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
 				CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */,
 				CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */,
+				CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */,
+				CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -651,6 +665,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K497G57PDJ;
@@ -706,6 +721,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K497G57PDJ;
@@ -840,6 +856,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../TeleportKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -864,6 +887,16 @@
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.8.0;
 			};
+		};
+		CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.1;
+			};
+			traits = (
+			);
 		};
 		CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -934,6 +967,16 @@
 			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = DependenciesTestSupport;
 		};
+		CD9AEFAB3022782200E2FC14 /* SystemClients */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */;
+			productName = SystemClients;
+		};
+		CD9AEFAD3022782900E2FC14 /* SystemClients */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */;
+			productName = SystemClients;
+		};
 		CDAA8BB12FFD55CC00E6CA87 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */;
@@ -953,6 +996,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		CDFCE7043022A9D4002E6773 /* LogBackends */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */;
+			productName = LogBackends;
+		};
+		CDFCE7063022A9D4002E6773 /* LogBackends */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */;
+			productName = LogBackends;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,0 +1,10 @@
+clusterName: teleport.example.com
+authServer: teleport-auth.example.com
+joinParams:
+  method: kubernetes
+  tokenName: teleport-proxy
+ingress:
+  enabled: true
+proxyListenerMode: multiplex
+service:
+  type: ClusterIP

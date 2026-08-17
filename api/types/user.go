@@ -164,6 +164,9 @@ type User interface {
 	// IsBot returns true if the user is a bot.
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
+	//
+	// Deprecated: the generation counter is now stored on the BotInstance
+	// resource.
 	BotGenerationLabel() string
 	// GetPasswordState reflects what the system knows about the user's password.
 	// Note that this is a "best effort" property, in that it can be UNSPECIFIED
@@ -670,6 +673,9 @@ func (u UserV2) IsBot() bool {
 }
 
 // BotGenerationLabel returns the bot generation label.
+//
+// Deprecated: the generation counter is now stored on the BotInstance
+// resource.
 func (u UserV2) BotGenerationLabel() string {
 	return u.GetMetadata().Labels[BotGenerationLabel]
 }

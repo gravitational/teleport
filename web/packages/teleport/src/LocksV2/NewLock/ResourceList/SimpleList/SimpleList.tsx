@@ -19,13 +19,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { MfaDevice } from 'teleport/services/mfa';
-import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
 import { CommonListProps, LockResourceKind } from '../../common';
 import { SimpleListProps, TableWrapper } from '../common';
 import { MfaDevices } from './MfaDevices';
-import Users from './Users';
 
 export type SimpleListOpts = {
   getFetchFn(
@@ -45,9 +43,6 @@ export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {
   useEffect(() => {
     let fetchFn;
     switch (props.selectedResourceKind) {
-      case 'user':
-        fetchFn = ctx.userService.fetchUsers;
-        break;
       case 'mfa_device':
         fetchFn = ctx.mfaService.fetchDevices;
         break;
@@ -81,8 +76,6 @@ export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {
       toggleSelectResource: props.toggleSelectResource,
     };
     switch (props.selectedResourceKind) {
-      case 'user':
-        return <Users users={resources as User[]} {...listProps} />;
       case 'mfa_device':
         return (
           <MfaDevices mfaDevices={resources as MfaDevice[]} {...listProps} />

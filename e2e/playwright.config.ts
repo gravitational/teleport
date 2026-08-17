@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fileURLToPath } from 'node:url';
-
 import { defineConfig, devices } from '@playwright/test';
 
 // Default to localhost:3080/web/login if START_URL is not defined.
@@ -38,7 +36,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  globalSetup: fileURLToPath(new URL('global-setup.ts', import.meta.url)),
+  // No globalSetup: sessions are minted per user on first use (helpers/authState.ts) so the logins spread
+  // across the run instead of drawing the whole run's rate limiter budget at once.
   reporter: [
     ['html', { open: 'never' }],
     ['json', { outputFile: 'test-results/results.json' }],
@@ -62,12 +61,6 @@ export default defineConfig({
         name: `${browser}:unauthenticated`,
         testDir: './tests/web/unauthenticated',
         use: { ...browserDevices[browser] },
-        // TODO(ryan): fix these tests
-        // Unauthenticated Firefox tests sometimes get rate-limited and sometimes think the cluster name is
-        // `localhost`, for reasons I haven't been able to figure out, so don't run them for now. The project
-        // stays defined because the runner selects projects by exact name, and Playwright fails selection
-        // outright on an unknown one.
-        ...(browser === 'firefox' ? { testIgnore: /.*/ } : {}),
       },
     ]),
 

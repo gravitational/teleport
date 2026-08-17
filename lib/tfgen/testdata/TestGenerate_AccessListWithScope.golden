@@ -1,0 +1,31 @@
+resource "teleport_access_list" "some-access-list" {
+  scope = "/some/scope"
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "some-access-list"
+    }
+  }
+
+  spec = {
+    description = "An example scoped access list"
+    owners = [{
+      description       = "some description"
+      ineligible_status = "0"
+      membership_kind   = "1"
+      name              = "llama"
+    }]
+    audit = {
+      next_audit_date = "2023-02-02T00:00:00Z"
+      recurrence = {
+        frequency    = "3"
+        day_of_month = "1"
+      }
+      notifications = {
+        start = "336h0m0s"
+      }
+    }
+    title = "My Access List"
+  }
+}

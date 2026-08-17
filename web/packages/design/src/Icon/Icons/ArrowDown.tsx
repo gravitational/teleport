@@ -56,6 +56,7 @@ export const ArrowDown = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-arrowdown"
+
       {...otherProps}
       ref={ref}
     >

@@ -56,6 +56,7 @@ export const Youtube = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-youtube"
+
       {...otherProps}
       ref={ref}
     >

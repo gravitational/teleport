@@ -2,6 +2,10 @@ suite: Test Service
 templates:
   - service.yaml
 
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates a service
     asserts:

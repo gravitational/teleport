@@ -56,6 +56,7 @@ export const Label = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-label"
+
       {...otherProps}
       ref={ref}
     >

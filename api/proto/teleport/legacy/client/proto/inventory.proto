@@ -44,6 +44,8 @@ message UpstreamInventoryOneOf {
     // UpstreamInventoryStopHeartbeat informs the upstream service that a
     // heartbeat is stopping.
     UpstreamInventoryStopHeartbeat stop_heartbeat = 6;
+    // InstanceStatus reports periodic status about the instance.
+    InstanceStatus instance_status = 7;
   }
 }
 
@@ -186,6 +188,8 @@ message DownstreamInventoryHello {
     bool linux_desktop_heartbeats = 21;
     // LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
     bool linux_desktop_cleanup = 22;
+    // InstanceStatus indicates the ICS supports the InstanceStatus message.
+    bool instance_status = 23;
   }
 
   // SupportedCapabilities advertises the supported features of the auth server.
@@ -241,6 +245,12 @@ message InventoryHeartbeat {
   teleport.presence.v1.RelayServer relay_server = 5;
   // LinuxDesktop is a complete linux desktop spec to be heartbeated.
   teleport.linuxdesktop.v1.LinuxDesktop linux_desktop = 6;
+}
+
+// InstanceStatus reports periodic status about an instance.
+message InstanceStatus {
+  // AuditQueue reports the depth of the instance's audit-log queue.
+  types.AuditQueueStatus audit_queue = 1;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

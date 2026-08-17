@@ -34,7 +34,6 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -44,21 +43,18 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -447,6 +443,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
 				require.NotEmpty(t, v2.Status.BoundKeypair.BoundPublicKey)
+
+				bi, err := authServer.BotInstance.GetBotInstance(t.Context(), machineidv1pb.GetBotInstanceRequest_builder{
+					BotName:    "test",
+					InstanceId: v2.Status.BoundKeypair.BoundBotInstanceID,
+				}.Build())
+				require.NoError(t, err)
+				attrs := bi.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetBoundKeypair()
+				require.Equal(t, v2.Status.BoundKeypair.BoundPublicKey, attrs.GetPublicKey())
+				require.Equal(t, boundkeypair.RecoveryModeInsecure, attrs.GetRecoveryMode())
+				require.Equal(t, uint32(1), attrs.GetRecoveryCount())
 			},
 		},
 		{
@@ -1830,72 +1836,6 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 }
 
-// createScopedBot creates a scoped bot with necessary role assignments for testing.
-func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authclient.Client) {
-	t.Helper()
-
-	// Create a scoped role for the bot.
-	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err := scopedSvc.CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
-		Role: scopedaccessv1.ScopedRole_builder{
-			Kind:    scopedaccess.KindScopedRole,
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Name: "scoped-example",
-			}.Build(),
-			Scope: "/test",
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{"/test"},
-			}.Build(),
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
-
-	// Create the scoped bot.
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
-		Bot: machineidv1pb.Bot_builder{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Scope:   "/test",
-			Metadata: headerv1.Metadata_builder{
-				Name: "test-scoped",
-			}.Build(),
-			Spec: &machineidv1pb.BotSpec{},
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
-
-	// Create a scoped role assignment for the bot.
-	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Name: uuid.NewString(),
-			}.Build(),
-			SubKind: scopedaccess.SubKindDynamic,
-			Scope:   "/test",
-			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
-				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
-				},
-			}.Build(),
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
-
-	ctx := t.Context()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
-			Name:    resp.GetAssignment().GetMetadata().GetName(),
-			SubKind: resp.GetAssignment().GetSubKind(),
-			Scope:   resp.GetAssignment().GetScope(),
-		}.Build())
-		require.NoError(t, err)
-	}, time.Second*10, 100*time.Millisecond)
-}
-
 func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	t.Parallel()
 
@@ -1931,7 +1871,24 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	createScopedBot(t, srv, adminClient)
+	CreateScopedBot(t, srv.Auth(), "test-scoped")
+
+	// Also create an *unscoped* bot with the same name as the scoped bot. Bots
+	// are namespaced by scope, so the two coexist; the join below must select
+	// the scoped bot's user, not this one.
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "test-scoped",
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
+				Roles: []string{"example"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
 
 	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
@@ -1983,8 +1940,19 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
 	require.Equal(t, uint64(1), generation)
 
-	// The BotInstance should have the scope set.
+	// The issued identity must be backed by the scoped bot's user, not the
+	// same-named unscoped bot's.
+	parsedCert, err := tlsca.ParseCertificatePEM(joinResult.Certs.TLS)
+	require.NoError(t, err)
+	certIdentity, err := tlsca.FromSubject(parsedCert.Subject, parsedCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, "bot-300101746573740000-test-scoped", certIdentity.Username)
+
+	// The BotInstance should have the scope set. A bot is identified by
+	// (scope, name), so the read must declare the bot's scope to address the
+	// scoped instance.
 	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+		BotScope:   "/test",
 		BotName:    "test-scoped",
 		InstanceId: firstInstance,
 	}.Build())
@@ -2013,7 +1981,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 				BotInstanceID: firstInstance,
 				TokenName:     scopedToken.GetMetadata().GetName(),
 				Method:        scopedToken.GetSpec().GetJoinMethod(),
-				UserName:      machineidv1.BotResourceName(sqn.Name),
+				UserName:      "bot-300101746573740000-test-scoped",
 				BotName:       sqn.Name,
 				Scope:         sqn.Scope,
 			},

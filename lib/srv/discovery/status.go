@@ -382,42 +382,39 @@ func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) 
 // ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
 // It will emit an audit event with the result and update the DiscoveryConfig status
 func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *server.SSMInstallationResult) error {
-	if err := s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Only failed runs are counted.
 	// Successful ones only mean that the teleport was installed in the target host.
 	// If they succeed in joining the cluster, during the next iteration, they will be countd as "enrolled"
-	if result.SSMRunEvent.Metadata.Code == libevents.SSMRunSuccessCode {
-		return nil
+	if result.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode {
+		// Record failure status before emitting the audit event. Audit emission
+		// errors are reported to the caller, but must not hide the failed
+		// enrollment from DiscoveryConfig status or UserTasks.
+		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+			discoveryConfigName: result.DiscoveryConfigName,
+			integration:         result.IntegrationName,
+		}, 1)
+
+		s.awsEC2Tasks.addFailedEnrollment(
+			awsEC2TaskKey{
+				integration:     result.IntegrationName,
+				issueType:       result.IssueType,
+				accountID:       result.SSMRunEvent.AccountID,
+				region:          result.SSMRunEvent.Region,
+				ssmDocument:     result.SSMDocumentName,
+				installerScript: result.InstallerScript,
+			},
+			usertasksv1.DiscoverEC2Instance_builder{
+				InvocationUrl:   result.SSMRunEvent.InvocationURL,
+				DiscoveryConfig: result.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+				InstanceId:      result.SSMRunEvent.InstanceID,
+				Name:            result.InstanceName,
+			}.Build(),
+		)
 	}
 
-	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-		discoveryConfigName: result.DiscoveryConfigName,
-		integration:         result.IntegrationName,
-	}, 1)
-
-	s.awsEC2Tasks.addFailedEnrollment(
-		awsEC2TaskKey{
-			integration:     result.IntegrationName,
-			issueType:       result.IssueType,
-			accountID:       result.SSMRunEvent.AccountID,
-			region:          result.SSMRunEvent.Region,
-			ssmDocument:     result.SSMDocumentName,
-			installerScript: result.InstallerScript,
-		},
-		usertasksv1.DiscoverEC2Instance_builder{
-			InvocationUrl:   result.SSMRunEvent.InvocationURL,
-			DiscoveryConfig: result.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(s.clock.Now()),
-			InstanceId:      result.SSMRunEvent.InstanceID,
-			Name:            result.InstanceName,
-		}.Build(),
-	)
-
-	return nil
+	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 }
 
 // awsEC2Tasks contains the Discover EC2 User Tasks that must be reported to the user.
@@ -1049,7 +1046,7 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
-func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType string) error {
+func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType, tenantID, clientID string) error {
 	task, err := usertasks.NewDiscoverAzureVMUserTask(
 		usertasks.TaskGroup{
 			Integration: integration,
@@ -1058,6 +1055,8 @@ func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType str
 		s.clock.Now().Add(2*s.PollInterval),
 		usertasksv1.DiscoverAzureVM_builder{
 			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			TenantId:  tenantID,
+			ClientId:  clientID,
 		}.Build(),
 	)
 	if err != nil {
@@ -1105,6 +1104,12 @@ func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *use
 	}
 	if newSpec.GetDiscoverAzureVm().GetInstances() == nil {
 		newSpec.GetDiscoverAzureVm().SetInstances(make(map[string]*usertasksv1.DiscoverAzureVMInstance))
+	}
+	if newSpec.GetDiscoverAzureVm().GetTenantId() == "" {
+		newSpec.GetDiscoverAzureVm().SetTenantId(oldSpec.GetDiscoverAzureVm().GetTenantId())
+	}
+	if newSpec.GetDiscoverAzureVm().GetClientId() == "" {
+		newSpec.GetDiscoverAzureVm().SetClientId(oldSpec.GetDiscoverAzureVm().GetClientId())
 	}
 	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
 }

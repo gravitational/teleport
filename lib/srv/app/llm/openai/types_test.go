@@ -238,6 +238,18 @@ func TestEncodeResponsesRequest(t *testing.T) {
 				require.JSONEq(tt, `{"model": "", "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
+		"set max output tokens via SetOutputTokens": {
+			input: `{"model":"gpt-5","stream":false,"max_output_tokens":1024,"input":"Hello"}`,
+			modifyRequest: func(r *responsesAPIRequest) {
+				r.SetOutputTokens(100)
+			},
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model":"gpt-5","store":false,"max_output_tokens":100,"input":"Hello","background":false}`, resp)
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var r responsesAPIRequest
@@ -478,6 +490,18 @@ func TestEncodeChatCompletionsRequest(t *testing.T) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
 				require.JSONEq(tt, `{"model": "", "stream": false, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"set max output tokens via SetOutputTokens": {
+			input: `{"model":"gpt-5","stream":false,"max_completion_tokens":1024,"messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {
+				r.SetOutputTokens(100)
+			},
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model":"gpt-5","stream":false,"store":false,"max_completion_tokens":100,"messages":[{"role":"user","content":"Hello"}]}`, resp)
 			},
 		},
 	} {

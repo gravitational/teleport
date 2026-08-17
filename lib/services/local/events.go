@@ -195,7 +195,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
-			parser = newKubeClusterParser()
+			parser = newKubeClusterParser(kind.LoadSecrets)
 		case types.KindCrownJewel:
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
@@ -289,8 +289,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRelayServerParser()
 		case types.KindScopedToken:
 			parser = newScopedTokenParser()
-		case types.KindAppAuthConfig:
-			parser = newAppAuthConfigParser()
 		case types.KindInferenceModel:
 			parser = newInferenceModelParser()
 		case types.KindInferencePolicy:
@@ -1305,7 +1303,9 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.NewKey(nodesPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(nodesPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, nodesPrefix)),
 	}
 }
 
@@ -1316,6 +1316,25 @@ type nodeParser struct {
 func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		scopedNodeParserKey := backend.NewKey(scopedPrefix, nodesPrefix)
+		if event.Item.Key.HasPrefix(scopedNodeParserKey) {
+			components := event.Item.Key.TrimPrefix(scopedNodeParserKey).Components()
+			if len(components) != 2 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from node server key %q", event.Item.Key.String())
+			}
+			return &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: components[1],
+				},
+				Scope: scope,
+			}, nil
+		}
 		name := event.Item.Key.TrimPrefix(backend.NewKey(nodesPrefix, apidefaults.Namespace)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -1809,8 +1828,9 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 	}
 }
 
-func newKubeClusterParser() *kubeClusterParser {
+func newKubeClusterParser(loadSecrets bool) *kubeClusterParser {
 	return &kubeClusterParser{
+		loadSecrets: loadSecrets,
 		baseParser: newBaseParser(
 			kubeUnscopedPrefix(),
 			kubeScopedPrefix(),
@@ -1820,6 +1840,7 @@ func newKubeClusterParser() *kubeClusterParser {
 
 type kubeClusterParser struct {
 	baseParser
+	loadSecrets bool
 }
 
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
@@ -1840,10 +1861,17 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
-		return services.UnmarshalKubeCluster(event.Item.Value,
+		cluster, err := services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return cluster.WithoutSecrets(), nil
+		}
+		return cluster, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -3278,7 +3306,10 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 
 func newBotInstanceParser() *botInstanceParser {
 	return &botInstanceParser{
-		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
+		baseParser: newBaseParser(
+			botInstanceUnscopedWatchPrefix(),
+			botInstanceScopedWatchPrefix(),
+		),
 	}
 }
 
@@ -3289,23 +3320,22 @@ type botInstanceParser struct {
 func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		parts := event.Item.Key.Components()
-		if len(parts) != 3 {
-			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
+		bot, instanceID, err := botInstanceNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
 		botInstance := machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
+			Scope:   bot.Scope,
 			Spec: machineidv1.BotInstanceSpec_builder{
-				BotName:    parts[1],
-				InstanceId: parts[2],
+				BotName:    bot.Name,
+				InstanceId: instanceID,
 			}.Build(),
 			Metadata: headerv1.Metadata_builder{
-				Name: parts[2],
+				Name: instanceID,
 			}.Build(),
 		}.Build()
-
 		return types.Resource153ToLegacy(botInstance), nil
 	case types.OpPut:
 		botInstance, err := services.UnmarshalBotInstance(
@@ -3318,6 +3348,49 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 		return types.Resource153ToLegacy(botInstance), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+// botInstanceNameFromKey parses a bot instance backend key into the qualified
+// name of the owning bot and the instance ID. The scope must be carried on
+// delete events: consumers (e.g. the cache) key their stores by
+// (scope, bot name, instance id).
+func botInstanceNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+	switch {
+	case key.HasPrefix(botInstanceScopedWatchPrefix()):
+		components := key.TrimPrefix(botInstanceScopedWatchPrefix()).Components()
+		if len(components) != 3 {
+			return scopes.QualifiedName{}, "", trace.BadParameter(
+				"expected 3 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		encodedScope, botName, instanceID := components[0], components[1], components[2]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, "", trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  botName,
+		}, instanceID, nil
+	case key.HasPrefix(botInstanceUnscopedWatchPrefix()):
+		components := key.TrimPrefix(botInstanceUnscopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, "", trace.BadParameter(
+				"expected 2 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, components[1], nil
+	default:
+		return scopes.QualifiedName{}, "", trace.BadParameter(
+			"unexpected prefix parsing backend key %v", key.String(),
+		)
 	}
 }
 

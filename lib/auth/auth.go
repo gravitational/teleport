@@ -649,13 +649,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.AppAuthConfig == nil {
-		cfg.AppAuthConfig, err = local.NewAppAuthConfigService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating AppAuthConfig service")
-		}
-	}
-
 	if cfg.MFAService == nil {
 		cfg.MFAService, err = local.NewMFAService(cfg.Backend)
 		if err != nil {
@@ -759,7 +752,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
-		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		Beams:                           cfg.Beams,
 		BeamsConfigService:              cfg.BeamsConfigService,
@@ -5745,6 +5737,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			RelayServerHeartbeatsCleanup:  true,
 			LinuxDesktopHeartbeats:        true,
 			LinuxDesktopCleanup:           true,
+			InstanceStatus:                true,
 		}.Build(),
 	}.Build()
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {

@@ -142,6 +142,52 @@ it('having only instances permissions should show warning banner', async () => {
   });
 });
 
+it('type filter option should be disabled for bot instances when the user can only read instances', async () => {
+  server.use(listOnlyRegularInstances);
+  const { user } = renderComponent({
+    customAcl: makeAcl({
+      instances: {
+        ...defaultAccess,
+        list: true,
+        read: true,
+      },
+      botInstances: {
+        ...defaultAccess,
+        list: false,
+        read: false,
+      },
+    }),
+  });
+
+  await user.click(screen.getByRole('button', { name: /Type/i }));
+
+  expect(screen.getByTestId('option-instance')).toBeEnabled();
+  expect(screen.getByTestId('option-bot_instance')).toBeDisabled();
+});
+
+it('type filter option should be disabled for instances when the user can only read bot instances', async () => {
+  server.use(listOnlyBotInstances);
+  const { user } = renderComponent({
+    customAcl: makeAcl({
+      instances: {
+        ...defaultAccess,
+        list: false,
+        read: false,
+      },
+      botInstances: {
+        ...defaultAccess,
+        list: true,
+        read: true,
+      },
+    }),
+  });
+
+  await user.click(screen.getByRole('button', { name: /Type/i }));
+
+  expect(screen.getByTestId('option-instance')).toBeDisabled();
+  expect(screen.getByTestId('option-bot_instance')).toBeEnabled();
+});
+
 it('cache still initializing error should show correct error', async () => {
   server.use(
     listInstancesError(

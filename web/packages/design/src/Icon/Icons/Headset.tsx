@@ -56,6 +56,7 @@ export const Headset = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-headset"
+
       {...otherProps}
       ref={ref}
     >
