@@ -240,7 +240,7 @@ see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagno
 $ gcloud compute health-checks create http teleport-auth-healthcheck \
     --region=us-central1 \
     --port=3000 \
-    --request-path=/healthz \
+    --request-path=/readyz \
     --check-interval=10s \
     --timeout=5s \
     --unhealthy-threshold=3 \
@@ -265,7 +265,7 @@ the legacy command instead:
 ```code
 $ gcloud compute http-health-checks create teleport-proxy-healthcheck \
     --port=3000 \
-    --request-path=/healthz \
+    --request-path=/readyz \
     --check-interval=10s \
     --timeout=5s \
     --unhealthy-threshold=3 \
@@ -364,28 +364,8 @@ them entirely.
 Instead, since the Proxy and Node instances already have dedicated GCP
 service accounts, use the **GCP join method** — the same approach covered in
 [Join Services with GCP](../agents/gcp.mdx), scoped by service account rather
-than a shared secret. Once at least one Auth instance is up and reachable
-(via the internal load balancer set up below), create a dynamic join token
-from your workstation:
-
-```code
-$ cat << EOF > proxy-token.yaml
-kind: token
-version: v2
-metadata:
-  name: teleport-proxy-token
-  expires: "2038-01-01T00:00:00Z"
-spec:
-  roles: [Proxy]
-  join_method: gcp
-  gcp:
-    allow:
-      - project_ids: ["Example_GCP_PROJECT"]
-        service_accounts: ["teleport-proxy-server@Example_GCP_PROJECT.iam.gserviceaccount.com"]
-EOF
-
-$ tctl create proxy-token.yaml
-```
+than a shared secret. We will create a dynamic join token for this on an Auth VM
+once the instances are provisioned.
 
 Reference `teleport-proxy-token` (not a static secret) in
 `teleport-proxy-startup.sh` below.
@@ -420,6 +400,14 @@ In `teleport-proxy-startup.sh`, fetch the secrets before starting Teleport,
 and replace `acme` with `https_keypairs` in the Proxy config:
 
 ```bash
+# Install dependencies and Google Cloud CLI
+apt-get update
+apt-get install -y apt-transport-https ca-certificates gnupg curl
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+apt-get update && apt-get install -y google-cloud-cli
+
+# Retrieve certificates from Secret Manager
 mkdir -p /var/lib/teleport
 gcloud secrets versions access latest --secret=teleport-proxy-cert > /var/lib/teleport/fullchain.pem
 gcloud secrets versions access latest --secret=teleport-proxy-key > /var/lib/teleport/privkey.pem
@@ -517,6 +505,30 @@ $ export AUTH_LB_IP=$(gcloud compute forwarding-rules describe teleport-auth-int
 This uses the `default` VPC network and subnet — substitute your own if
 you're not using GCP's default network. Use `$AUTH_LB_IP` (not
 `auth.example.com`) as the `auth_server` value in `teleport-proxy-startup.sh`.
+</Admonition>
+
+<Admonition type="note" title="Bootstrap the Proxy join token">
+Now that the Auth instances are created, create the dynamic join token directly on one of the new Auth VMs:
+
+```code
+$ gcloud compute ssh $(gcloud compute instances list --filter="tags.items=teleport-auth" --format="value(name)" | head -n1) \
+    --zone=us-central1-a \
+    --command="cat << 'EOF' > /tmp/proxy-token.yaml
+kind: token
+version: v2
+metadata:
+  name: teleport-proxy-token
+  expires: '2038-01-01T00:00:00Z'
+spec:
+  roles: [Proxy]
+  join_method: gcp
+  gcp:
+    allow:
+      - project_ids: ['Example_GCP_PROJECT']
+        service_accounts: ['teleport-proxy-server@Example_GCP_PROJECT.iam.gserviceaccount.com']
+EOF
+sudo tctl create -f /tmp/proxy-token.yaml && rm /tmp/proxy-token.yaml"
+```
 </Admonition>
 
 ```code
