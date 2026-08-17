@@ -18,7 +18,7 @@
 
 import fs from "node:fs";
 import config from "./config.json";
-import { events } from "teleport/Audit/fixtures";
+import { events as eventFixtures } from "teleport/Audit/fixtures";
 
 import { formatters } from "../makeEvent";
 import {
@@ -26,43 +26,56 @@ import {
   eventsWithoutExamples,
   fixtureTypeMismatches,
   removeUnknowns,
-} from './gen-event-reference.js';
+  segmentsWithoutConfig,
+} from "./gen-event-reference.js";
 
-const fixturePath = 'web/packages/teleport/src/Audit/fixtures/index.ts';
-const formatterPath = 'web/packages/teleport/src/services/audit/makeEvent.ts';
+const configPath =
+  "web/packages/teleport/src/services/audit/gen-event-reference/config.json";
+const fixturePath = "web/packages/teleport/src/Audit/fixtures/index.ts";
+const formatterPath = "web/packages/teleport/src/services/audit/makeEvent.ts";
+const UNKNOWN_TYPE = "unknown";
 
 if (process.argv.length !== 3) {
   console.error(
-    'The argument of the script must be the index of the audit event reference pages.'
+    "The argument of the script must be the index of the audit event reference pages.",
   );
   process.exit(1);
 }
 
-const auditEventsDir = process.argv[2].split('/').slice(0, -1).join('/');
+const auditEventsDir = process.argv[2].split("/").slice(0, -1).join("/");
 
-console.log('Writing audit event reference pages to ', auditEventsDir);
+console.log("Writing audit event reference pages to ", auditEventsDir);
 
-const noExampleEvents = eventsWithoutExamples(events, formatters);
-noExampleEvents.forEach(e => {
+const noExampleEvents = eventsWithoutExamples(eventFixtures, formatters);
+noExampleEvents.forEach((e) => {
   console.error(
-    `Warning: adding an entry for ${e.code} (${e.raw.event}) with no example. Add a test fixture to web/packages/teleport/src/Audit/fixtures/index.ts`
+    `Warning: adding an entry for ${e.code} (${e.raw.event}) with no example. Add a test fixture to web/packages/teleport/src/Audit/fixtures/index.ts`,
   );
 });
 
-const mismatches = fixtureTypeMismatches(events, formatters);
+const mismatches = fixtureTypeMismatches(eventFixtures, formatters);
 if (mismatches.length > 0) {
-  mismatches.forEach(m => {
+  mismatches.forEach((m) => {
     console.error(
-      `Fatal: event formatter code ${m.code} has type ${m.formatterType}, but its corresponding fixture has type ${m.fixtureType}. Ensure the formatter at ${formatterPath} matches the fixture at ${fixturePath}`
+      `Fatal: event formatter code ${m.code} has type ${m.formatterType}, but its corresponding fixture has type ${m.fixtureType}. Ensure the formatter at ${formatterPath} matches the fixture at ${fixturePath}`,
     );
   });
   process.exit(1);
 }
 
-const referencePages = createReferencePages(
-  removeUnknowns(events, formatters).concat(noExampleEvents),
-  config,
-);
+const finalEvents = removeUnknowns(eventFixtures, formatters)
+  .concat(noExampleEvents)
+  .filter((e) => e.raw.event !== UNKNOWN_TYPE);
+
+const unconfiguredSegments = segmentsWithoutConfig(finalEvents, config);
+if (unconfiguredSegments.length > 0) {
+  console.error(
+    `Fatal: the following top-level namespace segments for audit events have no entries in the generator config. Update ${configPath} to add them to a page or declare new page: ${unconfiguredSegments.join(", ")}`,
+  );
+  process.exit(1);
+}
+
+const referencePages = createReferencePages(finalEvents, config);
 
 referencePages.forEach((page) => {
   const filePath = `${auditEventsDir}/${page.id}.mdx`;

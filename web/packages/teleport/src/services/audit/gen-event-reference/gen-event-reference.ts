@@ -22,9 +22,9 @@ import { Event, Formatters } from "./types";
 // elements in formatters that do not have corresponding examples in fixtures.
 export function eventsWithoutExamples(
   fixtures: Event[],
-  formatters: Formatters
+  formatters: Formatters,
 ): ReferencePageEventData[] {
-  const fixtureCodes = new Set(fixtures.map(fixture => fixture.code));
+  const fixtureCodes = new Set(fixtures.map((fixture) => fixture.code));
   return Object.keys(formatters).reduce((accum, current) => {
     if (fixtureCodes.has(current)) {
       return accum;
@@ -34,12 +34,12 @@ export function eventsWithoutExamples(
       event: formatters[current].type,
       // Use fixed values for time and UID, consistent with what fixtures
       // use.
-      time: '2020-06-05T16:24:05Z',
-      uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+      time: "2020-06-05T16:24:05Z",
+      uid: "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
     };
     accum.push({
       codeDesc:
-        typeof formatters[current].desc == 'string'
+        typeof formatters[current].desc == "string"
           ? formatters[current].desc
           : formatters[current].desc(raw),
       code: current,
@@ -53,9 +53,9 @@ export function eventsWithoutExamples(
 // have a formatter.
 export function removeUnknowns(
   fixtures: Event[],
-  formatters: Formatters
+  formatters: Formatters,
 ): ReferencePageEventData[] {
-  return fixtures.filter(r => r.code in formatters);
+  return fixtures.filter((r) => r.code in formatters);
 }
 
 export interface FixtureTypeMismatch {
@@ -69,7 +69,7 @@ export interface FixtureTypeMismatch {
 // fixtures from making it into the documentation.
 export function fixtureTypeMismatches(
   fixtures: Event[],
-  formatters: Formatters
+  formatters: Formatters,
 ): FixtureTypeMismatch[] {
   const formatterCodesToTypes: Map<string, string> = new Map();
   for (const code in formatters) {
@@ -78,7 +78,7 @@ export function fixtureTypeMismatches(
   }
 
   let result: FixtureTypeMismatch[] = [];
-  fixtures.forEach(f => {
+  fixtures.forEach((f) => {
     // Find matching codes with mismatched types
     const formatterType = formatterCodesToTypes.get(f.code);
     if (formatterType && f.raw.event !== formatterType) {
@@ -118,7 +118,7 @@ Event: \`${event.raw.event}\``;
 export function createEventSection(event: ReferencePageEventData): string {
   return `## ${event.raw.event}
 
-${event.codeDesc + '\n'}
+${event.codeDesc + "\n"}
 ${exampleOrAttributes(event)}
 `;
 }
@@ -131,16 +131,16 @@ ${exampleOrAttributes(event)}
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
 export function createMultipleEventsSection(
-  events: ReferencePageEventData[]
+  events: ReferencePageEventData[],
 ): string {
   return events.reduce(
     (accum, event) => {
       return (
         accum +
-        '\n' +
+        "\n" +
         `### ${event.code}
 
-${event.codeDesc + '\n'}
+${event.codeDesc + "\n"}
 ${exampleOrAttributes(event)}
 `
       );
@@ -148,7 +148,7 @@ ${exampleOrAttributes(event)}
     `## ${events[0].raw.event}
 
 There are multiple events with the \`${events[0].raw.event}\` type.
-`
+`,
   );
 }
 
@@ -161,11 +161,11 @@ export interface ReferencePageEventData {
   };
 }
 
-// getSegment returns the type of an audit event, which is defined as the 
-// first part of the event name, before the first period. If there is no 
+// getSegment returns the type of an audit event, which is defined as the
+// first part of the event name, before the first period. If there is no
 // period in the event name, the entire event name is returned.
 const getSegment = (event: ReferencePageEventData): string => {
-  return event.raw.event.split('.')[0] || event.raw.event;
+  return event.raw.event.split(".")[0] || event.raw.event;
 };
 
 export interface ThemeConfig {
@@ -179,8 +179,28 @@ export interface Theme {
   introduction?: string;
 }
 
+export function segmentsWithoutConfig(
+  jsonEvents: ReferencePageEventData[],
+  config: ThemeConfig,
+): string[] {
+  const configuredSegments = new Set<string>();
+  const jsonEventSegments = new Set<string>();
+  config.themes.forEach((theme) => {
+    theme.segments.forEach((seg) => {
+      configuredSegments.add(seg);
+    });
+  });
+  jsonEvents.forEach((e) => {
+    // Event types are guaranteed to be nonempty strings, so take the first
+    // namespace segment or the whole string if there are no namespace
+    // segments.
+    jsonEventSegments.add(e.raw.event.split(".")[0]);
+  });
+  return Array.from(jsonEventSegments.difference(configuredSegments));
+}
+
 // createReferencePages takes an array of JSON documents that define an audit
-// event test fixture and returns an array that contains the name and content of 
+// event test fixture and returns an array that contains the name and content of
 // an audit event reference guide.
 //
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
@@ -200,8 +220,11 @@ export function createReferencePages(
   });
 
   // Map event segments to their corresponding events. E.g. "session" => { "session.start" => [event1, event2], "session.end" => [event3] }
-  const eventSegmentsMap = new Map<string, Map<string, ReferencePageEventData[]>>();
-  result.forEach(e => {
+  const eventSegmentsMap = new Map<
+    string,
+    Map<string, ReferencePageEventData[]>
+  >();
+  result.forEach((e) => {
     if (codeSet.has(e.code)) {
       return;
     }
@@ -226,16 +249,13 @@ export function createReferencePages(
     const events = eventSegmentsMap.get(segment);
     return {
       type: segment,
-      content: events.keys().reduce(
-        (accum, current) => {
-          const codes = events.get(current);
-          if (codes.length == 1) {
-            return accum + '\n' + createEventSection(codes[0]);
-          }
-          return accum + '\n' + createMultipleEventsSection(codes);
-        },
-        '',
-      ),
+      content: events.keys().reduce((accum, current) => {
+        const codes = events.get(current);
+        if (codes.length == 1) {
+          return accum + "\n" + createEventSection(codes[0]);
+        }
+        return accum + "\n" + createMultipleEventsSection(codes);
+      }, ""),
     };
   });
 
@@ -243,11 +263,13 @@ export function createReferencePages(
   const themePages = config.themes.map((theme: Theme) => {
     return {
       id: theme.id,
-      content: segments.filter(segment => theme.segments.indexOf(segment.type) !== -1).reduce(
-        (accum, current) => {
-          return accum + '\n' + current.content;
-        },
-        `---
+      content: segments
+        .filter((segment) => theme.segments.indexOf(segment.type) !== -1)
+        .reduce(
+          (accum, current) => {
+            return accum + "\n" + current.content;
+          },
+          `---
 title: ${theme.name} Audit Events
 description: "Provides a list of ${theme.name} audit events."
 ---
@@ -259,36 +281,11 @@ description: "Provides a list of ${theme.name} audit events."
 {/* Formatted event examples sometimes include different capitalization than
 what we standardize on in the docs*/}
 {/* vale messaging.capitalization = NO */}
-${theme.introduction ? `\n${theme.introduction}\n` : ''}
+${theme.introduction ? `\n${theme.introduction}\n` : ""}
 `,
-      ),
+        ),
     };
   });
 
-  // Add a miscellaneous page for any segments that do have not been added under a theme.
-  const segmentsNotInThemes = segments.some(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1))
-  if (segmentsNotInThemes) {
-    themePages.push({
-      id: "miscellaneous",
-      content: segments.filter(segment => !config.themes.some(theme => theme.segments.indexOf(segment.type) !== -1)).reduce(
-        (accum, current) => {
-          return accum + '\n' + current.content;
-        },
-      `---
-title: Miscellaneous Audit Events
-description: "Provides a list of miscellaneous audit events."
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-`,
-      ),
-    });
-  }
   return themePages;
 }

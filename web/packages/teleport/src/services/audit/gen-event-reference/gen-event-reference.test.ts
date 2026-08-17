@@ -23,6 +23,8 @@ import {
   fixtureTypeMismatches,
   ReferencePageEventData,
   removeUnknowns,
+  segmentsWithoutConfig,
+  ThemeConfig,
 } from "./gen-event-reference";
 import { Event, Formatters } from "./types";
 
@@ -111,6 +113,158 @@ describe("eventsWithoutExamples", () => {
 
   test.each(testCases)("$description", (testCase) => {
     expect(eventsWithoutExamples(testCase.events, testCase.formatters)).toEqual(
+      testCase.expected,
+    );
+  });
+});
+
+describe("segmentsWithoutConfig", () => {
+  interface testCase {
+    description: string;
+    config: ThemeConfig;
+    events: Event[];
+    expected: string[];
+  }
+
+  const testCases: testCase[] = [
+    {
+      description: "segments not mentioned in the generator config",
+      events: [
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          user: "root",
+          message: "User [root] has deleted a card",
+          codeDesc: "Unknown",
+          code: "ABC123",
+          raw: {
+            event: "billing.delete_card",
+            time: "2020-06-05T16:24:05Z",
+            uid: "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+            code: "ABC123",
+          },
+        },
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          codeDesc: "App created",
+          code: "ABC123",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          message: "User [root] has created an app",
+          user: "root",
+          raw: {
+            event: "app.create",
+            code: "ABC123",
+            time: "2020-06-05T16:24:05Z",
+            uid: "00000000-0000-0000-0000-000000000000",
+          },
+        },
+      ],
+      config: {
+        themes: [
+          {
+            id: "page1",
+            name: "Page 1",
+            segments: ["app"],
+          },
+        ],
+      },
+      expected: ["billing"],
+    },
+    {
+      description: "valid case with one page",
+      events: [
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          user: "root",
+          message: "User [root] has deleted a card",
+          codeDesc: "Unknown",
+          code: "ABC123",
+          raw: {
+            event: "billing.delete_card",
+            time: "2020-06-05T16:24:05Z",
+            uid: "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+            code: "ABC123",
+          },
+        },
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          codeDesc: "App created",
+          code: "ABC123",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          message: "User [root] has created an app",
+          user: "root",
+          raw: {
+            event: "app.create",
+            code: "ABC123",
+            time: "2020-06-05T16:24:05Z",
+            uid: "00000000-0000-0000-0000-000000000000",
+          },
+        },
+      ],
+      config: {
+        themes: [
+          {
+            id: "page1",
+            name: "Page 1",
+            segments: ["app", "billing"],
+          },
+        ],
+      },
+      expected: [],
+    },
+    {
+      description: "valid case with two pages",
+      events: [
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          user: "root",
+          message: "User [root] has deleted a card",
+          codeDesc: "Unknown",
+          code: "ABC123",
+          raw: {
+            event: "billing.delete_card",
+            time: "2020-06-05T16:24:05Z",
+            uid: "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+            code: "ABC123",
+          },
+        },
+        {
+          id: "056517e0-f7e1-4286-b437-c75f3a865af4",
+          codeDesc: "App created",
+          code: "ABC123",
+          time: new Date("2021-03-18T16:28:51.219Z"),
+          message: "User [root] has created an app",
+          user: "root",
+          raw: {
+            event: "app.create",
+            code: "ABC123",
+            time: "2020-06-05T16:24:05Z",
+            uid: "00000000-0000-0000-0000-000000000000",
+          },
+        },
+      ],
+      config: {
+        themes: [
+          {
+            id: "page1",
+            name: "Page 1",
+            segments: ["billing"],
+          },
+          {
+            id: "page2",
+            name: "Page 2",
+            segments: ["app"],
+          },
+        ],
+      },
+      expected: [],
+    },
+  ];
+
+  test.each(testCases)("$description", (testCase) => {
+    expect(segmentsWithoutConfig(testCase.events, testCase.config)).toEqual(
       testCase.expected,
     );
   });

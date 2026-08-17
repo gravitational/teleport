@@ -19,36 +19,6 @@ what we standardize on in the docs*/}
 ",
     "id": "kubernetes-access",
   },
-  Object {
-    "content": "---
-title: Miscellaneous Audit Events
-description: \\"Provides a list of miscellaneous audit events.\\"
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-
-## event.a
-
-Event A
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.a\\",
-  \\"code\\": \\"ABC123\\"
-}
-\`\`\`
-",
-    "id": "miscellaneous",
-  },
 ]
 `;
 
@@ -70,40 +40,6 @@ what we standardize on in the docs*/}
 
 ",
     "id": "kubernetes-access",
-  },
-  Object {
-    "content": "---
-title: Miscellaneous Audit Events
-description: \\"Provides a list of miscellaneous audit events.\\"
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-
-## access_request.review
-
-Access Request Reviewed
-
-Code: \`T5002I\`
-
-Event: \`access_request.review\`
-
-
-## stable_unix_user.create
-
-Stable UNIX user created
-
-Code: \`TSUU001I\`
-
-Event: \`stable_unix_user.create\`
-",
-    "id": "miscellaneous",
   },
 ]
 `;
@@ -196,53 +132,6 @@ what we standardize on in the docs*/}
 ",
     "id": "kubernetes-access",
   },
-  Object {
-    "content": "---
-title: Miscellaneous Audit Events
-description: \\"Provides a list of miscellaneous audit events.\\"
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-
-## event.a
-
-There are multiple events with the \`event.a\` type.
-
-### ABC123
-
-Event A
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.a\\",
-  \\"code\\": \\"ABC123\\"
-}
-\`\`\`
-
-### ABC456
-
-Event A failed
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.a\\",
-  \\"code\\": \\"ABC456\\"
-}
-\`\`\`
-",
-    "id": "miscellaneous",
-  },
 ]
 `;
 
@@ -265,57 +154,6 @@ what we standardize on in the docs*/}
 ",
     "id": "kubernetes-access",
   },
-  Object {
-    "content": "---
-title: Miscellaneous Audit Events
-description: \\"Provides a list of miscellaneous audit events.\\"
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-
-## event.a
-
-There are multiple events with the \`event.a\` type.
-
-### ABC123
-
-Event A
-
-Code: \`ABC123\`
-
-Event: \`event.a\`
-
-### ABC456
-
-Event A failed
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.a\\",
-  \\"code\\": \\"ABC456\\",
-  \\"user\\": \\"myuser\\"
-}
-\`\`\`
-
-### ABC789
-
-Event A starting
-
-Code: \`ABC789\`
-
-Event: \`event.a\`
-",
-    "id": "miscellaneous",
-  },
 ]
 `;
 
@@ -337,62 +175,6 @@ what we standardize on in the docs*/}
 
 ",
     "id": "kubernetes-access",
-  },
-  Object {
-    "content": "---
-title: Miscellaneous Audit Events
-description: \\"Provides a list of miscellaneous audit events.\\"
----
-{/* Generated file. Do not edit. */}
-{/* To regenerate, run \`make audit-event-reference\` */}
-
-{/*cSpell:disable*/}
-
-{/* Formatted event examples sometimes include different capitalization than
-what we standardize on in the docs*/}
-{/* vale messaging.capitalization = NO */}
-
-
-## event.a
-
-Event A
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.a\\",
-  \\"code\\": \\"ABC123\\"
-}
-\`\`\`
-
-## event.b
-
-Event B
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.b\\",
-  \\"code\\": \\"DEF123\\"
-}
-\`\`\`
-
-## event.c
-
-Event C
-
-Example:
-
-\`\`\`json
-{
-  \\"event\\": \\"event.c\\",
-  \\"code\\": \\"GHI123\\"
-}
-\`\`\`
-",
-    "id": "miscellaneous",
   },
 ]
 `;
