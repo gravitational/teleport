@@ -1,0 +1,721 @@
+---
+title: Access Controls Audit Events
+description: "Provides a list of Access Controls audit events."
+sidebar_label: Access Controls
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport authorization and access controls.
+
+
+
+## access_graph.crown_jewel.create
+
+Crown Jewel Created
+
+Example:
+
+```json
+{
+  "code": "CJ001I",
+  "event": "access_graph.crown_jewel.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.crown_jewel.delete
+
+Crown Jewel Deleted
+
+Example:
+
+```json
+{
+  "code": "CJ003I",
+  "event": "access_graph.crown_jewel.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.crown_jewel.update
+
+Crown Jewel Updated
+
+Example:
+
+```json
+{
+  "code": "CJ002I",
+  "event": "access_graph.crown_jewel.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.path.changed
+
+Access Path Changed
+
+Example:
+
+```json
+{
+  "code": "TAG001I",
+  "event": "access_graph.path.changed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## access_graph_settings.update
+
+Access Graph Settings Updated
+
+Example:
+
+```json
+{
+  "code": "TCAGC003I",
+  "time": "2022-04-13T20:00:05.000Z",
+  "user": "alice@example.com",
+  "event": "access_graph_settings.update"
+}
+```
+
+
+## access_list.create
+
+There are multiple events with the `access_list.create` type.
+
+### TAL001I
+
+Access list created
+
+Example:
+
+```json
+{
+  "code": "TAL001I",
+  "event": "access_list.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL001E
+
+Access list create failed
+
+Example:
+
+```json
+{
+  "code": "TAL001E",
+  "event": "access_list.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.delete
+
+There are multiple events with the `access_list.delete` type.
+
+### TAL003I
+
+Access list deleted
+
+Example:
+
+```json
+{
+  "code": "TAL003I",
+  "event": "access_list.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL003E
+
+Access list delete failed
+
+Example:
+
+```json
+{
+  "code": "TAL003E",
+  "event": "access_list.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.member.create
+
+There are multiple events with the `access_list.member.create` type.
+
+### TAL005I
+
+Access list member added
+
+Example:
+
+```json
+{
+  "code": "TAL005I",
+  "event": "access_list.member.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL005E
+
+Access list member addition failure
+
+Example:
+
+```json
+{
+  "code": "TAL005E",
+  "event": "access_list.member.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.delete
+
+There are multiple events with the `access_list.member.delete` type.
+
+### TAL007I
+
+Access list member removed
+
+Example:
+
+```json
+{
+  "code": "TAL007I",
+  "event": "access_list.member.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL007E
+
+Access list member removal failure
+
+Example:
+
+```json
+{
+  "code": "TAL007E",
+  "event": "access_list.member.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "carrot"
+    },
+    {
+      "member_name": "apple"
+    },
+    {
+      "member_name": "banana"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.delete_all_members
+
+There are multiple events with the `access_list.member.delete_all_members` type.
+
+### TAL008I
+
+All members removed from access list
+
+Example:
+
+```json
+{
+  "code": "TAL008I",
+  "event": "access_list.member.delete_all_members",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "updated_by": "mike"
+}
+```
+
+### TAL008E
+
+Access list member delete all members failure
+
+Example:
+
+```json
+{
+  "code": "TAL008E",
+  "event": "access_list.member.delete_all_members",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.update
+
+There are multiple events with the `access_list.member.update` type.
+
+### TAL006I
+
+Access list member updated
+
+Example:
+
+```json
+{
+  "code": "TAL006I",
+  "event": "access_list.member.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL006E
+
+Access list member update failure
+
+Example:
+
+```json
+{
+  "code": "TAL006E",
+  "event": "access_list.member.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.review
+
+There are multiple events with the `access_list.review` type.
+
+### TAL004I
+
+Access list reviewed
+
+Example:
+
+```json
+{
+  "code": "TAL004I",
+  "event": "access_list.review",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL004E
+
+Access list review failed
+
+Example:
+
+```json
+{
+  "code": "TAL004E",
+  "event": "access_list.review",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.update
+
+There are multiple events with the `access_list.update` type.
+
+### TAL002I
+
+Access list updated
+
+Example:
+
+```json
+{
+  "code": "TAL002I",
+  "event": "access_list.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL002E
+
+Access list update failed
+
+Example:
+
+```json
+{
+  "code": "TAL002E",
+  "event": "access_list.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+
+## access_request.create
+
+Access Request Created
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5000I",
+  "event": "access_request.create",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+  "user": "Carrie_Sandoval",
+  "state": "PENDING",
+  "roles": [
+    "admin"
+  ]
+}
+```
+
+## access_request.delete
+
+Access Request Deleted
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5003I",
+  "event": "access_request.delete",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.expire
+
+Access Request Expired
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5005I",
+  "event": "access_request.expire",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.review
+
+Access Request Reviewed
+
+Example:
+
+```json
+{
+  "code": "T5002I",
+  "event": "access_request.review",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.search
+
+Resource Access Search
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T5004I",
+  "ei": 0,
+  "event": "access_request.search",
+  "namespace": "default",
+  "resource_type": "db_server",
+  "search_as_roles": [
+    "admin",
+    "really-long-role-name-1",
+    "really-long-role-name-2",
+    "really-long-role-name-3",
+    "really-long-role-name-4",
+    "really-long-role-name-5",
+    "really-long-role-name-6",
+    "really-long-role-name-7",
+    "really-long-role-name-8",
+    "really-long-role-name-9"
+  ],
+  "time": "2022-06-08T15:10:35.368Z",
+  "uid": "b13d61-b97-475f-86ef-1fedf",
+  "user": "foo"
+}
+```
+
+## access_request.update
+
+Access Request Updated
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5001I",
+  "event": "access_request.update",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+  "state": "APPROVED",
+  "updated_by": "Sam_Waters"
+}
+```
+
+
+## lock.created
+
+Lock Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLK00I",
+  "ei": 0,
+  "event": "lock.created",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "lock-name",
+  "time": "2021-08-06T18:47:19.75Z",
+  "uid": "070fcb2a-e1cf-5b84-8190-14448cc63c76",
+  "user": "df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name"
+}
+```
+
+## lock.deleted
+
+Lock Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLK01I",
+  "ei": 0,
+  "event": "lock.deleted",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "lock-name",
+  "time": "2021-08-06T18:49:51.626Z",
+  "uid": "e4630384-ac85-5a43-9ba9-3355b8d5cae4",
+  "user": "df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name"
+}
+```
+
+
+## role.created
+
+User Role Created
+
+Example:
+
+```json
+{
+  "code": "T9000I",
+  "event": "role.created",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## role.deleted
+
+User Role Deleted
+
+Example:
+
+```json
+{
+  "code": "T9001I",
+  "event": "role.deleted",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## role.updated
+
+User Role Updated
+
+Example:
+
+```json
+{
+  "code": "T9002I",
+  "event": "role.updated",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## user_task.create
+
+User Task Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52763",
+  "cluster_name": "lenix",
+  "code": "UT001I",
+  "ei": 0,
+  "event": "user_task.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:00:34.186Z",
+  "uid": "709840ec-288e-4056-ba20-c8f4b12a478f",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1,
+  "user_task_integration": "teleportdev",
+  "user_task_issue_type": "ec2-ssm-invocation-failure",
+  "user_task_type": "discover-ec2"
+}
+```
+
+## user_task.delete
+
+User Task Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52915",
+  "cluster_name": "lenix",
+  "code": "UT003I",
+  "ei": 0,
+  "event": "user_task.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:01:11.031Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1
+}
+```
+
+## user_task.update
+
+User Task Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52833",
+  "cluster_name": "lenix",
+  "code": "UT002I",
+  "current_user_task_state": "OPEN",
+  "ei": 0,
+  "event": "user_task.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:01:02.853Z",
+  "uid": "0ba36761-4a6a-429e-bce4-1825d80ce06a",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "updated_user_task_state": "OPEN",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1,
+  "user_task_integration": "teleportdev",
+  "user_task_issue_type": "ec2-ssm-invocation-failure",
+  "user_task_type": "discover-ec2"
+}
+```

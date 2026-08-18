@@ -1,0 +1,607 @@
+---
+title: Machine & Workload Identity Audit Events
+description: "Provides a list of Machine & Workload Identity audit events."
+sidebar_label: Machine & Workload Identity
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport Machine & Workload Identity.
+
+
+
+## bot.create
+
+Bot Created
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "TB001I",
+  "ei": 0,
+  "event": "bot.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## bot.delete
+
+Bot Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "TB003I",
+  "ei": 0,
+  "event": "bot.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "review2",
+  "time": "2023-12-08T09:52:30.579Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## bot.join
+
+There are multiple events with the `bot.join` type.
+
+### TJ001I
+
+Bot Joined
+
+Example:
+
+```json
+{
+  "attributes": {
+    "actor": "strideynet",
+    "actor_id": "16336790",
+    "base_ref": "",
+    "environment": "",
+    "event_name": "push",
+    "head_ref": "",
+    "job_workflow_ref": "strideynet/sandbox/.github/workflows/build.yaml@refs/heads/main",
+    "ref": "refs/heads/main",
+    "ref_type": "branch",
+    "repository": "strideynet/sandbox",
+    "repository_id": "539963344",
+    "repository_owner": "strideynet",
+    "repository_owner_id": "16336790",
+    "repository_visibility": "private",
+    "run_attempt": "6",
+    "run_id": "3547291254",
+    "run_number": "73",
+    "sha": "758c69462083ad67f0714112aab31fdeb1ba3a59",
+    "sub": "repo:strideynet/sandbox:ref:refs/heads/main",
+    "workflow": "Demo"
+  },
+  "bot_name": "github-demo",
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ001I",
+  "ei": 0,
+  "event": "bot.join",
+  "method": "github",
+  "success": true,
+  "time": "2022-12-05T17:11:03.268Z",
+  "token_name": "github-bot",
+  "uid": "15a82555-b5aa-4eb8-820e-551f991bf902"
+}
+```
+
+### TJ001E
+
+Bot Join Failed
+
+Example:
+
+```json
+{
+  "attributes": {
+    "actor": "strideynet",
+    "actor_id": "16336790",
+    "base_ref": "",
+    "environment": "",
+    "event_name": "push",
+    "head_ref": "",
+    "job_workflow_ref": "strideynet/sandbox/.github/workflows/build.yaml@refs/heads/main",
+    "ref": "refs/heads/main",
+    "ref_type": "branch",
+    "repository": "strideynet/sandbox",
+    "repository_id": "539963344",
+    "repository_owner": "strideynet",
+    "repository_owner_id": "16336790",
+    "repository_visibility": "private",
+    "run_attempt": "3",
+    "run_id": "8604159359",
+    "run_number": "100",
+    "sha": "0c9c5361d15154caf1c151dc1f430ea3552c9b93",
+    "sub": "repo:strideynet/sandbox:ref:refs/heads/main",
+    "workflow": "Demo"
+  },
+  "bot_name": "unknown",
+  "cluster_name": "leaf.tele.ottr.sh",
+  "code": "TJ001E",
+  "ei": 0,
+  "error": "id token claims did not match any allow rules",
+  "event": "bot.join",
+  "method": "unknown",
+  "success": false,
+  "time": "2024-04-08T17:33:48.877Z",
+  "uid": "2bc5e2cb-5ba1-47d7-a7ae-381cf323ae7f"
+}
+```
+
+### TJ001L
+
+Bot Join Failed
+
+Example:
+
+```json
+{
+  "code": "TJ001L",
+  "event": "bot.join",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## bot.update
+
+Bot Updated
+
+Example:
+
+```json
+{
+  "code": "TB002I",
+  "event": "bot.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## instance.join
+
+There are multiple events with the `instance.join` type.
+
+### TJ002I
+
+Instance Joined
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002I",
+  "ei": 0,
+  "event": "instance.join",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
+}
+```
+
+### TJ002E
+
+Instance Join Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002E",
+  "ei": 0,
+  "event": "instance.join",
+  "error": "token expired or not found",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
+}
+```
+
+### TJ002L
+
+Instance Join Limit
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002L",
+  "ei": 0,
+  "event": "instance.join",
+  "error": "scoped token usage exhausted",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98",
+  "scope": "/ottr",
+  "roles": [
+    "Node",
+    "Kube"
+  ]
+}
+```
+
+
+## sigstore_policy.create
+
+Sigstore Policy Created
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP001I",
+  "ei": 0,
+  "event": "sigstore_policy.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## sigstore_policy.delete
+
+Sigstore Policy Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP003I",
+  "ei": 0,
+  "event": "sigstore_policy.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## sigstore_policy.update
+
+Sigstore Policy Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP002I",
+  "ei": 0,
+  "event": "sigstore_policy.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+
+## spiffe.federation.create
+
+SPIFFE Federation Created
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE001I",
+  "event": "spiffe.federation.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## spiffe.federation.delete
+
+SPIFFE Federation Deleted
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE002I",
+  "event": "spiffe.federation.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## spiffe.svid.issued
+
+There are multiple events with the `spiffe.svid.issued` type.
+
+### TSPIFFE000I
+
+SPIFFE SVID Issued
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:54378",
+  "cluster_name": "leaf.tele.ottr.sh",
+  "code": "TSPIFFE000I",
+  "dns_sans": null,
+  "ei": 0,
+  "event": "spiffe.svid.issued",
+  "hint": "",
+  "ip_sans": null,
+  "serial_number": "d1:e5:fc:bf:19:67:e7:8c:7a:21:37:b5:05:ea:77:41",
+  "spiffe_id": "spiffe://example.teleport.com/bar",
+  "svid_type": "x509",
+  "time": "2024-02-02T15:48:25.35Z",
+  "uid": "45e13afc-0890-4ffb-b125-99d93c26d7de",
+  "user": "bot-test12",
+  "user_kind": 2
+}
+```
+
+### TSPIFFE000E
+
+SPIFFE SVID Issued Failure
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE000E",
+  "event": "spiffe.svid.issued",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## workload_cluster.create
+
+There are multiple events with the `workload_cluster.create` type.
+
+### WC001I
+
+Workload Cluster Created
+
+Example:
+
+```json
+{
+  "code": "WC001I",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC001E
+
+Workload Cluster Create Failed
+
+Example:
+
+```json
+{
+  "code": "WC001E",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.delete
+
+There are multiple events with the `workload_cluster.delete` type.
+
+### WC003I
+
+Workload Cluster Deleted
+
+Example:
+
+```json
+{
+  "code": "WC003I",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC003E
+
+Workload Cluster Delete Failed
+
+Example:
+
+```json
+{
+  "code": "WC003E",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.update
+
+There are multiple events with the `workload_cluster.update` type.
+
+### WC002I
+
+Workload Cluster Updated
+
+Example:
+
+```json
+{
+  "code": "WC002I",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC002E
+
+Workload Cluster Update Failed
+
+Example:
+
+```json
+{
+  "code": "WC002E",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## workload_identity.create
+
+Workload Identity Created
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID001I",
+  "ei": 0,
+  "event": "workload_identity.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## workload_identity.delete
+
+Workload Identity Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID003I",
+  "ei": 0,
+  "event": "workload_identity.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## workload_identity.update
+
+Workload Identity Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID002I",
+  "ei": 0,
+  "event": "workload_identity.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+
+## workload_identity_x509_issuer_override.create
+
+Workload Identity X.509 Issuer Override Created
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.71:59517",
+  "cluster_name": "clustername",
+  "code": "WID007I",
+  "ei": 0,
+  "event": "workload_identity_x509_issuer_override.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-28T08:42:14.526Z",
+  "uid": "d99124ab-34f8-490e-b839-ca881e7cc6ba",
+  "user": "alice",
+  "user_kind": 1
+}
+```
+
+## workload_identity_x509_issuer_override.delete
+
+Workload Identity X.509 Issuer Override Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "WID008I",
+  "ei": 0,
+  "event": "workload_identity_x509_issuer_override.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
