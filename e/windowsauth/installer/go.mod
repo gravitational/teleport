@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport-windows-auth
 
-go 1.26.4
+go 1.26.6
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
