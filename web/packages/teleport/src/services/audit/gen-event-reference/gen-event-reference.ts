@@ -272,6 +272,7 @@ export function createReferencePages(
           `---
 title: ${theme.name} Audit Events
 description: "Provides a list of ${theme.name} audit events."
+sidebar_label: ${theme.name}
 ---
 {/* Generated file. Do not edit. */}
 {/* To regenerate, run \`make audit-event-reference\` */}
