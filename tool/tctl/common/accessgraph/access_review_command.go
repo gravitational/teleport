@@ -125,7 +125,7 @@ func (c *AccessGraphCommand) AccessReview(ctx context.Context, client *accessgra
 		output.ActivityUnavailable = utils.AllowWhitespace(*resp.IacError)
 	}
 	if truncated {
-		output.Warnings = append(output.Warnings, fmt.Sprintf("results truncated at %d identities; narrow --query for the full set", args.limit))
+		output.Warnings = append(output.Warnings, fmt.Sprintf("results truncated at %d identities; narrow --query or increase --limit for the full set", args.limit))
 	}
 
 	return writeOutput(c.stdout, output, args.format, func(w io.Writer) error {
@@ -501,9 +501,12 @@ func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]s
 	return headers, rows
 }
 
-const resourceColumn = "Resource"
-
-const resourceColumnFloor = 16
+const (
+	// resourceColumn is the header of the column we truncate to fit the terminal.
+	resourceColumn = "Resource"
+	// resourceColumnFloor is the narrowest we will truncate resourceColumn to.
+	resourceColumnFloor = 16
+)
 
 func writeAccessTable(out io.Writer, headers []string, rows [][]string) error {
 	table := buildAccessTable(headers, rows, terminalWidth(out))
@@ -511,30 +514,39 @@ func writeAccessTable(out io.Writer, headers []string, rows [][]string) error {
 	return trace.Wrap(err)
 }
 
-// buildAccessTable caps only the Resource column to the space the others leave,
-// so wide columns are never clipped just to fit the table width. The cap ignores
-// the "..." asciitable appends on truncation, so a clipped Resource can overflow
-// width by a few columns; the terminal wraps it.
+// buildAccessTable lets every column render at its full width and truncates
+// only resourceColumn to the space they leave over, so no column is clipped
+// just to fit the table width. The table exceeds width only when that space
+// falls under resourceColumnFloor, in which case the terminal wraps it.
 func buildAccessTable(headers []string, rows [][]string, width int) asciitable.Table {
-	used := 0
+	// Measure what the other columns cost, and how much room Resource wants, so
+	// we can tell whether it needs truncating at all.
+	used, resourceWidth := 0, 0
 	for i, h := range headers {
-		if h == resourceColumn {
-			continue
-		}
 		colWidth := len(h)
 		for _, row := range rows {
 			if i < len(row) && len(row[i]) > colWidth {
 				colWidth = len(row[i])
 			}
 		}
-		used += colWidth + 1 // +1 for tabwriter's column padding
+		if h == resourceColumn {
+			resourceWidth = colWidth
+			continue
+		}
+		used += max(colWidth+asciitable.ColumnPadding, asciitable.MinColumnWidth)
 	}
+
+	// Room left for Resource's own contents, its padding excluded.
+	available := width - used - asciitable.ColumnPadding
 
 	t := asciitable.MakeTable([]string{})
 	for _, h := range headers {
 		col := asciitable.Column{Title: h}
-		if h == resourceColumn {
-			col.MaxCellLength = max(width-used, resourceColumnFloor)
+		// A zero MaxCellLength leaves the column unbounded, so bound Resource
+		// only when it genuinely overflows; the suffix asciitable appends on
+		// truncation comes out of the same room.
+		if h == resourceColumn && resourceWidth > available {
+			col.MaxCellLength = max(available-len(asciitable.TruncationSuffix), resourceColumnFloor)
 		}
 		t.AddColumn(col)
 	}

@@ -314,6 +314,41 @@ func TestBuildAccessTable(t *testing.T) {
 		require.NotContains(t, out, longResource, "an oversized resource name should be bounded")
 		require.Contains(t, out, "...")
 	})
+
+	t.Run("an oversized resource is truncated to fit the terminal", func(t *testing.T) {
+		longRows := [][]string{
+			{"ghassan", "user", strings.Repeat("x", 300), "app", "standing", "Local DB ACL", "3 standing, 1 request", "6", "2026-06-05T19:15:32-07:00"},
+		}
+		// The other columns need 111 columns here, so these widths all leave
+		// Resource more than resourceColumnFloor to work with.
+		for _, width := range []int{131, 140, 180, 200} {
+			table := buildAccessTable(headers, longRows, width)
+			require.LessOrEqual(t, widestLine(table.String()), width,
+				"a resource name should be truncated to fit a %d column terminal", width)
+		}
+	})
+
+	t.Run("resource stops shrinking at the floor", func(t *testing.T) {
+		// Below the floor we deliberately overflow and let the terminal wrap,
+		// rather than shrink Resource down to nothing.
+		longRows := [][]string{
+			{"ghassan", "user", strings.Repeat("x", 300), "app", "standing", "Local DB ACL", "3 standing, 1 request", "6", "2026-06-05T19:15:32-07:00"},
+		}
+		table := buildAccessTable(headers, longRows, 40)
+		out := table.String()
+		require.Contains(t, out, strings.Repeat("x", resourceColumnFloor)+"...")
+		require.NotContains(t, out, strings.Repeat("x", resourceColumnFloor+1)+"...")
+	})
+}
+
+// widestLine returns the length of the longest line in s, which is the width
+// the table needs to render without the terminal wrapping it.
+func widestLine(s string) int {
+	widest := 0
+	for line := range strings.SplitSeq(strings.TrimRight(s, "\n"), "\n") {
+		widest = max(widest, len(line))
+	}
+	return widest
 }
 
 // accessPageHandler serves the configured response pages in order, recording
