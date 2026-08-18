@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -56,9 +57,17 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 	return tlsCert, nil
 }
 
+// signForDBTimeout bounds a single SignForDB gRPC call for the same reason as
+// signForAppTimeout: a hung signature during the database TLS handshake would
+// otherwise block handleTCP and leak the connection's in-flight forwarder slot.
+// It must stay well below tcpConnectionSetupTimeout.
+const signForDBTimeout = 30 * time.Second
+
 func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (*rpcSigner, error) {
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
-		return p.clt.SignForDB(context.TODO(), vnetv1.SignForDBRequest_builder{
+		ctx, cancel := context.WithTimeout(context.Background(), signForDBTimeout)
+		defer cancel()
+		return p.clt.SignForDB(ctx, vnetv1.SignForDBRequest_builder{
 			DatabaseKey: dbInfo.GetDatabaseKey(),
 			Sign:        req,
 		}.Build())
