@@ -158,6 +158,56 @@ func TestConnSetupTimerDoesNotFireAfterSetupDone(t *testing.T) {
 		"onTimeout must not fire for a connection that already completed setup")
 }
 
+// TestConnSetupTimerSetupDoneWaitsForInFlightOnTimeout verifies that setupDone
+// blocks for the duration of an onTimeout call that already started (won the
+// race against setupDone), so onTimeout can never still be running after
+// setupDone returns.
+func TestConnSetupTimerSetupDoneWaitsForInFlightOnTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	onTimeoutStarted := make(chan struct{})
+	releaseOnTimeout := make(chan struct{})
+	onTimeoutFinished := make(chan struct{})
+
+	timer := newConnSetupTimer(clock, tcpConnectionSetupTimeout, func() {
+		close(onTimeoutStarted)
+		<-releaseOnTimeout
+		close(onTimeoutFinished)
+	})
+
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(tcpConnectionSetupTimeout)
+
+	select {
+	case <-onTimeoutStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("onTimeout did not start")
+	}
+
+	setupDoneReturned := make(chan struct{})
+	go func() {
+		timer.setupDone()
+		close(setupDoneReturned)
+	}()
+
+	select {
+	case <-setupDoneReturned:
+		t.Fatal("setupDone returned while onTimeout was still running")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(releaseOnTimeout)
+	<-onTimeoutFinished
+
+	select {
+	case <-setupDoneReturned:
+	case <-time.After(5 * time.Second):
+		t.Fatal("setupDone did not return after onTimeout finished")
+	}
+}
+
 // noopTUNDevice is a minimal no-op [TUNDevice], for tests that only need to
 // construct a [networkStack] but never push any packets through it.
 type noopTUNDevice struct{}

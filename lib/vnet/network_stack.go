@@ -537,7 +537,9 @@ var errTCPConnectionSetupTimedOut = errors.New("VNet TCP connection setup timed 
 // finished setting up.
 type connSetupTimer struct {
 	timer clockwork.Timer
-	done  atomic.Bool
+
+	mu   sync.Mutex
+	done bool
 }
 
 // newConnSetupTimer starts a timer that calls onTimeout after timeout unless
@@ -545,17 +547,26 @@ type connSetupTimer struct {
 func newConnSetupTimer(clock clockwork.Clock, timeout time.Duration, onTimeout func()) *connSetupTimer {
 	t := &connSetupTimer{}
 	t.timer = clock.AfterFunc(timeout, func() {
-		if t.done.CompareAndSwap(false, true) {
-			onTimeout()
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		if t.done {
+			return
 		}
+		t.done = true
+		onTimeout()
 	})
 	return t
 }
 
-// setupDone marks connection setup as complete and stops the timer. After
-// setupDone is called, onTimeout is guaranteed never to run.
+// setupDone marks connection setup as complete and stops the timer. It takes
+// the same lock as the timer callback, so once setupDone returns onTimeout will
+// not run: a callback that has not yet taken the lock observes done and becomes
+// a no-op, and setupDone blocks until a callback that is already running
+// finishes.
 func (t *connSetupTimer) setupDone() {
-	t.done.Store(true)
+	t.mu.Lock()
+	t.done = true
+	t.mu.Unlock()
 	t.timer.Stop()
 }
 
