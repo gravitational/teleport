@@ -16,41 +16,35 @@
 
 import Dependencies
 import Foundation
-public import Logging
+import Logging
 
-/// A simple print-based log handler primarily used for live debugging sessions.
-public struct ConsoleLogHandler: LogHandler {
+/// A log handler that writes to a rotating file on disk.
+public struct RotatingFileLogHandler: LogHandler {
 	public let label: String
 
 	@Dependency(\.date.now)
 	private var now
 
-	private let timestampFormmater = Date.ISO8601FormatStyle(
-		dateSeparator: .dash,
-		dateTimeSeparator: .space,
-		timeSeparator: .colon,
-		timeZoneSeparator: .colon,
-		includingFractionalSeconds: true,
-		timeZone: .current,
-	)
+	private let writer: RotatingFileWriter
 
-	public init(label: String) {
+	public init(label: String, writer: RotatingFileWriter) {
 		self.label = label
+		self.writer = writer
 	}
 
 	// MARK: LogHandler Conformance
 
-	public var logLevel: Logging.Logger.Level = .info
+	public var logLevel: Logger.Level = .info
 
-	public var metadata: Logging.Logger.Metadata = [:]
+	public var metadata: Logger.Metadata = [:]
 
-	public subscript(metadataKey key: String) -> Logging.Logger.Metadata.Value? {
+	public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
 		get { metadata[key] }
 		set { metadata[key] = newValue }
 	}
 
 	public func log(event: LogEvent) {
 		let logMessage = LogFormatter.format(label: label, event: event, handlerMetadata: metadata, timestamp: now)
-		print(logMessage)
+		writer.enqueue(logMessage: "\(logMessage)\n")
 	}
 }
