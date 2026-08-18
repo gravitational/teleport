@@ -93,6 +93,7 @@ func testRDS(t *testing.T) {
 	autoRole2 := "auto_granted_role2_" + randASCII(t)
 
 	testSchema := "test_" + randASCII(t)
+	pgTestTable := "ctf" + randASCII(t) // capture the flag :)
 
 	accessRole := mustGetEnv(t, rdsAccessRoleARNEnv)
 	discoveryRole := mustGetEnv(t, rdsDiscoveryRoleARNEnv)
@@ -101,15 +102,8 @@ func testRDS(t *testing.T) {
 			Permissions: []string{"SELECT"},
 			Match: types.Labels{
 				"object_kind": {"table"},
-				"schema":      {"public", testSchema, "information_schema"},
-			},
-		},
-		types.DatabasePermission{
-			Permissions: []string{"SELECT"},
-			Match: types.Labels{
-				"object_kind": {"table"},
-				"schema":      {"pg_catalog"},
-				"name":        {"pg_range", "pg_proc"},
+				"schema":      {testSchema},
+				"name":        {pgTestTable},
 			},
 		},
 	)
@@ -170,18 +164,16 @@ func testRDS(t *testing.T) {
 		// create a new schema with tables that can only be accessed if the
 		// auto roles are granted by Teleport automatically.
 		createPGTestSchema(t, ctx, conn, testSchema)
-		testTable := "ctf" + randASCII(t) // capture the flag :)
-		createPGTestTable(t, ctx, conn, testSchema, testTable)
-		createPGTestTable(t, ctx, conn, "public", testTable)
+		createPGTestTable(t, ctx, conn, testSchema, pgTestTable)
 
 		// provision db1 admin that is not a postgres superuser
 		createPGTestUser(t, ctx, conn, db1.GetAdminUser().Name)
 		pgMustExec(t, ctx, conn, fmt.Sprintf("ALTER USER %q WITH CREATEROLE", db1.GetAdminUser().Name))
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT rds_iam TO %q WITH ADMIN OPTION", db1.GetAdminUser().Name))
-		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT USAGE ON SCHEMA public, information_schema, %q TO %q WITH GRANT OPTION", testSchema, db1.GetAdminUser().Name))
-		cleanupDB(t, ctx, conn, fmt.Sprintf("REVOKE USAGE ON SCHEMA public, information_schema, %q FROM %q", testSchema, db1.GetAdminUser().Name))
-		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT ALL ON ALL TABLES IN SCHEMA public, information_schema, %q TO %q WITH GRANT OPTION", testSchema, db1.GetAdminUser().Name))
-		cleanupDB(t, ctx, conn, fmt.Sprintf("REVOKE ALL ON ALL TABLES IN SCHEMA public, information_schema, %q FROM %q", testSchema, db1.GetAdminUser().Name))
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT USAGE ON SCHEMA %q TO %q WITH GRANT OPTION", testSchema, db1.GetAdminUser().Name))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("REVOKE USAGE ON SCHEMA %q FROM %q", testSchema, db1.GetAdminUser().Name))
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT ALL ON ALL TABLES IN SCHEMA %q TO %q WITH GRANT OPTION", testSchema, db1.GetAdminUser().Name))
+		cleanupDB(t, ctx, conn, fmt.Sprintf("REVOKE ALL ON ALL TABLES IN SCHEMA %q FROM %q", testSchema, db1.GetAdminUser().Name))
 
 		// provision db2 admin that IS a postgres super user
 		createPGTestUser(t, ctx, conn, db2.GetAdminUser().Name)
@@ -192,9 +184,9 @@ func testRDS(t *testing.T) {
 		// auto role 2 only allows select of the test table in the test schema.
 		// a user needs to have both roles to select from the test table.
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT USAGE ON SCHEMA %q TO %q", testSchema, autoRole1))
-		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
+		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, pgTestTable, autoRole2))
 
-		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
+		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, pgTestTable)
 		for _, test := range []struct {
 			name              string
 			db                types.Database
@@ -257,12 +249,9 @@ func testRDS(t *testing.T) {
 							SELECT
 								1
 							FROM
-								pg_catalog.pg_range,
-								pg_catalog.pg_proc,
-								information_schema.sql_parts,
-								public.%q,
 								%q.%q
-							`, testTable, testSchema, testTable),
+								LIMIT 1
+							`, testSchema, pgTestTable),
 						afterConnTestFn: func(t *testing.T) {
 							waitForPostgresAutoUserPermissionsRemoved(t, ctx, conn, autoUserFineGrain)
 						},
