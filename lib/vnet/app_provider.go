@@ -29,11 +29,15 @@ import (
 // appProvider implements methods related to TCP app access.
 type appProvider struct {
 	clt *clientApplicationServiceClient
+	// signSem bounds the number of concurrent, possibly-abandoned
+	// SignForApp calls. See [callWithBoundedAbandon].
+	signSem chan struct{}
 }
 
 func newAppProvider(clt *clientApplicationServiceClient) *appProvider {
 	return &appProvider{
-		clt: clt,
+		clt:     clt,
+		signSem: make(chan struct{}, maxInFlightTCPConnectionAttempts),
 	}
 }
 
@@ -56,23 +60,27 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInf
 	return tlsCert, nil
 }
 
-// signForAppTimeout bounds a single SignForApp gRPC call so that a hung
-// signature (the app process is reachable at the transport level but does not
-// respond) cannot block a TLS handshake indefinitely and leak the connection's
+// signForAppTimeout bounds a single SignForApp call so that a hung signature
+// (the app process is reachable at the transport level but does not respond)
+// cannot block a TLS handshake indefinitely and leak the connection's
 // in-flight forwarder slot. It must stay well below tcpConnectionSetupTimeout;
-// SignForApp is a local IPC call to the client application and normally returns
-// immediately.
-const signForAppTimeout = 30 * time.Second
+// SignForApp normally returns immediately, whether it's a local IPC call to
+// the client application or an in-process call in embedded mode.
+//
+// It's a var, not a const, so tests can shrink it.
+var signForAppTimeout = 30 * time.Second
 
 func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcSigner, error) {
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), signForAppTimeout)
 		defer cancel()
-		return p.clt.SignForApp(ctx, vnetv1.SignForAppRequest_builder{
-			AppKey:     appKey,
-			TargetPort: uint32(targetPort),
-			Sign:       req,
-		}.Build())
+		return callWithBoundedAbandon(ctx, p.signSem, func() ([]byte, error) {
+			return p.clt.SignForApp(ctx, vnetv1.SignForAppRequest_builder{
+				AppKey:     appKey,
+				TargetPort: uint32(targetPort),
+				Sign:       req,
+			}.Build())
+		})
 	})
 }
 

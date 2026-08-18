@@ -30,11 +30,15 @@ import (
 // admin process and communicates with the user process over gRPC.
 type dbProvider struct {
 	clt *clientApplicationServiceClient
+	// signSem bounds the number of concurrent, possibly-abandoned SignForDB
+	// calls. See [callWithBoundedAbandon].
+	signSem chan struct{}
 }
 
 func newDBProvider(clt *clientApplicationServiceClient) *dbProvider {
 	return &dbProvider{
-		clt: clt,
+		clt:     clt,
+		signSem: make(chan struct{}, maxInFlightTCPConnectionAttempts),
 	}
 }
 
@@ -57,20 +61,24 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 	return tlsCert, nil
 }
 
-// signForDBTimeout bounds a single SignForDB gRPC call for the same reason as
+// signForDBTimeout bounds a single SignForDB call for the same reason as
 // signForAppTimeout: a hung signature during the database TLS handshake would
 // otherwise block handleTCP and leak the connection's in-flight forwarder slot.
 // It must stay well below tcpConnectionSetupTimeout.
-const signForDBTimeout = 30 * time.Second
+//
+// It's a var, not a const, so tests can shrink it.
+var signForDBTimeout = 30 * time.Second
 
 func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (*rpcSigner, error) {
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), signForDBTimeout)
 		defer cancel()
-		return p.clt.SignForDB(ctx, vnetv1.SignForDBRequest_builder{
-			DatabaseKey: dbInfo.GetDatabaseKey(),
-			Sign:        req,
-		}.Build())
+		return callWithBoundedAbandon(ctx, p.signSem, func() ([]byte, error) {
+			return p.clt.SignForDB(ctx, vnetv1.SignForDBRequest_builder{
+				DatabaseKey: dbInfo.GetDatabaseKey(),
+				Sign:        req,
+			}.Build())
+		})
 	})
 }
 

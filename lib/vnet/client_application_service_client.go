@@ -316,6 +316,48 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
 }
 
+// callWithBoundedAbandon runs fn on a bounded pool of goroutines and returns
+// when fn completes or ctx is done, whichever comes first. When ctx is done
+// first the fn goroutine is abandoned (left running until fn returns on its
+// own) rather than cancelled, because the underlying crypto.Signer.Sign has
+// no context. The semaphore bounds how many abandoned goroutines can pile up
+// if a signer stalls, so a stalled embedded signer degrades to fast failures
+// instead of unbounded goroutine growth as forwarder slots churn.
+//
+// Important: this only abandons the result of fn; it does not cancel fn, which
+// keeps running until it returns on its own.
+func callWithBoundedAbandon(ctx context.Context, sem chan struct{}, fn func() ([]byte, error)) ([]byte, error) {
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	// Buffered channels so the goroutine below can always send its result and
+	// exit even if this function has already returned via ctx.Done, avoiding a
+	// goroutine leak.
+	resultC := make(chan []byte, 1)
+	errC := make(chan error, 1)
+	go func() {
+		defer func() { <-sem }()
+		sig, err := fn()
+		if err != nil {
+			errC <- err
+			return
+		}
+		resultC <- sig
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case err := <-errC:
+		return nil, trace.Wrap(err)
+	case sig := <-resultC:
+		return sig, nil
+	}
+}
+
 // newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a
 // function that sends sign requests over gRPC. It parses the x509 certificate
 // to extract the public key. This is the shared implementation used by both
