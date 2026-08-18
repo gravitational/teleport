@@ -3,11 +3,11 @@ import path from 'node:path';
 import { defineConfig } from 'vite';
 
 const rootDirectory = path.resolve(
-  __dirname,
+  import.meta.dirname,
   '../../teleport/src/services/audit/gen-event-reference'
 );
 const outputDirectory = path.resolve(
-  __dirname,
+  import.meta.dirname,
   '../../teleport/src/services/audit/gen-event-reference/dist'
 );
 

@@ -27,9 +27,9 @@ import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
 import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
-import { generateAppHashFile } from './apphash';
-import { guardWasmPlugin } from './guard-wasm';
-import { htmlPlugin, transformPlugin } from './html';
+import { generateAppHashFile } from './apphash.mts';
+import { guardWasmPlugin } from './guard-wasm.mts';
+import { htmlPlugin, transformPlugin } from './html.mts';
 import { reactPlugin } from './react.mjs';
 
 const DEFAULT_PROXY_TARGET = 'localhost:3080';
