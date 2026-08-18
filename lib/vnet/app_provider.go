@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -55,9 +56,19 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInf
 	return tlsCert, nil
 }
 
+// signForAppTimeout bounds a single SignForApp gRPC call so that a hung
+// signature (the app process is reachable at the transport level but does not
+// respond) cannot block a TLS handshake indefinitely and leak the connection's
+// in-flight forwarder slot. It must stay well below tcpConnectionSetupTimeout;
+// SignForApp is a local IPC call to the client application and normally returns
+// immediately.
+const signForAppTimeout = 30 * time.Second
+
 func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcSigner, error) {
 	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
-		return p.clt.SignForApp(context.TODO(), vnetv1.SignForAppRequest_builder{
+		ctx, cancel := context.WithTimeout(context.Background(), signForAppTimeout)
+		defer cancel()
+		return p.clt.SignForApp(ctx, vnetv1.SignForAppRequest_builder{
 			AppKey:     appKey,
 			TargetPort: uint32(targetPort),
 			Sign:       req,
