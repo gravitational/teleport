@@ -1,6 +1,6 @@
 module teleport-sheets
 
-go 1.25.12
+go 1.25.13
 
 require (
 	github.com/gravitational/teleport/api v0.0.0-20260410220730-6110522de9ef
