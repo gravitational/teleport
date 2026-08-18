@@ -3,7 +3,7 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.25.12
+GOLANG_VERSION ?= go1.25.13
 GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
