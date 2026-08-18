@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -26,8 +27,10 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.zx2c4.com/wireguard/device"
@@ -68,6 +71,7 @@ const (
 	maxTUNMTU                        = 65535
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
+	tcpConnectionSetupTimeout        = 4 * time.Minute
 )
 
 // tunMTU returns the MTU to use for the TUN device.
@@ -107,6 +111,11 @@ type networkStackConfig struct {
 	// upstreamNameserverSource, if set, overrides the default OS UpstreamNameserverSource which provides the
 	// IP addresses that unmatched DNS queries should be forwarded to. It is used in tests.
 	upstreamNameserverSource dns.UpstreamNameserverSource
+
+	// clock is used to inject a fake clock in tests. It's not set by any
+	// production code path and will default to the real clock in
+	// checkAndSetDefaults.
+	clock clockwork.Clock
 }
 
 // checkAndSetDefaults checks the config and sets defaults.
@@ -123,6 +132,7 @@ func (c *networkStackConfig) checkAndSetDefaults() error {
 	if c.tcpHandlerResolver == nil {
 		return trace.BadParameter("tcpHandlerResolver is required")
 	}
+	c.clock = cmp.Or(c.clock, clockwork.NewRealClock())
 	return nil
 }
 
@@ -257,6 +267,9 @@ type networkStack struct {
 	state state
 
 	slog *slog.Logger
+
+	// clock is used to inject a fake clock in tests.
+	clock clockwork.Clock
 }
 
 type filteredUpstreamSource struct {
@@ -366,6 +379,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		destroyed:          make(chan struct{}),
 		state:              newState(),
 		slog:               logger,
+		clock:              cfg.clock,
 	}
 
 	upstreamNameserverSource := cfg.upstreamNameserverSource
@@ -503,13 +517,82 @@ func (ns *networkStack) run(ctx context.Context) error {
 	return trace.NewAggregateFromChannel(allErrors, context.Background())
 }
 
+// errTCPConnectionSetupTimedOut is used as the [context.Cause] set on a TCP
+// connection's context when its setup does not complete before
+// [tcpConnectionSetupTimeout]. This lets it be distinguished from a context
+// canceled for a normal reason, e.g. an HUP/ERR event or VNet shutting down.
+var errTCPConnectionSetupTimedOut = errors.New("VNet TCP connection setup timed out")
+
+// connSetupTimer bounds how long [networkStack.handleTCP] waits for a TCP
+// connection to complete setup (i.e. for [tcp.ForwarderRequest.CreateEndpoint]
+// to succeed) before giving up on it. It is a small clock-injectable type so
+// that this timeout behavior can be tested with a [clockwork.FakeClock]
+// without needing to drive an actual gVisor TCP handshake.
+//
+// onTimeout and setupDone are mutually exclusive: whichever of the two "wins"
+// takes effect, and the other becomes a no-op. This closes a race where
+// [clockwork.Timer.Stop] does not guarantee that a timer function that has
+// already started running will be prevented from completing, which could
+// otherwise let onTimeout run for a connection that had, in fact, just
+// finished setting up.
+type connSetupTimer struct {
+	timer clockwork.Timer
+
+	mu   sync.Mutex
+	done bool
+}
+
+// newConnSetupTimer starts a timer that calls onTimeout after timeout unless
+// setupDone is called first.
+func newConnSetupTimer(clock clockwork.Clock, timeout time.Duration, onTimeout func()) *connSetupTimer {
+	t := &connSetupTimer{}
+	t.timer = clock.AfterFunc(timeout, func() {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		if t.done {
+			return
+		}
+		t.done = true
+		onTimeout()
+	})
+	return t
+}
+
+// setupDone marks connection setup as complete and stops the timer. It takes
+// the same lock as the timer callback, so once setupDone returns onTimeout will
+// not run: a callback that has not yet taken the lock observes done and becomes
+// a no-op, and setupDone blocks until a callback that is already running
+// finishes.
+func (t *connSetupTimer) setupDone() {
+	t.mu.Lock()
+	t.done = true
+	t.mu.Unlock()
+	t.timer.Stop()
+}
+
 func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 	// Add 1 to the waitgroup because the networking stack runs this in its own goroutine.
 	ns.wg.Add(1)
 	defer ns.wg.Done()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	id := req.ID()
+	slog := ns.slog.With("request", id)
+	slog.DebugContext(ctx, "Handling TCP connection.")
+	defer slog.DebugContext(ctx, "Finished handling TCP connection.")
+
+	// setupTimer cancels ctx with errTCPConnectionSetupTimedOut if connection
+	// setup does not complete before tcpConnectionSetupTimeout. connector
+	// calls setupTimer.setupDone once the endpoint has been created and the
+	// connection is established, so it never bounds the lifetime of an
+	// already-established connection.
+	setupTimer := newConnSetupTimer(ns.clock, tcpConnectionSetupTimeout, func() {
+		slog.WarnContext(ctx, "VNet TCP connection setup timed out, releasing in-flight slot.")
+		cancel(errTCPConnectionSetupTimedOut)
+	})
+	defer setupTimer.setupDone()
 
 	// Clients of *tcp.ForwarderRequest must eventually call Complete on it exactly once.
 	// [req] consumes 1 of [maxInFlightTCPConnectionAttempts] until [req.Complete] is called.
@@ -519,11 +602,6 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 			req.Complete(true /*send TCP reset*/)
 		}
 	}()
-
-	id := req.ID()
-	slog := ns.slog.With("request", id)
-	slog.DebugContext(ctx, "Handling TCP connection.")
-	defer slog.DebugContext(ctx, "Finished handling TCP connection.")
 
 	handler, ok := ns.getTCPHandler(id.LocalAddress)
 	if !ok {
@@ -544,6 +622,7 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 
 		completed = true
 		req.Complete(false /*don't send TCP reset*/)
+		setupTimer.setupDone()
 
 		endpoint.SocketOptions().SetKeepAlive(true)
 
@@ -552,7 +631,7 @@ func (ns *networkStack) handleTCP(req *tcp.ForwarderRequest) {
 		ns.wg.Add(1)
 		go func() {
 			defer func() {
-				cancel()
+				cancel(nil)
 				conn.Close()
 				ns.wg.Done()
 			}()
