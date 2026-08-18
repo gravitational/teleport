@@ -2,119 +2,133 @@
   "themes": [
     {
       "id": "database",
-      "name": "Database",
-      "segments": ["db"]
+      "name": "Databases",
+      "segments": ["db"],
+      "introduction": "This page lists audit events related to Teleport-protected databases."
     },
     {
       "id": "ssh-sessions",
       "name": "SSH Sessions",
       "segments": [
+        "agent-forward",
+        "client",
+        "exec",
+        "port",
+        "resize",
+        "scp",
         "session",
         "session_recording_config",
-        "resize",
+        "sftp",
+        "sftp_summary",
+        "stable_unix_user",
+        "static_host_user",
         "subsystem",
         "x11-forward"
-      ]
+      ],
+      "introduction": "This page lists audit events related to SSH sessions, which can involve the Teleport SSH Service, Proxy Service, or Kubernetes Service"
     },
     {
       "id": "users-authentication",
       "name": "Users & Authentication",
       "segments": [
-        "user",
-        "user_login",
         "auth",
         "auth_preference",
+        "cert",
+        "cert_auth_override",
+        "login_rule",
         "mfa",
         "mfa_auth_challenge",
+        "privilege_token",
         "recovery_code",
         "recovery_token",
-        "privilege_token",
         "reset_password_token",
-        "login_rule",
-        "cert"
-      ]
+        "user",
+        "user_login"
+      ],
+      "introduction": "This page lists audit events related to authenticating Teleport users and Teleport-issued certificates."
     },
     {
       "id": "access-control",
-      "name": "Access Control",
+      "name": "Access Controls",
       "segments": [
         "access_request",
         "access_list",
         "access_graph",
+        "access_graph_settings",
         "role",
         "lock",
         "user_task"
-      ]
+      ],
+      "introduction": "This page lists audit events related to Teleport authorization and access controls."
     },
     {
       "id": "desktop-access",
-      "name": "Desktop Access",
-      "segments": ["desktop", "windows"]
+      "name": "Desktops",
+      "segments": ["desktop", "linux", "windows"],
+      "introduction": "This page lists audit events related to Teleport-protected desktops."
     },
     {
       "id": "application-access",
-      "name": "Application Access",
-      "segments": ["app", "app_auth_config"]
+      "name": "Applications",
+      "segments": ["app", "git", "http", "vnet"],
+      "introduction": "This page lists audit events related to Teleport-protected applications."
     },
     {
       "id": "kubernetes-access",
-      "name": "Kubernetes Access",
-      "segments": ["kube"]
+      "name": "Kubernetes Clusters",
+      "segments": ["kube"],
+      "introduction": "This page lists audit events related to Teleport-protected Kubernetes clusters."
     },
     {
       "id": "device-trust",
       "name": "Device Trust",
-      "segments": ["device"]
+      "segments": ["device"],
+      "introduction": "This page lists audit events related to Teleport Device Trust."
     },
     {
-      "id": "identity-providers-sso",
-      "name": "Identity Providers & SSO",
-      "segments": ["saml", "oidc", "github", "okta", "scim"]
+      "id": "auth-connectors",
+      "name": "Authentication Connectors",
+      "segments": [
+        "aws_identity_center",
+        "github",
+        "oidc",
+        "okta",
+        "saml",
+        "scim"
+      ],
+      "introduction": "This page lists audit events related to Teleport Single-Sign On integrations."
     },
     {
       "id": "machine-identity",
-      "name": "Machine Identity",
+      "name": "Machine & Workload Identity",
       "segments": [
         "bot",
         "instance",
-        "join_token",
         "spiffe",
         "workload_identity",
         "workload_identity_x509_issuer_override",
         "workload_cluster",
         "sigstore_policy"
-      ]
+      ],
+      "introduction": "This page lists audit events related to Teleport Machine & Workload Identity."
     },
     {
       "id": "mcp-sessions",
-      "name": "MCP Sessions",
-      "segments": ["mcp"]
+      "name": "MCP Servers",
+      "segments": ["mcp"],
+      "introduction": "This page lists audit events related to Teleport-protected MCP servers."
     },
     {
-      "id": "infrastructure-cluster",
-      "name": "Infrastructure & Cluster",
-      "segments": [
-        "integration",
-        "discovery_config",
-        "trusted_cluster",
-        "truster_cluster_token",
-        "upgradewindowsstart",
-        "cluster_networking_config",
-        "health_check_config",
-        "plugin",
-        "vnet",
-        "contact"
-      ]
+      "id": "billing",
+      "name": "Billing",
+      "segments": ["billing"],
+      "introduction": "This page lists audit events related to Teleport billing."
     },
     {
-      "id": "billing-compliance",
-      "name": "Billing & Compliance",
-      "segments": [
-        "billing",
-        "external_audit_storage",
-        "secreports",
-        "cir"
-      ]
+      "id": "compliance",
+      "name": "Compliance",
+      "segments": ["cir", "external_audit_storage", "secreports"],
+      "introduction": "This page lists audit events related to Teleport compliance features."
     },
     {
       "id": "auto-update",
@@ -122,17 +136,46 @@
       "segments": [
         "auto_update_config",
         "auto_update_version",
-        "auto_update_agent_rollout"
-      ]
+        "auto_update_agent_rollout",
+        "upgradewindowstart"
+      ],
+      "introduction": "This page lists audit events related to automatic updates."
     },
     {
       "id": "ai-inference",
       "name": "AI & Inference",
       "segments": [
+        "beams",
+        "classifier",
         "inference_model",
+        "inference_policy",
         "inference_secret",
-        "inference_policy"
-      ]
+        "retrieval_model"
+      ],
+      "introduction": "This page lists audit events related to Teleport Beams and AI-related capabilities."
+    },
+    {
+      "id": "cluster-configuration",
+      "name": "Cluster Configuration",
+      "segments": [
+        "contact",
+        "environmentprofile",
+        "integration",
+        "join_token",
+        "scoped_token",
+        "trusted_cluster",
+        "trusted_cluster_token",
+        "cluster_networking_config",
+        "health_check_config",
+        "plugin"
+      ],
+      "introduction": "This page lists audit events related to changes in your Teleport cluster and account configuration."
+    },
+    {
+      "id": "auto-discovery",
+      "name": "Auto Discovery",
+      "segments": ["azure", "discovery_config", "ssm"],
+      "introduction": "This page lists audit events related to automatically discovering and enrolling Teleport resources."
     }
   ]
 }
