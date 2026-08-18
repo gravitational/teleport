@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */; };
 		CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = CD65C8002FF711CE002FB1CD /* IdentifiedCollections */; };
+		CD67F9AF302A74B20043D017 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD67F9AE302A74B20043D017 /* Logging */; };
+		CD67F9B1302A74BD0043D017 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD67F9B0302A74BD0043D017 /* Logging */; };
+		CD67F9B3302A76000043D017 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = CD67F9B2302A76000043D017 /* Dependencies */; };
+		CD67F9B5302A76000043D017 /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = CD67F9B4302A76000043D017 /* DependenciesMacros */; };
 		CD7999232FE33AE000133048 /* Core.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD79991B2FE33AE000133048 /* Core.framework */; };
 		CD7999242FE33AE000133048 /* Core.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CD79991B2FE33AE000133048 /* Core.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CD79992C2FE33F0600133048 /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CD79992B2FE33EFF00133048 /* libresolv.9.tbd */; };
@@ -23,6 +27,8 @@
 		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
 		CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */; };
 		CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */; };
+		CDEA38EA302CD5630004B164 /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = CDEA38E9302CD5630004B164 /* Collections */; };
+		CDEA38EC302CD5770004B164 /* Collections in Frameworks */ = {isa = PBXBuildFile; productRef = CDEA38EB302CD5770004B164 /* Collections */; };
 		CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7043022A9D4002E6773 /* LogBackends */; };
 		CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7063022A9D4002E6773 /* LogBackends */; };
 /* End PBXBuildFile section */
@@ -102,10 +108,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD67F9AF302A74B20043D017 /* Logging in Frameworks */,
 				CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */,
 				CD9AEFAC3022782200E2FC14 /* SystemClients in Frameworks */,
 				CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */,
+				CD67F9B5302A76000043D017 /* DependenciesMacros in Frameworks */,
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
+				CDEA38EA302CD5630004B164 /* Collections in Frameworks */,
+				CD67F9B3302A76000043D017 /* Dependencies in Frameworks */,
 				CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */,
 				CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */,
 				CD7999232FE33AE000133048 /* Core.framework in Frameworks */,
@@ -117,6 +127,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDEA38EC302CD5770004B164 /* Collections in Frameworks */,
+				CD67F9B1302A74BD0043D017 /* Logging in Frameworks */,
 				CDFCE7073022A9D4002E6773 /* LogBackends in Frameworks */,
 				CD9AEFAE3022782900E2FC14 /* SystemClients in Frameworks */,
 				CD79992C2FE33F0600133048 /* libresolv.9.tbd in Frameworks */,
@@ -209,6 +221,10 @@
 				CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */,
 				CD9AEFAB3022782200E2FC14 /* SystemClients */,
 				CDFCE7043022A9D4002E6773 /* LogBackends */,
+				CD67F9AE302A74B20043D017 /* Logging */,
+				CD67F9B2302A76000043D017 /* Dependencies */,
+				CD67F9B4302A76000043D017 /* DependenciesMacros */,
+				CDEA38E9302CD5630004B164 /* Collections */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -238,6 +254,8 @@
 				CD7999342FE346B800133048 /* DependenciesMacros */,
 				CD9AEFAD3022782900E2FC14 /* SystemClients */,
 				CDFCE7063022A9D4002E6773 /* LogBackends */,
+				CD67F9B0302A74BD0043D017 /* Logging */,
+				CDEA38EB302CD5770004B164 /* Collections */,
 			);
 			productName = Core;
 			productReference = CD79991B2FE33AE000133048 /* Core.framework */;
@@ -310,6 +328,8 @@
 				CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */,
 				CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */,
+				CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */,
+				CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -586,6 +606,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Teleport Verify uses the built-in QR code scanner to receive enrollment data from the Teleport Web UI";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Teleport Verify uses Face ID to confirm your presence when proving this device's identity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -634,6 +656,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Teleport Verify uses the built-in QR code scanner to receive enrollment data from the Teleport Web UI";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Teleport Verify uses Face ID to confirm your presence when proving this device's identity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -872,6 +896,14 @@
 				minimumVersion = 1.1.1;
 			};
 		};
+		CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.14.0;
+			};
+		};
 		CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
@@ -924,6 +956,14 @@
 				minimumVersion = 0.63.3;
 			};
 		};
+		CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -931,6 +971,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
 			productName = IdentifiedCollections;
+		};
+		CD67F9AE302A74B20043D017 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
+		};
+		CD67F9B0302A74BD0043D017 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
+		};
+		CD67F9B2302A76000043D017 /* Dependencies */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
+			productName = Dependencies;
+		};
+		CD67F9B4302A76000043D017 /* DependenciesMacros */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
+			productName = DependenciesMacros;
 		};
 		CD7999282FE33B7E00133048 /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -996,6 +1056,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		CDEA38E9302CD5630004B164 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
+		};
+		CDEA38EB302CD5770004B164 /* Collections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDEA38E8302CD5630004B164 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = Collections;
 		};
 		CDFCE7043022A9D4002E6773 /* LogBackends */ = {
 			isa = XCSwiftPackageProductDependency;

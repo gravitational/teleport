@@ -14,13 +14,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-public import Dependencies
-import DependenciesMacros
+import Foundation
+import Testing
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	public nonisolated var serialNumberClient = SerialNumberClient()
+func withTemporaryDirectory<Result>(
+	_ operation: (URL) async throws -> Result
+) async throws -> Result {
+	let directoryURL = FileManager.default.temporaryDirectory
+		.appending(path: "TeleportKitTests-\(UUID())", directoryHint: .isDirectory)
+	try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
-	@DependencyEntry(liveValue: FileSystemClient.liveValue)
-	public nonisolated var fileSystemClient: FileSystemClient
+	defer {
+		do {
+			try FileManager.default.removeItem(at: directoryURL)
+		} catch {
+			Issue.record("Failed to remove temporary test directory at \(directoryURL.path): \(error)")
+		}
+	}
+
+	return try await operation(directoryURL)
 }
