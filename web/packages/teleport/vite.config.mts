@@ -18,9 +18,9 @@
 
 import { resolve } from 'path';
 
-import { createViteConfig } from '../build/vite/config';
+import { createViteConfig } from '../build/vite/config.mts';
 
-const rootDirectory = resolve(__dirname, '../../..');
+const rootDirectory = resolve(import.meta.dirname, '../../..');
 const outputDirectory = resolve(rootDirectory, 'webassets/teleport');
 
 const config = createViteConfig(rootDirectory, outputDirectory);
