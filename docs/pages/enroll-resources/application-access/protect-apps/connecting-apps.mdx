@@ -266,8 +266,8 @@ Clusters environment. Validation rules depend on where the app is registered:
 - **Static config** (`app_service.apps` in YAML): lowercase alphanumeric and
   `-`, max 63 characters, no dots. Must start and end with an alphanumeric
   character. Mixed-case names and duplicates are rejected at startup.
-- **Dynamic resources** (`tctl create app`, integrations, Kubernetes Operator):
-  lowercase alphanumeric, `-`, `_`, or `.`, max 253 characters.
+- **Dynamic resources** (`tctl create my-app.yaml`, Terraform provider, 
+  Kubernetes Operator, gRPC API and AWS OIDC and IAM Roles Anywhere integrations):
 
 <Admonition type="warning" title="Characters that can cause issues">
 Avoid `.` in app names. The tenant wildcard certificate only covers one subdomain 

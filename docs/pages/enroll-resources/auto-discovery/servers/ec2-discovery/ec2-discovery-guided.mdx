@@ -124,20 +124,22 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/auto-discovery/ec2-config.mdx!)
 
+<Admonition type="warning">
+For this guided flow, use the **Static configuration** tab above, not
+**Dynamic configuration**. Dynamic configuration is recommended in general,
+but `teleport discovery bootstrap` in the next step only reads a local
+`discovery_service.aws` matcher in `/etc/teleport.yaml` — it cannot detect a
+dynamic `discovery_config` resource. If you want to use dynamic
+`discovery_config`, follow [Manual EC2 Auto-Discovery
+Configuration](ec2-discovery-manual.mdx) instead of this guide.
+</Admonition>
+
 ## Step 5/6. Bootstrap the Discovery Service AWS configuration
 
-<Admonition type="warning">
-This step only works if you configured EC2 discovery using a local
-`discovery_service.aws` matcher in `/etc/teleport.yaml` in Step 4.
-`teleport discovery bootstrap` reads its configuration from that local file
-only. If you instead configured a dynamic `discovery_config` resource in Step
-4, this command will not detect it, will report that no additional
-configuration is required, and will not create the IAM policy that EC2
-discovery needs — leaving Step 6 unable to enroll instances. If you're using a
-dynamic `discovery_config`, either add an equivalent matcher to
-`/etc/teleport.yaml` before running this command, or configure the required
-IAM policies and SSM documents manually by following [Manual EC2
-Auto-Discovery Configuration](ec2-discovery-manual.mdx) instead of this step.
+<Admonition type="note">
+This step requires the local `discovery_service.aws` matcher you configured
+in Step 4. `teleport discovery bootstrap` reads its configuration from
+`/etc/teleport.yaml` only.
 </Admonition>
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
