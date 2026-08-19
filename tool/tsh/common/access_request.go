@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"net/url"
 	"path"
 	"slices"
 	"sort"
@@ -33,17 +34,20 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
-	"github.com/gravitational/teleport/api/client"
+	grpcclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -324,6 +328,28 @@ func onRequestReview(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.Approve && req.GetState() == types.RequestState_APPROVED {
+		integrations, err := oauthProxyIntegrationsForRequest(cf.Context, tc, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch len(integrations) {
+		case 0:
+			// Nothing to do.
+		case 1:
+			authorizeURL := fmt.Sprintf("https://%s/v1/webapi/oauthproxy/%s/authorize", tc.WebProxyAddr, url.PathEscape(integrations[0]))
+			if err := sso.OpenURLInBrowser(tc.Browser, authorizeURL); err != nil || tc.Browser == teleport.BrowserNone {
+				fmt.Fprintf(cf.Stderr(), "Open the following link to authorize:\n %v\n", authorizeURL)
+			}
+		default:
+			fmt.Fprintf(cf.Stdout(), "Open the following links to authorize:\n")
+			for _, integration := range integrations {
+				fmt.Fprintf(cf.Stdout(), " https://%s/v1/webapi/oauthproxy/%s/authorize\n", tc.WebProxyAddr, url.PathEscape(integration))
+			}
+		}
+	}
+
 	if s := req.GetState(); s.IsPending() || s == state {
 		fmt.Fprintf(cf.Stderr(), "Successfully submitted review.  Request state: %s\n", req.GetState())
 	} else {
@@ -551,7 +577,7 @@ func searchRequestableResources(cf *CLIConf) error {
 			TeleportCluster:     tc.SiteName,
 		}.Build()
 
-		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
+		resources, err := grpcclient.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -730,4 +756,35 @@ func onRequestDrop(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(onStatus(cf))
+}
+
+func oauthProxyIntegrationsForRequest(ctx context.Context, tc *client.TeleportClient, req types.AccessRequest) ([]string, error) {
+	requested := set.New[string]()
+
+	for _, id := range req.GetAllRequestedResourceIDs() {
+		if id.GetResourceID().Kind == types.KindApp {
+			requested.Add(id.GetResourceID().Name)
+		}
+	}
+
+	if requested.Len() == 0 {
+		return []string{}, nil
+	}
+
+	apps, err := tc.ListApps(ctx, &proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Labels:       map[string]string{types.AppSubKindLabel: types.IntegrationSubKindOAuthProxy},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var integrations []string
+	for _, app := range apps {
+		if requested.Contains(app.GetName()) {
+			integrations = append(integrations, app.GetIntegration())
+		}
+	}
+
+	return integrations, nil
 }

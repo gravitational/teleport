@@ -286,6 +286,12 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
+	if ig.GetSubKind() == types.IntegrationSubKindOAuthProxy {
+		if err := s.registerOAuthProxyApp(ctx, ig); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
@@ -341,6 +347,12 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if ig.GetSubKind() == types.IntegrationSubKindOAuthProxy {
+		if err := s.registerOAuthProxyApp(ctx, ig); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	ig = ig.WithoutCredentials()
@@ -534,7 +546,7 @@ func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.
 	case types.IntegrationSubKindGitHub:
 		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
 	case types.IntegrationSubKindOAuthProxy:
-		// TODO(nixpig): Implement deletion.
+		// TODO(nixpig): Implement deletion of any associated app_servers.
 		return nil
 	default:
 		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())

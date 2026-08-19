@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -15,9 +16,13 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+var oauthProxyHostIDNamespace = uuid.NewSHA1(uuid.Nil, []byte("oauth-proxy"))
 
 func (s *Service) CompleteOAuthProxyExchange(ctx context.Context, req *integrationpb.CompleteOAuthProxyExchangeRequest) (*integrationpb.CompleteOAuthProxyExchangeResponse, error) {
 	switch {
@@ -142,20 +147,61 @@ func (s *Service) GetOAuthProxyCredentials(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	creds := ig.GetCredentials().GetOauth2AccessToken()
+	creds := ig.GetCredentials()
 	if creds == nil {
+		return nil, trace.NotFound("no credentials")
+	}
+	token := creds.GetOauth2AccessToken()
+	if token == nil {
 		return nil, trace.NotFound("no auth token")
 	}
 
 	now := s.clock.Now()
-	if s.clock.Now().After(creds.Expires) {
+	if s.clock.Now().After(token.Expires) {
 		// TODO: Somehow prompt to re-auth?
-		s.logger.ErrorContext(ctx, "Auth token expired", "now", now, "expires", creds.Expires)
+		s.logger.ErrorContext(ctx, "Auth token expired", "now", now, "expires", token.Expires)
 		return nil, trace.Errorf("Auth token expired")
 	}
 
 	return &integrationpb.GetOAuthProxyCredentialsResponse{
-		AccessToken: creds.AccessToken,
-		Expires:     timestamppb.New(creds.Expires),
+		AccessToken: token.AccessToken,
+		Expires:     timestamppb.New(token.Expires),
 	}, nil
+}
+
+func (s *Service) registerOAuthProxyApp(ctx context.Context, ig types.Integration) error {
+	publicAddr := ""
+	for p, err := range clientutils.Resources(ctx, s.cache.ListProxyServers) {
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to list proxy server", "error", err)
+		}
+		if p.GetPublicAddr() == "" {
+			continue
+		}
+
+		publicAddr = p.GetPublicAddr()
+		break
+	}
+
+	if publicAddr == "" {
+		s.logger.WarnContext(ctx, "no proxy with public addr")
+		return nil
+	}
+
+	appServer, err := types.NewAppServerForOAuthProxyIntegration(
+		ig.GetName(),
+		uuid.NewSHA1(oauthProxyHostIDNamespace, []byte(ig.GetName())).String(),
+		utils.DefaultAppPublicAddr(ig.GetName(), publicAddr),
+		ig.GetOAuthProxyIntegrationSpec().UpstreamUrl,
+		ig.GetAllLabels(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := s.backend.UpsertApplicationServer(ctx, appServer); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

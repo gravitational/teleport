@@ -229,7 +229,7 @@ func (s *Service) removeStaticCredentials(ctx context.Context, ig types.Integrat
 
 	ref := ig.GetCredentials().GetStaticCredentialsRef()
 	if ref == nil {
-		return trace.NotFound("missing static credentials ref")
+		return nil
 	}
 
 	staticCreds, err := s.backend.GetPluginStaticCredentialsByLabels(ctx, ref.Labels)

@@ -142,6 +142,11 @@ func NewAppServerForOAuthProxyIntegration(integrationName, hostID, publicAddr, u
 		AppServerSpecV3{
 			HostID: hostID,
 			App: &AppV3{
+				// TODO(nixpig): Not sure about this. Integration SubKind on App??
+				// But I'm using it for querying apps in tool/tsh/common/access_request.go
+				// and probably want to use it in connection_handler.go instead of hardcoding
+				// the app name.
+				SubKind: IntegrationSubKindOAuthProxy,
 				Metadata: Metadata{
 					Name:   integrationName,
 					Labels: labels,
