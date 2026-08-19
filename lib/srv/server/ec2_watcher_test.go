@@ -73,6 +73,27 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 	return &output, nil
 }
 
+type blockingEC2Client struct {
+	started chan<- struct{}
+	release <-chan struct{}
+	output  *ec2.DescribeInstancesOutput
+}
+
+func (c *blockingEC2Client) DescribeInstances(ctx context.Context, _ *ec2.DescribeInstancesInput, _ ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+	select {
+	case c.started <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	select {
+	case <-c.release:
+		return c.output, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 type mockAWSAccountClient struct {
 	output        *account.ListRegionsOutput
 	responseError error
@@ -84,6 +105,27 @@ func (m *mockAWSAccountClient) ListRegions(ctx context.Context, input *account.L
 	}
 
 	return m.output, nil
+}
+
+type blockingAWSAccountClient struct {
+	started chan<- struct{}
+	release <-chan struct{}
+	output  *account.ListRegionsOutput
+}
+
+func (c *blockingAWSAccountClient) ListRegions(ctx context.Context, _ *account.ListRegionsInput, _ ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+	select {
+	case c.started <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	select {
+	case <-c.release:
+		return c.output, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 type mockAWSSTSClient struct {
@@ -319,6 +361,216 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 			require.Equal(t, tc.expectedFilters, fetcher.Filters)
 		})
 	}
+}
+
+func TestEC2WatcherGetInstancesConcurrency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		organizationID = "o-abcdefghij"
+		rootOUID       = "r-123"
+	)
+	totalScans := ec2DiscoveryConcurrencyLimit + 1
+
+	regions := make([]string, 0, totalScans)
+	accountIDs := make([]string, 0, totalScans)
+	for i := range totalScans {
+		regions = append(regions, fmt.Sprintf("region-%d", i))
+		accountIDs = append(accountIDs, fmt.Sprintf("%012d", i))
+	}
+
+	tests := []struct {
+		name                   string
+		matcher                types.AWSMatcher
+		organizationsGetter    AWSOrganizationsGetter
+		expectedInstanceGroups int
+	}{
+		{
+			name: "regions",
+			matcher: types.AWSMatcher{
+				Params:  &types.InstallerParams{},
+				Regions: regions,
+				SSM:     &types.AWSSSM{},
+			},
+			expectedInstanceGroups: len(regions),
+		},
+		{
+			name: "accounts",
+			matcher: types.AWSMatcher{
+				Params:  &types.InstallerParams{},
+				Regions: []string{"us-west-2"},
+				SSM:     &types.AWSSSM{},
+				AssumeRole: &types.AssumeRole{
+					RoleName: "DiscoveryRole",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: organizationID,
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{types.Wildcard},
+					},
+				},
+			},
+			organizationsGetter: func(context.Context, ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+				return &mockOrganizationsClient{
+					organizationID: organizationID,
+					rootOUID:       rootOUID,
+					ouItems: map[string]ouItem{
+						rootOUID: {
+							innerAccounts: accountIDs,
+						},
+					},
+				}, nil
+			},
+			expectedInstanceGroups: len(accountIDs),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				started := make(chan struct{}, totalScans)
+				release := make(chan struct{})
+				fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+					Matcher: tt.matcher,
+					EC2ClientGetter: func(context.Context, string, ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+						return &blockingEC2Client{
+							started: started,
+							release: release,
+							output: &ec2.DescribeInstancesOutput{
+								Reservations: []ec2types.Reservation{{
+									OwnerId: aws.String("123456789012"),
+									Instances: []ec2types.Instance{{
+										InstanceId: aws.String("i-1234567890"),
+									}},
+								}},
+							},
+						}, nil
+					},
+					AWSOrganizationsGetter: tt.organizationsGetter,
+				})
+
+				type fetchResult struct {
+					instances []*EC2Instances
+					err       error
+				}
+				resultC := make(chan fetchResult, 1)
+				go func() {
+					instances, err := fetcher.GetInstances(t.Context(), false)
+					resultC <- fetchResult{instances: instances, err: err}
+				}()
+
+				synctest.Wait()
+				require.Len(t, started, ec2DiscoveryConcurrencyLimit)
+
+				close(release)
+				synctest.Wait()
+
+				result := <-resultC
+				require.NoError(t, result.err)
+				require.Len(t, result.instances, tt.expectedInstanceGroups)
+				require.Len(t, started, totalScans)
+			})
+		})
+	}
+}
+
+func TestEC2WatcherResolveRegionsConcurrency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		organizationID = "o-abcdefghij"
+		rootOUID       = "r-123"
+	)
+	totalAccounts := ec2DiscoveryConcurrencyLimit + 1
+	accountIDs := make([]string, 0, totalAccounts)
+	for i := range totalAccounts {
+		accountIDs = append(accountIDs, fmt.Sprintf("%012d", i))
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		started := make(chan struct{}, totalAccounts)
+		release := make(chan struct{})
+		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+			Matcher: types.AWSMatcher{
+				Params:  &types.InstallerParams{},
+				Regions: []string{types.Wildcard},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{},
+				AssumeRole: &types.AssumeRole{
+					RoleName: "DiscoveryRole",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: organizationID,
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{types.Wildcard},
+					},
+				},
+			},
+			EC2ClientGetter: func(context.Context, string, ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+				return &mockEC2Client{
+					output: &ec2.DescribeInstancesOutput{
+						Reservations: []ec2types.Reservation{{
+							OwnerId: aws.String("123456789012"),
+							Instances: []ec2types.Instance{{
+								InstanceId: aws.String("i-1234567890"),
+								State: &ec2types.InstanceState{
+									Name: ec2types.InstanceStateNameRunning,
+								},
+								Tags: []ec2types.Tag{{
+									Key:   aws.String("teleport"),
+									Value: aws.String("yes"),
+								}},
+							}},
+						}},
+					},
+				}, nil
+			},
+			RegionsListerGetter: func(context.Context, ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+				return &blockingAWSAccountClient{
+					started: started,
+					release: release,
+					output: &account.ListRegionsOutput{
+						Regions: []accounttypes.Region{{
+							RegionName: aws.String("us-west-2"),
+						}},
+					},
+				}, nil
+			},
+			AWSOrganizationsGetter: func(context.Context, ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+				return &mockOrganizationsClient{
+					organizationID: organizationID,
+					rootOUID:       rootOUID,
+					ouItems: map[string]ouItem{
+						rootOUID: {
+							innerAccounts: accountIDs,
+						},
+					},
+				}, nil
+			},
+		})
+
+		type fetchResult struct {
+			instances []*EC2Instances
+			err       error
+		}
+		resultC := make(chan fetchResult, 1)
+		go func() {
+			instances, err := fetcher.GetInstances(t.Context(), false)
+			resultC <- fetchResult{instances: instances, err: err}
+		}()
+
+		synctest.Wait()
+		require.Len(t, started, ec2DiscoveryConcurrencyLimit)
+
+		close(release)
+		synctest.Wait()
+
+		result := <-resultC
+		require.NoError(t, result.err)
+		require.Len(t, result.instances, totalAccounts)
+		require.Len(t, started, totalAccounts)
+	})
 }
 
 func TestEC2Watcher(t *testing.T) {
