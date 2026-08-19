@@ -255,8 +255,12 @@ class ResourceService {
     return api.delete(cfg.getTrustedClustersUrl(name));
   }
 
-  deleteRole(name: string) {
-    return api.delete(cfg.getRoleUrl({ action: 'delete', name }));
+  deleteRole(name: string, mfaResponse?: MfaChallengeResponse) {
+    return api.delete(
+      cfg.getRoleUrl({ action: 'delete', name }),
+      undefined,
+      mfaResponse
+    );
   }
 
   deleteGithubConnector(name: string) {
