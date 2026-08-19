@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tools/gotestsum
 
-go 1.26.6
+go 1.26.7
 
 tool gotest.tools/gotestsum
 

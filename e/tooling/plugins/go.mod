@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport.e/tooling/plugins
 
-go 1.26.6
+go 1.26.7
 
 require (
 	github.com/ProtonMail/go-crypto v1.3.0
