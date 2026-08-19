@@ -20,7 +20,6 @@ package mysql
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,6 +28,7 @@ import (
 	"gopkg.in/ini.v1"
 
 	"github.com/gravitational/teleport/lib/client/db/profile"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 func init() {
@@ -51,7 +51,7 @@ type OptionFile struct {
 func DefaultConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		usr, err := user.Current()
+		usr, err := hostuser.Current()
 		if err != nil {
 			return "", trace.ConvertSystemError(err)
 		}

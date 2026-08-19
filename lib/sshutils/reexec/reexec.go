@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // ErrorContext contains context used to enrich child process launch errors.
@@ -65,7 +66,7 @@ func ChildErrorWithContext(errMsg string, context *ErrorContext) string {
 	unknownUserError := user.UnknownUserError(context.Login)
 	switch {
 	case strings.Contains(errMsg, "failed to open PAM context"): // PAM errors are often cause by an unknown user.
-		if _, err := user.Lookup(context.Login); errors.Is(err, unknownUserError) {
+		if _, err := hostuser.Lookup(context.Login); errors.Is(err, unknownUserError) {
 			if ambiguousHostUserDenial {
 				return ambiguousHostUserError()
 			}

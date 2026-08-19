@@ -26,7 +26,6 @@ import (
 	"maps"
 	"net"
 	"os"
-	"os/user"
 	"regexp"
 	"slices"
 	"strconv"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/reexec"
 )
 
@@ -749,11 +749,11 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 }
 
 func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) error {
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err, "failed to get current user")
 	}
-	targetUser, err := user.Lookup(m.Username)
+	targetUser, err := hostuser.Lookup(m.Username)
 	if err != nil {
 		return trace.Wrap(err, "failed to lookup user %s", m.Username)
 	}

@@ -37,18 +37,19 @@ import "C"
 import (
 	"context"
 	"log/slog"
-	"os/user"
 	"strings"
 	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
+
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // getLoginShell determines the login shell for a given username
 func getLoginShell(username string) (string, error) {
 	// See if the username is valid.
-	_, err := user.Lookup(username)
+	_, err := hostuser.Lookup(username)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

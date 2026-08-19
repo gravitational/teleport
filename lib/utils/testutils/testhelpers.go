@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // TestBackgroundTask is a task that should be run in the background for the remaining duration of a test and
@@ -114,7 +116,7 @@ func GenerateLocalUsername(tb testing.TB) string {
 	const maxAttempts = 10
 	for range maxAttempts {
 		login := generateUsername(tb)
-		_, err := user.Lookup(login)
+		_, err := hostuser.Lookup(login)
 		if errors.Is(err, user.UnknownUserError(login)) {
 			return login
 		}

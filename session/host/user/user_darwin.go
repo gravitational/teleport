@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package authorizedkeys
+package user
 
 /*
 #include <pwd.h>
@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// getHostUsers returns the list of all users on the host from the user
+// GetHostUsers returns the list of all users on the host from the user
 // directory (depending on system configuration this can be /etc/passwd,
 // LDAP...).
-func getHostUsers() ([]user.User, error) {
+func GetHostUsers() ([]user.User, error) {
 	// on darwin the setpwent/getpwent/endpwent functions use thread-local
 	// storage so there's no need for a global lock but we must call the whole
 	// sequence from the same thread

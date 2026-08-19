@@ -30,6 +30,8 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // PercentUsed returns percentage of disk space used. The percentage of disk
@@ -93,12 +95,12 @@ func CanUserWriteTo(path string) (bool, error) {
 
 	var usr *user.User
 	if ogUser := os.Getenv("SUDO_USER"); ogUser != "" {
-		usr, err = user.Lookup(ogUser)
+		usr, err = hostuser.Lookup(ogUser)
 		if err != nil {
 			return false, trace.NotFound("could not determine original user: %+v", err)
 		}
 	} else {
-		usr, err = user.Current()
+		usr, err = hostuser.Current()
 		if err != nil {
 			return false, trace.NotFound("could not determine current user: %+v", err)
 		}
@@ -116,7 +118,7 @@ func CanUserWriteTo(path string) (bool, error) {
 	}
 
 	// file and user have a group in common
-	groupIDs, err := usr.GroupIds()
+	groupIDs, err := hostuser.GroupIds(usr)
 	if err != nil {
 		return false, trace.NotFound("could not determine current user group ids: %+v", err)
 	}
