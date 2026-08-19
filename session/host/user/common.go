@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,25 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !linux
+package user
 
-package authorizedkeys
+import "errors"
 
-import (
-	"os/user"
-
-	"github.com/gravitational/trace"
-)
-
-var alwaysFalse bool
-
-// getHostUsers returns ErrUnsupportedPlatform because this platform is not
-// supported. On supported platforms, it returns the list of all users on the
-// host from the user directory.
-func getHostUsers() ([]user.User, error) {
-	if alwaysFalse {
-		// thwart the well-meaning intentions of staticcheck
-		return nil, nil
-	}
-	return nil, trace.Wrap(ErrUnsupportedPlatform)
-}
+// ErrUnsupportedPlatform is returned when the operating system is not supported.
+var ErrUnsupportedPlatform = errors.New("unsupported platform")

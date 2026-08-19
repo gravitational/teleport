@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 type msalTokenCache struct {
@@ -51,7 +51,7 @@ type exchangeResponse struct {
 
 // getRefreshTokens returns all current refresh tokens from the Azure CLI token cache.
 func getRefreshTokens() ([]msalToken, error) {
-	usr, err := user.Current()
+	usr, err := hostuser.Current()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

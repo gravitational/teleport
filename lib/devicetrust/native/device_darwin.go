@@ -35,7 +35,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os/exec"
-	"os/user"
 	"strings"
 	"sync"
 	"unsafe"
@@ -46,6 +45,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/darwin"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
@@ -115,7 +115,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
-	osUser, err := user.Current()
+	osUser, err := hostuser.Current()
 	if err != nil {
 		return nil, trace.Wrap(err, "reading current user")
 	}

@@ -29,7 +29,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"os/user"
 	"time"
 
 	"github.com/google/go-attestation/attest"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/linux"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // deviceStateFolderName starts without a "." on Linux systems.
@@ -167,7 +167,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		baseBoardSerialNumber = dmiInfo.BoardSerial
 	}
 
-	u, err := user.Current()
+	u, err := hostuser.Current()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

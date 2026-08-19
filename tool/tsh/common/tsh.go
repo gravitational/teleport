@@ -33,7 +33,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -106,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/tool/common"
@@ -4453,7 +4453,7 @@ func onSSHLatency(cf *CLIConf) error {
 func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
 		if hostLogin == "" {
-			user, err := user.Current()
+			user, err := hostuser.Current()
 			if err != nil {
 				return trace.Wrap(err)
 			}

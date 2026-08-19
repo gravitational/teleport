@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/host"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend
@@ -74,7 +75,7 @@ func newHostSudoersBackend(uuid string) (HostSudoersBackend, error) {
 
 // Lookup implements host user information lookup
 func (*HostUsersProvisioningBackend) Lookup(username string) (*user.User, error) {
-	usr, err := user.Lookup(username)
+	usr, err := hostuser.Lookup(username)
 	if err != nil {
 		if !errors.Is(err, user.UnknownUserError(username)) && strings.Contains(err.Error(), "no such file or directory") {
 			return nil, trace.Wrap(err, "looking up user %q, sources configured for passwd in host's /etc/nsswitch.conf may be misconfigured", username)
@@ -88,17 +89,17 @@ func (*HostUsersProvisioningBackend) Lookup(username string) (*user.User, error)
 
 // UserGIDs returns the list of group IDs for a user
 func (*HostUsersProvisioningBackend) UserGIDs(u *user.User) ([]string, error) {
-	return u.GroupIds()
+	return hostuser.GroupIds(u)
 }
 
 // LookupGroup host group information lookup
 func (*HostUsersProvisioningBackend) LookupGroup(name string) (*user.Group, error) {
-	return user.LookupGroup(name)
+	return hostuser.LookupGroup(name)
 }
 
 // LookupGroup host group information lookup by GID
 func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, error) {
-	return user.LookupGroupId(gid)
+	return hostuser.LookupGroupId(gid)
 }
 
 // UpdateUser sets a user's groups and default shell, replacing their existing groups.

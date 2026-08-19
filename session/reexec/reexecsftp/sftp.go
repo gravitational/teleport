@@ -26,7 +26,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
@@ -38,6 +37,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/sftputils"
 )
@@ -305,7 +305,7 @@ func RunSFTP(logger *slog.Logger) error {
 	}
 	defer auditFile.Close()
 
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}

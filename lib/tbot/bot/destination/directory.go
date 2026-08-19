@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 	"github.com/gravitational/teleport/lib/utils"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 const DirectoryType = "directory"
@@ -233,7 +233,7 @@ func (dd *Directory) ACLsEnabled() bool {
 // This will not attempt to correct any issues, but will cause a hard failure if
 // `acls: required` is configured and issues are detected.
 func (dd *Directory) verifyLegacyACLs(keys []string) error {
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		// user.Current will fail if the user id does not exist in /etc/passwd
 		// as is the case with some containerized environments.
