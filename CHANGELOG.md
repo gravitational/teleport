@@ -1,5 +1,13 @@
 # Changelog
 
+## 18.10.6 (08/18/26)
+
+This is a follow up to the 18.10.1 private security release that includes an additional non-security improvement:
+
+* Added synchronization that mitigates an issue where concurrent `tsh proxy ssh` invocations open an excessive number of browser tabs for reauthentication when `tsh` credentials expire. [#68897](https://github.com/gravitational/teleport/pull/68897)
+
+Note: 18.10.5 release was skipped due to internal CI/CD issue.
+
 ## 18.10.4 (08/11/26)
 
 This is a follow up to the 18.10.1 private security release. The changelog will be publicly announced in a later version.
