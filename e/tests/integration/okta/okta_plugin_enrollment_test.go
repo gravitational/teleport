@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -523,6 +524,9 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 	})
 
 	t.Run("New integration with okta-requester role assignment disabled", func(t *testing.T) {
+		userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+		defer userWatcher.Close()
+
 		_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 			ReuseConnector:            "okta-pre-created-test",
 			ApiCredentials:            apiCredentials,
@@ -535,68 +539,75 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 			timeBetweenAssignmentProcessLoops: 1 * time.Second,
 		})
 
-		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
-
 		// Verify users don't have okta-requester assigned.
-		testEventuallyForEachOktaOriginatedUser(t, sut, 2, func(t *assert.CollectT, teleportOktaUsers []types.User) {
-			for _, u := range teleportOktaUsers {
-				require.NotContains(t, u.GetRoles(), teleport.SystemOktaRequesterRoleName, "user = %v", u)
-			}
+		waitForOktaOriginatedUsers(t, userWatcher, 2, func(roles []string) bool {
+			return !slices.Contains(roles, teleport.SystemOktaRequesterRoleName)
 		})
 	})
 
 	t.Run("Enable okta-requester role assignment", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
-			EnableUserSync:            true,
-			DisableAssignDefaultRoles: false,
-		}.Build())
+		userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+		defer userWatcher.Close()
 
-		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient,
+			oktav1.UpdateIntegrationRequest_builder{
+				EnableUserSync:            true,
+				DisableAssignDefaultRoles: false,
+			}.Build())
+
+		// UpdateIntegration resets TimeBetweenImports to default
+		// so the delays have to be re-applied to keep the plugin
+		// syncing on a test-friendly interval.
+		updateOktaDelays(t, sut, delays{
+			timeBetweenImports:                1 * time.Second,
+			timeBetweenAssignmentProcessLoops: 1 * time.Second,
+		})
 
 		// Verify have okta-requester assigned.
-		testEventuallyForEachOktaOriginatedUser(t, sut, 2, func(t *assert.CollectT, teleportOktaUsers []types.User) {
-			for _, u := range teleportOktaUsers {
-				require.Contains(t, u.GetRoles(), teleport.SystemOktaRequesterRoleName)
-			}
+		waitForOktaOriginatedUsers(t, userWatcher, 2, func(roles []string) bool {
+			return slices.Contains(roles, teleport.SystemOktaRequesterRoleName)
 		})
 	})
 
 	t.Run("Disable okta-requester role assignment again", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
-			EnableUserSync:            true,
-			DisableAssignDefaultRoles: true,
-		}.Build())
+		userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+		defer userWatcher.Close()
 
-		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient,
+			oktav1.UpdateIntegrationRequest_builder{
+				EnableUserSync:            true,
+				DisableAssignDefaultRoles: true,
+			}.Build())
+
+		updateOktaDelays(t, sut, delays{
+			timeBetweenImports:                1 * time.Second,
+			timeBetweenAssignmentProcessLoops: 1 * time.Second,
+		})
 
 		// Verify don't have okta-requester assigned.
-		testEventuallyForEachOktaOriginatedUser(t, sut, 2, func(t *assert.CollectT, teleportOktaUsers []types.User) {
-			for _, u := range teleportOktaUsers {
-				require.NotContains(t, u.GetRoles(), teleport.SystemOktaRequesterRoleName)
-			}
+		waitForOktaOriginatedUsers(t, userWatcher, 2, func(roles []string) bool {
+			return !slices.Contains(roles, teleport.SystemOktaRequesterRoleName)
 		})
 	})
 }
 
-func testEventuallyForEachOktaOriginatedUser(t *testing.T, sut *common.SUT, expectedCnt int, assertion func(*assert.CollectT, []types.User)) {
+// waitForOktaOriginatedUsers blocks until the watcher reports the expected
+// number of distinct kta-originated users whose roles satisfy the predicate.
+func waitForOktaOriginatedUsers(t *testing.T, watcher types.Watcher, userCount int, rolesOK func(roles []string) bool) {
 	t.Helper()
-	ctx := t.Context()
 
-	authServer := sut.Teleport.Process.GetAuthServer()
-	var teleportOktaUsers []types.User
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		users, err := authServer.GetUsers(ctx, false /* withSecrets */)
-		require.NoError(t, err, "authServer.GetUsers")
-		teleportOktaUsers = teleportOktaUsers[:0] // clear
-		for _, u := range users {
-			if v, _ := u.GetLabel("teleport.dev/origin"); v == "okta" {
-				teleportOktaUsers = append(teleportOktaUsers, u)
-			}
+	seen := make(map[string]struct{})
+	common.WaitForPutEvent(t, watcher, func(u types.User) bool {
+		if v, _ := u.GetLabel(types.OriginLabel); v != types.OriginOkta {
+			return false
 		}
-		require.Len(t, teleportOktaUsers, expectedCnt, "expected %d Okta users in all_users = %v", expectedCnt, users)
-		assertion(t, teleportOktaUsers)
-	}, time.Second*2, time.Millisecond*50)
+		if rolesOK(u.GetRoles()) {
+			seen[u.GetName()] = struct{}{}
+		} else {
+			delete(seen, u.GetName())
+		}
+		return len(seen) >= userCount
+	})
 }
 
 func TestPluginEnrollmentErrors(t *testing.T) {
