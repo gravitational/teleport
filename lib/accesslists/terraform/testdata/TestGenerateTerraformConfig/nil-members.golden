@@ -1,0 +1,29 @@
+# Terraform config for creating an Access List.
+
+resource "teleport_access_list" "acl-plain-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "plain-access-list"
+    }
+  }
+
+  spec = {
+    description = "some description"
+    owners = [{
+      description     = "owner description"
+      membership_kind = "1"
+      name            = "llama"
+    }]
+    grants = {
+      roles = ["access", "editor"]
+      traits = [{
+        key    = "logins"
+        values = ["root"]
+      }]
+    }
+    title = "Plain Access List"
+    type  = "static"
+  }
+}

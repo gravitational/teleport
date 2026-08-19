@@ -1,0 +1,178 @@
+# Terraform config for creating an Access List that grants members direct
+# access to Teleport resources defined in the associated roles.
+
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 19.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "proxy.example.com:3080"
+}
+
+# Some kind of block comment
+resource "teleport_role" "accessRole1-acl-preset-test-access-list" {
+  version = "v7"
+
+  metadata = {
+    name = "accessRole1-acl-preset-test-access-list"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "test-access-list"
+    }
+  }
+
+}
+
+# Some kind of block comment for role 2
+resource "teleport_role" "accessRole2-acl-preset-test-access-list" {
+  version = "v7"
+
+  metadata = {
+    name = "accessRole2-acl-preset-test-access-list"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "test-access-list"
+    }
+  }
+
+}
+
+# A role that requires requesting access to resources. Can optionally assign to any users outside of this access list.
+resource "teleport_role" "requester-acl-preset-test-access-list" {
+  version = "v8"
+
+  metadata = {
+    name = "requester-acl-preset-test-access-list"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "test-access-list"
+    }
+  }
+
+  spec = {
+    options = {
+      max_session_ttl    = "30h0m0s"
+      cert_format        = "standard"
+      enhanced_recording = ["command", "network"]
+      record_session = {
+        desktop = true
+        default = "best_effort"
+      }
+      desktop_clipboard         = true
+      desktop_directory_sharing = true
+      ssh_file_copy             = true
+    }
+    allow = {
+      request = {
+        search_as_roles = ["accessRole1-acl-preset-test-access-list", "accessRole2-acl-preset-test-access-list"]
+      }
+    }
+  }
+}
+
+# A role that allows reviewing access requests (assigned to owners).
+resource "teleport_role" "reviewer-acl-preset-test-access-list" {
+  version = "v8"
+
+  metadata = {
+    name = "reviewer-acl-preset-test-access-list"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "test-access-list"
+    }
+  }
+
+  spec = {
+    options = {
+      max_session_ttl    = "30h0m0s"
+      cert_format        = "standard"
+      enhanced_recording = ["command", "network"]
+      record_session = {
+        desktop = true
+        default = "best_effort"
+      }
+      desktop_clipboard         = true
+      desktop_directory_sharing = true
+      ssh_file_copy             = true
+    }
+    allow = {
+      review_requests = {
+        roles            = ["accessRole1-acl-preset-test-access-list", "accessRole2-acl-preset-test-access-list"]
+        preview_as_roles = ["accessRole1-acl-preset-test-access-list", "accessRole2-acl-preset-test-access-list"]
+      }
+    }
+  }
+}
+
+resource "teleport_access_list" "acl-test-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "test-access-list"
+      labels = {
+        "teleport.dev/iac-tool"                      = "terraform"
+        "teleport.internal/access-list-preset"       = "long-term"
+        "teleport.internal/access-list-preset-roles" = "reviewer-acl-preset-test-access-list,requester-acl-preset-test-access-list,accessRole1-acl-preset-test-access-list,accessRole2-acl-preset-test-access-list"
+      }
+    }
+  }
+
+  spec = {
+    owners = [{
+      description     = "some description"
+      membership_kind = "1"
+      name            = "llama"
+    }]
+    grants = {
+      roles = ["accessRole1-acl-preset-test-access-list", "accessRole2-acl-preset-test-access-list"]
+    }
+    title = "Test Access List"
+    owner_grants = {
+      roles = ["reviewer-acl-preset-test-access-list"]
+    }
+    type = "static"
+  }
+}
+
+resource "teleport_access_list_member" "acl-member-llama_836e2c96" {
+  depends_on = [teleport_access_list.acl-test-access-list]
+
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "llama"
+    }
+  }
+
+  spec = {
+    access_list     = "test-access-list"
+    name            = "llama"
+    membership_kind = "1"
+  }
+}
+
+resource "teleport_access_list_member" "acl-member-alpaca_fe256c33" {
+  depends_on = [teleport_access_list.acl-test-access-list]
+
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "alpaca"
+    }
+  }
+
+  spec = {
+    access_list     = "test-access-list"
+    name            = "alpaca"
+    reason          = "some reason"
+    membership_kind = "1"
+  }
+}

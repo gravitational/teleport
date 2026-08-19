@@ -1,0 +1,26 @@
+# Terraform config for creating an Access List that grants members direct
+# access to Teleport resources defined in the associated roles.
+
+resource "teleport_access_list" "acl-test-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "test-access-list"
+      labels = {
+        "teleport.dev/iac-tool"                = "terraform"
+        "teleport.internal/access-list-preset" = "long-term"
+      }
+    }
+  }
+
+  spec = {
+    owners = [{
+      description     = "some description"
+      membership_kind = "1"
+      name            = "llama"
+    }]
+    title = "Test Access List"
+    type  = "static"
+  }
+}
