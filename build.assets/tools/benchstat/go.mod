@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tools/benchstat
 
-go 1.25.13
+go 1.25.14
 
 tool golang.org/x/perf/cmd/benchstat
 
