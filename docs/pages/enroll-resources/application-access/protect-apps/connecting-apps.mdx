@@ -260,31 +260,40 @@ Please make sure to update lib/service/servicecfg/app.go and lib/services/app.go
 if you change this section header or move this page.
 */}
 
-An application name must be unique across root and leaf clusters in a
-trusted clusters environment. Validation rules depend on where the app
-is registered:
+An application name must be unique across root and leaf clusters in a Trusted
+Clusters environment. Validation rules depend on where the app is registered:
 
-- **Static config (`app_service.apps` in YAML)**: lowercase
-  alphanumeric and `-`, max 63 characters, no dots, must start and end
-  with alphanumeric. Mixed-case names are rejected at startup, as are
-  duplicate names.
-- **Dynamic resources (`tctl create app`, integrations, Kubernetes
-  operator)**: lowercase alphanumeric, `-`, `_`, or `.`, max 253
-  characters. On Teleport Cloud, avoid `.` in app names: the tenant
-  wildcard certificate only covers one subdomain level
-  (`*.<tenant>.teleport.sh`), so dotted names will fail TLS
-  validation. Underscores are accepted by the Auth Service and the
-  cluster's wildcard cert, but strict TLS clients
-  (OpenSSL with `verify_hostname`) and proxies like NGINX (with
-  `underscores_in_headers off`) may reject them at access time.
+- **Static config** (`app_service.apps` in YAML): lowercase alphanumeric and
+  `-`, max 63 characters, no dots. Must start and end with an alphanumeric
+  character. Mixed-case names and duplicates are rejected at startup.
+- **Dynamic resources** (`tctl create my-app.yaml`, Terraform provider, 
+  Kubernetes Operator, gRPC API and AWS OIDC and IAM Roles Anywhere integrations):
 
-`public_addr` (if set) must be a bare, lowercase DNS hostname. URI
+<Admonition type="warning" title="Characters that can cause issues">
+Avoid `.` in app names. The tenant wildcard certificate only covers one subdomain 
+level (`*.<tenant>.teleport.sh`), so dotted names fail TLS validation. Underscores 
+are accepted by the Auth Service but strict TLS clients (OpenSSL with `verify_hostname`)
+and proxies like NGINX (with `underscores_in_headers off`) may reject them.
+</Admonition>
+
+If you set `public_addr`, it must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.
 
-Two apps that route to the same FQDN create an ambiguous request, so
-Teleport does its best to reject such collisions. When `proxy_service`
-is colocated in the same static configuration, it rejects them at
-startup.
+Two apps that resolve to the same FQDN create an ambiguous routing state.
+Teleport detects several forms of this collision in static configuration
+(`app_service.apps` in YAML) and rejects them at startup:
+
+| Collision type | Example | Detected | Condition | Since |
+|---|---|---|---|---|
+| Duplicate explicit `public_addr` | Two apps set `public_addr: dash.example.com` | Always | — | v19 |
+| Duplicate `name` | Two apps named `dash` derive the same FQDN | Always | — | v19 |
+| Derived address matches explicit | `name: kibana` derives `kibana.tele.example.com`, colliding with another app's `public_addr` | Conditionally | `proxy_service.public_addr` or `auth_service.cluster_name` must be in the same config file | v19 |
+| App claims the proxy address | `public_addr: tele.example.com` matches the proxy's own address | Always | Checked against registered proxies in the backend | v18 |
+
+If none of these checks can detect the collision — for example, when the
+conflicting apps are registered by separate agents that each lack
+`proxy_service.public_addr` in their config — Teleport does not reject the
+configuration at startup, and routing behavior is undefined.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
