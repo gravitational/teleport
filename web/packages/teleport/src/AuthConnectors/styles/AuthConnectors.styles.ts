@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Box, Button, Subtitle1 } from 'design';
+import { Button } from 'design';
 
 import { FeatureHeader } from 'teleport/components/Layout';
 
@@ -32,23 +32,6 @@ export const ResponsiveFeatureHeader = styled(FeatureHeader)`
     margin: 0 0 10px 0;
     padding: 0 0 10px 0;
     align-items: start;
-  }
-`;
-
-export const MobileDescription = styled(Subtitle1)`
-  margin-bottom: ${p => p.theme.space[3]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.tablet}) {
-    display: none;
-  }
-`;
-
-export const DesktopDescription = styled(Box)`
-  margin-left: ${p => p.theme.space[4]}px;
-  width: 240px;
-  color: ${p => p.theme.colors.text.main};
-  flex-shrink: 0;
-  @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
-    display: none;
   }
 `;
 

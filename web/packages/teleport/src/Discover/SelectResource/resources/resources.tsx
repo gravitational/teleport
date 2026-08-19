@@ -179,7 +179,7 @@ export const APPLICATIONS: SelectResourceSpec[] = [
   },
 ];
 
-export const WINDOWS_DESKTOPS: SelectResourceSpec[] = [
+const WINDOWS_DESKTOPS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.WindowsDesktopsActiveDirectory,
     name: 'Active Directory Users',
@@ -223,7 +223,7 @@ export const KUBERNETES: SelectResourceSpec[] = [
   },
 ];
 
-export const MCP_SERVERS: SelectResourceSpec[] = [
+const MCP_SERVERS: SelectResourceSpec[] = [
   {
     id: DiscoverGuideId.MCPServerStreamableHTTPTransport,
     name: 'MCP Server with streamable-HTTP transport',

@@ -638,11 +638,6 @@ function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
   }));
 }
 
-export function makeIntegrations(json: any): Integration[] {
-  json = json || [];
-  return json.map(user => makeIntegration(user));
-}
-
 function makeIntegration(json: any): Integration {
   json = json || {};
   const {

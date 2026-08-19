@@ -46,7 +46,7 @@ export function Bullet({ isDone, isActive, stepNumber, Icon }: Props) {
   );
 }
 
-export const BulletContainer = styled.span`
+const BulletContainer = styled.span`
   height: 14px;
   width: 14px;
   border: 1px solid ${p => p.theme.colors.text.disabled};
@@ -58,7 +58,7 @@ export const BulletContainer = styled.span`
   justify-content: center;
 `;
 
-export const ActiveBullet = styled(BulletContainer)`
+const ActiveBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 
@@ -72,7 +72,7 @@ export const ActiveBullet = styled(BulletContainer)`
   }
 `;
 
-export const CheckedBullet = styled(BulletContainer)`
+const CheckedBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 

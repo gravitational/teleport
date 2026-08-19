@@ -152,7 +152,7 @@ export function SetupAccess() {
   );
 }
 
-export const validArns = (createdArns: Option[]) => () => {
+const validArns = (createdArns: Option[]) => () => {
   if (!createdArns) {
     return {
       valid: true,

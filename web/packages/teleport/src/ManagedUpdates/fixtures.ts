@@ -30,12 +30,12 @@ const oneDayAgo = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
 const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
 const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
-export const mockTools: ToolsAutoUpdateInfo = {
+const mockTools: ToolsAutoUpdateInfo = {
   mode: 'enabled',
   targetVersion: 'v18.2.5',
 };
 
-export const mockToolsDisabled: ToolsAutoUpdateInfo = {
+const mockToolsDisabled: ToolsAutoUpdateInfo = {
   mode: 'disabled',
   targetVersion: '',
 };
@@ -46,7 +46,7 @@ export const mockClusterMaintenance: ClusterMaintenanceInfo = {
   maintenanceStartHour: 3,
 };
 
-export const mockRollout: RolloutInfo = {
+const mockRollout: RolloutInfo = {
   startVersion: 'v18.2.1',
   targetVersion: 'v18.2.5',
   strategy: 'time-based',
@@ -55,7 +55,7 @@ export const mockRollout: RolloutInfo = {
   mode: 'enabled',
 };
 
-export const mockRolloutHaltOnError: RolloutInfo = {
+const mockRolloutHaltOnError: RolloutInfo = {
   startVersion: 'v18.2.1',
   targetVersion: 'v18.2.5',
   strategy: 'halt-on-error',
@@ -64,7 +64,7 @@ export const mockRolloutHaltOnError: RolloutInfo = {
   mode: 'enabled',
 };
 
-export const mockRolloutImmediate: RolloutInfo = {
+const mockRolloutImmediate: RolloutInfo = {
   startVersion: 'v18.2.1',
   targetVersion: 'v18.2.5',
   strategy: 'time-based',
@@ -73,7 +73,7 @@ export const mockRolloutImmediate: RolloutInfo = {
   mode: 'enabled',
 };
 
-export const mockGroups: RolloutGroupInfo[] = [
+const mockGroups: RolloutGroupInfo[] = [
   {
     name: 'dev',
     position: 1,
@@ -149,7 +149,7 @@ export const mockGroups: RolloutGroupInfo[] = [
   },
 ];
 
-export const mockGroupsWithOrphaned: RolloutGroupInfo[] = [
+const mockGroupsWithOrphaned: RolloutGroupInfo[] = [
   {
     name: 'dev',
     position: 1,
@@ -194,7 +194,7 @@ export const mockGroupsWithOrphaned: RolloutGroupInfo[] = [
   },
 ];
 
-export const mockOrphanedAgentVersionCounts: Record<string, number> = {
+const mockOrphanedAgentVersionCounts: Record<string, number> = {
   'v18.2.1': 15,
   'v18.2.3': 3,
   'v18.2.5': 7,
@@ -225,7 +225,7 @@ export const mockManagedUpdatesImmediate: ManagedUpdatesDetails = {
   groups: mockGroups,
 };
 
-export const mockGroupsWithAgentsDropped: RolloutGroupInfo[] = [
+const mockGroupsWithAgentsDropped: RolloutGroupInfo[] = [
   {
     name: 'dev',
     position: 1,
@@ -286,50 +286,9 @@ export const mockManagedUpdatesNotConfiguredCloud: ManagedUpdatesDetails = {
   clusterMaintenance: mockClusterMaintenance,
 };
 
-export const mockManagedUpdatesDetailsEmpty: ManagedUpdatesDetails = {
-  tools: {
-    mode: 'disabled',
-    targetVersion: '',
-  },
-};
-
-export const mockManagedUpdatesDetailsNoGroups: ManagedUpdatesDetails = {
-  tools: mockTools,
-  rollout: {
-    ...mockRollout,
-    state: 'unstarted',
-  },
-  groups: [],
-};
-
-export const mockSelectedGroup: RolloutGroupInfo = {
-  name: 'prod',
-  position: 3,
-  state: 'active',
-  initialCount: 120,
-  presentCount: 112,
-  upToDateCount: 2,
-  stateReason: 'update_in_progress',
-  startTime: oneWeekAgo.toISOString(),
-  lastUpdateTime: fiveHoursAgo.toISOString(),
-  agentVersionCounts: {
-    'v18.2.1': 2,
-    'v18.2.3': 0,
-    'v18.2.5': 118,
-  },
-  isCatchAll: true,
-};
-
 export const mockManagedUpdatesTimeBasedCloud: ManagedUpdatesDetails = {
   tools: mockTools,
   rollout: mockRollout,
-  groups: mockGroups,
-  clusterMaintenance: mockClusterMaintenance,
-};
-
-export const mockManagedUpdatesHaltOnErrorCloud: ManagedUpdatesDetails = {
-  tools: mockTools,
-  rollout: mockRolloutHaltOnError,
   groups: mockGroups,
   clusterMaintenance: mockClusterMaintenance,
 };

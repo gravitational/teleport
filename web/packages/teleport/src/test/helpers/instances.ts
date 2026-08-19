@@ -20,7 +20,7 @@ import { delay, http, HttpResponse } from 'msw';
 
 import { UnifiedInstancesResponse } from 'teleport/services/instances/types';
 
-export const regularInstances = [
+const regularInstances = [
   {
     id: crypto.randomUUID(),
     type: 'instance' as const,
@@ -60,7 +60,7 @@ export const regularInstances = [
   },
 ];
 
-export const botInstances = [
+const botInstances = [
   {
     id: crypto.randomUUID(),
     type: 'bot_instance' as const,
@@ -84,12 +84,12 @@ export const mockInstances: UnifiedInstancesResponse = {
   startKey: '',
 };
 
-export const mockOnlyRegularInstances: UnifiedInstancesResponse = {
+const mockOnlyRegularInstances: UnifiedInstancesResponse = {
   instances: regularInstances,
   startKey: '',
 };
 
-export const mockOnlyBotInstances: UnifiedInstancesResponse = {
+const mockOnlyBotInstances: UnifiedInstancesResponse = {
   instances: botInstances,
   startKey: '',
 };

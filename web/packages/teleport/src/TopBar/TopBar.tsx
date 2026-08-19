@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { type JSX } from 'react';
+import React from 'react';
 import { Link, matchPath, useLocation } from 'react-router';
 import styled, { css, useTheme } from 'styled-components';
 
@@ -91,7 +91,7 @@ export function TopBar({
   );
 }
 
-export const TopBarContainer = styled(TopNav)`
+const TopBarContainer = styled(TopNav)`
   position: fixed;
   width: 100%;
   display: flex;
@@ -171,11 +171,5 @@ const LinkLogoWrapper = styled(Link)`
   }
 `;
 
-export const navigationIconSizeSmall = 20;
-export const navigationIconSizeMedium = 24;
-
-export type NavigationItem = {
-  title: string;
-  path: string;
-  Icon: JSX.Element;
-};
+const navigationIconSizeSmall = 20;
+const navigationIconSizeMedium = 24;

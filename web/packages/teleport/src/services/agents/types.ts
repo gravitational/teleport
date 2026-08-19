@@ -170,7 +170,7 @@ export type KubeImpersonation = {
   groups?: string[]; // `json:"kubernetes_impersonation.kubernetes_groups"
 };
 
-export type DatabaseTester = {
+type DatabaseTester = {
   user?: string; // `json:"database_user"`
   name?: string; // `json:"database_name"`
 };

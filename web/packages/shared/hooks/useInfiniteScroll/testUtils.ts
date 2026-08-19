@@ -43,7 +43,7 @@ function makeTestResources(
     }));
 }
 
-export function newDOMAbortError() {
+function newDOMAbortError() {
   return new DOMException('Aborted', 'AbortError');
 }
 

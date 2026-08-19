@@ -108,12 +108,12 @@ export function TerraformInfoGuide({
   );
 }
 
-export type InfoGuideTitleProps = {
+type InfoGuideTitleProps = {
   activeSection: 'info' | 'terraform';
   onSectionChange: (section: 'info' | 'terraform') => void;
 };
 
-export function InfoGuideTitle({
+function InfoGuideTitle({
   activeSection,
   onSectionChange,
 }: InfoGuideTitleProps) {

@@ -36,7 +36,7 @@ export const MessageTypeEnum = {
   DB_CONNECT: 'd',
 };
 
-export const messageFields = {
+const messageFields = {
   payload: {
     code: 0x1a,
   },

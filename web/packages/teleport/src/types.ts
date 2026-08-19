@@ -29,7 +29,7 @@ export interface Context {
   getFeatureFlags(): FeatureFlags;
 }
 
-export interface TeleportFeatureNavigationItem {
+interface TeleportFeatureNavigationItem {
   title: NavTitle;
   icon: (props) => ReactNode;
   exact?: boolean;
@@ -122,7 +122,7 @@ export enum NavTitle {
   BeamsList = 'Beams',
 }
 
-export interface TeleportFeatureRoute {
+interface TeleportFeatureRoute {
   title: string;
   path: string;
   exact?: boolean;
@@ -270,8 +270,8 @@ export type WebsocketStatus = {
   message?: string;
 };
 
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonArray = JsonPrimitive[];
+type JsonPrimitive = string | number | boolean | null;
+type JsonArray = JsonPrimitive[];
 export type JsonObject = {
   [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

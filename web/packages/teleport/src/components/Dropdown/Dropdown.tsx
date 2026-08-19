@@ -79,7 +79,7 @@ export const DropdownItem = styled.div<{
   }
 `;
 
-export const commonDropdownItemStyles = css`
+const commonDropdownItemStyles = css`
   align-items: center;
   display: flex;
   padding: ${p => p.theme.space[1] * 3}px;

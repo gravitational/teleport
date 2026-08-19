@@ -34,7 +34,7 @@ import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-export interface AccessRequestsContext {
+interface AccessRequestsContext {
   /** Determines whether the user can use the Access Requests UI.
    * True when the cluster enables it.
    */

@@ -20,7 +20,6 @@ export {
   UserDetails,
   type UserDetailsProps,
   UserDetailsTitle,
-  type UserDetailsSectionProps,
 } from './UserDetails';
 
 export { UserRoles } from './UserRoles';

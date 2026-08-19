@@ -104,6 +104,6 @@ export type OktaAccessListSyncDetails = {
   error: string;
 };
 
-export type OktaScimDetails = {
+type OktaScimDetails = {
   enabled: boolean;
 };

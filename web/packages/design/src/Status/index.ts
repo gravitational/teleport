@@ -18,5 +18,4 @@
 
 export { Status } from './Status';
 export { StatusDot } from './StatusDot';
-export type { StatusDotProps } from './StatusDot';
-export type { StatusKind, StatusVariant, StatusProps } from './Status';
+export type { StatusKind, StatusVariant } from './Status';

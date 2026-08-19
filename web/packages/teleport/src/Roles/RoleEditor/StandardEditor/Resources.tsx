@@ -223,7 +223,7 @@ export const resourceAccessSections: Record<
  * A generic resource section. Details are rendered by components from the
  * `resourceAccessSections` map.
  */
-export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
+const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   T extends ResourceAccess,
   V extends ResourceAccessValidationResult,
 >({

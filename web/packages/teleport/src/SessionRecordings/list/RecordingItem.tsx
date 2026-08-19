@@ -264,7 +264,7 @@ export const RecordingItemContainer = styled(Link).withConfig({
   `
 );
 
-export const RecordingItemHeader = styled(Flex)`
+const RecordingItemHeader = styled(Flex)`
   background: ${p => p.theme.colors.levels.sunken};
   flex: 0 0 40px;
   align-items: center;
@@ -342,7 +342,7 @@ export const RecordingDetails = styled.div<
 // BadgeContainer overlays the badge slot on the thumbnail, mirroring the
 // Duration placement on the opposite side, so badges appearing after the
 // initial render never shift the item layout.
-export const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   p => css`
     display: flex;
     gap: ${p.theme.space[1]}px;

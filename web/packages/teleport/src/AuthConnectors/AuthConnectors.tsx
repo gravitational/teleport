@@ -46,9 +46,6 @@ import DeleteConnectorDialog from './DeleteConnectorDialog';
 import EmptyList from './EmptyList';
 import templates from './templates';
 
-export const description =
-  'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
-
 /**
  * AuthConnectorsContainer is the container for the Auth Connectors feature and handles routing to the relevant page based on the URL.
  */

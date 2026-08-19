@@ -125,9 +125,7 @@ export function useUrlFiltering(
   };
 }
 
-export default function getResourceUrlQueryParams(
-  searchPath: string
-): ResourceFilter {
+function getResourceUrlQueryParams(searchPath: string): ResourceFilter {
   const searchParams = new URLSearchParams(searchPath);
   const query = searchParams.get('query');
   const search = searchParams.get('search');

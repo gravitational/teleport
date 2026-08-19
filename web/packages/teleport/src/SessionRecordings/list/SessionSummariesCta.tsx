@@ -25,7 +25,7 @@ import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { KeysEnum } from 'teleport/services/storageService';
 
-export const CtaLink = styled.a`
+const CtaLink = styled.a`
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
   border-radius: ${p => p.theme.radii[3]}px;
   padding: ${p =>
@@ -42,7 +42,7 @@ export const CtaLink = styled.a`
   }
 `;
 
-export const DismissButton = styled.button`
+const DismissButton = styled.button`
   background: transparent;
   border: none;
   border-radius: ${p => p.theme.radii[3]}px;

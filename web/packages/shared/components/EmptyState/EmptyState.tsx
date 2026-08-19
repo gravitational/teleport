@@ -100,15 +100,15 @@ export const DetailsTab = ({
   );
 };
 
-export const Title = styled(Text)`
+const Title = styled(Text)`
   font-weight: bold;
 `;
 
-export const Description = styled(Text)`
+const Description = styled(Text)`
   font-size: ${p => p.theme.fontSizes[1]}px;
 `;
 
-export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
+const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
   height: var(--feature-height);
 
   line-height: 20px;

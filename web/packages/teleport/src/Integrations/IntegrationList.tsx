@@ -478,7 +478,7 @@ const percentFormatter = new Intl.NumberFormat(undefined, {
   roundingMode: 'trunc',
 });
 
-export function percent(n: number, d: number): string {
+function percent(n: number, d: number): string {
   if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) {
     return '-';
   }

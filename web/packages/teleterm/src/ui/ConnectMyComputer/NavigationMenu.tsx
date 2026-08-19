@@ -174,28 +174,26 @@ interface MenuIconProps {
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
-  (props, ref) => {
-    return (
-      <StyledButton
-        ref={ref}
-        onClick={props.onClick}
-        intent="neutral"
-        fill="filled"
-        size="small"
-        title="Open Connect My Computer"
-        data-testid="connect-my-computer-icon"
-      >
-        <Laptop size="medium" />
-        {props.indicatorStatus === 'error' ? (
-          <StyledWarning />
-        ) : (
-          <StyledStatus status={props.indicatorStatus} />
-        )}
-      </StyledButton>
-    );
-  }
-);
+const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>((props, ref) => {
+  return (
+    <StyledButton
+      ref={ref}
+      onClick={props.onClick}
+      intent="neutral"
+      fill="filled"
+      size="small"
+      title="Open Connect My Computer"
+      data-testid="connect-my-computer-icon"
+    >
+      <Laptop size="medium" />
+      {props.indicatorStatus === 'error' ? (
+        <StyledWarning />
+      ) : (
+        <StyledStatus status={props.indicatorStatus} />
+      )}
+    </StyledButton>
+  );
+});
 
 const StyledButton = styled(Button)`
   position: relative;

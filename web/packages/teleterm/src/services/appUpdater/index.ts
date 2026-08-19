@@ -21,5 +21,4 @@ export type {
   AutoUpdatesStatus,
   AutoUpdatesEnabled,
   AutoUpdatesDisabled,
-  Cluster,
 } from './autoUpdatesStatus';

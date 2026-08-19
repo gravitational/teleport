@@ -17,19 +17,10 @@
  */
 
 import {
-  AppHorizontalSplit,
   AppVerticalSplit,
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
-  TabItem,
 } from './Layout';
 
-export {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-  AppHorizontalSplit,
-  AppVerticalSplit,
-  TabItem,
-};
+export { FeatureBox, FeatureHeader, FeatureHeaderTitle, AppVerticalSplit };

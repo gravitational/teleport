@@ -95,10 +95,3 @@ export function makeKubernetesAccessChecker(selected: KubernetesLabel[]) {
 }
 
 export type KubernetesLabel = { name: string; values: string[] };
-
-export type KubernetesResourceRule = {
-  kind: string;
-  name: string;
-  namespace: string;
-  verbs: string[];
-};

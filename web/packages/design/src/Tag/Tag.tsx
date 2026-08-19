@@ -24,7 +24,7 @@ import { space, type SpaceProps } from 'design/system';
 
 import { pillBase } from '../pillStyles';
 
-export type TagVariant = 'subtle' | 'outline';
+type TagVariant = 'subtle' | 'outline';
 
 export interface TagProps
   extends SpaceProps, Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {

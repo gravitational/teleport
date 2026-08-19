@@ -64,7 +64,7 @@ type Props = {
   onNext(): void;
 };
 
-export const StyledButtons = styled(Flex)`
+const StyledButtons = styled(Flex)`
   button {
     cursor: pointer;
     padding: 0;

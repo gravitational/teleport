@@ -104,7 +104,7 @@ export interface SessionRecordingMetadata {
   type: RecordingType;
 }
 
-export interface SessionRecordingError {
+interface SessionRecordingError {
   message: string;
 }
 
@@ -146,7 +146,7 @@ export interface SessionRecordingRiskEvent extends BaseSessionRecordingEvent {
   isError?: boolean;
 }
 
-export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
+interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
   type: SessionRecordingEventType.Resize;
   cols: number;
   rows: number;

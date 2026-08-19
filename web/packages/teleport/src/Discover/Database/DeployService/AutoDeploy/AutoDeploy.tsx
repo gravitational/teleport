@@ -603,7 +603,7 @@ const DeployHints = ({
   );
 };
 
-export function AutoDiscoverDeploySuccess({
+function AutoDiscoverDeploySuccess({
   svcDeployedAwsUrl,
 }: {
   svcDeployedAwsUrl: string;

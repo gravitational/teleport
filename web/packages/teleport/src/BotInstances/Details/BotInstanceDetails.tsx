@@ -150,7 +150,7 @@ const TitleContainer = styled(Flex)`
   overflow: hidden;
 `;
 
-export const TitleText = styled(Text).attrs({
+const TitleText = styled(Text).attrs({
   as: 'h2',
   typography: 'h2',
 })`

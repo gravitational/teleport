@@ -69,12 +69,6 @@ export interface Database {
   targetHealth?: ResourceTargetHealth;
 }
 
-export type DatabasesResponse = {
-  databases: Database[];
-  startKey?: string;
-  totalCount?: number;
-};
-
 export type UpdateDatabaseRequest = Omit<
   Partial<CreateDatabaseRequest>,
   'protocol'
@@ -98,7 +92,7 @@ export type DatabaseIamPolicyResponse = {
   aws: DatabaseIamPolicyAws;
 };
 
-export type DatabaseIamPolicyAws = {
+type DatabaseIamPolicyAws = {
   policy_document: string;
   placeholders: string;
 };

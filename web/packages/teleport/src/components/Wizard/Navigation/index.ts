@@ -18,5 +18,3 @@
 
 export { Navigation } from './Navigation';
 export { StepTitle, StepsContainer } from './Shared';
-export { Bullet } from './Bullet';
-export type { Props as BulletProps } from './Bullet';

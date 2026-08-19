@@ -299,7 +299,7 @@ export interface AutoUpdatesDisabled {
   options: AutoUpdatesOptions;
 }
 
-export interface AutoUpdatesOptions {
+interface AutoUpdatesOptions {
   /** The highest version that is compatible with all other clusters. */
   highestCompatibleVersion: string | undefined;
   /** URI of a manually selected cluster to manage updates. */
@@ -313,7 +313,7 @@ export interface AutoUpdatesOptions {
 export type AutoUpdatesStatus = AutoUpdatesEnabled | AutoUpdatesDisabled;
 
 /** Represents a cluster that could manage updates. */
-export interface Cluster {
+interface Cluster {
   /** URI of the cluster. */
   clusterUri: RootClusterUri;
   /** Whether the client should automatically update the tools version. */

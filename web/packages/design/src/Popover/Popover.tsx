@@ -56,8 +56,8 @@ export type Origin = {
   vertical: VerticalOrigin;
 };
 
-export type HorizontalOrigin = 'left' | 'center' | 'right' | number;
-export type VerticalOrigin = 'top' | 'center' | 'bottom' | number;
+type HorizontalOrigin = 'left' | 'center' | 'right' | number;
+type VerticalOrigin = 'top' | 'center' | 'bottom' | number;
 export type GrowDirections = 'top-left' | 'bottom-right';
 export type Position = 'top' | 'right' | 'bottom' | 'left';
 
@@ -437,7 +437,7 @@ function getArrowPaddingProp(
   }
 }
 
-export class Popover extends Component<Props> {
+class Popover extends Component<Props> {
   paperRef = createRef<HTMLDivElement>();
   handleResize: () => void = () => {};
 

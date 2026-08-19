@@ -26,11 +26,11 @@ export enum EventType {
   Screen = 8,
 }
 
-export interface ResizeEvent extends BaseEvent<EventType.Resize> {
+interface ResizeEvent extends BaseEvent<EventType.Resize> {
   terminalSize: TerminalSize;
 }
 
-export interface ScreenEvent extends BaseEvent<EventType.Screen> {
+interface ScreenEvent extends BaseEvent<EventType.Screen> {
   screen: SerializedTerminal;
 }
 
@@ -42,13 +42,13 @@ export interface SerializedTerminal {
   rows: number;
 }
 
-export interface SessionEndEvent extends BaseEvent<EventType.SessionEnd> {}
+interface SessionEndEvent extends BaseEvent<EventType.SessionEnd> {}
 
-export interface SessionPrintEvent extends BaseEvent<EventType.SessionPrint> {
+interface SessionPrintEvent extends BaseEvent<EventType.SessionPrint> {
   data: Uint8Array;
 }
 
-export interface SessionStartEvent extends BaseEvent<EventType.SessionStart> {
+interface SessionStartEvent extends BaseEvent<EventType.SessionStart> {
   terminalSize: TerminalSize;
 }
 

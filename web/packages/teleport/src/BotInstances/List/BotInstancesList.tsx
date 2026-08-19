@@ -210,7 +210,7 @@ const TitleContainer = styled(Flex)`
   min-height: ${p => p.theme.space[8]}px;
 `;
 
-export const TitleText = styled(Text).attrs({
+const TitleText = styled(Text).attrs({
   as: 'h2',
   typography: 'h2',
 })``;

@@ -489,7 +489,7 @@ export function ResourcesSection({
   );
 }
 
-export const Divider = styled.div`
+const Divider = styled.div`
   height: 1px;
   width: 100%;
   background: ${props => props.theme.colors.interactive.tonal.neutral[1]};

@@ -533,9 +533,3 @@ export const requestRoleEmpty: AccessRequest = {
   roles: ['empty-values'],
   id: 'ffc11a95-e8af-581c-ba82-47c429c841e8',
 };
-
-export const requests = [
-  requestRolePending,
-  requestRoleDenied,
-  requestRoleApproved,
-];

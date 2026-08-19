@@ -144,7 +144,7 @@ export type NewJoinTokenState = {
   gitlab?: NewJoinTokenGitlabState;
 };
 
-export const defaultNewTokenState: NewJoinTokenState = {
+const defaultNewTokenState: NewJoinTokenState = {
   name: '',
   bot_name: '',
   method: { value: 'iam', label: 'iam' },

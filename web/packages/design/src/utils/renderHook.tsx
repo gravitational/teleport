@@ -45,8 +45,6 @@ export default function renderHook<T extends (...args: any) => any>(
   return result;
 }
 
-export { act };
-
 // A wrapper to execute hooks during renderer process
 function TestHook(props: any) {
   // trigger hooks and assessing its results to props.current

@@ -481,7 +481,7 @@ function stripWildcard(labels: KubernetesLabel[]) {
 }
 
 const labelNameRegex = /^([a-z0-9:]+|\*)$/; // 1-n alphanumerics or colon, or a single asterisk
-export const requireValidLabelName: Rule = value => () => {
+const requireValidLabelName: Rule = value => () => {
   const match = labelNameRegex.test(value.trim());
   return {
     valid: match,
@@ -489,7 +489,7 @@ export const requireValidLabelName: Rule = value => () => {
   };
 };
 
-export const requireValidLabelValue: Rule = value => () => {
+const requireValidLabelValue: Rule = value => () => {
   const trimmed = value.trim();
   return {
     valid: trimmed.length > 0,
