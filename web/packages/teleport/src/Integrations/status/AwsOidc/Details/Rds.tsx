@@ -31,7 +31,7 @@ import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-export enum RdsTab {
+enum RdsTab {
   Agents = 'agents',
   Rules = 'rules',
 }

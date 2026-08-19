@@ -163,7 +163,7 @@ function isValidRedirectUri(): boolean {
 
 // TODO(sshah): move this component to CardError.jsx once
 // the URL validation patch is published in the private release.
-export const BadRequest = ({ message = '' }) => (
+const BadRequest = ({ message = '' }) => (
   <CardError>
     <H1 mb={4} textAlign="center">
       400 Bad Request

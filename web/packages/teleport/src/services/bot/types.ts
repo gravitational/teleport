@@ -26,7 +26,7 @@ export type CreateBotRequest = {
   login: string;
 };
 
-export type ApiBotMetadata = {
+type ApiBotMetadata = {
   description: string;
   labels: Map<string, string>;
   name: string;
@@ -34,7 +34,7 @@ export type ApiBotMetadata = {
   revision: string;
 };
 
-export type ApiBotSpec = {
+type ApiBotSpec = {
   roles: string[];
   traits: ApiBotTrait[];
   max_session_ttl:
@@ -44,7 +44,7 @@ export type ApiBotSpec = {
     | undefined;
 };
 
-export type ApiBotTrait = {
+type ApiBotTrait = {
   name: string;
   values: string[];
 };
@@ -199,10 +199,6 @@ export type GetBotInstanceMetricsResponse = {
 type BotInstanceMetric = {
   count?: number;
   filter?: string;
-};
-
-export type BotList = {
-  bots: FlatBot[];
 };
 
 export type FlatBot = Omit<ApiBot, 'metadata' | 'spec'> &

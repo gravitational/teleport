@@ -17,4 +17,3 @@
  */
 
 export * from './SearchPanel';
-export * from './SearchPagination';

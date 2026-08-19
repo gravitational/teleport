@@ -32,7 +32,7 @@ export function makeGhaWorkflow(params: {
     );
 }
 
-export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow which enrolls with Teleport in
+const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow which enrolls with Teleport in
 # order to access a Kubernetes cluster using kubectl or other tools compatible
 # with kubeconfig, such as Helm.
 

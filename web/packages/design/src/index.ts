@@ -40,17 +40,15 @@ import { Indicator } from './Indicator';
 import Input from './Input';
 import Label from './Label';
 import { LabelInput } from './LabelInput';
-import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
-import Menu, { MenuItem, MenuItemIcon } from './Menu';
+import Menu, { MenuItem } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
 import { Status } from './Status';
 import { StepSlider } from './StepSlider';
 import { SyncStamp } from './SyncStamp';
-import { Tag } from './Tag';
 import Text, {
   H1,
   H2,
@@ -98,12 +96,10 @@ export {
   Input,
   Label,
   LabelInput,
-  LabelState,
   Link,
   Mark,
   Menu,
   MenuItem,
-  MenuItemIcon,
   P1,
   P2,
   P3,
@@ -115,13 +111,11 @@ export {
   Subtitle2,
   Subtitle3,
   SyncStamp,
-  Tag,
   Text,
   TextArea,
   Toggle,
   TopNav,
 };
-export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
 export { Stack } from './Flex';
 export { breakpointsPx } from './theme';

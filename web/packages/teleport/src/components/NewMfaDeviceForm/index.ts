@@ -17,4 +17,3 @@
  */
 
 export { NewMfaDeviceForm } from './NewMfaDeviceForm';
-export type { NewMfaDeviceFormProps } from './NewMfaDeviceForm';

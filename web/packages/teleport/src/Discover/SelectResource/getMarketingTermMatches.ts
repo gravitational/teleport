@@ -54,7 +54,7 @@ export const getMarketingTermMatches = (
   return Array.from(matches);
 };
 
-export enum TermMatch {
+enum TermMatch {
   App = 'app',
   Database = 'database',
   Desktop = 'desktop',

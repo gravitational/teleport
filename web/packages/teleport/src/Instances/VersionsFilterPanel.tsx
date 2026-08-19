@@ -372,22 +372,17 @@ function stripVersionPrefix(version: string): string {
   return version.startsWith('v') ? version.slice(1) : version;
 }
 
-export function getMajorVersion(version: string): string {
-  const parsed = parse(stripVersionPrefix(version));
-  return `${parsed.major}.0.0`;
-}
-
-export function getMinorVersion(version: string): string {
+function getMinorVersion(version: string): string {
   const parsed = parse(stripVersionPrefix(version));
   return `${parsed.major}.${parsed.minor}.0`;
 }
 
-export function getPreviousMajorVersion(version: string): string {
+function getPreviousMajorVersion(version: string): string {
   const majorNum = major(stripVersionPrefix(version));
   return `${majorNum - 1}.0.0`;
 }
 
-export function getNextMajorVersion(version: string): string {
+function getNextMajorVersion(version: string): string {
   const majorNum = major(stripVersionPrefix(version));
   return `${majorNum + 1}.0.0`;
 }

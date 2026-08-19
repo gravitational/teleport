@@ -1,2 +1,2 @@
-export { pluginsService, makePlugins, getCTAForPlugin } from './plugins';
+export { pluginsService, getCTAForPlugin } from './plugins';
 export * from './types';

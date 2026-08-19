@@ -66,7 +66,7 @@ export function AddNewConnectorTile({
   );
 }
 
-export const AddNewConnectorBox = styled(Box)`
+const AddNewConnectorBox = styled(Box)`
   cursor: pointer;
   height: 96px;
   position: relative;

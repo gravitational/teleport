@@ -17,7 +17,3 @@
  */
 
 export { ManagedUpdates } from './ManagedUpdates';
-export type {
-  ManagedUpdatesProps,
-  ClusterMaintenanceCardProps,
-} from './ManagedUpdates';

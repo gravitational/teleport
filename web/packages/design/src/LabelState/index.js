@@ -16,13 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import LabelState, {
-  StateDanger,
-  StateInfo,
-  StateSuccess,
-  StateWarning,
-} from './LabelState';
+import LabelState from './LabelState';
 
 export default LabelState;
-
-export { StateDanger, StateInfo, StateWarning, StateSuccess };

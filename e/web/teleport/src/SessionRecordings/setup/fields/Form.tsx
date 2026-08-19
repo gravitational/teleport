@@ -59,24 +59,3 @@ export function Form<
     </FormProvider>
   );
 }
-
-export function NestedForm<
-  TFieldValues extends FieldValues = FieldValues,
-  TContext = unknown,
-  TTransformedValues = TFieldValues,
->({
-  children,
-  form,
-  ref,
-  ...rest
-}: PropsWithChildren<FormProps<TFieldValues, TContext, TTransformedValues>> &
-  RefAttributes<HTMLDivElement> &
-  ComponentProps<'div'>) {
-  return (
-    <FormProvider<TFieldValues, TContext, TTransformedValues> {...form}>
-      <div {...rest} ref={ref}>
-        {children}
-      </div>
-    </FormProvider>
-  );
-}

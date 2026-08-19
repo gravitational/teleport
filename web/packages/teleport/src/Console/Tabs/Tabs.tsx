@@ -36,7 +36,7 @@ export default function TabsContainer(props: Props) {
   return <Tabs {...props} parties={ctx.storeParties.state} />;
 }
 
-export function Tabs(props: Props & { parties: stores.Parties }) {
+function Tabs(props: Props & { parties: stores.Parties }) {
   const {
     items,
     parties,

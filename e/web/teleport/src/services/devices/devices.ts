@@ -6,10 +6,7 @@ import api from 'teleport/services/api';
 
 import { makeDevices } from './makeDevices';
 
-export type EnrollPairingState =
-  | 'awaiting_device'
-  | 'awaiting_approval'
-  | 'approved';
+type EnrollPairingState = 'awaiting_device' | 'awaiting_approval' | 'approved';
 
 export type CreateEnrollPairingResponse = {
   state: EnrollPairingState;

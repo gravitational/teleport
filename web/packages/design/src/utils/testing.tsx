@@ -26,7 +26,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
-  getByTestId,
   prettyDOM,
   screen,
   render as testingRender,
@@ -234,9 +233,7 @@ export {
   testThemeSystem,
   tick,
   render,
-  prettyDOM,
   waitFor,
-  getByTestId,
   MemoryRouter as Router,
   userEvent,
   waitForElementToBeRemoved,

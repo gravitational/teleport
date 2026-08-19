@@ -101,7 +101,7 @@ const standingPrivsImages: IconSpec = {
   dark: policyImageDark,
 };
 
-export const StandingPrivsPreview = () => {
+const StandingPrivsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox>
@@ -115,7 +115,7 @@ const crownJewelsImages: IconSpec = {
   dark: crownJewelsImageDark,
 };
 
-export const CrownJewelsPreview = () => {
+const CrownJewelsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox>
@@ -129,7 +129,7 @@ const riskyAccessImages: IconSpec = {
   dark: riskyImageDark,
 };
 
-export const RiskyAccessPreview = () => {
+const RiskyAccessPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox>
@@ -175,7 +175,7 @@ const tilesBottom = [
   },
 ];
 
-export const Tiles = () => {
+const Tiles = () => {
   return (
     <PreviewBox>
       <Flex>

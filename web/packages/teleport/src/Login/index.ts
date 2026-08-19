@@ -17,7 +17,3 @@
  */
 
 export { Login } from './Login';
-export { LoginFailed } from './LoginFailed';
-export { LoginSuccess } from './LoginSuccess';
-export { LoginTerminalRedirect } from './LoginTerminalRedirect';
-export { LoginClose } from './LoginClose';

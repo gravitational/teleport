@@ -135,7 +135,7 @@ type fetchAwsIcResourceRequest = {
   region: string;
 };
 
-export function makePlugins(json: any): Plugin[] {
+function makePlugins(json: any): Plugin[] {
   json = json || [];
   return json.map(makePlugin);
 }

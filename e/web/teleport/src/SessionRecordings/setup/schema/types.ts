@@ -6,22 +6,18 @@ import { z } from 'zod';
  */
 
 export const ModelProvider = z.enum(['openai', 'claude', 'teleport', 'other']);
-export const AccessMethod = z.enum([
+const AccessMethod = z.enum([
   'bedrock',
   'openai_api',
   'openai_compatible',
   'teleport',
 ]);
-export const BedrockMode = z.enum([
-  'direct',
-  'inference_profile',
-  'integration',
-]);
-export const ApiKeyMode = z.enum(['new', 'existing']);
+const BedrockMode = z.enum(['direct', 'inference_profile', 'integration']);
+const ApiKeyMode = z.enum(['new', 'existing']);
 export const ResourceKind = z.enum(['ssh', 'k8s', 'db', 'desktop']);
 
-export type AccessMethod = z.infer<typeof AccessMethod>;
-export type ApiKeyMode = z.infer<typeof ApiKeyMode>;
-export type BedrockMode = z.infer<typeof BedrockMode>;
+type AccessMethod = z.infer<typeof AccessMethod>;
+type ApiKeyMode = z.infer<typeof ApiKeyMode>;
+type BedrockMode = z.infer<typeof BedrockMode>;
 export type ModelProvider = z.infer<typeof ModelProvider>;
 export type ResourceKind = z.infer<typeof ResourceKind>;

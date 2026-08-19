@@ -396,7 +396,7 @@ export function makeAccessListMembersForUpdate({
       }));
 }
 
-export function makeAccessLists(json: any): AccessList[] {
+function makeAccessLists(json: any): AccessList[] {
   const accesslists = json || [];
   return accesslists.map(makeAccessList);
 }
@@ -435,14 +435,6 @@ function getPresetTypeFromMetadataLabel(labels: object): AccessListPreset {
     return '';
   }
   return labels['teleport.internal/access-list-preset'] ?? '';
-}
-
-export function getPresetRolesFromMetadataLabel(labels: object): string[] {
-  if (!labels) {
-    return [];
-  }
-  const roles = labels['teleport.internal/access-list-preset-roles'] ?? [];
-  return roles.split(',');
 }
 
 export function makeAccessList(json: any): AccessList {

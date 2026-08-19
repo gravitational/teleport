@@ -50,9 +50,9 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   ...props,
 });
 
-export const databaseUri = `${rootClusterUri}/dbs/foo`;
-export const kubeUri = `${rootClusterUri}/kubes/foo`;
-export const appUri = `${rootClusterUri}/apps/foo`;
+const databaseUri = `${rootClusterUri}/dbs/foo`;
+const kubeUri = `${rootClusterUri}/kubes/foo`;
+const appUri = `${rootClusterUri}/apps/foo`;
 export const windowsDesktopUri = `${rootClusterUri}/windows_desktops/foo`;
 
 export const makeDatabase = (

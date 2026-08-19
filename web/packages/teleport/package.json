@@ -2,7 +2,6 @@
   "name": "@gravitational/teleport",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "start": "pnpm build-wasm && vite",
     "build": "pnpm build-wasm && vite build",
@@ -46,6 +45,7 @@
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@gravitational/teleport": "workspace:*",
+    "ace-builds": "1.44.0",
     "babel-plugin-transform-import-meta": "2.3.3",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "babel-plugin-transform-vite-meta-hot": "^1.0.0",

@@ -240,28 +240,7 @@ export const Primary = (props: LabelPropsWithoutKind) => (
 /** @deprecated Use `<Tag>` from `design/Tag`. */
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
-);
-/** @deprecated Use `<Status kind="warning" variant="filled">` from `design/Status`. */
-export const Warning = (props: LabelPropsWithoutKind) => (
-  <Label kind="warning" {...props} />
-);
-/** @deprecated Use `<Status kind="danger" variant="filled">` from `design/Status`. */
-export const Danger = (props: LabelPropsWithoutKind) => (
-  <Label kind="danger" {...props} />
-);
-/** @deprecated Use `<Tag variant="outline">` from `design/Tag`. */
+); /** @deprecated Use `<Tag variant="outline">` from `design/Tag`. */
 export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-secondary" {...props} />
-);
-/** @deprecated Use `<Status kind="success">` from `design/Status`. */
-export const SuccessOutlined = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline-success" {...props} />
-);
-/** @deprecated Use `<Status kind="warning">` from `design/Status`. */
-export const WarningOutlined = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline-warning" {...props} />
-);
-/** @deprecated Use `<Status kind="danger">` from `design/Status`. */
-export const DangerOutlined = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline-danger" {...props} />
 );

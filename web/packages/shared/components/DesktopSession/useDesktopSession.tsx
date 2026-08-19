@@ -332,7 +332,7 @@ function commonFeaturePossible(
  * Determines whether clipboard sharing is/should-be possible based on whether it's allowed by the acl
  * and whether it's supported by the browser.
  */
-export function clipboardSharingPossible(
+function clipboardSharingPossible(
   clipboardSharingState: ClipboardSharingState
 ): boolean {
   return commonFeaturePossible(clipboardSharingState);

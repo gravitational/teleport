@@ -46,7 +46,7 @@ export type UseTokenState = {
 
 // Note: InviteCollaboratorsCardProps is duplicated in Enterprise
 // (e-teleport/Welcome/InviteCollaborators/InviteCollaborators)
-export type InviteCollaboratorsCardProps = {
+type InviteCollaboratorsCardProps = {
   onSubmit: () => void;
 };
 

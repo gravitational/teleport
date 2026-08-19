@@ -482,11 +482,11 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
 
-export type IsMfaRequiredResponse = {
+type IsMfaRequiredResponse = {
   required: boolean;
 };
 
-export type IsMfaRequiredDatabase = {
+type IsMfaRequiredDatabase = {
   database: {
     // service_name is the database service name.
     service_name: string;
@@ -499,7 +499,7 @@ export type IsMfaRequiredDatabase = {
   };
 };
 
-export type IsMfaRequiredNode = {
+type IsMfaRequiredNode = {
   node: {
     // node_name can be node's hostname or UUID.
     node_name: string;
@@ -508,7 +508,7 @@ export type IsMfaRequiredNode = {
   };
 };
 
-export type IsMfaRequiredWindowsDesktop = {
+type IsMfaRequiredWindowsDesktop = {
   windows_desktop: {
     // desktop_name is the Windows Desktop server name.
     desktop_name: string;
@@ -517,14 +517,14 @@ export type IsMfaRequiredWindowsDesktop = {
   };
 };
 
-export type IsMfaRequiredKube = {
+type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
     cluster_name: string;
   };
 };
 
-export type IsMfaRequiredApp = {
+type IsMfaRequiredApp = {
   app: {
     // fqdn indicates (tentatively) the fully qualified domain name of the application.
     fqdn: string;
@@ -535,7 +535,7 @@ export type IsMfaRequiredApp = {
   };
 };
 
-export type IsMfaRequiredAdminAction = {
+type IsMfaRequiredAdminAction = {
   // empty object.
   admin_action: Record<string, never>;
 };

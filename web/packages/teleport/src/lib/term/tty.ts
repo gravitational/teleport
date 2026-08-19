@@ -285,7 +285,7 @@ class Tty extends EventEmitterMfaSender {
   }
 }
 
-export type KubeExecData = {
+type KubeExecData = {
   kubeCluster: string;
   namespace: string;
   pod: string;

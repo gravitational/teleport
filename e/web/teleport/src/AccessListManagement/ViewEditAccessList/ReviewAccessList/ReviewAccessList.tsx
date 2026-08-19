@@ -44,7 +44,7 @@ import { EditedRecurrence, ReviewStep } from './Shared';
 import { Summary } from './Summary';
 import { getMembersDeleted } from './utils';
 
-export const views = [
+const views = [
   {
     step: ReviewStep.EditMembershipRequires,
     title: 'Membership Requirements',

@@ -79,7 +79,7 @@ export type CurrentAction =
       attempt: Attempt<void>;
     };
 
-export interface ConnectMyComputerContext {
+interface ConnectMyComputerContext {
   /**
    * canUse describes whether the user should be allowed to use Connect My Computer.
    * This is true either when the user has access to Connect My Computer or they have already set up

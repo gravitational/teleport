@@ -12,7 +12,6 @@ import {
   deleteInferenceSecret,
   getInferenceModel,
   getInferencePolicy,
-  getInferenceSecret,
   listInferenceModels,
   listInferencePolicies,
   listInferenceSecrets,
@@ -25,7 +24,6 @@ import {
 export const {
   createQueryKey: listInferencePoliciesQueryKey,
   useInfiniteQuery: useInfiniteListInferencePolicies,
-  useQuery: useListInferencePolicies,
 } = createQueryHook(
   ['inference', 'policies'],
   listInferencePolicies,
@@ -70,9 +68,6 @@ export const {
   createQueryKey: getInferencePolicyQueryKey,
   useSuspenseQuery: useSuspenseGetInferencePolicy,
 } = createQueryHook(['inference', 'policy'], getInferencePolicy);
-
-export const { useSuspenseQuery: useSuspenseGetInferenceSecret } =
-  createQueryHook(['inference', 'secret'], getInferenceSecret);
 
 export const useDeleteInferenceModel = createMutationHook(deleteInferenceModel);
 export const useDeleteInferencePolicy = createMutationHook(

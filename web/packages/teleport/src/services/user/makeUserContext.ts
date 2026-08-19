@@ -63,7 +63,7 @@ function makeAccessCapabilities(json): AccessCapabilities {
   };
 }
 
-export const defaultStrategy = {
+const defaultStrategy = {
   type: 'optional',
   prompt: '',
 };

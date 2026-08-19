@@ -11,7 +11,7 @@ import {
 } from '../role/listaccess';
 import { getGitHubOrgs } from '../role/resources/github';
 
-export const awsIcSubKindPredicate = `resource.sub_kind == "aws_ic_account"`;
+const awsIcSubKindPredicate = `resource.sub_kind == "aws_ic_account"`;
 
 export function getPredicateExpression(
   props:

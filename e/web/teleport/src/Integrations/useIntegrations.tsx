@@ -27,7 +27,7 @@ type OperationE = {
   item?: Plugin | Integration | { name: ExternalAuditStorageOpType };
 };
 
-export type GitHubIntegrationEditableFields = {
+type GitHubIntegrationEditableFields = {
   kind: IntegrationKind.GitHub;
   secret: string;
 };

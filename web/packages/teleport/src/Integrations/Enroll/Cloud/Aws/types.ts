@@ -25,7 +25,7 @@ export type AwsLabel = {
 
 export type ServiceType = 'ec2' | 'eks';
 
-export const serviceTypes: ServiceType[] = ['ec2', 'eks'];
+const serviceTypes: ServiceType[] = ['ec2', 'eks'];
 
 export type ServiceConfig = {
   enabled: boolean;

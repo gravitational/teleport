@@ -17,8 +17,6 @@
  */
 import { Dispatch, SetStateAction } from 'react';
 
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
 import { FlatBot } from 'teleport/services/bot/types';
 
 export type BotOptionsCellProps = {
@@ -42,13 +40,6 @@ export type BotListProps = {
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
 };
 
-export type DeleteBotProps = {
-  attempt: Attempt;
-  name: string;
-  onClose: () => void;
-  onDelete: () => void;
-};
-
 export type ViewBotProps = {
   bot: FlatBot;
   onClose: () => void;
@@ -58,13 +49,3 @@ export enum BotFlowType {
   GitHubActionsSsh = 'github-actions-ssh',
   GitHubActionsK8s = 'github-actions-k8s',
 }
-
-export type EditBotProps = {
-  fetchRoles: (input: string) => Promise<string[]>;
-  attempt: Attempt;
-  name: string;
-  onClose: () => void;
-  onEdit: () => void;
-  selectedRoles: string[];
-  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
-};

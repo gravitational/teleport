@@ -17,7 +17,6 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { ConfigSource } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import {
@@ -28,7 +27,7 @@ import {
 import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { MockedUnaryCall } from '../cloneableClient';
-import { AutoUpdateClient, TshdClient, VnetClient } from '../createClient';
+import { TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
@@ -135,19 +134,4 @@ export class MockVnetClient implements VnetClient {
     });
   }
   autoConfigureSSH = () => new MockedUnaryCall({});
-}
-
-export class MockAutoUpdateClient implements AutoUpdateClient {
-  getClusterVersions = () =>
-    new MockedUnaryCall({
-      reachableClusters: [],
-      unreachableClusters: [],
-    });
-  getConfig = () =>
-    new MockedUnaryCall({
-      cdnBaseUrl: { value: '', source: ConfigSource.UNSPECIFIED },
-      toolsVersion: { value: '', source: ConfigSource.UNSPECIFIED },
-    });
-  getInstallationMetadata = () =>
-    new MockedUnaryCall({ isPerMachineInstall: false });
 }

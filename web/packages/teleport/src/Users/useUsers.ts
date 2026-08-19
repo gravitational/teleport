@@ -132,11 +132,11 @@ type Operation = {
   user?: User;
 };
 
-export interface InviteCollaboratorsDialogProps {
+interface InviteCollaboratorsDialogProps {
   onClose: (users?: User[]) => void;
 }
 
-export interface EmailPasswordResetDialogProps {
+interface EmailPasswordResetDialogProps {
   username: string;
   onClose: () => void;
 }

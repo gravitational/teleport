@@ -8,14 +8,14 @@ export interface InferenceModel {
   bedrock?: BedrockModelConfig;
 }
 
-export interface OpenAIModelConfig {
+interface OpenAIModelConfig {
   modelId: string;
   temperature?: number;
   api_key_secret_ref?: string;
   base_url?: string;
 }
 
-export interface BedrockModelConfig {
+interface BedrockModelConfig {
   modelId: string;
   region: string;
   temperature?: number;
@@ -92,11 +92,6 @@ export interface GetInferenceModelVariables {
 }
 
 export interface GetInferencePolicyVariables {
-  clusterId: string;
-  name: string;
-}
-
-export interface GetInferenceSecretVariables {
   clusterId: string;
   name: string;
 }

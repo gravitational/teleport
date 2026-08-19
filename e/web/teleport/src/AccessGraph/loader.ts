@@ -6,7 +6,7 @@ import * as jsxRuntime from 'react/jsx-runtime';
 import * as styledComponents from 'styled-components';
 import * as whatwgFetch from 'whatwg-fetch';
 
-export const ACCESS_GRAPH_ASSETS_PREFIX = '/enterprise/accessgraph/static';
+const ACCESS_GRAPH_ASSETS_PREFIX = '/enterprise/accessgraph/static';
 export const ACCESS_GRAPH_JS_FILE = 'access-graph-react-19.umd.js';
 export const ACCESS_GRAPH_JS_URL = `${ACCESS_GRAPH_ASSETS_PREFIX}/${ACCESS_GRAPH_JS_FILE}`;
 const STYLE_URL = `${ACCESS_GRAPH_ASSETS_PREFIX}/style.css`;

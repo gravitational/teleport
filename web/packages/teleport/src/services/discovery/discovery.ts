@@ -40,7 +40,7 @@ export function createDiscoveryConfig(
     .then(makeDiscoveryConfig);
 }
 
-export function makeDiscoveryConfig(rawResp: DiscoveryConfig): DiscoveryConfig {
+function makeDiscoveryConfig(rawResp: DiscoveryConfig): DiscoveryConfig {
   const { name, discoveryGroup, aws } = rawResp;
 
   return {

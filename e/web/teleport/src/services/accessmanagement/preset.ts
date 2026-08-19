@@ -7,7 +7,7 @@ import {
   MemberSpecRequest,
 } from './types';
 
-export type MemberSpecTerraformRequest = Pick<
+type MemberSpecTerraformRequest = Pick<
   MemberSpecRequest,
   'name' | 'membership_kind'
 > &
@@ -55,8 +55,4 @@ export type GenerateTerraformConfigRequest = {
   accessList?: AccessListBodyRequest;
   accessRoles: TerraformAcessRoleRequest[];
   accessListId: string;
-};
-
-export type GenerateTerraformConfigResponse = {
-  terraform: string;
 };

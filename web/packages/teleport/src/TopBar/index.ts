@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { TopBar, TopBarContainer } from './TopBar';
+export { TopBar } from './TopBar';

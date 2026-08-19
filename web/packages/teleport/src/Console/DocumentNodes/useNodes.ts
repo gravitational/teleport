@@ -103,7 +103,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
 }
 
 // sort logins by making 'root' as the first in the list
-export const sortLogins = (logins: string[]) => {
+const sortLogins = (logins: string[]) => {
   const noRoot = logins.filter(l => l !== 'root');
   noRoot.sort();
   if (noRoot.length === logins.length) {

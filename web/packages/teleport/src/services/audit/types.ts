@@ -2848,7 +2848,7 @@ export type Formatters = {
   };
 };
 
-export type Events = {
+type Events = {
   [key in EventCode]: {
     id: string;
     time: Date;
@@ -2861,8 +2861,6 @@ export type Events = {
 };
 
 export type Event = Events[EventCode];
-
-export type SessionEnd = Events[typeof eventCodes.SESSION_END];
 
 export type EventQuery = {
   from: Date;

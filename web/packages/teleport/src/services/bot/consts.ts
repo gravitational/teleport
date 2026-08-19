@@ -51,7 +51,7 @@ export function toApiGitHubTokenSpec(spec: ProvisionTokenSpecV2GitHub | null) {
  * @returns the server's teleport/api/types.ProvisionTokenSpecV2GitHub_Rule,
  * which has similar properties, but different casing
  */
-export function toApiGitHubRule({
+function toApiGitHubRule({
   sub,
   repository,
   repositoryOwner,

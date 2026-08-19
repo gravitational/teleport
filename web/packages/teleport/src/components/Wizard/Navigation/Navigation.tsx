@@ -25,7 +25,7 @@ import { Bullet } from './Bullet';
 import { StepsContainer, StepTitle } from './Shared';
 import { StepList } from './StepList';
 
-export type StepIcon = {
+type StepIcon = {
   component: JSX.Element;
   title: string;
 };

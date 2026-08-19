@@ -10,7 +10,6 @@ import type {
   DeleteInferenceSecretVariables,
   GetInferenceModelVariables,
   GetInferencePolicyVariables,
-  GetInferenceSecretVariables,
   InferenceModel,
   InferencePolicy,
   InferenceSecret,
@@ -136,11 +135,4 @@ export function getInferencePolicy({
   name,
 }: GetInferencePolicyVariables): Promise<InferencePolicy> {
   return api.get(cfg.getInferencePolicyUrl(clusterId, name));
-}
-
-export function getInferenceSecret({
-  clusterId,
-  name,
-}: GetInferenceSecretVariables): Promise<InferenceSecret> {
-  return api.get(cfg.getInferenceSecretUrl(clusterId, name));
 }

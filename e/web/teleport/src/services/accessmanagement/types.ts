@@ -42,7 +42,7 @@ export enum AccessListMemberKind {
   List = 'MEMBERSHIP_KIND_LIST',
 }
 
-export type AccessListReviewer = {
+type AccessListReviewer = {
   name: string;
   displayPrimary?: string;
   displaySecondary?: string;
@@ -55,11 +55,6 @@ export type AccessListReview = {
   // Unprocessed data.
   // Used to display it as json for read only TextEditor.
   raw: any;
-};
-
-export type AccessListReviewResponse = {
-  reviews: AccessListReview[];
-  startKey: string;
 };
 
 export type AccessListMetadata = {
@@ -175,7 +170,7 @@ type AccessListAuditRecurrence = {
 
 // AccessListAudit describes the frequency that this
 // access list must be audited.
-export type AccessListAudit = {
+type AccessListAudit = {
   recurrence: AccessListAuditRecurrence;
   nextDate: Date;
 };
@@ -214,7 +209,7 @@ export type AccessListUserAssignments = {
   membershipType: AccessListUserAssignmentType;
 };
 
-export type OwnerRequest = Omit<
+type OwnerRequest = Omit<
   AccessListOwner,
   'ineligibleReason' | 'membershipKind'
 > & {

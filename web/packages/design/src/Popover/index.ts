@@ -21,10 +21,7 @@ import Popover from './Popover';
 export {
   StyledPopover,
   type Origin,
-  type HorizontalOrigin,
-  type VerticalOrigin,
   type GrowDirections,
-  type Position as Orientation,
   type Props as PopoverProps,
 } from './Popover';
 

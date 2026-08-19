@@ -28,7 +28,6 @@ import {
   matchPath,
   Navigate,
   NavLink,
-  Outlet,
   RouterProvider,
   Route as RouterRoute,
   Routes,
@@ -44,12 +43,12 @@ import { NotFound } from 'design/CardError';
 import history from 'teleport/services/history';
 
 // Re-export native React Router components for use throughout the app
-export { NavLink, Outlet, useLocation, useParams };
+export { NavLink, useLocation, useParams };
 
 /**
  * NoMatch component for 404 pages.
  */
-export const NoMatch = () => (
+const NoMatch = () => (
   <NotFound
     alignSelf="baseline"
     message="The requested path could not be found."

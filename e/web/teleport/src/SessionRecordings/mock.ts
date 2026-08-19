@@ -6,7 +6,7 @@ import {
   type SessionRecordingSummaryResponse,
 } from 'e-teleport/services/recordings/types';
 
-export function withMockSummary(
+function withMockSummary(
   sessionId: string,
   summary: SessionRecordingSummaryResponse
 ) {

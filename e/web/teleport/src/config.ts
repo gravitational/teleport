@@ -46,7 +46,7 @@ function generateFullPath(
   return processedPath + processedQuery;
 }
 
-export const enterpriseRoutes = {
+const enterpriseRoutes = {
   accessGraph: {
     dashboard: '/web/accessgraph',
     browse: '/web/accessgraph/browse',
@@ -827,7 +827,7 @@ function createLimitStartKeyParams(limit?: number, startKey?: string) {
   return `?${params.toString()}`;
 }
 
-export interface UrlAzureOidcConfigureIdp {
+interface UrlAzureOidcConfigureIdp {
   authConnectorName: string;
   accessGraph: boolean;
 }

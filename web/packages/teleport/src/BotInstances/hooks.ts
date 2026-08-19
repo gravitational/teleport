@@ -19,5 +19,7 @@
 import { getBotInstance } from 'teleport/services/bot/bot';
 import { createQueryHook } from 'teleport/services/queryHelpers';
 
-export const { queryKey: GetBotInstanceQueryKey, useQuery: useGetBotInstance } =
-  createQueryHook(['bot_instance', 'get'], getBotInstance);
+export const { useQuery: useGetBotInstance } = createQueryHook(
+  ['bot_instance', 'get'],
+  getBotInstance
+);

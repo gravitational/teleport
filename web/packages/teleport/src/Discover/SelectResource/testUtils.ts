@@ -41,32 +41,32 @@ export const t_Application_NoAccess = makeResourceSpec({
   kind: ResourceKind.Application,
   hasAccess: false,
 });
-export const u_Database_NoAccess = makeResourceSpec({
+const u_Database_NoAccess = makeResourceSpec({
   name: 'uniform',
   kind: ResourceKind.Database,
   hasAccess: false,
 });
-export const v_Desktop_NoAccess = makeResourceSpec({
+const v_Desktop_NoAccess = makeResourceSpec({
   name: 'victor',
   kind: ResourceKind.Desktop,
   hasAccess: false,
 });
-export const w_Kubernetes_NoAccess = makeResourceSpec({
+const w_Kubernetes_NoAccess = makeResourceSpec({
   name: 'whiskey',
   kind: ResourceKind.Kubernetes,
   hasAccess: false,
 });
-export const x_Server_NoAccess = makeResourceSpec({
+const x_Server_NoAccess = makeResourceSpec({
   name: 'xray',
   kind: ResourceKind.Server,
   hasAccess: false,
 });
-export const y_Saml_NoAccess = makeResourceSpec({
+const y_Saml_NoAccess = makeResourceSpec({
   name: 'yankee',
   kind: ResourceKind.SamlApplication,
   hasAccess: false,
 });
-export const z_Discovery_NoAccess = makeResourceSpec({
+const z_Discovery_NoAccess = makeResourceSpec({
   name: 'zulu',
   kind: ResourceKind.Discovery,
   hasAccess: false,

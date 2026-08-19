@@ -97,7 +97,7 @@ const MultiValueContainer = (
   );
 };
 
-export const validFilters = (createdFilters: FilterOption[]) => () => {
+const validFilters = (createdFilters: FilterOption[]) => () => {
   if (!createdFilters) {
     return {
       valid: true,

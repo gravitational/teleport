@@ -70,7 +70,7 @@ export const externalAuditStorageService = {
   },
 };
 
-export function makeExternalAuditStorage(json: any): ExternalAuditStorage {
+function makeExternalAuditStorage(json: any): ExternalAuditStorage {
   const {
     integration_name,
     policy_name,

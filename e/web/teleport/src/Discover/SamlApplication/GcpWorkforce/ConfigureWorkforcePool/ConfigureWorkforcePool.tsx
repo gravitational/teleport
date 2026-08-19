@@ -204,7 +204,7 @@ type ScriptGenPropTypes = {
   validator: Validator;
 };
 
-export function ScriptGenInput({
+function ScriptGenInput({
   genWorkforceConfigScript,
   validator,
 }: ScriptGenPropTypes) {
@@ -283,9 +283,7 @@ export function ScriptGenInput({
   );
 }
 
-export const ErrGcpOrgId = 'GCP organization ID should be numeric value';
-
-export function Script({ scriptUrl }: { scriptUrl: string }) {
+function Script({ scriptUrl }: { scriptUrl: string }) {
   return (
     <StyledBox mb={5} mt={5} data-testid="scriptbox">
       <Text bold>Step 2:</Text>

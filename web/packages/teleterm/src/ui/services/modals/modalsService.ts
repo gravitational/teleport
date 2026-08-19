@@ -195,7 +195,7 @@ export interface DialogClusterConnect {
   onCancel: (() => void) | undefined;
 }
 
-export interface ClusterConnectReasonGatewayCertExpired {
+interface ClusterConnectReasonGatewayCertExpired {
   kind: 'reason.gateway-cert-expired';
   targetUri: uri.GatewayTargetUri;
   // The original RPC message passes gatewayUri but we might not always be able to resolve it to a
@@ -203,7 +203,7 @@ export interface ClusterConnectReasonGatewayCertExpired {
   gateway: types.Gateway | undefined;
 }
 
-export type ClusterConnectReasonVnetCertExpired = {
+type ClusterConnectReasonVnetCertExpired = {
   kind: 'reason.vnet-cert-expired';
 } & tshdEventsApi.VnetCertExpired;
 
@@ -211,7 +211,7 @@ export type ClusterConnectReason =
   | ClusterConnectReasonGatewayCertExpired
   | ClusterConnectReasonVnetCertExpired;
 
-export interface DialogClusterLogout {
+interface DialogClusterLogout {
   kind: 'cluster-logout';
   clusterUri: RootClusterUri;
 }
@@ -226,27 +226,27 @@ export interface DialogDocumentsReopen {
   onCancel?(): void;
 }
 
-export interface DialogUsageData {
+interface DialogUsageData {
   kind: 'usage-data';
   onAllow(): void;
   onDecline(): void;
   onCancel(): void;
 }
 
-export interface DialogUserJobRole {
+interface DialogUserJobRole {
   kind: 'user-job-role';
   onSend(jobRole: string): void;
   onCancel(): void;
 }
 
-export interface DialogResourceSearchErrors {
+interface DialogResourceSearchErrors {
   kind: 'resource-search-errors';
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   onCancel: () => void;
 }
 
-export interface DialogHeadlessAuthentication {
+interface DialogHeadlessAuthentication {
   kind: 'headless-authn';
   rootClusterUri: RootClusterUri;
   headlessAuthenticationId: string;
@@ -256,7 +256,7 @@ export interface DialogHeadlessAuthentication {
   onCancel(): void;
 }
 
-export interface DialogReAuthenticate {
+interface DialogReAuthenticate {
   kind: 'reauthenticate';
   promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
@@ -265,7 +265,7 @@ export interface DialogReAuthenticate {
   onCancel(): void;
 }
 
-export interface DialogChangeAccessRequestKind {
+interface DialogChangeAccessRequestKind {
   kind: 'change-access-request-kind';
   onConfirm(): void;
   onCancel(): void;
@@ -284,21 +284,21 @@ export interface DialogHardwareKeyTouch {
   onCancel(): void;
 }
 
-export interface DialogHardwareKeyPinChange {
+interface DialogHardwareKeyPinChange {
   kind: 'hardware-key-pin-change';
   req: tshdEventsApi.PromptHardwareKeyPINChangeRequest;
   onSuccess(res: tshdEventsApi.PromptHardwareKeyPINChangeResponse): void;
   onCancel(): void;
 }
 
-export interface DialogHardwareKeySlotOverwrite {
+interface DialogHardwareKeySlotOverwrite {
   kind: 'hardware-key-slot-overwrite';
   req: tshdEventsApi.ConfirmHardwareKeySlotOverwriteRequest;
   onConfirm(): void;
   onCancel(): void;
 }
 
-export interface DialogConfigureSSHClients {
+interface DialogConfigureSSHClients {
   kind: 'configure-ssh-clients';
   /**
    * onConfirm will be called when the user clicks the button to confirm automatic configuration
@@ -310,7 +310,7 @@ export interface DialogConfigureSSHClients {
   host?: string;
 }
 
-export interface DialogAppUpdate {
+interface DialogAppUpdate {
   kind: 'app-updates';
 }
 

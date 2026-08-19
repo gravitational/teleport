@@ -18,8 +18,6 @@
 
 export {
   NavLink,
-  NoMatch,
-  Outlet,
   Prompt,
   Redirect,
   Route,
@@ -28,4 +26,3 @@ export {
   useLocation,
   useParams,
 } from './Router';
-export type { RouteProps } from './Router';

@@ -711,7 +711,7 @@ const DangerWithBackground = styled(Danger)`
   background: ${props => props.theme.colors.levels.sunken};
 `;
 
-export function LoadingCard() {
+function LoadingCard() {
   const [randomizedSize] = useState(() => ({
     name: randomNum(70, 30),
     members: new Array(randomNum(4, 0)),
@@ -739,7 +739,7 @@ export function LoadingCard() {
     </LoadingCardBox>
   );
 }
-export function LoadingList() {
+function LoadingList() {
   const [randomizedSize] = useState(() => ({
     name: randomNum(40, 20),
     roles: randomNum(80, 50),

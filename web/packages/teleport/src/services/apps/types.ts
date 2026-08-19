@@ -110,7 +110,7 @@ export interface App {
   supportedFeatureIds?: ComponentFeatureID[];
 }
 
-export type UserGroupAndDescription = {
+type UserGroupAndDescription = {
   name: string;
   description: string;
 };

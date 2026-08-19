@@ -90,7 +90,7 @@ export function useIntegrationOperation() {
   };
 }
 
-export type AwsOidcIntegrationEditableFields = {
+type AwsOidcIntegrationEditableFields = {
   kind: IntegrationKind.AwsOidc;
   roleArn: string;
 };

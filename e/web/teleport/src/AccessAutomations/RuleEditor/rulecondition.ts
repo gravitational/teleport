@@ -1,6 +1,5 @@
 import { Option } from 'shared/components/Select';
 import { TraitsOption } from 'shared/components/TraitsEditor';
-import { RequestState } from 'shared/services/accessRequests';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { parseQuotedWordsDelimitedByComma } from 'shared/utils/parseString';
 
@@ -51,11 +50,6 @@ export const accessRequestMatchConditionOptions: AccessRequestMatchConditionOpti
       label: 'Notify when any roles requested',
     },
   ];
-
-export type AccessRequestStateOption = {
-  value: RequestState;
-  label: RequestState;
-};
 
 export type RuleCondition = {
   rolesCondition?: RolesCondition;

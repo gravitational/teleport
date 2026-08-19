@@ -20,7 +20,7 @@ import { LabelContent, LabelInput } from 'design/LabelInput/LabelInput';
 import Text from 'design/Text';
 import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
 
-export interface CheckboxOption<T extends string = string> {
+interface CheckboxOption<T extends string = string> {
   value: T;
   label: string;
   icon?: ReactNode;

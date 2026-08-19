@@ -93,7 +93,7 @@ export function AddNewConnectorsList() {
   );
 }
 
-export const AddNewConnectorsGrid = styled(Box)`
+const AddNewConnectorsGrid = styled(Box)`
   width: 100%;
   display: grid;
   gap: ${p => p.theme.space[3]}px;

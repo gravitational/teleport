@@ -75,5 +75,3 @@ type tableState = {
   fetchStatus: FetchStatus;
   startKey: string;
 };
-
-export type State = ReturnType<typeof useDevices>;

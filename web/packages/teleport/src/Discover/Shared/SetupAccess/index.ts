@@ -15,8 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-export { AccessInfo } from './AccessInfo';
 export { SetupAccessWrapper } from './SetupAccessWrapper';
 export { useUserTraits, initSelectedOptionsHelper } from './useUserTraits';
 

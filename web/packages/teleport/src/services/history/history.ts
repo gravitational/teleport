@@ -27,7 +27,7 @@ interface NavigationFunctions {
 
 let _nav: NavigationFunctions | null = null;
 
-export type LoginOptions = {
+type LoginOptions = {
   rememberLocation?: boolean;
   withAccessChangedMessage?: boolean;
   scope?: string;

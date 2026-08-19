@@ -34,11 +34,10 @@ import {
 } from '../AccessListManagementContext';
 import { TruncatingLabel, type MemberSelection } from '../Shared/Shared';
 
-export type AccessListRequiresWithTraitConvenience = AccessListRequires &
+type AccessListRequiresWithTraitConvenience = AccessListRequires &
   TraitConvenience;
 
-export type AccessListGrantWithTraitConvenience = AccessListGrant &
-  TraitConvenience;
+type AccessListGrantWithTraitConvenience = AccessListGrant & TraitConvenience;
 
 export type AccessListModified = AccessList & {
   membershipRequires: AccessListRequiresWithTraitConvenience;
@@ -82,11 +81,7 @@ export const getPerms = ({
   };
 };
 
-export type ReviewNotApplicableReason =
-  | 'okta-read-only'
-  | 'not-due'
-  | 'static'
-  | null;
+type ReviewNotApplicableReason = 'okta-read-only' | 'not-due' | 'static' | null;
 
 export type AccessListReviewStatus = {
   canReview: boolean;
@@ -455,5 +450,3 @@ export const EnrollingNestedListsAlert = ({
     .
   </Alert>
 );
-
-export const MAX_DISPLAYED_INHERITED_ROLES_TRAITS = 5;

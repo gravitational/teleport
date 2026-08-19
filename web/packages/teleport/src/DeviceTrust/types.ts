@@ -51,12 +51,6 @@ export type DeviceSource = {
   origin: DeviceOrigin;
 };
 
-/**
- * @deprecated Use TrustedDevice['osType'] instead.
- * TODO(ravicious): Remove once teleport.e no longer imports it.
- */
-export type TrustedDeviceOSType = TrustedDevice['osType'];
-
 export function osTypeLabel(
   osType: OSType
 ): TrustedDevice['osType'] | undefined {

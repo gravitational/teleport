@@ -46,5 +46,4 @@ export type {
   /** @depreacted Import `AccessRequest` directly. */
   AccessRequest,
   /** @depreacted Import `ResourceId` directly. */
-  ResourceId,
 } from 'shared/services/accessRequests';

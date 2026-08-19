@@ -66,7 +66,7 @@ export type ClientCompatibility =
     }
   | null;
 
-export function checkClientCompatibility(
+function checkClientCompatibility(
   clientVersion: string | undefined,
   clusterVersion: string
 ): ClientCompatibility {

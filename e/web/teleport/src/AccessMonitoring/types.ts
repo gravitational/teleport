@@ -26,7 +26,7 @@ export interface Report {
   lastUpdated: Date;
 }
 
-export interface ReportColumn {
+interface ReportColumn {
   name: string;
   type: ColumnType;
 }
@@ -46,7 +46,7 @@ export interface ReportOverview {
   queries: string[];
 }
 
-export interface TableColumn {
+interface TableColumn {
   name: string;
   type: string;
   desc: string;

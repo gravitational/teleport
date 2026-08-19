@@ -94,7 +94,7 @@ export function FileTransfer(props: FileTransferProps) {
   );
 }
 
-export function FileTransferDialog(
+function FileTransferDialog(
   props: Pick<FileTransferProps, 'transferHandlers' | 'errorText'> & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;

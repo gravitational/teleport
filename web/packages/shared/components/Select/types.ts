@@ -30,7 +30,7 @@ import { CreatableProps as ReactSelectCreatableProps } from 'react-select/creata
 
 export type SelectSize = 'large' | 'medium' | 'small';
 
-export type CommonProps<Opt, IsMulti extends boolean> = {
+type CommonProps<Opt, IsMulti extends boolean> = {
   size?: SelectSize;
   hasError?: boolean;
   /**

@@ -75,10 +75,7 @@ export default function EventList(props: Props) {
   );
 }
 
-export const renderActionCell = (
-  event: Event,
-  onShowDetails: (e: Event) => void
-) => (
+const renderActionCell = (event: Event, onShowDetails: (e: Event) => void) => (
   <Cell align="right">
     <Flex gap={2} justifyContent="flex-end">
       <ViewInPolicyButton event={event} />

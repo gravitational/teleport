@@ -1,7 +1,7 @@
 import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
 import { Plugin } from 'teleport/services/integrations';
 
-export type RowBase = {
+type RowBase = {
   name: string;
   types: string[];
   integration: string;

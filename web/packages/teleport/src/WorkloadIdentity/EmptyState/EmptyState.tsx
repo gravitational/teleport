@@ -142,7 +142,7 @@ const complianceReqsImages: IconSpec = {
   dark: feature3dark,
 };
 
-export const ComplianceReqs = () => {
+const ComplianceReqs = () => {
   const theme = useTheme();
   return (
     <PreviewBox>

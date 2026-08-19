@@ -42,7 +42,7 @@ export type Label = {
   value: string;
 };
 
-export type LabelInputTexts = {
+type LabelInputTexts = {
   fieldName: string;
   placeholder: string;
 };

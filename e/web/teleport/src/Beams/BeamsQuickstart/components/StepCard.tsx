@@ -6,7 +6,7 @@ import { BeamsCard } from '../../components/BeamsCard';
 import { renderBlock } from '../renderBlock';
 import { CardDef, StepDef } from '../types';
 
-export const ICON_SIZE = 48;
+const ICON_SIZE = 48;
 
 export function StepCard({ card }: { card: CardDef }) {
   const Icon = card.icon;

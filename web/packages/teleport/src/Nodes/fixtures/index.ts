@@ -303,8 +303,3 @@ export const moreNodes: Node[] = [
     ],
   },
 ];
-
-export const joinToken = {
-  id: '12',
-  expiry: new Date(),
-};

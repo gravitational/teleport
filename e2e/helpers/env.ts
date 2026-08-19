@@ -48,5 +48,6 @@ export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
 export const connectAppDir = required('E2E_CONNECT_APP_DIR');
 
 // Set by the runner when the docker daemon's kernel cannot load the enhanced recording programs.
+/** @public Documented in e2e/README.md for tests that need to skip on such daemons. */
 export const skipEnhancedRecording =
   process.env.E2E_SKIP_ENHANCED_RECORDING === '1';

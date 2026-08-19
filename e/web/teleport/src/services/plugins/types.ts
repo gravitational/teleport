@@ -119,7 +119,7 @@ export type CloudHostablePlugin = PluginBase & {
 // EnrollSuccessResponse contains the necessary data to guide the user
 // after the plugin is connected (in `NextSteps` component).
 // This is equivalent to `pluginOnboardingCookieNonSensitiveData` in e/lib/web/plugins.go
-export type EnrollSuccessResponse = {
+type EnrollSuccessResponse = {
   slack?: {
     fallback_channel: string;
   };

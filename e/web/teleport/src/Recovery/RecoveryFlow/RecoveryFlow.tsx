@@ -20,7 +20,7 @@ export default function Container() {
   return <RecoveryFlow {...state} />;
 }
 
-export function RecoveryFlow({
+function RecoveryFlow({
   attempt,
   recoveryService,
   token,

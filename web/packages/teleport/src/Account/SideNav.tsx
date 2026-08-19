@@ -24,7 +24,7 @@ import cfg from 'teleport/config';
 import { preferencesHeadings } from './Preferences';
 import { securityHeadings } from './SecuritySettings';
 
-export interface Heading {
+interface Heading {
   name: string;
   id: string;
 }

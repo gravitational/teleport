@@ -14,7 +14,7 @@ import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
 
-export type OAuthPluginRegistered = {
+type OAuthPluginRegistered = {
   name: string;
   eventId: string;
   slack?: { fallback_channel: string };

@@ -33,7 +33,7 @@ export const OverallStatus = ({
   );
 };
 
-export const getLabelKind = (statusCode: IntegrationStatusCode) => {
+const getLabelKind = (statusCode: IntegrationStatusCode) => {
   switch (statusCode) {
     case IntegrationStatusCode.Unknown:
       return 'warning';
@@ -185,7 +185,7 @@ const LightLabel = styled(Label)`
 color: ${p.theme.colors.success.hover};`}
 `;
 
-export function CustomLabel({ enabled }: { enabled: boolean }) {
+function CustomLabel({ enabled }: { enabled: boolean }) {
   return (
     <Flex>
       <LightLabel kind={enabled ? 'success' : 'secondary'}>

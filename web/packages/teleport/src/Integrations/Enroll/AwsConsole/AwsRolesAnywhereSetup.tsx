@@ -143,7 +143,7 @@ enum IntegrationLevel {
   Next = 'next',
 }
 
-export const integrationLevels = {
+const integrationLevels = {
   [IntegrationLevel.Integration]: {
     level: 1,
     name: 'Create IAM Roles Anywhere Integration',

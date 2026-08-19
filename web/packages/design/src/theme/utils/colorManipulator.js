@@ -63,7 +63,7 @@ function clamp(value, min = 0, max = 1) {
  * @param {string} color - Hex color, i.e. #nnn or #nnnnnn
  * @returns {string} A CSS rgb color string
  */
-export function convertHexToRGB(color) {
+function convertHexToRGB(color) {
   color = color.substr(1);
 
   const re = new RegExp(`.{1,${color.length / 3}}`, 'g');
@@ -74,28 +74,6 @@ export function convertHexToRGB(color) {
   }
 
   return colors ? `rgb(${colors.map(n => parseInt(n, 16)).join(', ')})` : '';
-}
-
-/**
- * Converts a color from CSS rgb format to CSS hex format.
- *
- * @param {string} color - RGB color, i.e. rgb(n, n, n)
- * @returns {string} A CSS rgb color string, i.e. #nnnnnn
- */
-export function rgbToHex(color) {
-  // Pass hex straight through
-  if (color.indexOf('#') === 0) {
-    return color;
-  }
-  function intToHex(c) {
-    const hex = c.toString(16);
-    return hex.length === 1 ? `0${hex}` : hex;
-  }
-
-  let { values } = decomposeColor(color);
-  values = values.map(n => intToHex(n));
-
-  return `#${values.join('')}`;
 }
 
 /**
@@ -142,7 +120,7 @@ export function decomposeColor(color) {
  * @param {array} color.values - [n,n,n] or [n,n,n,n]
  * @returns {string} A CSS color string
  */
-export function recomposeColor(color) {
+function recomposeColor(color) {
   const { type } = color;
   let { values } = color;
 
@@ -183,7 +161,7 @@ export function getContrastRatio(foreground, background) {
  * @param {string} color - CSS color, i.e. one of: #nnn, #nnnnnn, rgb(), rgba(), hsl(), hsla()
  * @returns {number} The relative brightness of the color in the range 0 - 1
  */
-export function getLuminance(color) {
+function getLuminance(color) {
   const decomposedColor = decomposeColor(color);
 
   if (decomposedColor.type.indexOf('rgb') !== -1) {
@@ -243,7 +221,7 @@ export function darken(color, coefficient) {
  * @param {number} coefficient - multiplier in the range 0 - 1
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
-export function lighten(color, coefficient) {
+function lighten(color, coefficient) {
   color = decomposeColor(color);
   coefficient = clamp(coefficient);
 

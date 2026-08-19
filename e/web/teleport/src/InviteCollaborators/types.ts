@@ -6,7 +6,7 @@ import { User } from 'teleport/services/user';
  * An option type for roles that makes descriptions available, for use with
  * react-select.
  */
-export type RoleValue = {
+type RoleValue = {
   name: string;
   description?: string;
 };

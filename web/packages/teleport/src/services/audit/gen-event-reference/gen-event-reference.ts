@@ -99,7 +99,7 @@ export function fixtureTypeMismatches(
 // events with full examples include additional fields in the raw object. If
 // there is an example available for the event, we include the example,
 // formatted as JSON. Otherwise, we print only the event code and type.
-export function exampleOrAttributes(event: ReferencePageEventData): string {
+function exampleOrAttributes(event: ReferencePageEventData): string {
   if (Object.keys(event.raw).length > 1) {
     return `Example:
 
@@ -130,9 +130,7 @@ ${exampleOrAttributes(event)}
 //
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
-export function createMultipleEventsSection(
-  events: ReferencePageEventData[]
-): string {
+function createMultipleEventsSection(events: ReferencePageEventData[]): string {
   return events.reduce(
     (accum, event) => {
       return (

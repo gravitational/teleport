@@ -31,7 +31,7 @@ import { useStateRef } from 'shared/hooks';
 /**
  * ConnectionsContext allows other parts of the app to control the connection list.
  */
-export type ConnectionsContext = {
+type ConnectionsContext = {
   isOpen: boolean;
   /**
    * isOpenRef is useful for reading isOpen from within event handlers whose identity shouldn't be
@@ -52,7 +52,7 @@ export type Step = 'connections' | 'vnet';
 
 const defaultStep: Step = 'connections';
 
-export const ConnectionsContext = createContext<ConnectionsContext>(null);
+const ConnectionsContext = createContext<ConnectionsContext>(null);
 
 export const ConnectionsContextProvider: FC<PropsWithChildren> = props => {
   const [isOpen, isOpenRef, setIsOpen] = useStateRef(false);

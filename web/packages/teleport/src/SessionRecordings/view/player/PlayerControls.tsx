@@ -62,7 +62,7 @@ interface PlayerControlsProps {
   onToggleSidebar?: () => void;
 }
 
-export const CONTROLS_HEIGHT = 42;
+const CONTROLS_HEIGHT = 42;
 
 export function PlayerControls({
   duration,

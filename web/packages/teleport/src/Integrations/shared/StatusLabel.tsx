@@ -230,9 +230,7 @@ const statusLabel = (status: Status, label: string) => {
   );
 };
 
-export function latestSyncDate(
-  summary: IntegrationWithSummary
-): Date | undefined {
+function latestSyncDate(summary: IntegrationWithSummary): Date | undefined {
   const lastSyncTimestamps = [
     summary.awsec2?.discoverLastSync,
     summary.awsrds?.discoverLastSync,
@@ -255,7 +253,7 @@ function isSummarySyncing(summary: IntegrationWithSummary): boolean {
   );
 }
 
-export function toTimestamp(value: unknown): number {
+function toTimestamp(value: unknown): number {
   if (!value) {
     return 0;
   }

@@ -193,7 +193,7 @@ export function LocalConnectorTile({
   );
 }
 
-export const ConnectorBox = styled(Box)<{ disabled?: boolean }>`
+const ConnectorBox = styled(Box)<{ disabled?: boolean }>`
   display: flex;
   flex-direction: row;
   justify-content: space-between;

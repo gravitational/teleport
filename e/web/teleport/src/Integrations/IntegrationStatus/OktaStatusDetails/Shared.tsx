@@ -1,7 +1,7 @@
 import { formatDistanceStrict } from 'date-fns';
 import styled from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 
 import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
@@ -33,39 +33,10 @@ export const PanelTitle = styled(Text)`
   font-weight: 500;
 `;
 
-export const InnerCard = styled(Box).attrs({
-  p: 4,
-  borderRadius: 3,
-})`
-  flex-basis: 100%;
-  border: 1px solid ${p => p.theme.colors.spotBackground[0]};
-`;
-
-export const TextWithBorderBottom = styled(Text)`
-  padding-bottom: ${p => p.theme.space[2]}px;
-  border-bottom: 1px solid ${p => p.theme.colors.spotBackground[0]};
-`;
-
-export const LinkedInnerCard = styled(InnerCard)`
-  color: inherit;
-  text-decoration: none;
-  &:hover {
-    cursor: pointer;
-    border: 1px solid ${p => p.theme.colors.spotBackground[2]};
-  }
-`;
-
 export const FlexWrap = styled(Flex)`
   @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
     flex-wrap: wrap;
   }
-`;
-
-export const CenteredFlex = styled(Flex)`
-  align-items: center;
-  justify-content: space-between;
-  gap: ${p => p.theme.space[2]}px;
-  margin-bottom: ${p => p.theme.space[2]}px;
 `;
 
 export function ErrorTooltip({

@@ -93,7 +93,7 @@ export enum NeedsFurtherReview {
   AccessRequestResourceMismatch = 'access_request_resource_mismatch',
 }
 
-export interface RiskScoreReason {
+interface RiskScoreReason {
   reason: string;
   scoreImpact: number;
 }
@@ -289,7 +289,7 @@ export interface CommandAnalysis {
   inferenceErrorMessage?: string;
 }
 
-export interface CommandEventDetails {
+interface CommandEventDetails {
   command: string;
   success: boolean;
   errorMessages?: string[];

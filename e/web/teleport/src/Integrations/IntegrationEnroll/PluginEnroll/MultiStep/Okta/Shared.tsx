@@ -212,7 +212,7 @@ export enum OktaIntegrationStepType {
   IdentitySecuritySync = 'identity-security-sync',
 }
 
-export enum StepRestriction {
+enum StepRestriction {
   DisabledInCloud,
 }
 

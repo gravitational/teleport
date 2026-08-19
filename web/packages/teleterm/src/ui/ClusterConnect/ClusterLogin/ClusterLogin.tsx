@@ -126,7 +126,7 @@ export type ClusterLoginPresentationProps = State & {
   reason: ClusterConnectReason;
 };
 
-export type ClusterLoginFormProps = Omit<State, 'initAttempt' | 'init'> &
+type ClusterLoginFormProps = Omit<State, 'initAttempt' | 'init'> &
   StepComponentProps & {
     reason: ClusterConnectReason;
     authSettings: AuthSettings;

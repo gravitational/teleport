@@ -47,10 +47,6 @@ export function generateInviteURL(username: string, roles = 'access,editor') {
   return inviteURL;
 }
 
-export function deleteUser(username: string) {
-  tctl('users', 'rm', username);
-}
-
 // Removes a user if present, swallowing only tctl's "not found" error so it can
 // be used to clean up before a test (and on retries) without failing when the
 // user doesn't exist yet.

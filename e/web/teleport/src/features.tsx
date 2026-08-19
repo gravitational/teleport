@@ -167,7 +167,7 @@ class FeatureNewLock extends OSS.FeatureNewLock {
   };
 }
 
-export class FeatureDiscoverE extends OSS.FeatureDiscover {
+class FeatureDiscoverE extends OSS.FeatureDiscover {
   route = {
     ...super.getRoute(),
     component: DiscoverE,
@@ -193,7 +193,7 @@ class FeatureLegacyUsageSummary implements TeleportFeature {
   }
 }
 
-export class FeatureUsageSummary implements TeleportFeature {
+class FeatureUsageSummary implements TeleportFeature {
   route = {
     title: 'Usage Tracking',
     // Registered at the root so the Cloud component handles all sub-routes
@@ -440,7 +440,7 @@ class FeatureAccount extends OSS.FeatureAccount {
   };
 }
 
-export class FeatureDeviceTrustWeb implements TeleportFeature {
+class FeatureDeviceTrustWeb implements TeleportFeature {
   route = {
     title: 'Authorize Web Session',
     path: cfg.oss.routes.deviceTrustAuthorize,
@@ -455,7 +455,7 @@ export class FeatureDeviceTrustWeb implements TeleportFeature {
   hideNavigation = true;
 }
 
-export class FeatureSSOConfirm implements TeleportFeature {
+class FeatureSSOConfirm implements TeleportFeature {
   route = {
     title: 'SSO Confirm',
     path: cfg.routes.ssoConfirm,

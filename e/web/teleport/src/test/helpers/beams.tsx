@@ -74,17 +74,6 @@ export const listBeamsError = (
     return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
 
-export const createBeamSuccess = (beam: Beam) =>
-  http.post(cfg.api.beams.list, () => HttpResponse.json(beam));
-
-export const getBeamSuccess = (beam: Beam) =>
-  http.get(cfg.api.beams.get, () => HttpResponse.json(beam));
-
-export const getBeamNotFound = () =>
-  http.get(cfg.api.beams.get, () =>
-    HttpResponse.json({ error: { message: 'not found' } }, { status: 404 })
-  );
-
 export const updateBeamSuccess = (beam: Beam) =>
   http.put(cfg.api.beams.get, () => HttpResponse.json(beam));
 

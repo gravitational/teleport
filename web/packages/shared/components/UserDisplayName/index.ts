@@ -17,4 +17,3 @@
  */
 
 export { UserDisplayName } from './UserDisplayName';
-export type { UserDisplayNameLayout } from './UserDisplayName';

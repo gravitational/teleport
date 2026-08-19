@@ -68,7 +68,7 @@ export interface SamlApplication {
   setGuidedConfig: React.Dispatch<React.SetStateAction<SamlMeta>>;
 }
 
-export const SamlApplicationContext = createContext<SamlApplication>(null);
+const SamlApplicationContext = createContext<SamlApplication>(null);
 
 export function useSamlApplication() {
   const context = useContext(SamlApplicationContext);

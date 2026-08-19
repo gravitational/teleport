@@ -16,10 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  Main,
-  useContentMinWidthContext,
-  useNoMinWidth,
-  StyledIndicator,
-} from './Main';
-export { MainContainer } from './MainContainer';
+export { Main, useNoMinWidth, StyledIndicator } from './Main';

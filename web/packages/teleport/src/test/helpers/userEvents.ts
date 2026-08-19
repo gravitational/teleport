@@ -19,31 +19,9 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
-import { JsonObject } from 'teleport/types';
 
 export const userEventCaptureSuccess = () => {
   return http.post(cfg.api.captureUserEventPath, async () => {
     return HttpResponse.json();
   });
 };
-
-export const userEventCaptureError = (
-  status: number,
-  error: string | null = null,
-  extras: JsonObject = {}
-) =>
-  http.post(cfg.api.captureUserEventPath, () => {
-    return HttpResponse.json(
-      { error: { message: `${status} - ${error}` }, extras },
-      { status }
-    );
-  });
-
-export const userEventCaptureForever = () =>
-  http.post(
-    cfg.api.captureUserEventPath,
-    () =>
-      new Promise(() => {
-        /* never resolved */
-      })
-  );

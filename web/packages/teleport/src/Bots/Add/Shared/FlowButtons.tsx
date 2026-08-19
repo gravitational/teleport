@@ -24,7 +24,7 @@ import cfg from 'teleport/config';
 
 import { FlowStepProps } from './GuidedFlow';
 
-export type ButtonState = {
+type ButtonState = {
   disabled?: boolean;
   hidden?: boolean;
 };

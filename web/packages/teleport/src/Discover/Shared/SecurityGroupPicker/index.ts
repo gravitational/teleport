@@ -17,5 +17,4 @@
  */
 
 export { SecurityGroupPicker } from './SecurityGroupPicker';
-export type { ViewRulesSelection } from './SecurityGroupPicker';
 export type { SecurityGroupWithRecommendation } from './SecurityGroupPicker';

@@ -15,13 +15,6 @@ export type CreateSamlIdpServiceProviderRequest = {
   launchURLs?: string[];
 };
 
-export type CreateSamlIdpServiceProviderResponse = {
-  id: string;
-  kind: string;
-  name: string;
-  content: string;
-};
-
 export type SamlIdpMetadataResponse = {
   entityID: string;
   ssoURL: string;

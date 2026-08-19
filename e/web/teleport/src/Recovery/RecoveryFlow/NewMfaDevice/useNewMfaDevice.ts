@@ -63,8 +63,6 @@ export default function useNewMfaDevice({
   };
 }
 
-export type State = ReturnType<typeof useNewMfaDevice>;
-
 export type Props = {
   recoveryService: RecoveryService;
   onNext: () => void;

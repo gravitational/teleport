@@ -62,10 +62,6 @@ export type Props = {
   hybridListOpts?: HybridListOpts;
 };
 
-export default function NewLock() {
-  return NewLockView({});
-}
-
 export function NewLockView(props: Props) {
   const { attempt, setAttempt } = useAttempt('processing');
   const [showCheckout, setShowCheckout] = useState(false);

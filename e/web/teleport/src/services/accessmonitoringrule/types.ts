@@ -15,7 +15,7 @@ export interface AccessMonitoringRuleFilter {
   subject?: AccessMonitoringRuleSubject;
 }
 
-export type KindAccessMonitoringRule = 'access_monitoring_rule';
+type KindAccessMonitoringRule = 'access_monitoring_rule';
 
 export enum AccessMonitoringRuleVersion {
   V1 = 'v1',
@@ -116,7 +116,7 @@ export interface AccessMonitoringRuleSchedule {
   };
 }
 
-export interface AccessMonitoringRuleScheduleShift {
+interface AccessMonitoringRuleScheduleShift {
   /**
    * weekday specifies the weekday of the shift, e.g., "Monday", "Tuesday".
    */

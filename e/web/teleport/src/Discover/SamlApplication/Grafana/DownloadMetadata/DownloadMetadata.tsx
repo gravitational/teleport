@@ -9,24 +9,8 @@ import {
   HeaderSubtitle,
   StepBox,
 } from 'teleport/Discover/Shared';
-import { useDiscover } from 'teleport/Discover/useDiscover';
 
 const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
-
-export function Container() {
-  const { prevStep, nextStep, isUpdateFlow } = useDiscover();
-
-  return (
-    <DownloadMetadata
-      /**
-       * In an update flow, user's should be prevent from navigating to
-       * the root Discover resource selection page.
-       */
-      prevStep={isUpdateFlow ? null : prevStep}
-      nextStep={nextStep}
-    />
-  );
-}
 
 export function DownloadMetadata({ prevStep, nextStep }: Props) {
   return (

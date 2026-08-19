@@ -105,7 +105,7 @@ export function ResourceTabs({
   );
 }
 
-export function ResourceTab({
+function ResourceTab({
   label,
   active,
   firstTab,

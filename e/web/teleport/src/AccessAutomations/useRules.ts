@@ -65,5 +65,3 @@ async function toYaml(
     ))
   );
 }
-
-export type RulesState = ReturnType<typeof useRules>;

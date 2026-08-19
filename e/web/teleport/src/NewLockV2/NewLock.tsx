@@ -69,7 +69,7 @@ export function NewLock() {
   );
 }
 
-export const resourceKindOpts: LockResourceOption[] = [
+const resourceKindOpts: LockResourceOption[] = [
   ...baseResourceKindOpts,
   {
     value: 'access_request',

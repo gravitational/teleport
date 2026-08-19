@@ -20,7 +20,7 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { TerminalOptions, WindowsPty } from '../types';
 
-export const WIN_BUILD_STABLE_CONPTY = 18309;
+const WIN_BUILD_STABLE_CONPTY = 18309;
 
 export function getWindowsPty(
   runtimeSettings: RuntimeSettings,

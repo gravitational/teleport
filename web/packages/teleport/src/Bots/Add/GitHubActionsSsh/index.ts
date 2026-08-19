@@ -17,4 +17,3 @@
  */
 
 export { GitHubActionsSsh as default } from './GitHubActionsSsh';
-export { ConnectGitHub as ConfigureBot } from './ConnectGitHub';

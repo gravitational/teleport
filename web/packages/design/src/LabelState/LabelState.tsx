@@ -30,12 +30,7 @@ import {
 } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
 
-export type LabelKind =
-  | 'primary'
-  | 'secondary'
-  | 'warning'
-  | 'danger'
-  | 'success';
+type LabelKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
 
 interface KindsProps {
   kind?: LabelKind;
@@ -106,18 +101,3 @@ const LabelState = styled.span<LabelStateProps>`
 `;
 
 export default LabelState;
-
-type LabelStatePropsWithoutKind = Omit<LabelStateProps, 'kind'>;
-
-export const StateDanger = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="danger" {...props} />
-);
-export const StateInfo = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="secondary" {...props} />
-);
-export const StateWarning = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="warning" {...props} />
-);
-export const StateSuccess = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="success" {...props} />
-);

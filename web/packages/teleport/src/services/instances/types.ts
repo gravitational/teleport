@@ -23,19 +23,19 @@ export type UnifiedInstance = {
   botInstance?: BotInstance;
 };
 
-export type Instance = {
+type Instance = {
   name: string;
   version: string;
   services: string[];
   upgrader?: UpgraderInfo;
 };
 
-export type BotInstance = {
+type BotInstance = {
   name: string;
   version: string;
 };
 
-export type UpgraderInfo = {
+type UpgraderInfo = {
   type: string;
   version: string;
   group: string;

@@ -25,7 +25,7 @@ import Text from 'design/Text/Text';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
-export const EventIconMap: Record<EventCode, any> = {
+const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,

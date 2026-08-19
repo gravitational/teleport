@@ -208,7 +208,7 @@ export type Rule = {
   actor: string;
 };
 
-export const defaultRule: Rule = {
+const defaultRule: Rule = {
   workflowName: '',
   environment: '',
   ref: '',

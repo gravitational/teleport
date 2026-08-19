@@ -30,7 +30,6 @@ const clientIpRestrictionSchema = z.object({
 });
 
 export type ClientIpRestrictionMode = (typeof modes)[number];
-export type ClientIpRestrictionState = (typeof states)[number];
 export type ClientIpRestriction = z.output<typeof clientIpRestrictionSchema>;
 
 export function parseClientIpRestrictionResponse(

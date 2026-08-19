@@ -2,7 +2,7 @@ import { useParams } from 'react-router';
 
 import { NotFound } from 'design/CardError';
 
-import { Plugin, PluginKind } from 'teleport/services/integrations';
+import { PluginKind } from 'teleport/services/integrations';
 
 import { PluginProvider } from './MultiStep/usePlugin';
 import { PluginEnrollMultiStep } from './PluginEnrollMultiStep';
@@ -15,20 +15,6 @@ export type OAuthPluginRegistered = {
   eventId: string;
   slack?: { fallback_channel: string };
 };
-
-type OAuthPluginResponse = {
-  kind: 'oauth';
-  error?: string | null;
-  errorDescription: string | null;
-  success?: OAuthPluginRegistered;
-};
-
-type StaticPluginResponse = {
-  kind: 'static';
-  plugin?: Plugin;
-};
-
-export type PluginEnrollResponse = StaticPluginResponse | OAuthPluginResponse;
 
 export function PluginEnroll() {
   const { type: selectedPluginType } = useParams<{ type: PluginKind }>();

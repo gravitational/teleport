@@ -16,11 +16,7 @@ const SUPPORTED_VERSION = '19.0.0';
 const handleUnsupported = (err: unknown) =>
   withGenericUnsupportedError(err, SUPPORTED_VERSION);
 
-export type {
-  ClientIpRestriction,
-  ClientIpRestrictionMode,
-  ClientIpRestrictionState,
-} from './validation';
+export type { ClientIpRestriction } from './validation';
 
 /**
  * A non-empty revision makes the write a guarded update, which fails if the

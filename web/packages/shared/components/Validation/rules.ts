@@ -353,7 +353,7 @@ const isIamRoleNameValid = (roleName: string) => {
   );
 };
 
-export interface EmailValidationResult extends ValidationResult {
+interface EmailValidationResult extends ValidationResult {
   kind?: 'empty' | 'invalid';
 }
 
@@ -487,7 +487,7 @@ const requiredAll =
   };
 
 /** A result of the {@link arrayOf} validation rule. */
-export type ArrayValidationResult<R = ValidationResult> = ValidationResult & {
+type ArrayValidationResult<R = ValidationResult> = ValidationResult & {
   /** Results of validating each separate item. */
   results: R[];
 };

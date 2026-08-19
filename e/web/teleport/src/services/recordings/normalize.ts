@@ -4,8 +4,6 @@ import {
   RecordingSummaryState,
   ThreatCategory,
   type CommandAnalysis,
-  type CommandSessionEvent,
-  type DesktopEventDetails,
   type EnhancedSummary,
   type EnhancedSummaryResponse,
   type SessionEvent,
@@ -99,18 +97,4 @@ function commandsToSessionEvents(commands: CommandAnalysis[]): SessionEvent[] {
       errorMessages: c.errorMessages,
     },
   }));
-}
-
-// isCommandSessionEvent narrows a SessionEvent to one carrying command details.
-export function isCommandSessionEvent(
-  event: SessionEvent
-): event is CommandSessionEvent {
-  return !!event.commandEventDetails;
-}
-
-// isDesktopEvent narrows a SessionEvent to one carrying desktop details.
-export function isDesktopEvent(
-  event: SessionEvent
-): event is SessionEvent & { desktopEventDetails: DesktopEventDetails } {
-  return !!event.desktopEventDetails;
 }

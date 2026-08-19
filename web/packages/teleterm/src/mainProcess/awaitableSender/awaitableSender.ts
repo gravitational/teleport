@@ -22,7 +22,7 @@ import Logger from 'teleterm/logger';
 
 export type Message = MessageData | MessageAck;
 
-export interface MessageData {
+interface MessageData {
   id: string;
   type: 'data';
   payload: unknown;

@@ -65,7 +65,7 @@ export function getRiskColor(
   }
 }
 
-export function getRiskLevelLabel(riskLevel: RiskLevelValue) {
+function getRiskLevelLabel(riskLevel: RiskLevelValue) {
   switch (riskLevel) {
     case RiskLevelValue.Low:
       return 'Low';

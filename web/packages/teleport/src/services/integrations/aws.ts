@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const AWS_IAM_ARN_DEFAULT_PARTITION = 'arn:aws:iam::';
-export const AWS_IAM_ARN_CHINA_PARTITION = 'arn:aws-cn:iam::';
-export const AWS_IAM_ARN_USGOV_PARTITION = 'arn:aws-us-gov:iam::';
+const AWS_IAM_ARN_DEFAULT_PARTITION = 'arn:aws:iam::';
+const AWS_IAM_ARN_CHINA_PARTITION = 'arn:aws-cn:iam::';
+const AWS_IAM_ARN_USGOV_PARTITION = 'arn:aws-us-gov:iam::';
 
 export const IAM_ROLE_ARN_REGEX =
   /^arn:(aws|aws-cn|aws-us-gov):iam::\d{12}:role\/[\w+=,.@-]+$/;

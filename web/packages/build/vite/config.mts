@@ -40,9 +40,13 @@ export function createViteConfig(
   outputDirectory: string
 ) {
   return defineConfig(({ mode }) => {
+    // Knip loads this config to enumerate entry points. There is no dev server in that context, so
+    // skip the parts of the setup it cannot satisfy: the proxy target notice and the certificates.
+    const isKnip = !!process.env.KNIP;
+
     let target = resolveTargetURL(process.env.PROXY_TARGET);
 
-    if (mode === 'development') {
+    if (mode === 'development' && !isKnip) {
       if (process.env.PROXY_TARGET) {
         // eslint-disable-next-line no-console
         console.log(
@@ -213,7 +217,7 @@ export function createViteConfig(
           key: readFileSync(process.env.VITE_HTTPS_KEY),
           cert: readFileSync(process.env.VITE_HTTPS_CERT),
         };
-      } else {
+      } else if (!isKnip) {
         const certsDirectory = resolve(rootDirectory, 'web/certs');
 
         if (!existsSync(certsDirectory)) {

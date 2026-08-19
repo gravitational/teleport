@@ -84,7 +84,7 @@ const EnrollmentStatusCell = ({ status }: { status: string }) => {
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDevice['osType'] }) => {
+const IconCell = ({ osType }: { osType: TrustedDevice['osType'] }) => {
   let iconName: ResourceIconName;
   switch (osType) {
     case 'Windows':

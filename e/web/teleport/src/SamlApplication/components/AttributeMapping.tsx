@@ -232,7 +232,7 @@ function AttrMappingErrorLabel({ attrMapErr: attrMapErr }) {
   );
 }
 
-export type attrMapErr = { emptyName: boolean; emptyValue: boolean };
+type attrMapErr = { emptyName: boolean; emptyValue: boolean };
 
 const nameFormats: Option[] = [
   { value: 'unspecified', label: 'unspecified' },

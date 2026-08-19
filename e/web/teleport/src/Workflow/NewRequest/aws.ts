@@ -3,7 +3,7 @@ import { AwsRole } from 'shared/services/apps';
 import cfg from 'teleport/config';
 import { App } from 'teleport/services/apps';
 
-export type AWSLoginChoice = {
+type AWSLoginChoice = {
   id: string;
   label: string;
   requiresRequest: boolean;

@@ -175,7 +175,7 @@ export function makeUnifiedResourceViewItemDesktop(
   };
 }
 
-export function makeUnifiedResourceViewItemLinuxDesktop(
+function makeUnifiedResourceViewItemLinuxDesktop(
   resource: UnifiedResourceDesktop,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
@@ -195,7 +195,7 @@ export function makeUnifiedResourceViewItemLinuxDesktop(
   };
 }
 
-export function makeUnifiedResourceViewItemUserGroup(
+function makeUnifiedResourceViewItemUserGroup(
   resource: UnifiedResourceUserGroup,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
@@ -213,7 +213,7 @@ export function makeUnifiedResourceViewItemUserGroup(
   };
 }
 
-export function makeUnifiedResourceViewItemGitServer(
+function makeUnifiedResourceViewItemGitServer(
   resource: UnifiedResourceGitServer,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {

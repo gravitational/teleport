@@ -31,7 +31,7 @@ import {
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-export interface ResourcesContext {
+interface ResourcesContext {
   /**
    * requestResourcesRefresh makes all DocumentCluster instances within the workspace
    * (specified by `rootClusterUri`) refresh the resource list with current filters.

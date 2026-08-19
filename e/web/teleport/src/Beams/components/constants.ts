@@ -64,7 +64,7 @@ export function resolveBeamName(beam: Beam): string {
   return beam.alias || beam.name;
 }
 
-export const PROVISION_COMPLETE: ComputeStatus = 'provision_complete';
+const PROVISION_COMPLETE: ComputeStatus = 'provision_complete';
 
 // The SSH login used to connect to a beam.
 export const BEAM_SSH_LOGIN = 'beams';

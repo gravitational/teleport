@@ -34,16 +34,12 @@ import {
   type UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-export type QueryHook<
-  TData = unknown,
-  TVariables = void,
-  TError = DefaultError,
-> = (
+type QueryHook<TData = unknown, TVariables = void, TError = DefaultError> = (
   variables?: TVariables,
   options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
 ) => UseQueryResult<TData, TError>;
 
-export type SuspenseQueryHook<
+type SuspenseQueryHook<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,
@@ -52,7 +48,7 @@ export type SuspenseQueryHook<
   options?: Omit<UseSuspenseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
 ) => UseSuspenseQueryResult<TData, TError>;
 
-export type InfiniteQueryHook<
+type InfiniteQueryHook<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,
@@ -71,7 +67,7 @@ export type InfiniteQueryHook<
   >
 ) => UseInfiniteQueryResult<InfiniteData<TData, TPageParam>, TError>;
 
-export type SuspenseInfiniteQueryHook<
+type SuspenseInfiniteQueryHook<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,

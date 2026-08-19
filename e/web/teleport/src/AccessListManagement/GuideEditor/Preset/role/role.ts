@@ -27,22 +27,14 @@ export const wildcard = '*';
  *
  * e.g: {access}-awsic-acl-preset-AccessListID
  */
-export const roleForAccessPrefix = 'access';
+const roleForAccessPrefix = 'access';
 
 /**
  * Prefix of roles that require users to request for access.
  *
  * e.g: {requester}-acl-preset-AccessListID
  */
-export const roleForRequesterPrefix = 'requester';
-
-/**
- * Middle part of the role name that identifies the role was created
- * for an access list using a preset (guide editor).
- *
- * e.g: access-awsic{-acl-preset-}AccessListID
- */
-export const roleInfix = '-acl-preset-';
+const roleForRequesterPrefix = 'requester';
 
 /**
  * Part of a role name that identifies the role defines access specifically
@@ -150,10 +142,7 @@ export function getRolePrefixForAccess(kind: AccessRoleKind) {
 /**
  * Determines role access type based on role name pattern.
  */
-export function getAccessRoleKind(
-  role: Role,
-  accessListId: string
-): AccessRoleKind {
+function getAccessRoleKind(role: Role, accessListId: string): AccessRoleKind {
   const idSuffix = getRoleSuffix(accessListId);
   if (
     role.metadata.name === `${getRolePrefixForAccess('standard')}${idSuffix}`
@@ -311,7 +300,7 @@ function isStandardRoleKnownFieldUnsupported(
  * Deny rules are not supported by the guide editor and should
  * always be empty.
  */
-export function roleHasDenyFields(role: Role) {
+function roleHasDenyFields(role: Role) {
   const denyConditions = role.spec?.deny ?? {};
   return Object.keys(denyConditions).length > 0;
 }
@@ -322,7 +311,7 @@ export function roleHasDenyFields(role: Role) {
  *
  * Returns true if an unsupported field has a value.
  */
-export function roleHasUnsupportedRequesterFields(role: Role) {
+function roleHasUnsupportedRequesterFields(role: Role) {
   const allow = role.spec?.allow ?? {};
   const allowFieldNames = Object.keys(allow);
   if (!allowFieldNames.length) {
@@ -351,7 +340,7 @@ export function roleHasUnsupportedRequesterFields(role: Role) {
   });
 }
 
-export function roleHasUnsupportedAllowFieldsDefined(
+function roleHasUnsupportedAllowFieldsDefined(
   role: Role,
   accessKind: AccessRoleKind
 ) {
@@ -412,7 +401,7 @@ function unknownFieldHasValue(val: unknown) {
   return !!val;
 }
 
-export function roleHasAccessDefined(role: Role) {
+function roleHasAccessDefined(role: Role) {
   if (!role) {
     return false;
   }
@@ -442,7 +431,7 @@ export function roleHasAccessDefined(role: Role) {
   });
 }
 
-export function roleVersionSupported(role: Role) {
+function roleVersionSupported(role: Role) {
   if (role.version !== MinimumRoleVersionSupported) {
     const gotNumVersion = Number(role.version.slice(1));
     const minNumVersion = Number(MinimumRoleVersionSupported.slice(1));
@@ -454,7 +443,7 @@ export function roleVersionSupported(role: Role) {
   return true;
 }
 
-export function isInvalidRole(role: Role, accessKind: AccessRoleKind) {
+function isInvalidRole(role: Role, accessKind: AccessRoleKind) {
   return (
     // Nothing stops the user from editing these roles.
     !roleVersionSupported(role) ||

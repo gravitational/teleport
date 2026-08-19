@@ -152,7 +152,7 @@ function indicatorSize(props: { rbSize?: RadioButtonSize }) {
   return { width: s, height: s };
 }
 
-export const RadioButtonInternal = styled.input.attrs({ type: 'radio' })<{
+const RadioButtonInternal = styled.input.attrs({ type: 'radio' })<{
   rbSize?: RadioButtonSize;
 }>`
   appearance: none;

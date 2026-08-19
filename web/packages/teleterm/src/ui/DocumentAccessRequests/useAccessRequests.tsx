@@ -111,7 +111,7 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
 // transform tsdh Access Request type into the web's Access Request
 // to promote code reuse
 // TODO(gzdunek): Replace with a function from `DocumentAccessRequests/useReviewAccessRequest`.
-export function makeFlags(
+function makeFlags(
   request: AccessRequest,
   loggedInUser: LoggedInUser
 ): RequestFlags {

@@ -2,7 +2,6 @@
   "name": "@gravitational/teleport.e",
   "version": "1.0.0",
   "description": "Enterprise version of Gravitational Teleport Web UI",
-  "main": "index.js",
   "scripts": {
     "start": "pnpm build-wasm && vite",
     "build": "pnpm build-wasm && vite build",

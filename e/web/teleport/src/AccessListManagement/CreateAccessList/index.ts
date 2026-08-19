@@ -1,4 +1,1 @@
-export {
-  CreateAccessList,
-  CreateAccessListWithProvider,
-} from './CreateAccessList';
+export { CreateAccessListWithProvider } from './CreateAccessList';

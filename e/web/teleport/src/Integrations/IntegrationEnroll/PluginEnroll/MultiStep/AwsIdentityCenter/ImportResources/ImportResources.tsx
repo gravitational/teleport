@@ -361,14 +361,14 @@ export type tableType = {
   permissionSets: boolean;
 };
 
-export const defaultTableStates = {
+const defaultTableStates = {
   accounts: false,
   groups: false,
   directAssignments: false,
   permissionSets: false,
 };
 
-export function useImportResources({
+function useImportResources({
   integrationName,
   arn,
   region,

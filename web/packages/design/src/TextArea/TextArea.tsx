@@ -67,7 +67,7 @@ export interface TextAreaProps
   onClick?: React.MouseEventHandler<HTMLInputElement>;
 }
 
-export const textAreaGeometry: {
+const textAreaGeometry: {
   [s in TextAreaSize]: {
     height: number;
     typography: keyof Theme['typography'];

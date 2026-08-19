@@ -337,7 +337,7 @@ export type DiscoverEventRequest = UserEventWithData<
   DiscoverEventData
 >;
 
-export type DiscoverEventData = DiscoverEventStepStatus & {
+type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
   resource: DiscoverEventResource;
   // autoDiscoverResourcesCount is the number of
@@ -413,12 +413,12 @@ export type CtaEventRequest = UserEventWithData<
   CtaEvent
 >;
 
-export enum Feature {
+enum Feature {
   FEATURES_UNSPECIFIED = 0,
   FEATURES_TRUSTED_DEVICES = 1,
 }
 
-export enum FeatureRecommendationStatus {
+enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
   FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
   FEATURE_RECOMMENDATION_STATUS_DONE = 2,

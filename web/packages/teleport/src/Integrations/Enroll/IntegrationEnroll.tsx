@@ -74,7 +74,7 @@ const initialSort = (a: Integration, b: Integration) => {
   );
 };
 
-export function IntegrationPicker() {
+function IntegrationPicker() {
   const ctx = useTeleport();
   const hasCreateBotPermission = ctx.getFeatureFlags().addBots;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;

@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Box, Text } from 'design';
+import { Text } from 'design';
 
 export const TextIcon = styled(Text)`
   display: flex;
@@ -31,12 +31,4 @@ export const TextIcon = styled(Text)`
     line-height: 24px;
     height: 24px;
   }
-`;
-
-export const TextBox = styled(Box)`
-  width: 100%;
-  margin-top: 32px;
-  border-radius: 8px;
-  background-color: ${p => p.theme.colors.levels.surface};
-  padding: 24px;
 `;

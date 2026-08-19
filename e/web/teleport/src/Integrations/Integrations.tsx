@@ -24,7 +24,7 @@ export default function Container() {
   return <Integrations {...state} />;
 }
 
-export function Integrations(props: State) {
+function Integrations(props: State) {
   const {
     attempt,
     items,

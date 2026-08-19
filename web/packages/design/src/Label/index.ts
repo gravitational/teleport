@@ -16,18 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Label, {
-  Danger,
-  DangerOutlined,
-  Primary,
-  Secondary,
-  SecondaryOutlined,
-  SuccessOutlined,
-  Warning,
-  WarningOutlined,
-} from './Label';
+import Label from './Label';
 
 export default Label;
-export { Primary, Secondary, Warning, Danger };
-export { SecondaryOutlined, SuccessOutlined, WarningOutlined, DangerOutlined };
 export type { LabelKind } from './Label';

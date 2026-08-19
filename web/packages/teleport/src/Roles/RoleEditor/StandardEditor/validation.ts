@@ -583,7 +583,7 @@ export type GitHubOrganizationAccessValidationResult = RuleSetValidationResult<
   typeof gitHubOrganizationAccessValidationRules
 >;
 
-export function validateAdminRuleList(
+function validateAdminRuleList(
   rules: RuleModel[],
   previousRules: RuleModel[],
   previousResults: AdminRuleValidationResult[]

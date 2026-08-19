@@ -41,12 +41,12 @@ export function Tabs(props: TabsProps) {
   return <TabsContainer>{tabs}</TabsContainer>;
 }
 
-export const TabsContainer = styled.div`
+const TabsContainer = styled.div`
   background: #0a102c;
   display: flex;
 `;
 
-export const Tab = styled.div<{ active: boolean }>`
+const Tab = styled.div<{ active: boolean }>`
   background: rgba(255, 255, 255, 0.1);
   padding: 8px 20px 10px 15px;
   cursor: pointer;

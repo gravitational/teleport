@@ -6,16 +6,13 @@ import {
   type Duration,
 } from 'date-fns';
 import { type ReactNode } from 'react';
-import type { FallbackProps } from 'react-error-boundary';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
-import { Indicator } from 'design/Indicator';
 import Text, { H3 } from 'design/Text';
 import { Markdown } from 'shared/components/Markdown/Markdown';
-import { getErrorMessage } from 'shared/utils/error';
 
 import {
   RecordingSummaryState,
@@ -154,28 +151,6 @@ export function SessionSummary({
   return null;
 }
 
-export function SummaryErrorWrapper({
-  error,
-  resetErrorBoundary,
-}: FallbackProps) {
-  return (
-    <SessionSummaryContainer>
-      <SessionSummaryError
-        error={error}
-        resetErrorBoundary={resetErrorBoundary}
-      />
-    </SessionSummaryContainer>
-  );
-}
-
-export function SummaryLoadingWrapper() {
-  return (
-    <SessionSummaryContainer>
-      <SessionSummaryLoading />
-    </SessionSummaryContainer>
-  );
-}
-
 const SessionSummaryContainer = styled(Flex)`
   align-items: center;
   flex-direction: column;
@@ -183,39 +158,6 @@ const SessionSummaryContainer = styled(Flex)`
   width: 100%;
   gap: ${p => p.theme.space[2]}px;
 `;
-
-export function SessionSummaryError({
-  error,
-  resetErrorBoundary,
-}: FallbackProps) {
-  const errorMessage = getErrorMessage(error);
-
-  if (errorMessage.includes('not found')) {
-    return <Text>Could not find a summary for this session.</Text>;
-  }
-
-  return (
-    <>
-      <Text color="error.main">Error loading session summary</Text>
-
-      <Text>{errorMessage}</Text>
-
-      <Flex justifyContent="center">
-        <ButtonSecondary onClick={resetErrorBoundary}>Retry</ButtonSecondary>
-      </Flex>
-    </>
-  );
-}
-
-export function SessionSummaryLoading() {
-  return (
-    <>
-      <Text color="text.slightlyMuted">Loading session summary...</Text>
-
-      <Indicator delay="none" />
-    </>
-  );
-}
 
 export const MarkdownContainer = styled.div`
   overflow-y: auto;
@@ -243,7 +185,7 @@ export const MarkdownContainer = styled.div`
   }
 `;
 
-export const EnhancedSummaryContainer = styled.div`
+const EnhancedSummaryContainer = styled.div`
   overflow-y: auto;
   border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
   padding-top: ${p => p.theme.space[3]}px;

@@ -376,7 +376,7 @@ export function shouldWarnResourceStatus(
   return status === 'mixed' || status === 'unhealthy';
 }
 
-export const StyledUl = styled.ul`
+const StyledUl = styled.ul`
   margin: 0;
   padding-left: ${p => p.theme.space[4]}px;
   padding-bottom: ${p => p.theme.space[1]}px;

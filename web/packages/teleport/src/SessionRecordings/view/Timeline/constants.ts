@@ -21,9 +21,7 @@ import { font } from 'design/theme/fonts';
 export const LEFT_PADDING = 24; // the left padding of the timeline from the edge of the screen
 export const EVENT_ROW_HEIGHT = 28; // height of each row of events
 export const EVENT_SECTION_PADDING = 8; // padding between the ruler, events section and the frames section
-export const RULER_HEIGHT = 35; // height of the time ruler at the top of the timeline
-
-export const BASE_FRAME_WIDTH = 240; // base width of the frame, used to calculate the scale ratio of the frame
+export const RULER_HEIGHT = 35; // base width of the frame, used to calculate the scale ratio of the frame
 
 export const DEFAULT_FRAME_HEIGHT = 250; // default height of a frame
 export const DEFAULT_MAX_FRAME_WIDTH = 250; // the maximum width a frame can be

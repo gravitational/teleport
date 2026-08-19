@@ -161,7 +161,7 @@ export enum Severity {
 /**
  * @throws {Error} if an invalid severity is passed
  */
-export function toSeverity(severity: number): Severity {
+function toSeverity(severity: number): Severity {
   if (severity === Severity.Info) {
     return Severity.Info;
   } else if (severity === Severity.Warning) {

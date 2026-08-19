@@ -33,17 +33,3 @@ function handleGetRoles(resolver: HttpResponseResolver) {
 
 export const successGetRoles = (res: GetRolesResponse) =>
   handleGetRoles(() => HttpResponse.json(res));
-
-export const errorGetRoles = (message: string) =>
-  handleGetRoles(() =>
-    HttpResponse.json(
-      {
-        error: {
-          message,
-        },
-      },
-      {
-        status: 400,
-      }
-    )
-  );

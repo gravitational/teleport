@@ -49,7 +49,7 @@ export const defaultStandardRoleConditions = (): StandardRoleConditions => ({
   ...emptyLinuxDesktopIdentities(),
 });
 
-export const requiredRoleConditions = (): RequiredRoleConditions => ({
+const requiredRoleConditions = (): RequiredRoleConditions => ({
   app_labels: {},
   db_labels: {},
   windows_desktop_labels: {},

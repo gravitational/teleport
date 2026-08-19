@@ -36,7 +36,6 @@ export const { useSuspenseInfiniteQuery: useSuspenseInfiniteUserAccessLists } =
 export const {
   useQuery: useRootScopedRoles,
   createQuery: createRootScopedRolesQuery,
-  createQueryKey: createRootScopedRolesQueryKey,
 } = createQueryHook(
   ['access-management', 'root-scoped-roles'],
   (params: fetchRootScopedRolesParams, signal?: AbortSignal) =>
