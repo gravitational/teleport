@@ -44,7 +44,7 @@ spec:
 
 Create the `app` resource with:
 ```code
-$ tctl create -f app-{{service}}-app.yaml
+$ tctl create -f app-{{service}}-mcp.yaml
 ```
 </TabItem>
 
@@ -55,7 +55,7 @@ with the host running the {{serviceName}} MCP server:
 resource "teleport_app" "grafana" {
   version = "v3"
   metadata = {
-    name = "grafana"
+    name = "{{service}}-mcp"
     labels = {
       "teleport.dev/origin" = "dynamic"
       "env"                 = "dev"

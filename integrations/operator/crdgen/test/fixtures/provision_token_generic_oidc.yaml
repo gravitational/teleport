@@ -1,0 +1,27 @@
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: test-generic-oidc-token
+  namespace: default
+spec:
+  roles:
+    - Node
+  join_method: generic_oidc
+  generic_oidc:
+    issuer: "https://idp.example.com"
+    audience: "example.teleport.sh/generic-oidc"
+    # google.protobuf.Struct: free-form, and explicitly documented as supporting
+    # nested fields. Every value below must survive pruning unchanged.
+    must_match_fields:
+      org: acme
+      enabled: true
+      count: 42
+      nested:
+        deep: value
+        deeper:
+          deepest: value
+    allow_any:
+      - conditions:
+          - attribute: sub
+            eq:
+              value: "test-subject"

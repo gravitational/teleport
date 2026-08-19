@@ -39,6 +39,7 @@ validate their expected inputs at render time instead.
   "priorityClassName"
   "proxyListenerMode"
   "proxyProtocol"
+  "serviceAccountTokenAudience"
   "teleportVersionOverride"
 ) -}}
 {{- if and (hasKey $.Values $k) (not (kindIs "string" (index $.Values $k))) -}}
@@ -65,7 +66,7 @@ validate their expected inputs at render time instead.
   "tunnelPublicAddr"
 ) -}}
 {{- if and (hasKey $.Values $k) (not (kindIs "slice" (index $.Values $k))) -}}
-{{- fail (printf "%s must be a list in teleport-proxy-lib values" $k) -}}
+{{- fail (printf "%s must be a list (got %s) in teleport-proxy-lib values" $k (kindOf (index $.Values $k))) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Map inputs: must be a map when set. */ -}}
@@ -99,7 +100,7 @@ validate their expected inputs at render time instead.
 {{- end -}}
 {{- end -}}
 {{- /* Numeric inputs: must be a number (int or float) when set. */ -}}
-{{- range $k := (list "goMemLimitRatio" "probeTimeoutSeconds" "terminationGracePeriodSeconds") -}}
+{{- range $k := (list "goMemLimitRatio" "probeTimeoutSeconds" "serviceAccountTokenExpirationSeconds" "terminationGracePeriodSeconds") -}}
 {{- if hasKey $.Values $k -}}
 {{- $v := index $.Values $k -}}
 {{- if not (or (kindIs "float64" $v) (kindIs "int" $v) (kindIs "int64" $v)) -}}

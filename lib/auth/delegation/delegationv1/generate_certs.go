@@ -247,6 +247,7 @@ func (s *SessionService) generateCertificates(
 
 		BotName:             callerIdentity.BotName,
 		BotInstanceID:       callerIdentity.BotInstanceID,
+		BotScope:            callerIdentity.BotScope,
 		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
@@ -298,6 +299,7 @@ func (s *SessionService) generateCertificates(
 			AppTargetPort: certReq.AppTargetPort,
 			BotName:       callerIdentity.BotName,
 			BotInstanceID: certReq.BotInstanceID,
+			BotScope:      callerIdentity.BotScope,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

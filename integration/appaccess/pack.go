@@ -843,10 +843,10 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 				URI:        p.rootTCPMultiPortAppURI,
 				PublicAddr: p.rootTCPMultiPortPublicAddr,
 				TCPPorts: []servicecfg.PortRange{
-					servicecfg.PortRange{
+					{
 						Port: p.rootTCPMultiPortAppPortAlpha,
 					},
-					servicecfg.PortRange{
+					{
 						Port: p.rootTCPMultiPortAppPortBeta,
 					},
 				},
@@ -1008,10 +1008,10 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 				URI:        p.leafTCPMultiPortAppURI,
 				PublicAddr: p.leafTCPMultiPortPublicAddr,
 				TCPPorts: []servicecfg.PortRange{
-					servicecfg.PortRange{
+					{
 						Port: p.leafTCPMultiPortAppPortAlpha,
 					},
-					servicecfg.PortRange{
+					{
 						Port: p.leafTCPMultiPortAppPortBeta,
 					},
 				},

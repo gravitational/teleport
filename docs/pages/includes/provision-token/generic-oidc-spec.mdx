@@ -1,0 +1,168 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  # name identifies the token. When configuring a bot or node to join using this
+  # token, this name should be specified.
+  name: generic-oidc-token
+spec:
+  # For Machine & Workload Identity bots, roles will always be "Bot". For
+  # standard Teleport agents, roles may include "Node", "Kube", "App", "db", or
+  # similar, depending on the desired services.
+  roles: [Node]
+
+  # This field is always "generic_oidc" for Generic OIDC joining.
+  join_method: generic_oidc
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used. If joining a standard Teleport agent, this field should be
+  # omitted. It is required for bots.
+  # bot_name: generic-oidc-demo
+
+  generic_oidc:
+    # The OIDC issuer. Must exactly match the `iss` value in incoming OIDC
+    # tokens. This value is always required.
+    #
+    # Unless `static_jwks` is configured, this issuer must be accessible over
+    # HTTPS to the Teleport cluster and must serve valid OIDC metadata,
+    # including discovery configuration and JWKS keys.
+    issuer: https://example.com
+
+    # If set, this flag allows the use of HTTP-only issuers. Not recommended for
+    # production use.
+    # insecure_allow_http_issuer: false
+
+    # The audience (`aud`) value to require in the incoming JWTs. This value is
+    # always required.
+    #
+    # Note that not all issuers allow you to configure or request an audience
+    # value of your choosing. For issuers that require use of prescribed `aud`
+    # values, that value should be entered here exactly.
+    #
+    # Otherwise, for providers that do allow you to configure or request a
+    # value, we recommend making the value unique to this cluster and join
+    # token. You can include your Teleport cluster name (teleport.example.com)
+    # and the name of the token, as shown below, or use a random UUID if you
+    # prefer.
+    audience: teleport.example.com/generic-oidc-token
+
+    # The TLS CA certificate or certificates, if your OIDC provider's TLS
+    # certificates are not trusted by the standard system trust store. If set,
+    # this value replaces the system CA store outright, so you can include
+    # multiple concatenated certificates if necessary.
+    #
+    # The CAs specified here are only used to validate requests using this token
+    # and will not be used to verify any other join attempts or TLS connections
+    # for other Teleport features. Be aware that if the issuer's TLS certificate
+    # is rotated such that it is no longer trusted by the CA certs specified
+    # here, join attempts will be rejected and this token will need to be
+    # updated to include the updated CA certificates.
+    #
+    # Most users will not need to configure this value.
+    #
+    # tls_ca: |
+    #   -----BEGIN CERTIFICATE-----
+    #   ...
+    #   -----END CERTIFICATE-----
+
+    # These fields perform simple equality matches against the incoming JWT
+    # using "AND" semantics. Rules are written by mirroring the structure of the
+    # JWT, and each written value must be equal to the value in the JWT
+    # presented by the client.
+    #
+    # These field rules can be used as simple "global" matchers that apply to
+    # all join attempts using this token. For example, you can use this to
+    # ensure all `allow_any` rules also check `organization_name` to ensure they
+    # can never accidentally skip an important check.
+    #
+    # If any rules are specified here, all must match. If any rules are
+    # specified in `allow_any`, these rules are evaluated first, if any exist,
+    # and `allow_any` is only evaluated if all of these checks pass. If no rules
+    # are specified here, only `allow_any` rules are evaluated. At least one
+    # rule must exist between `must_match_fields` and `allow_any`.
+    #
+    # Note the following limitations for field rules:
+    # - This field currently cannot be configured via the Teleport Terraform
+    #   provider and `allow_any` must be used instead.
+    # - Strings, numbers, booleans, and nested objects are supported.
+    # - List values are currently not supported.
+    # - Integer comparisons must be less than 2^53-1, as integers larger than
+    #   this cannot be accurately represented in JSON's 64-bit floating point
+    #   number type. If either a rule or incoming value is larger than this, the
+    #   join attempt will be rejected.
+    #
+    # NOTE: must_match_fields is currently NOT SUPPORTED in Teleport's Terraform
+    # provider, and any rules you specify here will be SILENTLY IGNORED. If
+    # using the Terraform provider, you must rely exclusively on `allow_any`
+    # rules instead.
+    #
+    # NOTE: must_match_fields currently has limited support if using Teleport's
+    # Kubernetes operator to provision resources. Nested fields are currently
+    # not supported and will result in an error at creation time. Top-level
+    # fields (direct children of `must_match_fields`) will work as expected.
+    must_match_fields:
+      organization_name: "acme-corp"
+
+      # Fields can be nested freely to match the structure of the incoming JWT.
+      example:
+        project_id: example-1234567
+
+        # Numeric comparisons are supported, but be mindful of the datatype as
+        # determined by YAML parsing rules.
+        # This will be parsed as a number, and the datatype of the equivalent
+        # field on the incoming JWT must also be a number. To compare as a
+        # string, it must be quoted, e.g.: "1234"
+        number_field: 1234
+
+        # Boolean values are supported, but as above, this also requires that
+        # the equivalent field on the incoming JWT is a boolean. To compare it
+        # as a string, the value must be quoted, e.g.: "true"
+        boolean_field: true
+
+    # If specified, at least one of these rules must match. These are evaluated
+    # with "OR" semantics, after all `must_match_fields` rules have been
+    # evaluated successfully (if any were written). At least one rule must be
+    # written between `must_match_fields` and `allow_any`.
+    #
+    # Note that for a given entry, at most one of `expression` or `conditions`
+    # can be configured.
+    allow_any:
+      # A Teleport predicate expression. Claims are available under the `claims`
+      # object.
+      # Note the following limitations with Teleport's predicate language and
+      # claim evaluation:
+      # - Numbers cannot be compared; use `conditions` or `must_match_fields`
+      #   for numeric comparisons instead.
+      # - Lists must be wrapped in `set()` for use with most predicate
+      #   functions.
+      - expression: 'claims.organization_name == "acme-corp"'
+
+      # A list of simple field conditions. Unlike expressions, attributes are
+      # not prefixed with "claims" and instead are a dot-separated list of
+      # fields starting from the top level of the JWT.
+      #
+      # Valid operators include: eq, not_eq, in, not_in
+      - conditions:
+        - attribute: email_verified
+          eq:
+            value: "true"
+
+        # Nested fields are supported. This denies join requests where the
+        # project named "invalid-project" is present in the JWT.
+        - attribute: example.project_name
+          not_eq:
+            value: "invalid-project"
+
+        # `in` can be used to accept one from a set of values, for example this
+        # allows join attempts where `project_name` is any of "foo", "bar", or
+        # "baz".
+        - attribute: example.project_name
+          in:
+            values: [foo, bar, baz]
+
+        # `not_in` can be used to exclude a set of values, for example this
+        # denies join attempts where `zone` is `us-central1-a|b|c`
+        - attribute: zone
+          not_in:
+            values: ["us-central1-a", "us-central1-b", "us-central1-c"]
+```

@@ -20,6 +20,7 @@ package presencev1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -32,7 +33,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -52,6 +57,18 @@ type Backend interface {
 
 	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
 	DeleteProxyServer(ctx context.Context, name string) error
+
+	DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error
+
+	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
+	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
+	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
+
+	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
+
+	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
+	RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error]
+	DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error
 }
 
 type Cache interface {
@@ -338,6 +355,41 @@ func (s *Service) DeleteRemoteCluster(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// DeleteApplicationServer deletes a scoped or unscoped application server.
+func (s *Service) DeleteAppServer(
+	ctx context.Context, req *presencepb.DeleteAppServerRequest,
+) (*presencepb.DeleteAppServerResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetHostId() == "":
+		return nil, trace.BadParameter("host_id: must be specified")
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	// App agents can delete their own app servers
+	// (builtin RoleApp only grants read on app_server rules); anyone else
+	// needs an app_server delete rule granted in the target scope.
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleApp); err != nil {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Delete)
+		}
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAppServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteAppServerResponse_builder{}.Build(), nil
 }
 
 // ListAuthServers returns a page of auth servers.
@@ -631,4 +683,311 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.Wrap(err)
 	}
 	return &presencepb.DeleteProxyServerResponse{}, nil
+}
+
+// GetKubeCluster returns the specified kube cluster resource.
+func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (*presencepb.GetKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verb := scopedaccess.Read
+	if req.GetWithSecrets() {
+		verb = scopedaccess.Secrets
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.backend.GetKubeCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid cluster")
+	}
+	return presencepb.GetKubeClusterResponse_builder{
+		Cluster: clusterV3,
+	}.Build(), nil
+}
+
+// getCursorForKubeCluster wraps [services.GetCursorForKubeCluster] with a signature
+// referencing [*types.KubernetesClusterV3] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForKubeCluster(cluster *types.KubernetesClusterV3) string {
+	return services.GetCursorForKubeCluster(cluster)
+}
+
+// ListKubeClusters returns a page of registered kube clusters.
+func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) (*presencepb.ListKubeClustersResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verb := scopedaccess.Read
+	if req.GetWithSecrets() {
+		verb = scopedaccess.Secrets
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb, scopedaccess.List); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	clusters, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeKubeClusters(ctx, req),
+			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb, scopedaccess.List); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
+					clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+					return clusterV3, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForKubeCluster,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListKubeClustersResponse_builder{
+		Clusters:      clusters,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteKubeCluster removes the specified kube cluster resource.
+func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) (*presencepb.DeleteKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure user has access to the kubernetes cluster before deleting.
+	cluster, err := s.backend.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeCluster(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
+	}
+	return presencepb.DeleteKubeClusterResponse_builder{}.Build(), nil
+}
+
+// DeleteKubeServer deletes a scoped or unscoped kube server.
+func (s *Service) DeleteKubeServer(
+	ctx context.Context, req *presencepb.DeleteKubeServerRequest,
+) (*presencepb.DeleteKubeServerResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetHostId() == "":
+		return nil, trace.BadParameter("host_id: must be specified")
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		// Kube agents can delete their own kube servers
+		// (builtin RoleKube only grants read on kube_server rules); anyone else
+		// needs an app_server delete rule granted in the target scope.
+		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleKube); err == nil {
+			return nil
+		}
+		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, scopedaccess.Delete)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
+}
+
+// GetSSHServer returns the specified node resource.
+func (s *Service) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (*presencepb.GetSSHServerResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	node, err := s.backend.GetSSHServer(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read); err != nil {
+			return err
+		}
+		return checker.SSH().CanAccessSSHServer(node)
+	}); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	nodeV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid node")
+	}
+	return presencepb.GetSSHServerResponse_builder{
+		Server: nodeV2,
+	}.Build(), nil
+}
+
+// getCursorForNode wraps [services.GetCursorForNode] with a signature
+// referencing [*types.ServerV2] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForNode(node *types.ServerV2) string {
+	return services.GetCursorForNode(node)
+}
+
+// ListSSHServers returns a page of registered nodes.
+func (s *Service) ListSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) (*presencepb.ListSSHServersResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, scopedaccess.List); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	servers, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeSSHServers(ctx, req),
+			func(node types.Server) (*types.ServerV2, bool) {
+				// Filter out nodes the user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.List); err != nil {
+						return err
+					}
+					return checker.SSH().CanAccessSSHServer(node)
+				}); err == nil {
+					nodeV2, ok := node.(*types.ServerV2)
+					return nodeV2, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForNode,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListSSHServersResponse_builder{
+		Servers:       servers,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteSSHServer removes the specified node resource.
+func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) (*presencepb.DeleteSSHServerResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Delete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure the user has access to the node before deleting it.
+	node, err := s.backend.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Delete)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteSSHServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteSSHServerResponse_builder{}.Build(), nil
 }

@@ -490,12 +490,15 @@ message AssistAction {
 
 // AccessListMetadata contains common metadata for Access List related events.
 message AccessListMetadata {
-  // Uniquely identifies an Access List. Will allow correlation of events within an access list.
+  // Uniquely identifies an Access List within a scope. Will allow correlation of
+  // events within an access list.
   string id = 1;
   // anonymized
   string user_name = 2;
   // Describes the sessions preset.
   AccessListPreset preset = 3;
+  // The scope of the access list.
+  string scope = 4;
 }
 
 // AccessListMemberMetadata contains common metadata for Access List Member related events.
@@ -504,6 +507,8 @@ message AccessListMemberMetadata {
   string name = 1;
   // membership_kind is the type of membership in the parent access list.
   teleport.accesslist.v1.MembershipKind membership_kind = 2;
+  // The scope of the access list member.
+  string scope = 3;
 }
 
 // AccessListCreate is an event that is emitted when an access list is created.

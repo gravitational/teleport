@@ -1,0 +1,58 @@
+{
+  "tsh": {
+    "profile_url": "https://acme.teleport.sh:443",
+    "cluster": "acme.teleport.sh",
+    "username": "eval"
+  },
+  "tctl": {
+    "cluster": "acme.teleport.sh",
+    "version": "18.8.0",
+    "discovery_config": {
+      "kind": "discovery_config",
+      "version": "v1",
+      "metadata": { "name": "discovery-eval" },
+      "spec": {
+        "discovery_group": "cloud-discovery-group",
+        "aws": [
+          { "types": ["ec2"], "regions": ["us-west-2"], "tags": { "env": ["dev"] }, "integration": "discovery" }
+        ]
+      },
+      "status": {
+        "state": "DISCOVERY_CONFIG_STATE_RUNNING",
+        "integrationDiscoveredResources": {
+          "discovery": { "awsEc2": { "found": 4, "enrolled": 0, "failed": 4 } }
+        }
+      }
+    },
+    "user_tasks": [
+      {
+        "kind": "user_task",
+        "metadata": { "name": "task-ec2-ssm" },
+        "spec": {
+          "integration": "discovery",
+          "task_type": "discover-ec2",
+          "issue_type": "ec2-ssm-agent-not-registered",
+          "state": "OPEN",
+          "discover_ec2": {
+            "account_id": "111111111111",
+            "region": "us-west-2",
+            "instances": {
+              "i-0e01": { "name": "web-1", "instance_id": "i-0e01" },
+              "i-0e02": { "name": "web-2", "instance_id": "i-0e02" },
+              "i-0e03": { "name": "web-3", "instance_id": "i-0e03" },
+              "i-0e04": { "name": "web-4", "instance_id": "i-0e04" }
+            }
+          }
+        }
+      }
+    ],
+    "discovery_nodes": [
+      { "name": "i-0e01", "status": "Failed (exit code=1)", "last_seen": "2026-06-17T09:30:00Z" },
+      { "name": "i-0e02", "status": "Failed (exit code=1)", "last_seen": "2026-06-17T09:30:00Z" },
+      { "name": "i-0e03", "status": "Unknown", "last_seen": "2026-06-17T09:30:00Z" },
+      { "name": "i-0e04", "status": "Failed (API error)", "last_seen": "2026-06-17T09:30:00Z" }
+    ],
+    "tokens": [{ "name": "discovery-aws-iam-abc", "type": "iam,node", "expiry": "never" }],
+    "inventory_discovery": [{ "id": "discovery-svc-1" }]
+  }
+}

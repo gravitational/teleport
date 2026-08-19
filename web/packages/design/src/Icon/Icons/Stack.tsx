@@ -56,6 +56,7 @@ export const Stack = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-stack"
+
       {...otherProps}
       ref={ref}
     >

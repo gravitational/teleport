@@ -60,14 +60,3 @@ enum DeepLinkParseError: LocalizedError, Equatable {
 		}
 	}
 }
-
-// MARK: - DeepLink + CustomDebugStringConvertible
-
-extension DeepLink: CustomDebugStringConvertible {
-	var debugDescription: String {
-		switch self {
-			case let .enrollMobileDevice(enrollMobileDeviceDeepLink):
-				"enrollMobileDevice(\(enrollMobileDeviceDeepLink.debugDescription))"
-		}
-	}
-}

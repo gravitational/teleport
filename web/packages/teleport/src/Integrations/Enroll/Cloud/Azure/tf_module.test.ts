@@ -36,6 +36,8 @@ describe('buildTerraformConfig', () => {
     managedIdentity: {
       resourceGroup: 'my-resource-group',
       region: 'eastus',
+      scope: 'managementGroup',
+      managementGroupId: 'my-mg',
     },
   };
 
@@ -100,10 +102,10 @@ describe('buildTerraformConfig', () => {
     expect(result).toContain('subscriptions = ["sub-a", "sub-b"]');
   });
 
-  test('includes empty subscriptions array when none provided', () => {
+  test('management group scope defaults to wildcard subscription matcher', () => {
     const result = buildTerraformConfig(baseConfig);
 
-    expect(result).toContain('subscriptions = []');
+    expect(result).toContain('subscriptions = ["*"]');
   });
 
   test('includes resource_groups sorted', () => {
@@ -149,6 +151,20 @@ describe('buildTerraformConfig', () => {
     });
 
     expect(result).not.toContain('tags');
+  });
+
+  test('subscription scope does not include azure_management_group_id', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      managedIdentity: {
+        ...baseConfig.managedIdentity,
+        scope: 'subscription',
+        managementGroupId: undefined,
+      },
+      vmConfig: { ...baseConfig.vmConfig, subscriptions: ['sub-a'] },
+    });
+
+    expect(result).not.toContain('azure_management_group_id');
   });
 
   test('collects multiple values for the same tag key', () => {

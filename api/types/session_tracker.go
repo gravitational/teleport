@@ -39,8 +39,13 @@ const (
 	DatabaseSessionKind       SessionKind = "db"
 	AppSessionKind            SessionKind = "app"
 	WindowsDesktopSessionKind SessionKind = "desktop"
+	LinuxDesktopSessionKind   SessionKind = "linuxdesktop"
 	GitSessionKind            SessionKind = "git"
 	UnknownSessionKind        SessionKind = ""
+
+	// BeamSummarySessionKind is a synthetic session kind used to select an
+	// InferencePolicy for beam activity summarization.
+	BeamSummarySessionKind SessionKind = "beam"
 )
 
 // SessionParticipantMode is the mode that determines what you can do when you join a session.

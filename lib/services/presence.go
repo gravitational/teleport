@@ -46,6 +46,14 @@ type ProxyGetter interface {
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	// ListSSHServers returns a page of registered nodes with the ability to apply
+	// scope filters.
+	ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error)
+
+	// RangeSSHServers returns a sequence of nodes filtered by the given
+	// scope filter.
+	RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error]
 }
 
 // DatabaseServersGetter is a service that gets database servers.
@@ -75,17 +83,17 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
 	// NodesGetter gets nodes
 	NodesGetter
 
-	// DeleteAllNodes deletes all nodes in a namespace.
+	// DeleteAllNodes deletes all scoped and unscoped nodes.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
-	// DeleteNode deletes node in a namespace
-	DeleteNode(ctx context.Context, namespace, name string) error
+	// DeleteNode removes a specific scoped or unscoped node.
+	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
@@ -145,7 +153,14 @@ type Presence interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-	// DeleteApplicationServer deletes specified application server.
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 	// DeleteAllApplicationServers removes all registered application servers.
 	DeleteAllApplicationServers(context.Context, string) error
@@ -165,8 +180,8 @@ type Presence interface {
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
 	DeleteAllKubernetesServers(context.Context) error

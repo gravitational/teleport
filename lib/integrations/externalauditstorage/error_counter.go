@@ -395,6 +395,13 @@ func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, session
 	return res, err
 }
 
+// UploadReplayObject calls [c.wrapped.UploadReplayObject] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadReplayObject(ctx, sessionID, name, reader)
+	c.uploads.observe(err)
+	return res, err
+}
+
 // UploadMetadata calls [c.wrapped.UploadMetadata] and counts the error or success.
 func (c *ErrorCountingSessionHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	res, err := c.wrapped.UploadMetadata(ctx, sessionID, reader)
@@ -422,6 +429,16 @@ func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context
 // StreamSessionSummary calls [c.wrapped.StreamSessionSummary] and counts the error or success.
 func (c *ErrorCountingSessionHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	rc, err := c.wrapped.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
+}
+
+// StreamReplayObjectRange calls [c.wrapped.StreamReplayObjectRange] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamReplayObjectRange(ctx context.Context, sessionID session.ID, name string, offset, length int64) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamReplayObjectRange(ctx, sessionID, name, offset, length)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err

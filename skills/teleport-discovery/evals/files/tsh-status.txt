@@ -1,7 +1,0 @@
-Profile URL:        https://test.teleport.sh:443
-Logged in as:       alice
-Cluster:            test
-Roles:              access, editor
-Logins:             alice
-Kubernetes:         disabled
-Valid until:        2026-05-01 00:00:00 UTC [valid for 11h0m]

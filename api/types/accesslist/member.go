@@ -164,7 +164,12 @@ func (a *AccessListMember) IsExpired(t time.Time) bool {
 }
 
 // IsUser returns true if the membership kind is User
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
 func (a *AccessListMember) IsUser() bool {
 	return isMembershipKindUser(a.Spec.MembershipKind)
+}
+
+// IsList returns true if the member is an access list.
+func (a *AccessListMember) IsList() bool {
+	return IsMembershipKindList(a.Spec.MembershipKind)
 }

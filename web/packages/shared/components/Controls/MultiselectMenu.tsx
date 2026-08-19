@@ -193,6 +193,7 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
                   handleSelect(opt.value);
                 }}
                 id={opt.value}
+                data-testid={`option-${opt.value}`}
                 checked={(buffered ? intSelected : selected)?.includes(
                   opt.value
                 )}

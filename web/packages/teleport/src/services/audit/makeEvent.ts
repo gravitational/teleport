@@ -20,6 +20,8 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { pluralize } from 'shared/utils/text';
 
+import { osTypeLabel } from 'teleport/DeviceTrust/types';
+
 import {
   Event,
   EventCode,
@@ -634,6 +636,54 @@ export const formatters: Formatters = {
     format: event => {
       const { user, app_name } = event;
       return `User [${user}] has disconnected from application [${app_name}]`;
+    },
+  },
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: {
+    type: 'http.request',
+    desc: 'App HTTP Request',
+    format: ({ method, url }) => `HTTP request recorded: ${method} ${url}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: {
+    type: 'http.request.body_chunk',
+    desc: 'App HTTP Request Body',
+    format: () => 'HTTP request body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: {
+    type: 'http.response',
+    desc: 'App HTTP Response',
+    format: ({ status_code }) => `HTTP response recorded: ${status_code}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: {
+    type: 'http.response.body_chunk',
+    desc: 'App HTTP Response Body',
+    format: () => 'HTTP response body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: {
+    type: 'app.session.target.dial.denied',
+    desc: 'App Target Dial Denied',
+    format: event => {
+      const {
+        user,
+        app_name,
+        target_host,
+        target_port,
+        policy,
+        blocked_ip,
+        blocked_prefix,
+      } = event;
+      let target = target_host;
+      if (target_port) {
+        target += `:${target_port}`;
+      }
+
+      let message = `User [${user}] was blocked from connecting to target [${target}] for application [${app_name}] by [${policy}]`;
+      if (blocked_ip) {
+        message += `, blocked IP: [${blocked_ip}]`;
+      }
+      if (blocked_prefix) {
+        message += `, matched prefix: [${blocked_prefix}]`;
+      }
+      return message;
     },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
@@ -1256,6 +1306,27 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Started',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `User [${user}] started session [${sid}] on Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Denied',
+    format: ({ user, desktop_name, linux_user }) => {
+      return `User [${user}] was denied access to Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: {
+    type: 'linux.desktop.session.end',
+    desc: 'Linux Desktop Session Ended',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `Session [${sid}] for Linux desktop [${linux_user}@${desktop_name}] has ended for user [${user}]`;
+    },
+  },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
@@ -1348,6 +1419,8 @@ export const formatters: Formatters = {
       return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
+  // Formatters for DEVICE_* event codes need to check for the presence of a
+  // status field to support legacy events.
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
     desc: 'Device Registered',
@@ -1420,6 +1493,48 @@ export const formatters: Formatters = {
         ? `User [${user}] has confirmed device web authentication`
         : `User [${user}] has failed to confirm device web authentication`,
   },
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST]: {
+    type: 'device.enroll_pairing.request',
+    desc: 'Device Enroll Pairing Requested',
+    format: ({ user, device }) =>
+      `Device enrollment was requested for user [${user}]${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE]: {
+    type: 'device.enroll_pairing.request',
+    desc: 'Device Enroll Pairing Request Failed',
+    format: ({ device, error }) =>
+      error
+        ? `Device enrollment request failed${formatDevice(device)}: ${error}`
+        : `Device enrollment request failed${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approved',
+    format: ({ user, device }) =>
+      `User [${user}] approved the device enrollment request${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_APPROVE_FAILURE]: {
+    type: 'device.enroll_pairing.approve',
+    desc: 'Device Enroll Pairing Approval Failed',
+    format: ({ user, device, error }) => {
+      let msg = `User [${user}] failed to approve the device enrollment request${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_DENY]: {
+    type: 'device.enroll_pairing.deny',
+    desc: 'Device Enroll Pairing Denied',
+    format: ({ user, device, error }) => {
+      let msg = `Device enrollment request for user [${user}] was denied${formatDevice(device)}`;
+      if (error) {
+        msg += `: ${error}`;
+      }
+      return msg;
+    },
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1463,7 +1578,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.UPGRADE_WINDOW_UPDATED]: {
-    type: 'upgradewindow.update',
+    type: 'upgradewindowstart.update',
     desc: 'Upgrade Window Start Updated',
     format: ({ user, upgrade_window_start }) => {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
@@ -1896,7 +2011,7 @@ export const formatters: Formatters = {
       `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
-    type: 'secreports.audit.query.run"',
+    type: 'secreports.audit.query.run',
     desc: 'Access Monitoring Query Executed',
     format: ({ user, query }) =>
       `User [${user}] executed Access Monitoring query [${truncateStr(
@@ -1905,7 +2020,7 @@ export const formatters: Formatters = {
       )}]`,
   },
   [eventCodes.SECURITY_REPORT_RUN]: {
-    type: 'secreports.report.run""',
+    type: 'secreports.report.run',
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
@@ -1933,6 +2048,18 @@ export const formatters: Formatters = {
     desc: 'SPIFFE SVID Issued Failure',
     format: ({ user, spiffe_id }) =>
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: {
+    type: 'spiffe.federation.create',
+    desc: 'SPIFFE Federation Created',
+    format: ({ user, name }) =>
+      `User [${user}] created a SPIFFE federation [${name}]`,
+  },
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: {
+    type: 'spiffe.federation.delete',
+    desc: 'SPIFFE Federation Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted a SPIFFE federation [${name}]`,
   },
   [eventCodes.AUTH_PREFERENCE_UPDATE]: {
     type: 'auth_preference.update',
@@ -2481,44 +2608,22 @@ export const formatters: Formatters = {
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
-    format: ({ user, client_ip_restrictions, success }) =>
-      success
-        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
-        : `User [${user}] has failed to update  Client IP Restrictions.`,
-  },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
+    format: ({
+      user,
+      client_ip_restrictions,
+      success,
+      mode,
+      enforcement_expires,
+    }) => {
+      const modeStr = mode ? ` in [${mode}] mode` : '';
+      // The zero timestamp means no enforcement expiry was set.
+      const enforcementStr =
+        enforcement_expires && new Date(enforcement_expires).getFullYear() > 1
+          ? `, with enforcement expiring on [${enforcement_expires}]`
+          : '';
+      return success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}]${modeStr}${enforcementStr}.`
+        : `User [${user}] has failed to update Client IP Restrictions.`;
     },
   },
   [eventCodes.VNET_CONFIG_CREATE]: {
@@ -2906,3 +3011,22 @@ export function formatSqn({
   }
   return `${scope}::${name}`;
 }
+
+// formatDevice renders the OS type and serial number (carried as asset_tag) of a device audit
+// event's device metadata, e.g. " (OS [iOS], serial number [ABC123])". Returns an empty string when
+// neither is present.
+const formatDevice = (device?: {
+  asset_tag?: string;
+  os_type?: number;
+}): string => {
+  const parts: string[] = [];
+  // Account for os_type possibly being 0 (UNSPECIFIED) with os_type != null.
+  const os = device?.os_type != null ? osTypeLabel(device.os_type) : undefined;
+  if (os) {
+    parts.push(`OS [${os}]`);
+  }
+  if (device?.asset_tag) {
+    parts.push(`serial number [${device.asset_tag}]`);
+  }
+  return parts.length ? ` (${parts.join(', ')})` : '';
+};

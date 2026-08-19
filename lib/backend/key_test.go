@@ -391,6 +391,55 @@ func TestKeyTrimPrefix(t *testing.T) {
 	}
 }
 
+func TestKeyCutPrefix(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           backend.Key
+		prefix        backend.Key
+		expectedAfter backend.Key
+		expectedFound bool
+	}{
+		{
+			name:          "empty key with empty prefix",
+			expectedFound: true,
+		},
+		{
+			name:          "empty prefix matches",
+			key:           backend.NewKey("a", "b"),
+			expectedAfter: backend.NewKey("a", "b"),
+			expectedFound: true,
+		},
+		{
+			name:          "non-matching prefix returns original key",
+			key:           backend.NewKey("a", "b"),
+			prefix:        backend.NewKey("c", "d"),
+			expectedAfter: backend.NewKey("a", "b"),
+		},
+		{
+			name:          "matching prefix returns remaining key",
+			key:           backend.NewKey("a", "b", "c"),
+			prefix:        backend.ExactKey("a", "b"),
+			expectedAfter: backend.KeyFromString("c"),
+			expectedFound: true,
+		},
+		{
+			name:          "exact match returns empty key",
+			key:           backend.NewKey("a", "b"),
+			prefix:        backend.NewKey("a", "b"),
+			expectedAfter: backend.Key{},
+			expectedFound: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			after, found := test.key.CutPrefix(test.prefix)
+			assert.Equal(t, test.expectedAfter, after)
+			assert.Equal(t, test.expectedFound, found)
+		})
+	}
+}
+
 func TestKeyPrependKey(t *testing.T) {
 	tests := []struct {
 		name     string

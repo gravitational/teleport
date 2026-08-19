@@ -39,8 +39,8 @@ type loginRuleClient struct {
 }
 
 // Get gets the Teleport login_rule of a given name
-func (l loginRuleClient) Get(ctx context.Context, name string) (*resourcesv1.LoginRuleResource, error) {
-	loginRule, err := l.teleportClient.GetLoginRule(ctx, name)
+func (l loginRuleClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*resourcesv1.LoginRuleResource, error) {
+	loginRule, err := l.teleportClient.GetLoginRule(ctx, key.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,12 +61,12 @@ func (l loginRuleClient) Update(ctx context.Context, resource *resourcesv1.Login
 }
 
 // Delete deletes a Teleport login_rule
-func (l loginRuleClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(l.teleportClient.DeleteLoginRule(ctx, name))
+func (l loginRuleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(l.teleportClient.DeleteLoginRule(ctx, key.Name))
 }
 
 // NewLoginRuleReconciler instantiates a new Kubernetes controller reconciling login_rule resources
-func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	loginRuleClient := &loginRuleClient{
 		teleportClient: tClient,
 	}

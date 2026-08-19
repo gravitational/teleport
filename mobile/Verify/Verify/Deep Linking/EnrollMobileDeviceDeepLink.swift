@@ -15,14 +15,17 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
+import Logging
 
 struct EnrollMobileDeviceDeepLink: Equatable {
 	var hostname: String
-	var port: Int? = nil
+	var port: Int
 	var enrollPairingToken: String
 }
 
 extension EnrollMobileDeviceDeepLink {
+	static let enrollPairingTokenKey = "enroll_pairing_token"
+
 	init(from url: URL) throws(DeepLinkParseError) {
 		guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
 			throw DeepLinkParseError.urlComponentsFailed
@@ -30,23 +33,27 @@ extension EnrollMobileDeviceDeepLink {
 		guard let hostname = components.host, hostname != "" else {
 			throw DeepLinkParseError.missingPart("hostname")
 		}
-		guard let enrollPairingToken = components.nonEmptyQueryValue(named: "enroll_pairing_token") else {
+		guard let enrollPairingToken = components.nonEmptyQueryValue(named: Self.enrollPairingTokenKey) else {
 			throw DeepLinkParseError.missingPart("enroll pairing token")
 		}
 
+		let defaultHTTPSPort = 443
 		self.init(
 			hostname: hostname,
-			port: components.port,
+			port: components.port ?? defaultHTTPSPort,
 			enrollPairingToken: enrollPairingToken,
 		)
 	}
 }
 
-// MARK: - CustomDebugStringConvertible
+// MARK: - Logging
 
-extension EnrollMobileDeviceDeepLink: CustomDebugStringConvertible {
-	var debugDescription: String {
-		let portString = if let port { "\(port)" } else { "(nil)" }
-		return "\(hostname):\(portString)?enroll_pairing_token=\(enrollPairingToken)"
+extension EnrollMobileDeviceDeepLink {
+	var logMetadata: Logger.Metadata {
+		[
+			"deepLink.type": "enrollMobileDevice",
+			"deepLink.hostname": "\(hostname)",
+			"deepLink.port": "\(port)",
+		]
 	}
 }

@@ -185,7 +185,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	// Renew the cert a bunch of times.
 	for i := range 10 {
 		// Ensure the state of the bot instance before renewal is sane.
-		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{BotScope: "", BotName: initialIdent.BotName, InstanceId: initialIdent.BotInstanceID}.Build())
 		require.NoError(t, err)
 
 		// There should always be at least 1 entry as the initial join is
@@ -221,7 +221,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		require.Equal(t, uint64(i+2), renewedIdent.Generation)
 
 		// Ensure the bot instance after renewal is sane.
-		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{BotScope: "", BotName: initialIdent.BotName, InstanceId: initialIdent.BotInstanceID}.Build())
 		require.NoError(t, err)
 
 		require.Len(t, bi.GetStatus().GetLatestAuthentications(), min(i+2, machineidv1.AuthenticationHistoryLimit))
@@ -432,7 +432,7 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NotEmpty(t, ident.BotInstanceID)
 
 	// The instance ID should match a bot instance record.
-	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, ident.BotName, ident.BotInstanceID)
+	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{BotScope: "", BotName: ident.BotName, InstanceId: ident.BotInstanceID}.Build())
 	require.NoError(t, err)
 
 	require.Equal(t, ident.BotName, botInstance.GetSpec().GetBotName())
@@ -601,6 +601,80 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 		_, err = renewedClient.Ping(ctx)
 		return err != nil && strings.Contains(err.Error(), "access denied")
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestRegisterBotCertificateGenerationInstanceDeleted asserts that a renewable
+// bot whose bot instance record has been deleted is denied and locked on its
+// next renewal, and that renewals no longer touch the legacy generation label
+// on the bot user.
+func TestRegisterBotCertificateGenerationInstanceDeleted(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "test",
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
+				Roles: []string{"example"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.GetMetadata().GetName(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, token))
+
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+	})
+	require.NoError(t, err)
+
+	_, certs, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
+	require.NoError(t, err)
+
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), ident.Generation)
+
+	// The legacy label stays at its creation-time value of "0": renewals no
+	// longer mirror the counter to the user.
+	botUser, err := client.GetUser(ctx, bot.GetStatus().GetUserName(), false)
+	require.NoError(t, err)
+	//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
+	require.Equal(t, "0", botUser.GetMetadata().Labels[types.BotGenerationLabel])
+
+	require.NoError(t, srv.Auth().BotInstance.DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
+		BotName:    ident.BotName,
+		InstanceId: ident.BotInstanceID,
+	}.Build()))
+
+	_, _, err = renewBotCerts(ctx, srv, certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
+	require.True(t, trace.IsAccessDenied(err))
+
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		BotInstanceID: ident.BotInstanceID,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, locks)
 }
 
 // TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
@@ -1049,6 +1123,29 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 
 	// Note: Lying via IAM join not tested as that must be routed through the
 	// join service (along with Azure and TPM).
+
+	// Simulate the instance record disappearing (expired, deleted, or backend
+	// rollback): the rejoin should be issued a fresh instance, not denied, and
+	// must not lock the join token.
+	require.NoError(t, a.BotInstance.DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
+		BotName:    botName,
+		InstanceId: initialK8sInstanceID,
+	}.Build()))
+
+	freshK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
+		p.KubernetesReadFileFunc = k8sReadFileFunc
+		p.AuthClient = k8sClient
+	})
+	require.NoError(t, err)
+
+	freshK8sID, freshK8sGeneration := instanceIDFromCerts(t, freshK8sResult.Certs)
+	require.NotEmpty(t, freshK8sID)
+	require.NotEqual(t, initialK8sInstanceID, freshK8sID)
+	require.Equal(t, uint64(1), freshK8sGeneration)
+
+	locks, err := a.GetLocks(ctx, true, types.LockTarget{JoinToken: k8sToken.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, locks)
 }
 
 // TestRegisterBotWithInvalidInstanceID ensures that client-specified instance
@@ -1125,6 +1222,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 		PublicTLSKey:  tlsPublicKey,
 		IDToken:       k8sTokenName,
 		BotInstanceID: "foo",
+		BotGeneration: 2,
 	})
 
 	// Should not generate any errors, especially some variety of "instance not
@@ -1353,20 +1451,14 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 		}
 	}
 
-	// Renew B again. This will be the final renewal, but the legacy generation
-	// counter on the user will be greater as it should have been incremented by
-	// bot A.
+	// Renew B again; its counter is tracked on its own instance, independent
+	// of bot A's.
 	_, certsB, err = renewBotCerts(ctx, srv, certsB.TLS, bot.GetStatus().GetUserName(), resultB.PrivateKey)
 	require.NoError(t, err)
 
 	instanceB, generationB := instanceIDFromCerts(t, certsB)
 	require.Equal(t, initialInstanceB, instanceB)
 	require.Equal(t, uint64(5), generationB)
-
-	botUser, err := client.GetUser(ctx, bot.GetStatus().GetUserName(), false)
-	require.NoError(t, err)
-	genStr := botUser.BotGenerationLabel()
-	require.Equal(t, "7", genStr)
 }
 
 // createScopedBot creates a scoped bot with necessary role assignments for testing.
@@ -1417,7 +1509,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -1429,6 +1521,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, time.Second*10, 100*time.Millisecond)
@@ -1438,7 +1531,11 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv := newTestTLSServer(t,
+		withScopesFeatures(scopes.Features{Enabled: true}),
+		withEmitter(mockEmitter),
+	)
 	addr := utils.MustParseAddr(srv.Addr().String())
 
 	// Initial setup, create a bot and join token.
@@ -1489,7 +1586,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token:      scopedToken.GetMetadata().GetName(),
+		Token:      scopes.QualifiedName{Scope: "/test", Name: scopedToken.GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -1509,7 +1606,19 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.NotNil(t, ident.ScopePin)
 	require.Equal(t, "/test", ident.ScopePin.GetScope())
 	require.True(t, ident.BotInternal)
-	require.Equal(t, "example-token", ident.JoinToken)
+	require.Equal(t, "/test::example-token", ident.JoinToken)
+	require.Equal(t, "/test", ident.BotScope)
+
+	var certIssueEvent *events.CertificateCreate
+	for _, event := range mockEmitter.Events() {
+		if evt, ok := event.(*events.CertificateCreate); ok {
+			certIssueEvent = evt
+			break
+		}
+	}
+	require.NotNil(t, certIssueEvent)
+	require.Equal(t, "test-scoped", certIssueEvent.Identity.BotName)
+	require.Equal(t, "/test", certIssueEvent.Identity.BotScopeOfOrigin)
 
 	botClient := authClientForRegisterResult(t, ctx, addr, result)
 

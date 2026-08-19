@@ -184,6 +184,31 @@ service DeviceTrustService {
   //
   // Returns NotFound if the caller has no EnrollPairing.
   rpc GetCurrentEnrollPairing(GetCurrentEnrollPairingRequest) returns (GetCurrentEnrollPairingResponse);
+
+  // ApproveEnrollPairing moves the EnrollPairing for the calling user from
+  // ENROLL_PAIRING_STATE_AWAITING_APPROVAL to ENROLL_PAIRING_STATE_APPROVED,
+  // unblocking CreatePairedDeviceEnrollToken on the public Device Trust
+  // service.
+  //
+  // Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+  // pairing_token, and CompareFailed if the pairing is not yet awaiting
+  // approval. Approving an already approved pairing is idempotent and returns
+  // success.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission. It is an
+  // administrative action for which reusable challenges are not accepted.
+  rpc ApproveEnrollPairing(ApproveEnrollPairingRequest) returns (ApproveEnrollPairingResponse);
+
+  // DenyEnrollPairing deletes the EnrollPairing for the calling user.
+  //
+  // Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+  // pairing_token, and CompareFailed if the pairing changed while the denial
+  // was in flight.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission. Unlike
+  // ApproveEnrollPairing, it is not an administrative action and thus doesn't
+  // require going through an MFA ceremony.
+  rpc DenyEnrollPairing(DenyEnrollPairingRequest) returns (DenyEnrollPairingResponse);
 }
 
 // Request for CreateDevice.
@@ -718,3 +743,24 @@ message GetCurrentEnrollPairingResponse {
   // Current EnrollPairing for the calling user.
   EnrollPairing enroll_pairing = 1;
 }
+
+// Request for ApproveEnrollPairing.
+message ApproveEnrollPairingRequest {
+  // Pairing token of the EnrollPairing to approve. Used to guard against
+  // approving a pairing other than the one the user saw in the Web UI modal, in
+  // case another pairing was created in another tab in the meantime.
+  string pairing_token = 1;
+}
+
+// Response for ApproveEnrollPairing.
+message ApproveEnrollPairingResponse {}
+
+// Request for DenyEnrollPairing.
+message DenyEnrollPairingRequest {
+  // Pairing token of the EnrollPairing to deny. Used to guard against denying a
+  // pairing other than the one the user saw in the Web UI modal.
+  string pairing_token = 1;
+}
+
+// Response for DenyEnrollPairing.
+message DenyEnrollPairingResponse {}

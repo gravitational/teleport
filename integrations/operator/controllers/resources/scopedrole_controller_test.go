@@ -28,6 +28,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
@@ -39,11 +40,11 @@ import (
 )
 
 var scopedRoleSpec = accessv1.ScopedRoleSpec_builder{
-	AssignableScopes: []string{"/staging"},
+	AssignableScopes: []string{testScope},
 	Rules: []*accessv1.ScopedRule{
 		accessv1.ScopedRule_builder{
 			Resources: []string{"scoped_role"},
-			Verbs:     []string{"readnosecrets", "list"},
+			Verbs:     access.EncodeScopedVerbs(access.Read, access.List),
 		}.Build(),
 	},
 }.Build()
@@ -68,10 +69,11 @@ func (g *scopedRoleTestingPrimitives) CreateTeleportResource(ctx context.Context
 		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
-				types.OriginLabel: types.OriginKubernetes,
+				types.OriginLabel:           types.OriginKubernetes,
+				reconcilers.OperatorIDLabel: g.setup.OperatorMetadata().ID,
 			},
 		}.Build(),
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  scopedRoleSpec,
 	}.Build()
 	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRole(ctx, accessv1.CreateScopedRoleRequest_builder{
@@ -82,7 +84,8 @@ func (g *scopedRoleTestingPrimitives) CreateTeleportResource(ctx context.Context
 
 func (g *scopedRoleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accessv1.ScopedRole, error) {
 	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, accessv1.GetScopedRoleRequest_builder{
-		Name: name,
+		Name:  name,
+		Scope: g.setup.OperatorMetadata().Scope,
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,7 +95,8 @@ func (g *scopedRoleTestingPrimitives) GetTeleportResource(ctx context.Context, n
 
 func (g *scopedRoleTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, accessv1.DeleteScopedRoleRequest_builder{
-		Name: name,
+		Name:  name,
+		Scope: g.setup.OperatorMetadata().Scope,
 	}.Build())
 	return trace.Wrap(err)
 }
@@ -103,7 +107,7 @@ func (g *scopedRoleTestingPrimitives) CreateKubernetesResource(ctx context.Conte
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Scope: "/staging",
+		Scope: testScope,
 		Spec:  (*resourcesv1.TeleportScopedRoleV1Spec)(scopedRoleSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, role))
@@ -134,8 +138,14 @@ func (g *scopedRoleTestingPrimitives) ModifyKubernetesResource(ctx context.Conte
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	role.Spec.AssignableScopes = []string{"/staging/aa", "/staging/bb"}
+	role.Spec.AssignableScopes = []string{testScope, testNestedScope}
 	role.Spec.Ssh = accessv1.ScopedRoleSSH_builder{
+		Labels: []*labelv1.Label{
+			labelv1.Label_builder{
+				Name:   "*",
+				Values: []string{"*"},
+			}.Build(),
+		},
 		HostSudoers: []string{"test"},
 	}.Build()
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, role))
@@ -154,17 +164,35 @@ func (g *scopedRoleTestingPrimitives) CompareTeleportAndKubernetesResource(
 func TestScopedRoleCreation(t *testing.T) {
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceCreationSynchronousTest[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](
+		t,
+		resources.NewScopedRoleV1Reconciler,
+		test,
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleDeletionDrift(t *testing.T) {
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceDeletionDriftSynchronousTest[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](
+		t,
+		resources.NewScopedRoleV1Reconciler,
+		test,
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }
 
 func TestScopedRoleUpdate(t *testing.T) {
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceUpdateTestSynchronous[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](
+		t,
+		resources.NewScopedRoleV1Reconciler,
+		test,
+		testlib.WithScopesFeatures(scopes.Features{Enabled: true}),
+		testlib.WithScope(testScope),
+	)
 }

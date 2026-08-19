@@ -56,6 +56,7 @@ export const Logout = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-logout"
+
       {...otherProps}
       ref={ref}
     >

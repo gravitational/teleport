@@ -31,8 +31,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -58,8 +61,10 @@ const (
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
 type BotInstancesCache interface {
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by the request's (bot_scope, bot_name); bot_scope is empty
+	// for instances of unscoped bots.
+	GetBotInstance(ctx context.Context, req *pb.GetBotInstanceRequest) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
@@ -124,12 +129,16 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbDelete,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Delete,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	instance, err := b.backend.GetBotInstance(ctx, pb.GetBotInstanceRequest_builder{
+		BotScope:   req.GetBotScope(),
+		BotName:    req.GetBotName(),
+		InstanceId: req.GetInstanceId(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,7 +151,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindBotInstance,
-				types.VerbDelete,
+				scopedaccess.Delete,
 			)
 		},
 	); err != nil {
@@ -157,9 +166,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		}
 	}
 
-	if err := b.backend.DeleteBotInstance(
-		ctx, instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
-	); err != nil {
+	if err := b.backend.DeleteBotInstance(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -177,12 +184,12 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Read,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
+	res, err := b.cache.GetBotInstance(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,7 +202,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindBotInstance,
-				types.VerbReadNoSecrets,
+				scopedaccess.Read,
 			)
 		},
 	); err != nil {
@@ -213,14 +220,23 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		sortField = req.GetSort().Field
 		sortDesc = req.GetSort().IsDesc
 	}
+	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting it
+	// inherit the identity-based default and silently hide scoped instances. Left
+	// unset alongside a bot filter, which V2 rejects the combination of.
+	var scopeFilter *scopesv1.Filter
+	if req.GetFilterBotName() == "" {
+		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
+	}
+
 	return b.ListBotInstancesV2(ctx, pb.ListBotInstancesV2Request_builder{
 		PageSize:  req.GetPageSize(),
 		PageToken: req.GetPageToken(),
 		SortField: sortField,
 		SortDesc:  sortDesc,
 		Filter: pb.ListBotInstancesV2Request_Filters_builder{
-			BotName:    req.GetFilterBotName(),
-			SearchTerm: req.GetFilterSearchTerm(),
+			BotName:     req.GetFilterBotName(),
+			SearchTerm:  req.GetFilterSearchTerm(),
+			ScopeFilter: scopeFilter,
 		}.Build(),
 	}.Build())
 }
@@ -236,9 +252,39 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 	// reading cache or backend if unauthorized.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets, types.VerbList,
+		&ruleCtx, types.KindBotInstance, scopedaccess.Read, scopedaccess.List,
 	); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	f := req.GetFilter()
+	if err := scopes.ValidateFilter(f.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var scopeFilter *scopesv1.Filter
+	if f.GetBotName() != "" {
+		// By-bot listing: bot_scope qualifies bot_name, which already pins the
+		// scope, so a scope_filter is meaningless and rejected.
+		if f.GetScopeFilter().GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
+			return nil, trace.BadParameter(
+				"scope_filter cannot be combined with a bot_name filter",
+			)
+		}
+		if f.GetBotScope() != "" {
+			if err := scopes.StrongValidate(f.GetBotScope()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	} else {
+		// Cross-bot listing: scope_filter selects the scopes, with identity-based
+		// defaults per RFD 0229i; bot_scope only exists to qualify bot_name.
+		if f.GetBotScope() != "" {
+			return nil, trace.BadParameter(
+				"bot_scope filter requires bot_name",
+			)
+		}
+		scopeFilter = authCtx.CheckerContext.ResolveScopeFilter(f.GetScopeFilter())
 	}
 
 	botInstances, nextToken, err := b.cache.ListBotInstances(
@@ -248,9 +294,11 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		&services.ListBotInstancesRequestOptions{
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
-			FilterBotName:    req.GetFilter().GetBotName(),
-			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
-			FilterQuery:      req.GetFilter().GetQuery(),
+			FilterBotName:    f.GetBotName(),
+			FilterBotScope:   f.GetBotScope(),
+			ScopeFilter:      scopeFilter,
+			FilterSearchTerm: f.GetSearchTerm(),
+			FilterQuery:      f.GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {
 				ruleCtx := authCtx.RuleContext()
 				ruleCtx.Resource153 = botInstance
@@ -261,8 +309,8 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 						return checker.CheckAccessToRules(
 							&ruleCtx,
 							types.KindBotInstance,
-							types.VerbReadNoSecrets,
-							types.VerbList,
+							scopedaccess.Read,
+							scopedaccess.List,
 						)
 					},
 				)
@@ -322,6 +370,18 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 	}
 
+	// A scoped bot's instances are stored namespaced by the bot's scope, which
+	// is encoded into the identity as BotScope. Certificates issued before the
+	// BotScope field existed lack it, so fall back to the scope pin - correct
+	// for those certs because bots are always pinned to their scope of origin.
+	// TODO(strideynet): remove the ScopePin fallback once sufficient time has
+	// passed that all bot certs carry BotScope. It must be removed before bots
+	// can be pinned to a scope other than their scope of origin.
+	botScope := ident.BotScope
+	if botScope == "" && ident.ScopePin != nil {
+		botScope = ident.ScopePin.GetScope()
+	}
+
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
@@ -329,29 +389,33 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
-	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
-		if !instance.HasStatus() {
-			instance.SetStatus(&pb.BotInstanceStatus{})
-		}
-		// Set initial heartbeat if not set.
-		if !instance.GetStatus().HasInitialHeartbeat() {
-			instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
-		}
-		// If we're at or above the limit, remove enough of the front
-		// elements to make room for the new one at the end.
-		if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
-			toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
-			instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
-		}
-		// Append the new heartbeat to the end.
-		instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
+	_, err = b.backend.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: botScope, Name: botName},
+		InstanceID: botInstanceID,
+		UpdateFn: func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+			if !instance.HasStatus() {
+				instance.SetStatus(&pb.BotInstanceStatus{})
+			}
+			// Set initial heartbeat if not set.
+			if !instance.GetStatus().HasInitialHeartbeat() {
+				instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
+			}
+			// If we're at or above the limit, remove enough of the front
+			// elements to make room for the new one at the end.
+			if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
+				toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
+				instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
+			}
+			// Append the new heartbeat to the end.
+			instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
 
-		if storeHeartbeatExtras() {
-			// Overwrite the service health.
-			instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
-		}
+			if storeHeartbeatExtras() {
+				// Overwrite the service health.
+				instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
+			}
 
-		return instance, nil
+			return instance, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "patching bot instance")

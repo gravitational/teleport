@@ -44,7 +44,6 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -89,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -184,9 +184,9 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
-	appAuthConfigs          *local.AppAuthConfigService
 	summarizer              *local.SummarizerService
 	subCA                   *local.SubCAService
+	ignoreRangeEndKey       bool
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -317,7 +317,8 @@ func NewTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	ignoreKinds []types.WatchKind
+	ignoreKinds       []types.WatchKind
+	ignoreRangeEndKey bool
 }
 
 type packOption func(cfg *packCfg)
@@ -327,6 +328,13 @@ type packOption func(cfg *packCfg)
 func ignoreKinds(kinds []types.WatchKind) packOption {
 	return func(cfg *packCfg) {
 		cfg.ignoreKinds = kinds
+	}
+}
+
+// ignoreRangeEndKey informs resource tests to ignore assertions that require an end key on the range function
+func ignoreRangeEndKey() packOption {
+	return func(cfg *packCfg) {
+		cfg.ignoreRangeEndKey = true
 	}
 }
 
@@ -381,7 +389,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
-	p.kubernetes = local.NewKubernetesService(p.backend)
+	p.kubernetes, err = local.NewKubernetesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
@@ -437,6 +448,9 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: p.backend,
 		Modules: modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -544,11 +558,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.plugin = local.NewPluginsService(p.backend)
 
-	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
 		Backend: p.backend,
 	})
@@ -562,6 +571,8 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	p.ignoreRangeEndKey = cfg.ignoreRangeEndKey
 
 	return p, nil
 }
@@ -628,7 +639,6 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -904,7 +914,6 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
-			AppAuthConfig:           p.appAuthConfigs,
 			StaticScopedToken:       p.clusterConfigS,
 			Summarizer:              p.summarizer,
 			SubCAService:            p.subCA,
@@ -999,7 +1008,6 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -1170,7 +1178,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -1276,7 +1283,6 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
@@ -2027,13 +2033,13 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
-		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
 		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
 		types.KindClassifier:                        types.Resource153ToLegacy(new(summaryv1.Classifier)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
+		types.KindPendingCSRRequest:                 types.Resource153ToLegacy(&subcav1.PendingCSRRequest{}),
 		types.KindValidatedMFAChallenge:             types.Resource153ToLegacy(new(mfav2.ValidatedMFAChallenge)),
 	}
 
@@ -2108,8 +2114,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
@@ -2122,6 +2126,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.Beam]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
@@ -2879,12 +2885,14 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	p.cache.ok = true
 
 	if funcs.Range != nil && funcs.cacheRange != nil {
-		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
-		require.NoError(t, err)
-		assert.Len(t, out, len(page1))
-		assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+		if !p.ignoreRangeEndKey {
+			out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+			require.NoError(t, err)
+			assert.Len(t, out, len(page1))
+			assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+		}
 
-		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", ""))
 		require.NoError(t, err)
 		assert.Len(t, out, len(expected))
 		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))

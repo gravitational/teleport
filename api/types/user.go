@@ -95,6 +95,8 @@ type User interface {
 	GetKubeGroups() []string
 	// GetWindowsLogins gets the list of Windows Logins for the user
 	GetWindowsLogins() []string
+	// GetLinuxDesktopLogins gets the list of Linux desktop logins for the user
+	GetLinuxDesktopLogins() []string
 	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
 	GetAWSRoleARNs() []string
 	// GetAzureIdentities gets a list of Azure identities for the user
@@ -127,6 +129,8 @@ type User interface {
 	SetKubeGroups(kubeGroups []string)
 	// SetWindowsLogins sets a list of Windows Logins for user
 	SetWindowsLogins(logins []string)
+	// SetLinuxDesktopLogins sets a list of Linux desktop logins for user
+	SetLinuxDesktopLogins(logins []string)
 	// SetAWSRoleARNs sets a list of AWS role ARNs for user
 	SetAWSRoleARNs(awsRoleARNs []string)
 	// SetAzureIdentities sets a list of Azure identities for the user
@@ -160,6 +164,9 @@ type User interface {
 	// IsBot returns true if the user is a bot.
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
+	//
+	// Deprecated: the generation counter is now stored on the BotInstance
+	// resource.
 	BotGenerationLabel() string
 	// GetPasswordState reflects what the system knows about the user's password.
 	// Note that this is a "best effort" property, in that it can be UNSPECIFIED
@@ -487,6 +494,11 @@ func (u *UserV2) SetWindowsLogins(logins []string) {
 	u.setTrait(constants.TraitWindowsLogins, logins)
 }
 
+// SetLinuxDesktopLogins sets the LinuxLogins trait for the user
+func (u *UserV2) SetLinuxDesktopLogins(logins []string) {
+	u.setTrait(constants.TraitLinuxDesktopLogins, logins)
+}
+
 // SetAWSRoleARNs sets the AWSRoleARNs trait for the user
 func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
 	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
@@ -621,6 +633,11 @@ func (u UserV2) GetWindowsLogins() []string {
 	return u.getTrait(constants.TraitWindowsLogins)
 }
 
+// GetLinuxDesktopLogins gets the list of Linux desktop logins for the user
+func (u UserV2) GetLinuxDesktopLogins() []string {
+	return u.getTrait(constants.TraitLinuxDesktopLogins)
+}
+
 // GetAWSRoleARNs gets the list of AWS role ARNs for the user
 func (u UserV2) GetAWSRoleARNs() []string {
 	return u.getTrait(constants.TraitAWSRoleARNs)
@@ -656,6 +673,9 @@ func (u UserV2) IsBot() bool {
 }
 
 // BotGenerationLabel returns the bot generation label.
+//
+// Deprecated: the generation counter is now stored on the BotInstance
+// resource.
 func (u UserV2) BotGenerationLabel() string {
 	return u.GetMetadata().Labels[BotGenerationLabel]
 }

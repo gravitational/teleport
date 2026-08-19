@@ -1,3 +1,7 @@
+## Discover Azure Resources in a Single Subscription Example
+
+Configure Teleport to discover resources in an Azure subscription.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 

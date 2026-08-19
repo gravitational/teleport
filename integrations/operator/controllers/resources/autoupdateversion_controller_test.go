@@ -149,7 +149,7 @@ func (g *autoUpdateVersionTestingPrimitives) CompareTeleportAndKubernetesResourc
 
 func TestAutoUpdateVersionCreation(t *testing.T) {
 	test := &autoUpdateVersionTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(
+	testlib.ResourceCreationSynchronousTest[*autoupdatev1pb.AutoUpdateVersion, *resourcesv1.TeleportAutoupdateVersionV1](
 		t,
 		resources.NewAutoUpdateVersionV1Reconciler,
 		test,
@@ -159,7 +159,7 @@ func TestAutoUpdateVersionCreation(t *testing.T) {
 
 func TestAutoUpdateVersionDeletion(t *testing.T) {
 	test := &autoUpdateVersionTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(
+	testlib.ResourceDeletionSynchronousTest[*autoupdatev1pb.AutoUpdateVersion, *resourcesv1.TeleportAutoupdateVersionV1](
 		t,
 		resources.NewAutoUpdateVersionV1Reconciler,
 		test,
@@ -169,7 +169,7 @@ func TestAutoUpdateVersionDeletion(t *testing.T) {
 
 func TestAutoUpdateVersionDeletionDrift(t *testing.T) {
 	test := &autoUpdateVersionTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(
+	testlib.ResourceDeletionDriftSynchronousTest[*autoupdatev1pb.AutoUpdateVersion, *resourcesv1.TeleportAutoupdateVersionV1](
 		t,
 		resources.NewAutoUpdateVersionV1Reconciler,
 		test,
@@ -179,7 +179,7 @@ func TestAutoUpdateVersionDeletionDrift(t *testing.T) {
 
 func TestAutoUpdateVersionUpdate(t *testing.T) {
 	test := &autoUpdateVersionTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(
+	testlib.ResourceUpdateTestSynchronous[*autoupdatev1pb.AutoUpdateVersion, *resourcesv1.TeleportAutoupdateVersionV1](
 		t,
 		resources.NewAutoUpdateVersionV1Reconciler,
 		test,

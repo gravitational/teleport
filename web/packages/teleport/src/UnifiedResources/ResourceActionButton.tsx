@@ -29,6 +29,7 @@ import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMe
 import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
+import { LLMAppConnectDialog } from 'teleport/Apps/LLMAppConnectDialog';
 import { MCPAppConnectDialog } from 'teleport/Apps/MCPAppConnectDialog';
 import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
@@ -67,6 +68,8 @@ export const ResourceActionButton = ({ resource }: Props) => {
     case 'kube_cluster':
       return <KubeConnect kube={resource} />;
     case 'windows_desktop':
+      return <DesktopConnect desktop={resource} />;
+    case 'linux_desktop':
       return <DesktopConnect desktop={resource} />;
     case 'git_server':
       return <GitServerConnect gitServer={resource} />;
@@ -117,9 +120,12 @@ const NodeConnect = ({ node }: { node: Node }) => {
 };
 
 const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
+  const linuxDesktop = desktop.kind === 'linux_desktop';
   const { clusterId } = useStickyClusterId();
   const startRemoteDesktopSession = (username: string, desktopName: string) => {
-    const url = cfg.getDesktopRoute({
+    let route = linuxDesktop ? cfg.getLinuxDesktopRoute : cfg.getDesktopRoute;
+
+    const url = route({
       clusterId,
       desktopName,
       username,
@@ -134,7 +140,10 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
     e.preventDefault();
-    return startRemoteDesktopSession(login, desktop.name);
+    return startRemoteDesktopSession(
+      login,
+      linuxDesktop ? desktop.host_id : desktop.name
+    );
   }
 
   return (
@@ -171,6 +180,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     publicAddr,
     isCloud,
     isTcp,
+    isLLM,
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
@@ -186,14 +196,12 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       ps => !ps.requiresRequest
     );
     if (isAwsIdentityCenterApp) {
-      awsConsoleOrIdentityCenterRoles = permissionSets.map(
-        (ps): AwsRole => ({
-          name: ps.name,
-          arn: ps.name,
-          display: ps.name,
-          accountId: name,
-        })
-      );
+      awsConsoleOrIdentityCenterRoles = permissionSets.map((ps): AwsRole => ({
+        name: ps.name,
+        arn: ps.name,
+        display: ps.name,
+        accountId: name,
+      }));
     }
     function getAwsLaunchUrl(arnOrPermSetName: string) {
       if (isAwsIdentityCenterApp) {
@@ -232,6 +240,9 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   }
   if (subKind === AppSubKind.MCP) {
     return <MCPAppConnect app={app} />;
+  }
+  if (isLLM) {
+    return <LLMAppConnect app={app} />;
   }
   if (isTcp) {
     return <TcpAppConnect app={app} />;
@@ -413,6 +424,28 @@ function TcpAppConnect({ app }: { app: App }) {
         Connect
       </ButtonBorder>
       {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/**
+ * LLMAppConnect is the button on an LLM inference endpoint app resource that
+ * opens the LLM connect dialog.
+ */
+function LLMAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
+        Connect
+      </ButtonBorder>
+      {open && <LLMAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
   );
 }

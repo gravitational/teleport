@@ -41,10 +41,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -75,6 +77,7 @@ type fakeAuth struct {
 	lastRawInstance []byte
 
 	lastServerExpiry time.Time
+	expectScope      string
 }
 
 func (a *fakeAuth) getLastServerExpiry() time.Time {
@@ -126,7 +129,7 @@ func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, serve
 	return server, a.err
 }
 
-func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+func (a *fakeAuth) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
 	return nil
 }
 
@@ -165,10 +168,21 @@ func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeSe
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
 	a.lastServerExpiry = server.Expiry()
-	return &types.KeepAlive{}, a.err
+	if a.lastServerExpiry.Equal(time.Time{}) {
+		return &types.KeepAlive{}, a.err
+	}
+
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_KUBERNETES,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+		Scope:     server.GetScope(),
+	}, a.err
 }
 
-func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+func (a *fakeAuth) DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error {
 	return nil
 }
 
@@ -180,8 +194,38 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error 
 		a.failKeepAlives--
 		return trace.Errorf("keepalive failed as test condition")
 	}
+	if ka.Scope != a.expectScope {
+		return trace.Errorf("keepalive has mismatched scope")
+	}
 	a.lastServerExpiry = ka.Expires
 	return a.err
+}
+
+func (a *fakeAuth) UpsertLinuxDesktop(_ context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	if desktop.GetMetadata() != nil {
+		a.lastServerExpiry = desktop.GetMetadata().GetExpires().AsTime()
+	}
+	return desktop, a.err
+}
+
+func (a *fakeAuth) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
 }
 
 // UpsertRelayServer implements [Auth].
@@ -931,9 +975,11 @@ func TestScopedAppServer(t *testing.T) {
 	t.Parallel()
 
 	// happy path: server and app scopes match the hello scope (static registration).
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", true))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "", true))
 	// embedded app scope is different from the server scope.
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", false))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", "", false))
+	// add incorrect app computed public addr
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "overridenpublicaddr.com", false))
 }
 
 // appTestController bundles the pieces an app-server heartbeat test needs from a
@@ -1044,9 +1090,14 @@ func testAppServerHeartbeatNormalization(t *testing.T) {
 	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
 }
 
-func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bool) func(t *testing.T) {
+func testAppServerScoped(initialScope, serverScope, appScope, publicAddrOverride string, expectOK bool) func(t *testing.T) {
 	return func(t *testing.T) {
 		c := newAppTestController(t, initialScope)
+
+		pubAddr := scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com")
+		if publicAddrOverride != "" {
+			pubAddr = publicAddrOverride
+		}
 
 		err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
 			AppServer: &types.AppServerV3{
@@ -1059,7 +1110,10 @@ func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bo
 						Version:  types.V3,
 						Scope:    appScope,
 						Metadata: types.Metadata{Name: "app"},
-						Spec:     types.AppSpecV3{URI: "http://localhost:8080"},
+						Spec: types.AppSpecV3{
+							URI:        "http://localhost:8080",
+							PublicAddr: pubAddr,
+						},
 					},
 				},
 			},
@@ -1772,6 +1826,125 @@ func testAgentMetadata(t *testing.T) {
 	}, 10*time.Second, 200*time.Millisecond)
 }
 
+func TestInstanceStatus(t *testing.T) {
+	tests := []struct {
+		name                   string
+		supportsInstanceStatus bool
+		expectStatus           bool
+	}{
+		{
+			name:                   "reported when auth advertises support",
+			supportsInstanceStatus: true,
+			expectStatus:           true,
+		},
+		{
+			name:                   "withheld when auth does not advertise support",
+			supportsInstanceStatus: false,
+			expectStatus:           false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				testInstanceStatus(t, test.supportsInstanceStatus, test.expectStatus)
+			})
+		})
+	}
+}
+
+func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool) {
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+	statusSignal := make(chan struct{}, 1)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build()
+	downstreamHello := proto.DownstreamInventoryHello_builder{
+		Version:  teleport.Version,
+		ServerID: "auth",
+		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
+			InstanceStatus: supportsInstanceStatus,
+		}.Build(),
+	}.Build()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	inventoryHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return &metadata.Metadata{}, nil
+		}),
+		WithAuditQueueStatusGetter(func(ctx context.Context) *types.AuditQueueStatus {
+			return &types.AuditQueueStatus{
+				PendingCount:            7,
+				DeadLetterCount:         3,
+				CorruptCount:            1,
+				OldestPendingAgeSeconds: 42,
+			}
+		}),
+		WithAuditQueueStatusSignal(statusSignal),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+	statusSignal <- struct{}{}
+
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+	upstreamHandle, ok := handle.(*upstreamHandle)
+	require.True(t, ok)
+
+	if !expectStatus {
+		require.Never(t, func() bool {
+			return upstreamHandle.AuditQueueStatus() != nil
+		}, 5*time.Second, 200*time.Millisecond)
+		return
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		status := upstreamHandle.AuditQueueStatus()
+		if !assert.NotNil(t, status) {
+			return
+		}
+		assert.Equal(t, int64(7), status.PendingCount)
+		assert.Equal(t, int64(3), status.DeadLetterCount)
+		assert.Equal(t, int64(1), status.CorruptCount)
+		assert.Equal(t, int64(42), status.OldestPendingAgeSeconds)
+	}, 10*time.Second, 200*time.Millisecond)
+}
+
 func TestGoodbye(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -1995,7 +2168,9 @@ func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) 
 
 		events := make(chan testEvent, 1024)
 
-		auth := &fakeAuth{}
+		auth := &fakeAuth{
+			expectScope: initialScope,
+		}
 
 		rc := &resourceCounter{}
 		controller := NewController(

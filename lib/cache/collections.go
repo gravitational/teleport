@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -154,7 +153,6 @@ type collections struct {
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
-	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
 	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
@@ -168,7 +166,12 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment, types.KindValidatedMFAChallenge:
+	case types.KindAccessRequest,
+		types.KindHeadlessAuthentication,
+		types.KindPendingCSRRequest,
+		scopedaccess.KindScopedRole,
+		scopedaccess.KindScopedRoleAssignment,
+		types.KindValidatedMFAChallenge:
 		return true
 	default:
 		return false
@@ -816,14 +819,6 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.plugins = collect
 			out.byKind[resourceKind] = out.plugins
-		case types.KindAppAuthConfig:
-			collect, err := newAppAuthConfigCollection(c.AppAuthConfig, watch)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			out.appAuthConfig = collect
-			out.byKind[resourceKind] = out.appAuthConfig
 		case types.KindInferenceModel:
 			collect, err := newInferenceModelCollection(c.Summarizer, watch)
 			if err != nil {

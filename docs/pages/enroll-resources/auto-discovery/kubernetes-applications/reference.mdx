@@ -97,6 +97,19 @@ heuristics will be used to try to determine protocol of an exposed port.
 If all heuristics didn't work, the port will be skipped. For app to be imported with `tcp` protocol, the
 service should have explicit annotation `teleport.dev/protocol: "tcp"`
 
+To import a service as an MCP server, set the annotation to the URI scheme of
+the transport the MCP server uses:
+
+- `teleport.dev/protocol: "mcp+http"` or `teleport.dev/protocol: "mcp+https"`
+  for the Streamable HTTP transport.
+- `teleport.dev/protocol: "mcp+sse+http"` or `teleport.dev/protocol: "mcp+sse+https"`
+  for the HTTP with SSE transport.
+
+Combine the annotation with `teleport.dev/path` to set the request path of the
+MCP endpoint (for example `/mcp` or `/sse`). MCP servers using the stdio
+transport cannot be discovered from Kubernetes services, since they require a
+command to launch the server.
+
 ### `teleport.dev/port`
 
 Controls preferred port for the Kubernetes service, only this one will be used even if service

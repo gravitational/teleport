@@ -240,6 +240,28 @@ func TestContextLockTargets(t *testing.T) {
 	})
 }
 
+func BenchmarkLockTargets(b *testing.B) {
+	for _, roleCount := range []int{1, 10, 100, 1000} {
+		b.Run(fmt.Sprintf("role_count=%d", roleCount), func(b *testing.B) {
+			roles := make([]string, 0, roleCount)
+			for i := range roleCount {
+				roles = append(roles, fmt.Sprintf("load-test-%d", i))
+			}
+			id := tlsca.Identity{
+				Groups: roles,
+			}
+			var idGetter authz.IdentityGetter = authz.WrapIdentity(id)
+			ctx := &authz.Context{
+				Identity:         idGetter,
+				UnmappedIdentity: idGetter,
+			}
+			for b.Loop() {
+				_ = ctx.LockTargets()
+			}
+		})
+	}
+}
+
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -732,7 +754,8 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	require.NoError(t, err)
 	botMetadata := bot.GetMetadata()
 	botMetadata.Labels = map[string]string{
-		types.BotLabel:           bot.GetName(),
+		types.BotLabel: bot.GetName(),
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		types.BotGenerationLabel: "0",
 	}
 	bot.SetMetadata(botMetadata)

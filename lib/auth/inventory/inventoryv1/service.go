@@ -81,28 +81,39 @@ func (s *Service) ListUnifiedInstances(
 		return nil, trace.Wrap(err)
 	}
 
-	// If no instance types are specified, default to all instance types
-	instanceTypes := req.GetFilter().GetInstanceTypes()
-	if len(instanceTypes) == 0 {
-		instanceTypes = []inventorypb.InstanceType{
-			inventorypb.InstanceType_INSTANCE_TYPE_INSTANCE,
-			inventorypb.InstanceType_INSTANCE_TYPE_BOT_INSTANCE,
-		}
+	filter := req.GetFilter()
+	if filter == nil {
+		filter = inventorypb.ListUnifiedInstancesFilter_builder{}.Build()
+		req.SetFilter(filter)
 	}
 
-	// Ensure that the instance types requested align with the user's permissions
-	for _, instanceType := range instanceTypes {
-		switch instanceType {
-		case inventorypb.InstanceType_INSTANCE_TYPE_INSTANCE:
-			if err := authCtx.CheckAccessToKind(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
+	instanceErr := authCtx.CheckAccessToKind(types.KindInstance, types.VerbList, types.VerbRead)
+	botInstanceErr := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList, types.VerbRead)
+
+	if len(filter.GetInstanceTypes()) > 0 {
+		for _, instanceType := range filter.GetInstanceTypes() {
+			switch instanceType {
+			case inventorypb.InstanceType_INSTANCE_TYPE_INSTANCE:
+				if instanceErr != nil {
+					return nil, trace.Wrap(instanceErr)
+				}
+			case inventorypb.InstanceType_INSTANCE_TYPE_BOT_INSTANCE:
+				if botInstanceErr != nil {
+					return nil, trace.Wrap(botInstanceErr)
+				}
+			default:
+				return nil, trace.NotImplemented("instance type %v is not supported", instanceType)
 			}
-		case inventorypb.InstanceType_INSTANCE_TYPE_BOT_INSTANCE:
-			if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		default:
-			return nil, trace.NotImplemented("instance type %v is not supported", instanceType)
+		}
+	} else {
+		// If the user didn't apply any filters but only has permissions for one of the two instance kinds, only return that kind
+		switch {
+		case instanceErr != nil && botInstanceErr != nil:
+			return nil, trace.NewAggregate(instanceErr, botInstanceErr)
+		case botInstanceErr != nil:
+			filter.SetInstanceTypes([]inventorypb.InstanceType{inventorypb.InstanceType_INSTANCE_TYPE_INSTANCE})
+		case instanceErr != nil:
+			filter.SetInstanceTypes([]inventorypb.InstanceType{inventorypb.InstanceType_INSTANCE_TYPE_BOT_INSTANCE})
 		}
 	}
 

@@ -5,7 +5,7 @@ sidebar_label: Bot Instance
 ---
 {/* vale 3rd-party-products.former-names = NO */}
 {/* vale messaging.capitalization = NO */}
-{/* Automatically generated from: gen/proto/go/teleport/machineid/v1/bot_instance.pb.go */}
+{/* Automatically generated from: gen/proto/go/teleport/machineid/v1/bot_instance_protohybrid.pb.go */}
 {/* DO NOT EDIT */}
 
 **Kind**: `bot_instance`<br/>
@@ -158,7 +158,7 @@ join_attrs: # [...]
 |join_attrs|The attributes generated during the join process. Typically, this is information from the join attestation process itself. This field will eventually replace the `metadata` field, which is structureless.|[Join Attrs](#join-attrs)|
 |join_method|The join method used for this join or renewal. Deprecated: prefer using join_attrs.meta.join_method|string|
 |join_token|The join token used for this join or renewal. This is only populated for delegated join methods as the value for `token` join methods is sensitive. Deprecated: prefer using join_attrs.meta.join_token_name|string|
-|metadata|The metadata sourced from the join method. Deprecated: prefer using join_attrs.||
+|metadata|The metadata sourced from the join method. Deprecated: prefer using join_attrs. No longer written since v19; only present on records written by older Auth Service versions.  Deprecated: Marked as deprecated in teleport/machineid/v1/bot_instance.proto.||
 |public_key|The public key of the Bot instance. This must be a PEM wrapped, PKIX DER encoded public key. This provides consistency and supports multiple types of public key algorithm.|base64-encoded string|
 
 ## Bot Instance Status Heartbeat
@@ -229,6 +229,7 @@ oracle: # [...]
 azure_devops: # [...]
 env0: # [...]
 generic_oidc: # [...]
+bound_keypair: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -236,6 +237,7 @@ generic_oidc: # [...]
 |azure|Attributes that are specific to the Azure (`azure`) join method.|[Join Attrs Azure](#join-attrs-azure)|
 |azure_devops|Attributes that are specific to the Azure Devops (`azure_devops`) join method.|[Join Attrs Azure Devops](#join-attrs-azure-devops)|
 |bitbucket|Attributes that are specific to the Bitbucket (`bitbucket`) join method.|[Join Attrs Bitbucket](#join-attrs-bitbucket)|
+|bound_keypair|Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.|[Join Attrs Bound Keypair](#join-attrs-bound-keypair)|
 |circleci|Attributes that are specific to the CircleCI (`circleci`) join method.|[Join Attrs CircleCI](#join-attrs-circleci)|
 |env0|Attributes that are specific to the Env0 (`env0`) join method.|[Join Attrs Env0](#join-attrs-env0)|
 |gcp|Attributes that are specific to the GCP (`gcp`) join method.|[Join Attrs GCP](#join-attrs-gcp)|
@@ -362,6 +364,25 @@ branch_name: "string"
 |step_uuid|The UUID of the pipeline step.|string|
 |sub|The `sub` claim of the Bitbucket JWT that was used to join.|string|
 |workspace_uuid|The UUID of the workspace the pipeline belongs to.|string|
+
+## Join Attrs Bound Keypair
+
+Attributes that are specific to the Bound Keypair (`bound_keypair`) join method.
+
+
+Example:
+
+```yaml
+public_key: "string"
+recovery_mode: "string"
+recovery_count: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|public_key|The bound public key verified during this join, in SSH authorized_keys format.|string|
+|recovery_count|The token's recovery counter after this join.|number|
+|recovery_mode|The token's configured recovery mode, e.g. `standard` or `relaxed`.|string|
 
 ## Join Attrs CircleCI
 

@@ -165,7 +165,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
-      path.join(__dirname, 'agentCleanupDaemon.js'),
+      path.join(import.meta.dirname, 'agentCleanupDaemon.mjs'),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -336,7 +336,7 @@ export default class MainProcess {
 
   private initSharedProcess() {
     this.sharedProcess = fork(
-      path.join(__dirname, 'sharedProcess.js'),
+      path.join(import.meta.dirname, 'sharedProcess.mjs'),
       [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
       {
         stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
@@ -665,7 +665,10 @@ end run
 
     ipcHandle(
       MainProcessIpc.SelectDirectoryForDesktopSession,
-      async (_, args: { desktopUri: string; login: string }) => {
+      async (
+        _,
+        args: { desktopUri: string; login: string; directoryId: number }
+      ) => {
         const value = await dialog.showOpenDialog({
           properties: ['openDirectory'],
         });
@@ -682,6 +685,7 @@ end run
           desktopUri: args.desktopUri,
           login: args.login,
           path: dirPath,
+          directoryId: args.directoryId,
         });
 
         return path.basename(dirPath);

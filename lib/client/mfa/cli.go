@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -230,7 +231,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
-	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	isPerSessionMFA := slices.Contains([]mfav1.ChallengeScope{
+		mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
+	}, c.cfg.Extensions.GetScope())
 
 	// Build list of available methods from the challenge before filtering
 	// out unsupported methods. This list is used in user-facing messages.
@@ -265,7 +269,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			ctx,
 			"Disabling Browser MFA: user needs at least one webauthn device and client needs to support SSO MFA Ceremony",
 			"webauthn_available", chal.WebauthnChallenge != nil,
-			"mfa_ceremony_available (if false, this is a bug)", c.cfg.CallbackCeremony != nil,
+			"mfa_ceremony_available", c.cfg.CallbackCeremony != nil,
 		)
 	}
 

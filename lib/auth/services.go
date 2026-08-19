@@ -90,7 +90,6 @@ type Services struct {
 	services.WorkloadIdentityX509Overrides
 	services.SigstorePolicies
 	services.HealthCheckConfig
-	services.AppAuthConfig
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
@@ -101,6 +100,7 @@ type Services struct {
 	services.Beams
 	services.BeamsConfigService
 	services.SubCAService
+	services.PendingCSRRequestService
 	services.EnrollPairing
 }
 

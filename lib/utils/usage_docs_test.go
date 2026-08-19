@@ -59,6 +59,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -90,6 +92,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|@--name@|@myresource@|The name of the resource|
 |@--[no-]launch@|@false@|Whether to launch the Rocket|
 
 ## myapp hello
@@ -116,7 +119,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|command|none (optional)|Show help on command.|
+|command|*no default* (optional)|Show help on command.|
 
 `,
 		},
@@ -176,9 +179,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |@--[no-]dry-run@|@false@|Whether to use dry-run mode|
-|@--verbosity@|@3@|Verbosity level.|
-
-`,
+|@--verbosity@|@3@|Verbosity level.|`,
 		},
 		{
 			name: "multiple sub-command args",
@@ -253,7 +254,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|command|none (optional)|Show help on command.|
+|command|*no default* (optional)|Show help on command.|
 
 ## myapp validate
 
@@ -301,7 +302,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|command|none (optional)|Show help on command.|
+|command|*no default* (optional)|Show help on command.|
 
 ## myapp mfa add
 
@@ -341,7 +342,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|args|none (optional)|Arbitrary arguments|
+|args|*no default* (optional)|Arbitrary arguments|
 
 `,
 		},
@@ -417,7 +418,7 @@ Environment variables:
 |Variable|Default|Description|
 |---|---|---|
 |@CREATE_NAME@|@myresource@|The name of the resource|
-|@CREATE_TYPE@|none (optional)|The type of the resource|
+|@CREATE_TYPE@|*no default* (optional)|The type of the resource|
 
 Flags:
 
@@ -429,7 +430,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|type|none (optional)|The type of the resource|
+|type|*no default* (optional)|The type of the resource|
 
 `,
 		},
@@ -458,6 +459,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -529,7 +532,7 @@ Arguments:
 
 |Flag|Default|Description|
 |---|---|---|
-|@--format@|@text@ (valid: @text@, @json@, @yaml@)|Output format|
+|@--format@|@text@ (one of: @text@, @json@, @yaml@)|Output format|
 
 `,
 		},
@@ -559,7 +562,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|@--mode@|@all@ (valid: @all@, @active@, @inactive@)|List mode|
+|@--mode@|@all@ (one of: @all@, @active@, @inactive@)|List mode|
 
 `,
 		},

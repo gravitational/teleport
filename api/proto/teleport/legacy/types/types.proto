@@ -27,6 +27,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -73,6 +74,8 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // The scope the resource being kept alive belongs to.
+  string scope = 11;
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -769,6 +772,28 @@ message InstanceSpecV1 {
 
   // UpdaterInfo stores information about how the Teleport updater is doing.
   UpdaterV2Info UpdaterInfo = 10;
+
+  // AuditQueueStatus reports the depth of this instance's audit-log queue.
+  AuditQueueStatus audit_queue_status = 11;
+}
+
+// AuditQueueStatus reports the depth of an instance's audit-log queue.
+message AuditQueueStatus {
+  // PendingCount is the number of audit events waiting in the main queue.
+  int64 pending_count = 1;
+  // DeadLetterCount is the number of audit events in the dead-letter queue.
+  int64 dead_letter_count = 2;
+  // CorruptCount is the number of audit events quarantined because their
+  // payloads failed to deserialize.
+  int64 corrupt_count = 3;
+  // OldestPendingAgeSeconds is the age in seconds of the oldest event in the
+  // main queue, measured when the status was collected. Zero when the main
+  // queue is empty.
+  int64 oldest_pending_age_seconds = 4;
+  // OldestDeadLetterAgeSeconds is the age in seconds of the oldest event in
+  // the dead-letter queue, measured when the status was collected. Zero when
+  // the dead-letter queue is empty.
+  int64 oldest_dead_letter_age_seconds = 5;
 }
 
 // SystemClockMeasurement represents the measurement state of the systems clock difference.
@@ -1310,6 +1335,9 @@ message AppAWS {
   // RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application.
   // These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.
   AppAWSRolesAnywhereProfile RolesAnywhereProfile = 2 [(gogoproto.jsontag) = "roles_anywhere_profile,omitempty"];
+  // Region is a cloud region for the app.
+  // This field is set for apps that integrates with AWS applications/APIs.
+  string region = 3;
 }
 
 // AppAWSRolesAnywhereProfile contains the fields that represent an AWS IAM Roles Anywhere Profile.
@@ -3340,6 +3368,23 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+  // UserDisplays maps the requester and server-suggested reviewer usernames to
+  // read-time display values.
+  map<string, AccessRequestUserDisplay> UserDisplays = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "user_displays,omitempty"
+  ];
+}
+
+// AccessRequestUserDisplay holds read-time display values derived from a user
+// resource.
+message AccessRequestUserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
+  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
+  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.
@@ -3825,7 +3870,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4398,6 +4443,102 @@ message RoleConditions {
   // BeamLabelsExpression is a predicate expression used to allow/deny access
   // to beams.
   string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
+
+  // AppResources is a list of rules controlling access to an app's
+  // resources on each HTTP request. It is valid only in role version v9
+  // and above, and only under allow.
+  //
+  // This version implements allow_all only and rejects a rule that sets
+  // any other field. The other fields are declared so that version skew
+  // or a rollback cannot silently drop one and widen a role's access.
+  repeated AppResource AppResources = 52 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "app_resources,omitempty"
+  ];
+
+  // AppResourcesExpressions is a list of predicates controlling access to
+  // an app's resources on each HTTP request. It is valid only in role
+  // version v9 and above, and only under allow. Every AppResource rule can
+  // be written as an expression, but not the reverse.
+  //
+  // This version does not implement app_resources_expressions and rejects
+  // a role that sets it. The field is declared so that version skew or a
+  // rollback cannot silently drop it and widen a role's access.
+  repeated string AppResourcesExpressions = 53 [(gogoproto.jsontag) = "app_resources_expressions,omitempty"];
+}
+
+// AppResource is one rule under a role's app_resources. It allows an HTTP
+// request that matches it to reach an app's resources.
+//
+// This version implements allow_all only, which grants unrestricted access
+// to the app, and rejects a rule that sets any other field. The other
+// fields are declared so that version skew or a rollback cannot silently
+// drop one and widen a role's access.
+message AppResource {
+  // Paths are the path patterns the rule matches, for example:
+  //
+  //     `paths: ["/api/projects/{project}/**"]`
+  //
+  // The `{project}` segment is captured, and the rule's Where reads it as
+  // `vars.project`. A rule sets either Paths or AllowAll.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  repeated string Paths = 1 [(gogoproto.jsontag) = "paths,omitempty"];
+
+  // Methods are the HTTP methods the rule matches, compared
+  // case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
+  // DELETE, OPTIONS, and TRACE. An empty list matches any of them.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  repeated string Methods = 2 [(gogoproto.jsontag) = "methods,omitempty"];
+
+  // Where is a predicate over the caller identity and the rule's path
+  // captures, for example matching a captured project against a user's
+  // traits:
+  //
+  //     `where: contains(user.traits["projects"], vars.project)`
+  //
+  // This version declares the field but rejects a rule that sets it.
+  string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+
+  // AllowEncoded lists the characters a request path may carry in
+  // percent-encoded form for the rule to match. The only supported value
+  // is "/", which allows the encoded slash, %2F or %2f.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  repeated string AllowEncoded = 4 [(gogoproto.jsontag) = "allow_encoded,omitempty"];
+
+  // AllowAll grants unrestricted access to every path and method. It
+  // cannot be combined with any other field.
+  bool AllowAll = 5 [(gogoproto.jsontag) = "allow_all,omitempty"];
+
+  // AllowCode is the code recorded on the allow audit event when the rule
+  // matches. If it is not set, no allow audit event is recorded. A code may
+  // not start with the reserved "teleport_" prefix.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  string AllowCode = 6 [(gogoproto.jsontag) = "allow_code,omitempty"];
+
+  // AllowReason is the explanation recorded alongside AllowCode. A rule
+  // sets it only together with AllowCode.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  string AllowReason = 7 [(gogoproto.jsontag) = "allow_reason,omitempty"];
+
+  // DenyCodeHint is the code added to the deny decision when the rule's
+  // path and method match but the Where predicate does not. A denied
+  // request collects a code from every such rule, so one decision can
+  // record several codes. A code may not start with the reserved
+  // "teleport_" prefix.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  string DenyCodeHint = 8 [(gogoproto.jsontag) = "deny_code_hint,omitempty"];
+
+  // DenyReasonHint is the explanation recorded alongside DenyCodeHint. A
+  // rule sets it only together with DenyCodeHint.
+  //
+  // This version declares the field but rejects a rule that sets it.
+  string DenyReasonHint = 9 [(gogoproto.jsontag) = "deny_reason_hint,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -4802,6 +4943,8 @@ enum MFADeviceKind {
   MFA_DEVICE_KIND_TOTP = 2;
   // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
   MFA_DEVICE_KIND_WEBAUTHN = 3;
+  // MFA device is known to be configured using SSO as the weakest form of MFA.
+  MFA_DEVICE_KIND_SSO = 4;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -6653,10 +6796,23 @@ message LockSpecV2 {
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
-// LockTarget lists the attributes of interactions to be disabled.
+// LockTarget lists the attributes of interactions to be disabled. This type is
+// performance sensitive (as lock targets are checked during authz for just
+// about every interaction with the cluster) and it's used as a Go map key and
+// compared with Go equality, so care must be taken when adding fields to the
+// message. There is an assertion for the resulting Go message type to be
+// comparable, but some comparable types (like any pointer, or time.Time) don't
+// compare _correctly_ without additional steps. It's best to limit this message
+// to numbers and strings, if new additions are necessary.
 message LockTarget {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
+  // these options remove extraneous fields from the resulting Go struct, making
+  // it possible to compare by equality
+  option (gogoproto.goproto_unrecognized) = false;
+  option (gogoproto.goproto_sizecache) = false;
+  option (gogoproto.goproto_unkeyed) = false;
 
   // User specifies the name of a Teleport user.
   string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
@@ -7844,13 +8000,18 @@ message PluginOktaSyncSettings {
   // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
   // bidirectional sync is enabled. The default value is 30m.
+  //
+  // It is not advised to change this setting without prior recommendation.
   string time_between_imports = 14;
 
-  // TimeBetweenAssignmentProcessLoops controls the time between periodic iterations of the Okta assignment
-  // processor loop. Teleport reacts asynchronously to Okta permission changes and responds to changes immediately.
-  // This also implements a periodic fallback sync that is triggered periodically to reconcile to the desired state.
-  // For most use cases the default value should NOT be changed.
-  // A blank string results in the default value of 5min.
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
+  // Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
+  // out of sync. The default value is 5m.
+  //
+  // NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+  // often the cached Okta client for assignments is being invalidated.
+  //
+  //It is not advised to change this setting without prior recommendation.
   string time_between_assignment_process_loops = 15;
 
   // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.
@@ -8418,6 +8579,8 @@ message PluginEntraIDStatusV1 {
   uint32 imported_users = 1;
   // imported_groups is the number of groups imported from Entra ID.
   uint32 imported_groups = 2;
+  // SyncMode indicates `full` or `delta` sync mode used in the latest sync.
+  string sync_mode = 3;
 }
 
 enum PluginStatusCode {
@@ -9303,6 +9466,15 @@ enum HeadlessAuthenticationState {
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }
 
+// ScopeFilter is a gogo-native mirror of teleport.scopes.v1.Filter for use on WatchKind. Gogo uses
+// marshaling/unmarshaling logic that is incompatible with our newer proto messages.
+message ScopeFilter {
+  // Scope is the scope the filter is anchored at.
+  string scope = 1;
+  // Mode determines how the scope is matched (exact, descendants, etc.).
+  teleport.scopes.v1.Mode mode = 2;
+}
+
 // WatchKind specifies resource kind to watch
 // When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 message WatchKind {
@@ -9322,6 +9494,10 @@ message WatchKind {
   // Version optionally specifies the resource version to watch.
   // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
+  // ScopeFilter optionally filters events by scope. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity for most kinds.
+  ScopeFilter ScopeFilter = 7 [(gogoproto.jsontag) = "scope_filter,omitempty"];
 }
 
 // WatchStatusV1 is intended to be attached to OpInit events and contain information about a successful WatchEvents call.
@@ -9665,9 +9841,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

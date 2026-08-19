@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var (
@@ -140,8 +142,8 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	if err != nil {
 		return trace.Wrap(err, "checking existence of VNet NRPT registry key under group policy path")
 	}
-	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
-		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
+	if !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones) ||
+		!utils.ContainSameUniqueElements(cfg.dnsAddrs, state.configuredDNSAddrs) ||
 		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey ||
 		(doesGroupPolicyKeyExist && !vnetGroupPolicyNRPTKeyExists && len(cfg.dnsZones) > 0) {
 		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
@@ -182,6 +184,9 @@ const (
 	// The UUID at the end was randomly generated once, VNet
 	// always writes policies at this key and cleans it up on shutdown.
 	vnetNRPTKeyID = `{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
+
+	// This key holds host IPv6 configuration.
+	tcpip6ParametersKey = `SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters`
 )
 
 func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPolicyKeyExist bool) error {
@@ -215,6 +220,37 @@ func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPol
 		return trace.Wrap(err, "refreshing computer policies")
 	}
 	return nil
+}
+
+// platformHostIPv6Disabled checks whether IPv6 has been disabled on the host via the
+// DisabledComponents value under tcpip6ParametersKey. The setting is
+// host-wide, so the TUN device name is unused.
+func platformHostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+	// Bit 0x10 disables IPv6 on all non-tunnel interfaces, checking it also
+	// covers the 0xFF value that disables IPv6 entirely. Absent key or value
+	// means that IPv6 is enabled.
+	//
+	// "Tunnel" interfaces here refers to Microsoft's tunneling protocols (6to4/ISATAP/Teredo)
+	// that encapsulate IPv6 packets inside IPv4. VNet's TUN device doesn't fall under this category.
+	//
+	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/configure-ipv6-in-windows#ipv6-tunnel-interfaces
+	const disableIPv6NontunnelBit = 0x10
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, tcpip6ParametersKey, registry.QUERY_VALUE)
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return false, nil
+		}
+		return false, trace.Wrap(err, "opening registry key %s", tcpip6ParametersKey)
+	}
+	defer key.Close()
+	val, _, err := key.GetIntegerValue("DisabledComponents")
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return false, nil
+		}
+		return false, trace.Wrap(err, "reading DisabledComponents registry value")
+	}
+	return val&disableIPv6NontunnelBit != 0, nil
 }
 
 func doesKeyPathExist(k registry.Key, path string) (bool, error) {

@@ -27,6 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
@@ -41,9 +42,8 @@ type TunnelConfig struct {
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
 	Listen string `yaml:"listen"`
-	// Roles is the list of roles to request for the tunnel.
-	// If empty, it defaults to all the bot's roles.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 	// AppName should be the name of the application as registered in Teleport
 	// that you wish to tunnel to.
 	AppName string `yaml:"app_name"`
@@ -99,6 +99,9 @@ func (s *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (s *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(s.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", TunnelServiceType)
 	}
@@ -113,9 +116,6 @@ func (s *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if s.clock == nil {
 		s.clock = clockwork.NewRealClock()
-	}
-	if s.DelegationSessionID != "" && len(s.Roles) > 0 {
-		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil

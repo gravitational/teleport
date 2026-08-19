@@ -28,10 +28,12 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -74,6 +76,11 @@ func CompareServers(a, b types.Resource) int {
 	if winA, ok := a.(types.WindowsDesktopService); ok {
 		if winB, ok := b.(types.WindowsDesktopService); ok {
 			return compareWindowsDesktopServices(winA, winB)
+		}
+	}
+	if linA, ok := a.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+		if linB, ok := b.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+			return CompareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
 		}
 	}
 	return Different
@@ -359,6 +366,35 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	return Equal
 }
 
+func CompareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetSubKind() != b.GetSubKind() {
+		return Different
+	}
+	if a.GetMetadata().GetName() != b.GetMetadata().GetName() {
+		return Different
+	}
+	if a.GetSpec().GetAddr() != b.GetSpec().GetAddr() {
+		return Different
+	}
+	if a.GetSpec().GetHostname() != b.GetSpec().GetHostname() {
+		return Different
+	}
+	if !slices.Equal(a.GetSpec().GetProxyIds(), b.GetSpec().GetProxyIds()) {
+		return Different
+	}
+	if !maps.Equal(a.GetMetadata().GetLabels(), b.GetMetadata().GetLabels()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.GetMetadata().GetExpires().AsTime().Equal(b.GetMetadata().GetExpires().AsTime()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
 // CommandLabels is a set of command labels
 type CommandLabels map[string]types.CommandLabel
 
@@ -512,6 +548,13 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// GetCursorForNode returns the resource cursor identifying a node in the
+// logical resource stream: "<name>" for unscoped nodes and
+// "~scoped/<encoded-scope>/<name>" for scoped nodes.
+func GetCursorForNode(server types.Server) string {
+	return scopes.MakeResourceCursor(server.GetScope(), server.GetName())
 }
 
 // NodeHasMissedKeepAlives checks if node has missed its keep alive

@@ -56,6 +56,7 @@ export const Spinner = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-spinner"
+
       {...otherProps}
       ref={ref}
     >

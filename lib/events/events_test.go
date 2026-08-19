@@ -97,9 +97,14 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionEndEvent:                             &apievents.AppSessionEnd{},
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
+	AppSessionTargetDialDeniedEvent:                &apievents.AppSessionTargetDialDenied{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
 	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
 	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},
+	AppSessionHTTPRequestEvent:                     &apievents.AppSessionHTTPRequest{},
+	AppSessionHTTPRequestBodyChunkEvent:            &apievents.AppSessionHTTPRequestBodyChunk{},
+	AppSessionHTTPResponseEvent:                    &apievents.AppSessionHTTPResponse{},
+	AppSessionHTTPResponseBodyChunkEvent:           &apievents.AppSessionHTTPResponseBodyChunk{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
@@ -150,6 +155,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	DeviceEnrollTokenCreateEvent:                   &apievents.DeviceEvent2{},
 	DeviceWebTokenCreateEvent:                      &apievents.DeviceEvent2{},
 	DeviceAuthenticateConfirmEvent:                 &apievents.DeviceEvent2{},
+	DeviceEnrollPairingRequestEvent:                &apievents.DeviceEvent2{},
+	DeviceEnrollPairingApproveEvent:                &apievents.DeviceEvent2{},
+	DeviceEnrollPairingDenyEvent:                   &apievents.DeviceEvent2{},
 	LockCreatedEvent:                               &apievents.LockCreate{},
 	LockDeletedEvent:                               &apievents.LockDelete{},
 	RecoveryCodeGeneratedEvent:                     &apievents.RecoveryCodeGenerate{},
@@ -309,6 +317,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
 	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
 	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
+	ClientIPRestrictionsUpdateEvent:               &apievents.ClientIPRestrictionsUpdate{},
 }
 
 // TestJSON tests JSON marshal events

@@ -326,4 +326,12 @@ export default class StoreUserContext extends Store<UserContext> {
   getMobileDeviceAccess() {
     return this.state.acl.mobileDevice;
   }
+
+  getAvailableScopes() {
+    return this.state.availableScopes;
+  }
+
+  getScope() {
+    return this.state?.scope ?? '';
+  }
 }

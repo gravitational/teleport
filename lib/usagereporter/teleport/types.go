@@ -784,6 +784,7 @@ const (
 	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
 	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
 	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindLinuxDesktop    = prehogv1a.ResourceKind_RESOURCE_KIND_LINUX_DESKTOP
 	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
@@ -2360,6 +2361,35 @@ func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEvent
 				BeamId:            a.AnonymizeString(e.BeamId),
 				Region:            e.Region,
 				StartupDurationMs: e.StartupDurationMs,
+			},
+		},
+	}
+}
+
+// BeamsPublishedEvent is emitted when a beam app is published.
+type BeamsPublishedEvent prehogv1a.BeamsPublishedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsPublishedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsPublished{
+			BeamsPublished: &prehogv1a.BeamsPublishedEvent{
+				BeamId:   a.AnonymizeString(e.BeamId),
+				Protocol: e.Protocol,
+			},
+		},
+	}
+}
+
+// BeamsUnpublishedEvent is emitted when a beam app is unpublished.
+type BeamsUnpublishedEvent prehogv1a.BeamsUnpublishedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsUnpublishedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsUnpublished{
+			BeamsUnpublished: &prehogv1a.BeamsUnpublishedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
 			},
 		},
 	}

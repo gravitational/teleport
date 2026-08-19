@@ -58,7 +58,7 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	sseServer := httptest.NewTLSServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseServer := httptest.NewServer(mcpserver.NewSSEServer(mcptest.NewServer()))
 	sseServerURL := "mcp+sse+" + sseServer.URL + "/sse"
 	t.Cleanup(sseServer.Close)
 
@@ -753,6 +753,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppPublicAddr: p.rootAppPublicAddr,
 				AppName:       p.rootAppName,
 			},
+			Participants: []string{p.username},
 		}
 		return len(cmp.Diff(
 			expectedEvent,
@@ -760,6 +761,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
+			cmpopts.IgnoreFields(apievents.AppMetadata{}, "AppLabels"),
 		)) == 0
 	})
 }

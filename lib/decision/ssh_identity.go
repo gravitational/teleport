@@ -58,6 +58,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		Generation:              id.GetGeneration(),
 		BotName:                 id.GetBotName(),
 		BotInstanceID:           id.GetBotInstanceId(),
+		BotScope:                id.GetBotScope(),
 		JoinToken:               id.GetJoinToken(),
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs:       resourceIDsToTypes(id.GetAllowedResourceIds()),
@@ -109,6 +110,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
+		BotScope:                id.BotScope,
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
 		AllowedResourceAccessIds: resourceAccessIDValuesToPointers(id.AllowedResourceAccessIDs),

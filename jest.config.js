@@ -5,6 +5,7 @@ process.env.TZ = 'UTC';
 const esModules = [
   'strip-ansi',
   'ansi-regex',
+  'cookie-es',
   'd3-color',
   'd3-scale',
   'd3-interpolate',
@@ -17,6 +18,10 @@ const esModules = [
   'internmap',
   '@nivo/bar',
   'react-error-boundary',
+  'react-router',
+  'dnd-core',
+  '@react-dnd',
+  'react-dnd',
   'until-async',
   '@exodus/bytes',
   'rettime',

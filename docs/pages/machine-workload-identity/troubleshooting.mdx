@@ -35,7 +35,7 @@ In self-hosted Teleport deployments, the Teleport Auth Service will also provide
 some additional context:
 
 ```text
-[AUTH]      WARN lock targeting User:"bot-example" is in force: The bot user "bot-example" has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate. auth/apiserver.go:224
+[AUTH]      WARN lock targeting BotInstanceID:"0fa4d626-1837-4aee-a5d0-79856d4223ab" is in force: The bot instance example/0fa4d626-1837-4aee-a5d0-79856d4223ab has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate. auth/apiserver.go:224
 ```
 
 ### Explanation
@@ -54,8 +54,8 @@ counter, stores it on the backend, and embeds a copy of the counter in the
 certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
-stored in Teleport's Auth Service, the renewal will fail and the bot user will
-be automatically [locked](../identity-governance/locking.mdx).
+stored in Teleport's Auth Service, the renewal will fail and the bot instance
+will be automatically [locked](../identity-governance/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
 directory, by default `/var/lib/teleport/bot`. It's possible to trigger this by
@@ -85,12 +85,11 @@ directories (usually `/opt/machine-id`) rather than the internal data directory
 
 Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
- 1. Remove the lock on the bot's user
+ 1. Remove the lock on the bot instance
  1. Reset the bot's generation counter by creating a new bot instance
 
-To remove the lock, first find and remove the lock targeting the bot user. For
-this example, we'll assume the bot is named `example`, which will have an
-associated Teleport user named `bot-example`:
+To remove the lock, first find and remove the lock targeting the bot instance.
+For this example, we'll assume the bot is named `example`:
 
 ```code
 $ tctl get locks
@@ -99,10 +98,10 @@ metadata:
   id: 1658359514703080513
   name: 5cee949f-5203-4f3b-9805-dac35d798a16
 spec:
-  message: The bot user "bot-example" has been locked due to a certificate generation
-    mismatch, possibly indicating a stolen certificate.
+  message: The bot instance example/0fa4d626-1837-4aee-a5d0-79856d4223ab has been locked
+    due to a certificate generation mismatch, possibly indicating a stolen certificate.
   target:
-    user: bot-example
+    bot_instance_id: 0fa4d626-1837-4aee-a5d0-79856d4223ab
 version: v2
 
 $ tctl rm lock/5cee949f-5203-4f3b-9805-dac35d798a16
@@ -294,16 +293,6 @@ $ tctl edit role/machine-id-db
 Edit the role, then save and close the file to apply your changes.
 
 (!docs/pages/includes/create-role-using-web.mdx!)
-
-<Admonition type="note">
-By default, output services (like `/opt/machine-id`) are granted all roles provided
-to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
-subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
-
-If permissions are unexpectedly missing, ensure `tbot.yaml` requests your
-database role, either by relying on default behavior or adding the role to the
-`roles: ...` list.
-</Admonition>
 
 Once fixed, restart or reload the `tbot` clients for the updated role to take
 effect.

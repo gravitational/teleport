@@ -232,7 +232,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
 					types.NewRule(types.KindBeamsConfig, RW()),
@@ -291,6 +290,7 @@ func NewPresetAccessRole() types.Role {
 				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
@@ -330,6 +330,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetLinuxDesktopLogins(types.Allow, []string{teleport.TraitInternalLinuxDesktopLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
@@ -880,7 +881,6 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindHealthCheckConfig, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
-					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),

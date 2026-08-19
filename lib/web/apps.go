@@ -87,6 +87,10 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		if clusterName == "" {
 			clusterName = result.ClusterName
 		}
+		// TODO (williamo/scopes): Scoped apps currently won't support required_apps.
+		if scope := result.App.GetScope(); scope != "" && len(requiredAppNames) > 0 {
+			return nil, trace.AccessDenied("scoped apps do not support required app redirects")
+		}
 		for _, requiredAppName := range requiredAppNames {
 			if result.App.GetUseAnyProxyPublicAddr() {
 				proxyDNSName := utils.FindMatchingProxyDNS(req.FQDNHint, h.proxyDNSNames())
@@ -116,9 +120,6 @@ type CreateAppSessionRequest struct {
 	AWSRole string `json:"arn,omitempty"`
 	// MFAResponse is an optional MFA response used to create an MFA verified app session.
 	MFAResponse client.MFAChallengeResponse `json:"mfaResponse"`
-	// TODO(Joerger): DELETE IN v19.0.0
-	// Backwards compatible version of MFAResponse
-	MFAResponseJSON string `json:"mfa_response"`
 }
 
 // CreateAppSessionResponse is a response to POST /v1/webapi/sessions/app
@@ -162,14 +163,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	// Fallback to backwards compatible mfa response.
-	if mfaResponse == nil && req.MFAResponseJSON != "" {
-		mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.MFAResponseJSON))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// Get an auth client connected with the user's identity.
 	authClient, err := ctx.GetClient()
 	if err != nil {
@@ -193,6 +186,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		AppName:     result.App.GetName(),
 		URI:         result.App.GetURI(),
 		ClientAddr:  r.RemoteAddr,
+		Scope:       result.App.GetScope(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

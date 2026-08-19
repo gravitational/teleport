@@ -54,6 +54,11 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 			want:  nil,
 		},
 		{
+			name:  "nil with type set app.session.chunk",
+			event: (*apievents.AppSessionChunk)(nil),
+			want:  nil,
+		},
+		{
 			name: "non session.end event",
 			event: &apievents.UserLogin{
 				Metadata: apievents.Metadata{
@@ -186,6 +191,36 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 					},
 				},
 				Spec: types.DatabaseSpecV3{},
+			},
+		},
+		{
+			name: "app session chunk",
+			event: &apievents.AppSessionChunk{
+				AppMetadata: apievents.AppMetadata{
+					AppName:       "app-name",
+					AppURI:        "http://localhost:8080",
+					AppPublicAddr: "app.example.com",
+					AppLabels: map[string]string{
+						"env":  "prod",
+						"team": "web",
+					},
+				},
+			},
+			want: &types.AppV3{
+				Kind:    types.KindApp,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name:      "app-name",
+					Namespace: "default",
+					Labels: map[string]string{
+						"env":  "prod",
+						"team": "web",
+					},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "http://localhost:8080",
+					PublicAddr: "app.example.com",
+				},
 			},
 		},
 	}

@@ -154,6 +154,9 @@ type Request struct {
 	// BotInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any.
 	BotInstanceID string
+	// BotScope is the scope of the bot requesting this cert, if any. Empty for
+	// unscoped bots and non-bot identities.
+	BotScope string
 	// BotInternal is a flag that indicates an identity is specifically a bot
 	// internal identity, rather than output certificates intended for direct
 	// consumption by users or user-facing bot services.
@@ -184,6 +187,8 @@ type Request struct {
 	HeadlessAuthenticationID string
 	// Login is the SSH login (OS username) the user is requesting to connect as.
 	Login string
+	// TargetScope is the scope of the target resource.
+	TargetScope string
 }
 
 // Check verifies the cert request is valid.

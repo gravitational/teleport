@@ -34,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
 // TestHandleRequest covers `handleRequest` function which is responsible for
@@ -50,7 +53,7 @@ func TestHandleRequest(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		transport            *http.Transport
-		newRequestFunc       func(http.ResponseWriter, *httptest.Server) NewUpstreamRequestFunc
+		newRequestFunc       func(http.ResponseWriter, *httptest.Server, llmlimiter.SettleFunc) NewUpstreamRequestFunc
 		modifyRecorderFunc   func(*mockUpstreamRecorder)
 		writeErrorFunc       WriteErrorFunc
 		upstreamBody         string
@@ -59,16 +62,20 @@ func TestHandleRequest(t *testing.T) {
 		expectedResponse     require.ValueAssertionFunc
 	}{
 		"success request": {
-			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server, settleFunc llmlimiter.SettleFunc) NewUpstreamRequestFunc {
+				return func(_ types.Application, _ *http.Request) (*llmrequest.Request, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
-						return nil, nil, trace.Wrap(err)
+						return nil, trace.Wrap(err)
 					}
 
-					return req, &mockRequestInfo{
-						requestedModel: "requested",
-						providerModel:  "provider",
+					return &llmrequest.Request{
+						HTTPRequest: req,
+						Info: &mockRequestInfo{
+							requestedModel: "requested",
+							providerModel:  "provider",
+						},
+						SettleFunc: settleFunc,
 					}, nil
 				}
 			},
@@ -94,9 +101,11 @@ func TestHandleRequest(t *testing.T) {
 			expectedResponse: expectString("REPLY"),
 		},
 		"new request error": {
-			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
-					return nil, nil, trace.BadParameter("invalid request")
+			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server, settleFunc llmlimiter.SettleFunc) NewUpstreamRequestFunc {
+				return func(_ types.Application, _ *http.Request) (*llmrequest.Request, error) {
+					return &llmrequest.Request{
+						SettleFunc: settleFunc,
+					}, trace.BadParameter("invalid request")
 				}
 			},
 			writeErrorFunc: func(w http.ResponseWriter, err error) error {
@@ -116,11 +125,14 @@ func TestHandleRequest(t *testing.T) {
 			expectedResponse: expectString("invalid request"),
 		},
 		"new request error with partial info": {
-			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
-					return nil, &mockRequestInfo{
-						requestedModel: "requested",
-						providerModel:  "provider",
+			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server, settleFunc llmlimiter.SettleFunc) NewUpstreamRequestFunc {
+				return func(_ types.Application, _ *http.Request) (*llmrequest.Request, error) {
+					return &llmrequest.Request{
+						Info: &mockRequestInfo{
+							requestedModel: "requested",
+							providerModel:  "provider",
+						},
+						SettleFunc: settleFunc,
 					}, trace.BadParameter("invalid request")
 				}
 			},
@@ -141,16 +153,20 @@ func TestHandleRequest(t *testing.T) {
 			expectedResponse: expectString("invalid request"),
 		},
 		"successful request with recorder error": {
-			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server, settleFunc llmlimiter.SettleFunc) NewUpstreamRequestFunc {
+				return func(_ types.Application, _ *http.Request) (*llmrequest.Request, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
-						return nil, nil, trace.Wrap(err)
+						return nil, trace.Wrap(err)
 					}
 
-					return req, &mockRequestInfo{
-						requestedModel: "requested",
-						providerModel:  "provider",
+					return &llmrequest.Request{
+						HTTPRequest: req,
+						Info: &mockRequestInfo{
+							requestedModel: "requested",
+							providerModel:  "provider",
+						},
+						SettleFunc: settleFunc,
 					}, nil
 				}
 			},
@@ -175,16 +191,20 @@ func TestHandleRequest(t *testing.T) {
 		},
 		// This case covers scenarios where upstream is not reachable.
 		"upstream forward error": {
-			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(llm *types.LLM, r *http.Request) (*http.Request, RequestInfo, error) {
+			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server, settleFunc llmlimiter.SettleFunc) NewUpstreamRequestFunc {
+				return func(_ types.Application, _ *http.Request) (*llmrequest.Request, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
-						return nil, nil, trace.Wrap(err)
+						return nil, trace.Wrap(err)
 					}
 
-					return req, &mockRequestInfo{
-						requestedModel: "requested",
-						providerModel:  "provider",
+					return &llmrequest.Request{
+						HTTPRequest: req,
+						Info: &mockRequestInfo{
+							requestedModel: "requested",
+							providerModel:  "provider",
+						},
+						SettleFunc: settleFunc,
 					}, nil
 				}
 			},
@@ -231,7 +251,9 @@ func TestHandleRequest(t *testing.T) {
 				}
 			})
 
-			h := newTestHandler(t, tc.transport)
+			const maxOutputTokens = 128
+			limiter := newMockLimiter(llmlimiter.ReserveInfo{OutputTokens: maxOutputTokens})
+			h := newTestHandler(t, tc.transport, limiter)
 			app := newTestApp(t, &types.LLM{Format: types.LLMFormatAnthropic, Provider: types.LLMProviderAnthropic})
 			sessionCtx := &common.SessionContext{App: app, Audit: audit}
 			req := newTestSessionRequest(
@@ -243,14 +265,23 @@ func TestHandleRequest(t *testing.T) {
 				sessionCtx,
 			)
 
+			// Reservations are made by the provider requests, which are mocked
+			// here, so the settle function is provided to them.
+			_, settleFunc, err := limiter.Reserve(t.Context(), llmlimiter.ReserveRequest{
+				App:   app,
+				Usage: &llmlimiter.Usage{OutputTokens: maxOutputTokens},
+			})
+			require.NoError(t, err)
+
+			var rec *mockUpstreamRecorder
 			w := httptest.NewRecorder()
 			h.handleRequest(
 				sessionCtx,
 				w,
 				req,
-				tc.newRequestFunc(w, mockServer),
-				func(_ *slog.Logger, w http.ResponseWriter) (UpstreamRecorder, error) {
-					rec := &mockUpstreamRecorder{ResponseWriter: w}
+				tc.newRequestFunc(w, mockServer, settleFunc),
+				func(_ *slog.Logger, _ llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
+					rec = &mockUpstreamRecorder{ResponseWriter: w}
 					tc.modifyRecorderFunc(rec)
 					return rec, nil
 				},
@@ -260,8 +291,96 @@ func TestHandleRequest(t *testing.T) {
 			require.NotNil(t, auditEvent)
 			tc.expectAuditEvent(t, auditEvent)
 			tc.expectedResponse(t, w.Body.String())
+
+			var expectedUsage llmlimiter.Usage
+			if rec != nil {
+				expectedUsage = llmlimiter.Usage{
+					InputTokens:  uint(rec.InputTokensCount()),
+					OutputTokens: uint(rec.OutputTokensCount()),
+				}
+			}
+			require.True(t, limiter.settleCalled, "expected reservation settle to be called")
+			require.Equal(t, expectedUsage, limiter.settleUsage)
 		})
 	}
+}
+
+func TestHandleError(t *testing.T) {
+	for name, tc := range map[string]struct {
+		llm              *types.LLM
+		err              error
+		expectResponse   require.ValueAssertionFunc
+		expectAuditEvent require.ValueAssertionFunc
+	}{
+		"supported format renders error and audit error": {
+			llm: &types.LLM{
+				Format: types.LLMFormatAnthropic,
+			},
+			err: trace.BadParameter("not supported value"),
+			expectResponse: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				rec, _ := i1.(*httptest.ResponseRecorder)
+				res := rec.Result()
+				body, err := io.ReadAll(res.Body)
+				require.NoError(tt, err, i2...)
+				require.Contains(tt, string(body), llmerrors.ErrInternal.Error(), i2...)
+			},
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.False(tt, evt.Status.Success, i2...)
+			},
+		},
+		"unsupported format renders error and audit error": {
+			llm: &types.LLM{
+				Format: "unsupported-format",
+			},
+			err: trace.BadParameter("not supported value"),
+			expectResponse: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				rec, _ := i1.(*httptest.ResponseRecorder)
+				res := rec.Result()
+				body, err := io.ReadAll(res.Body)
+				require.NoError(tt, err, i2...)
+				require.Contains(tt, string(body), llmerrors.ErrInternal.Error(), i2...)
+			},
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.False(tt, evt.Status.Success, i2...)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var auditEvent *apievents.AppSessionLLMRequest
+			h := newTestHandler(t, nil /* transport */, nil /* limiter */)
+			req := newTestSessionRequest(
+				t,
+				http.MethodPost,
+				"",
+				"/",
+				nil,
+				&common.SessionContext{
+					App: &types.AppV3{
+						Spec: types.AppSpecV3{
+							LLM: tc.llm,
+						},
+					},
+					Audit: newTestAudit(t, func(pe apievents.PreparedSessionEvent) {
+						if evt, ok := pe.GetAuditEvent().(*apievents.AppSessionLLMRequest); ok {
+							auditEvent = evt
+						}
+					}),
+				},
+			)
+
+			w := httptest.NewRecorder()
+			h.HandleError(req, w, tc.err)
+			tc.expectResponse(t, w)
+			tc.expectAuditEvent(t, auditEvent)
+		})
+	}
+
 }
 
 type mockUpstreamRecorder struct {
@@ -299,7 +418,7 @@ func (m *mockUpstreamRecorder) Written() int {
 }
 
 type mockRequestInfo struct {
-	RequestInfo
+	llmrequest.RequestInfo
 
 	requestedModel string
 	providerModel  string
@@ -319,6 +438,26 @@ type streamRecorder struct {
 }
 
 func (s *streamRecorder) Write(p []byte) (int, error) { return len(p), nil }
+
+func newMockLimiter(info llmlimiter.ReserveInfo) *mockLimiter {
+	return &mockLimiter{reserveInfo: info}
+}
+
+// mockLimiter serves a single use limiter that records the calls.
+type mockLimiter struct {
+	reserveInfo llmlimiter.ReserveInfo
+
+	settleUsage  llmlimiter.Usage
+	settleCalled bool
+}
+
+// Reserve implements [Limiter].
+func (m *mockLimiter) Reserve(_ context.Context, _ llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
+	return m.reserveInfo, func(_ context.Context, settleUsage llmlimiter.Usage) {
+		m.settleCalled = true
+		m.settleUsage = settleUsage
+	}, nil
+}
 
 // newTestAudit creates a common.Audit that calls onRecord for each recorded event.
 func newTestAudit(t *testing.T, onRecord func(apievents.PreparedSessionEvent)) common.Audit {
@@ -362,11 +501,12 @@ func newTestSessionRequest(t *testing.T, method, addr string, path string, body 
 	return common.WithSessionContext(req, sessionCtx)
 }
 
-func newTestHandler(t *testing.T, tr *http.Transport) *Handler {
+func newTestHandler(t *testing.T, tr *http.Transport, limiter Limiter) *Handler {
 	t.Helper()
 	h, err := NewHandler(t.Context(), HandlerConfig{
 		Log:       slog.Default(),
 		Transport: tr,
+		Limiter:   limiter,
 	})
 	require.NoError(t, err)
 	return h

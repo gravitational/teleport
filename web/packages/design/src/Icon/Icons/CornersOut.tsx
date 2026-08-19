@@ -56,6 +56,7 @@ export const CornersOut = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-cornersout"
+
       {...otherProps}
       ref={ref}
     >

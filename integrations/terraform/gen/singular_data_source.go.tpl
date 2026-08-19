@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package legacy
 
 import (
 	"context"
@@ -32,6 +32,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	{{ schemaImport . }}
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
 // dataSourceTeleport{{.Name}}Type is the data source metadata type
@@ -50,7 +51,7 @@ func (r dataSourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.S
 // NewDataSource creates the empty data source
 func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
 	return dataSourceTeleport{{.Name}}{
-		p: *(p.(*Provider)),
+		p: p.(Provider),
 	}, nil
 }
 
@@ -67,7 +68,7 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	}
 {{- end}}
 {{- if .RequestWrapper}}
-	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
@@ -77,10 +78,10 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 		{{- end}}
 	})
 {{- else}}
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 {{- end}}
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 {{- if .RequestWrapper}}

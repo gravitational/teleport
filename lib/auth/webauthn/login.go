@@ -71,7 +71,8 @@ type loginFlow struct {
 func isReuseAllowedForScope(scope mfav1.ChallengeScope) bool {
 	switch scope {
 	case mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-		mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION:
+		mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI:
 		return true
 	default:
 		return false
@@ -211,6 +212,7 @@ func (f *loginFlow) begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 	if params.SessionIdentifyingPayload != nil {
 		sd.Payload = &mfatypes.SessionIdentifyingPayload{
 			SSHSessionID: params.SessionIdentifyingPayload.GetSshSessionId(),
+			TLSSessionID: params.SessionIdentifyingPayload.GetTlsSessionId(),
 		}
 	}
 

@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -36,12 +37,29 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tlscatest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestValidateApp(t *testing.T) {
+	// A scoped app's public_addr must be the derived "<hash(name,scope)>.<proxy>"
+	// address; any other value is rejected. The proxy suffix is not checked
+	// (label-only), and a scoped app skips the proxy-collision check entirely.
+	const scopedScope = "/staging/west"
+	scopedApp := func(name, scope, publicAddr string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{
+			URI:        "http://localhost:3000",
+			PublicAddr: publicAddr,
+		}, scope)
+		require.NoError(t, err)
+		return app
+	}
+	scopedDerived := scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "proxy.example.com")
+	// Derived for a different scope, so it does not match scopedScope.
+	wrongScopeDerived := scopedapp.ScopedAppPublicAddr("/prod", "grafana", "proxy.example.com")
+
 	tests := []struct {
 		name       string
 		app        types.Application
@@ -195,6 +213,63 @@ func TestValidateApp(t *testing.T) {
 			proxyAddrs: []string{"example.com:443", "example.com:80"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
+		{
+			name: "valid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "us-west-2",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+		},
+		{
+			name: "invalid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "random",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "invalid AWS region",
+		},
+		// Scoped apps: public_addr must be the derived address for (name, scope).
+		{
+			name: "correct derived public_addr accepted",
+			app:  scopedApp("grafana", scopedScope, scopedDerived),
+		},
+		{
+			name: "public_addr with different proxy suffix accepted",
+			app:  scopedApp("grafana", scopedScope, scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "other.example.com")),
+		},
+		{
+			name:    "empty public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, ""),
+			wantErr: `scoped app "grafana" public address "" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "wrong scope's derived address rejected",
+			app:     scopedApp("grafana", scopedScope, wrongScopeDerived),
+			wantErr: `scoped app "grafana" public address "` + wrongScopeDerived + `" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "non-derived public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, "grafana.proxy.example.com"),
+			wantErr: `scoped app "grafana" public address "grafana.proxy.example.com" does not match its derived address for scope "/staging/west"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -209,9 +284,9 @@ func TestValidateApp(t *testing.T) {
 	}
 }
 
-func makeServer(t *testing.T, outerName, innerName, serverScope, appScope string) types.AppServer {
+func makeServer(t *testing.T, outerName, innerName, serverScope, appScope, publicAddr string) types.AppServer {
 	t.Helper()
-	app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080"}, appScope)
+	app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: publicAddr}, appScope)
 	require.NoError(t, err)
 	srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
 	require.NoError(t, err)
@@ -224,13 +299,18 @@ func makeServer(t *testing.T, outerName, innerName, serverScope, appScope string
 func TestValidateAppServer(t *testing.T) {
 	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
 
+	// A scoped app server's embedded app must carry the derived public_addr for
+	// the server's scope; the proxy suffix is not checked (label-only).
+	derivedProd := scopedapp.ScopedAppPublicAddr("/prod", "my-app", "proxy.example.com")
+
 	tests := []struct {
-		name     string
-		srvName  string
-		appName  string
-		srvScope string
-		appScope string
-		wantErr  string
+		name          string
+		srvName       string
+		appName       string
+		srvScope      string
+		appScope      string
+		appPublicAddr string
+		wantErr       string
 	}{
 		// Name validation.
 		{
@@ -256,11 +336,13 @@ func TestValidateAppServer(t *testing.T) {
 		},
 		// Scope validation: the embedded app scope must equal the server scope.
 		{
-			name:     "equal scope accepted",
-			srvName:  "my-srv",
-			appName:  "my-app",
-			srvScope: "/prod",
-			appScope: "/prod"},
+			name:          "equal scope accepted",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: derivedProd,
+		},
 		{
 			name:    "unscoped server and app accepted",
 			srvName: "my-srv",
@@ -290,12 +372,22 @@ func TestValidateAppServer(t *testing.T) {
 			appScope: "/prod",
 			wantErr:  `app server "my-srv" scope "" does not match its embedded app scope "/prod"`,
 		},
+		{
+			name:          "scoped non-derived public_addr rejected",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: "my-app.proxy.example.com",
+			wantErr:       `scoped app "my-app" public address "my-app.proxy.example.com" does not match its derived address for scope "/prod"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateAppServer(makeServer(t, tt.srvName, tt.appName, tt.srvScope, tt.appScope), proxyGetter)
+			err := ValidateAppServer(makeServer(t, tt.srvName, tt.appName, tt.srvScope, tt.appScope, tt.appPublicAddr), proxyGetter)
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
 			} else {
 				require.NoError(t, err)
 			}

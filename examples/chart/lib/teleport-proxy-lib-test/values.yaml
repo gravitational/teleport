@@ -100,6 +100,9 @@ serviceAccount:
   create: true
   name: ""
 
+serviceAccountTokenAudience: ""
+serviceAccountTokenExpirationSeconds: 0
+
 rbac:
   create: true
 

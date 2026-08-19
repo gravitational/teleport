@@ -161,7 +161,7 @@ To create the service account:
     ```code
     $ Get-ADUser -Identity svc-teleport
     ```
-  
+
   - If the `dsacls` commands fail, ensure you're running PowerShell as a Domain Administrator.
 
   - Verify the LDAP containers were created by checking `CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration` in AD.
@@ -476,14 +476,14 @@ the performance of remote desktop connections.
     $ gpresult /r
     ```
 
-  - Verify the Teleport CA is in the NTAuth store: 
+  - Verify the Teleport CA is in the NTAuth store:
 
     ```code
     $ certutil -viewstore -enterprise NTAuth
     ```
 
-  - Verify the Teleport CA is in the Root store: 
-  
+  - Verify the Teleport CA is in the Root store:
+
     ```code
     $ certutil -viewstore -enterprise Root
     ```
@@ -710,14 +710,14 @@ To configure Teleport to protect access to Windows desktops:
   description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
 >
   Here are some troubleshooting tips:
-  - Check the service status on the Linux server: 
-  
+  - Check the service status on the Linux server:
+
     ```code
     $ systemctl status teleport
     ```
 
-  - Review logs for connection errors: 
-  
+  - Review logs for connection errors:
+
     ```code
     $ sudo journalctl -u teleport
     ```
@@ -726,8 +726,8 @@ To configure Teleport to protect access to Windows desktops:
 
   - Ensure the Linux server can reach the Teleport Proxy and the LDAP server on port 636.
 
-  - Test LDAP connectivity: 
-  
+  - Test LDAP connectivity:
+
     ```code
     $ nc -vz $LDAP_SERVER 636
     ```
@@ -803,8 +803,8 @@ To connect to a Windows desktop:
 
   - Ensure your Teleport user is assigned the `windows-desktop-admins` role or a role with the same permissions.
 
-  - Review the Windows Desktop Service logs: 
-  
+  - Review the Windows Desktop Service logs:
+
     ```code
     $ sudo journalctl -u teleport
     ```
@@ -828,7 +828,7 @@ appropriate user rights, and they must be added to the 'Remote Desktop Users' AD
 
 ### Add users/groups to the 'Remote Desktop Users' AD group
 
-1. Open **Active Directory Users and Computers** 
+1. Open **Active Directory Users and Computers**
 1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
 1. Select the **Members** tab and click **Add**
 1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
@@ -895,7 +895,26 @@ For example, if an AD computer object had a location attribute with a value of O
 and a department attribute with a value of Engineering, the Teleport resource for this
 host would have both `ldap/location=Oakland` and `ldap/department=Engineering` labels.
 
-In addition, you can also specify a set of static labels that apply to all hosts discovered
+Teleport's default behavior for multi-valued attributes is to pick the first one.
+For example, a host that has an LDAP attribute `usage` with values `db` and
+`ca` would result in a Teleport label of `ldap/usage=db`. You can override this
+behavior by setting `label_attribute_mode: join` in your discovery config:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  discovery_configs:
+    - base_dn: '*'
+      label_attributes:
+        - 'usage'
+      label_attribute_mode: 'join'
+      label_attribute_join_separator: '_'
+```
+
+With this config, the Teleport label for this host would be
+`ldap/usage=db_ca`. The join separator defaults to `|` if unspecified.
+
+Lastly, you can also specify a set of static labels that apply to all hosts discovered
 via this policy:
 
 ```yaml
@@ -1009,7 +1028,7 @@ the external forest. Multiple CA certificates can be written to the `ldap_ca_cer
   ```yaml
   windows_desktop_service:
     enabled: true
-    
+
     ldap:
       addr: example.com:636
       username: 'DEV\svc-teleport'

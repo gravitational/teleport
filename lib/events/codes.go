@@ -138,6 +138,16 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// AppSessionHTTPRequestCode is the HTTP proxy request event code.
+	AppSessionHTTPRequestCode = "T2015I"
+	// AppSessionHTTPRequestBodyChunkCode is the HTTP proxy request body chunk event code.
+	AppSessionHTTPRequestBodyChunkCode = "T2016I"
+	// AppSessionHTTPResponseCode is the HTTP proxy response event code.
+	AppSessionHTTPResponseCode = "T2017I"
+	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
+	AppSessionHTTPResponseBodyChunkCode = "T2018I"
+	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
+	AppSessionTargetDialDeniedCode = "T2019E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -281,6 +291,13 @@ const (
 	// for when a write operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
 	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
+	// LinuxDesktopSessionStartCode is the Linux desktop session start event code.
+	LinuxDesktopSessionStartCode = "TDP07I"
+	// LinuxDesktopSessionStartFailureCode is event code for Linux desktop sessions
+	// that failed to start.
+	LinuxDesktopSessionStartFailureCode = "TDP07W"
+	// LinuxDesktopSessionEndCode is the Linux desktop session end event code.
+	LinuxDesktopSessionEndCode = "TDP08I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -508,6 +525,18 @@ const (
 	DeviceWebTokenCreateCode = "TV008I"
 	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
 	DeviceAuthenticateConfirmCode = "TV009I"
+	// DeviceEnrollPairingRequestCode is the device enroll pairing request code.
+	DeviceEnrollPairingRequestCode = "TV010I"
+	// DeviceEnrollPairingRequestFailureCode is the device enroll pairing request
+	// failure code.
+	DeviceEnrollPairingRequestFailureCode = "TV010W"
+	// DeviceEnrollPairingApproveCode is the device enroll pairing approve code.
+	DeviceEnrollPairingApproveCode = "TV011I"
+	// DeviceEnrollPairingApproveFailureCode is the device enroll pairing approve
+	// failure code.
+	DeviceEnrollPairingApproveFailureCode = "TV011W"
+	// DeviceEnrollPairingDenyCode is the device enroll pairing deny code.
+	DeviceEnrollPairingDenyCode = "TV012W"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
@@ -857,19 +886,6 @@ const (
 
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
-
-	// AppAuthConfigCreateCode is the app auth config create event code.
-	AppAuthConfigCreateCode = "TAAC001I"
-	// AppAuthConfigUpdateCode is the app auth config update event code.
-	AppAuthConfigUpdateCode = "TAAC002I"
-	// AppAuthConfigDeleteCode is the app auth config delete event code.
-	AppAuthConfigDeleteCode = "TAAC003I"
-	// AppAuthConfigVerifySuccessCode is the app auth verification success event
-	// code.
-	AppAuthConfigVerifySuccessCode = "TAAC004I"
-	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
-	// code.
-	AppAuthConfigVerifyFailureCode = "TAAC004E"
 
 	// VnetConfigCreateCode is the Vnet config create event code.
 	VnetConfigCreateCode = "TVNET001I"

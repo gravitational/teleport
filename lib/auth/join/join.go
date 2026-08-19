@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -100,6 +101,35 @@ type GitlabParams struct {
 	// EnvVarName is the name of the environment variable that contains the
 	// IDToken. If unset, this will default to "TBOT_GITLAB_JWT".
 	EnvVarName string
+}
+
+// GenericOIDCParams has parameters specific to the `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// EnvVarName is the name of an environment variable to extract a JWT.
+	// Mutually exclusive with `Command`.
+	EnvVarName string
+
+	// Command is the command (and arguments) to run to fetch the JWT. The
+	// stdout must consist exclusively of a valid JWT and it must return with a
+	// 0 exit code. Mutually exclusive with `EnvVarName`.
+	Command []string
+
+	// Timeout is the timeout for a command token fetch. If unset, a timeout of
+	// 1 minute is used.
+	Timeout time.Duration
+}
+
+// Validate does basic sanity checks against a GenericOIDCParams.
+func (p *GenericOIDCParams) Validate() error {
+	if p.EnvVarName == "" && len(p.Command) == 0 {
+		return trace.BadParameter("generic_oidc: must set one of `env` or `command`")
+	}
+
+	if p.EnvVarName != "" && len(p.Command) > 0 {
+		return trace.BadParameter("generic_oidc: cannot set both `env` and `command`")
+	}
+
+	return nil
 }
 
 // VersionInfo contains version information advertised by a cluster during join.
@@ -187,6 +217,8 @@ type RegisterParams struct {
 	TerraformCloudAudienceTag string
 	// GitlabParams is the parameters specific to the gitlab join method.
 	GitlabParams GitlabParams
+	// GenericOIDCParams contains parameters specific to generic_oidc joining.
+	GenericOIDCParams GenericOIDCParams
 	// BoundKeypairState contains the bound keypair client state, which must
 	// always be present when joining with the bound keypair join method, even
 	// at first join.
@@ -327,6 +359,16 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
 	if err != nil {
+		// A scoped token with a Scope Qualified Name looks like a file path
+		// and will result in file not found errors. If the provided token is
+		// a SQN, then the request is rejected. Scoped tokens can only be used
+		// in the new join service.
+		if _, err := scopes.ParseQualifiedName(params.Token); err == nil {
+			// TODO(tross/scopes): This error matches the one returend from
+			// the unscoped path. Look into unifying them, or exporting the
+			// TokenNotFoundError to an importable package.
+			return nil, trace.AccessDenied("token expired or not found")
+		}
 		return nil, trace.Wrap(err)
 	}
 

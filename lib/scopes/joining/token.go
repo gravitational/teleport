@@ -266,6 +266,125 @@ func validateOracle(oracle *joiningv1.Oracle) error {
 	return nil
 }
 
+// validates the given Generic OIDC configuration. Also implemented by
+// api/types/provisioning.go for unscoped generic_oidc tokens.
+func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
+	if spec == nil {
+		return trace.BadParameter("generic_oidc configuration must be defined for a scoped token when using the generic_oidc join method")
+	}
+	if spec.GetIssuer() == "" {
+		return trace.BadParameter("generic_oidc: issuer is required")
+	}
+	if spec.GetAudience() == "" {
+		return trace.BadParameter("generic_oidc: audience is required")
+	}
+
+	hasAnyAllowAny := len(spec.GetAllowAny()) > 0
+	hasAnyMustMatchFields := false
+	if spec.GetMustMatchFields() != nil {
+		hasAnyMustMatchFields = len(spec.GetMustMatchFields().GetFields()) > 0
+	}
+
+	// At least one must_match_fields or allow_any rule is required; this check
+	// is a simpler variant of the one in genericoidc's
+	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
+	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
+	if !hasAnyAllowAny && !hasAnyMustMatchFields {
+		return trace.BadParameter("generic_oidc: at least one rule must exist " +
+			"under either `must_match_fields` or `allow_any`")
+	}
+
+	for i, rule := range spec.GetAllowAny() {
+		if rule.GetExpression() == "" && len(rule.GetConditions()) == 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
+		if rule.GetExpression() != "" && len(rule.GetConditions()) > 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+
+		for j, cond := range rule.GetConditions() {
+			if cond.GetAttribute() == "" {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: an attribute "+
+						"is required", i, j)
+			}
+
+			conds := 0
+			if cond.GetEq() != nil {
+				conds++
+			}
+			if cond.GetNotEq() != nil {
+				conds++
+			}
+			if cond.GetIn() != nil {
+				conds++
+			}
+			if cond.GetNotIn() != nil {
+				conds++
+			}
+
+			if conds == 0 || conds > 1 {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: exactly one "+
+						"operator is required", i, j)
+			}
+		}
+	}
+
+	parsed, err := url.Parse(spec.GetIssuer())
+	if err != nil {
+		return trace.BadParameter("generic_oidc: issuer must be a valid URL")
+	}
+
+	if parsed.Scheme == "http" {
+		if !spec.GetInsecureAllowHttpIssuer() {
+			return trace.BadParameter("generic_oidc: issuer must be https:// unless insecure_allow_http_issuer is set")
+		}
+	} else if parsed.Scheme != "https" {
+		return trace.BadParameter("generic_oidc: issuer invalid URL scheme, must be https://")
+	}
+
+	return nil
+}
+
+// validateGithub validates the GitHub-specific scoped token configuration.
+// It checks that the token usage mode is compatible, that enterprise_server_host
+// does not contain a scheme or path, that enterprise_server_host and enterprise_slug
+// are mutually exclusive, and that at least one allow rule with a non-empty
+// field is set.
+func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error {
+	if spec == nil {
+		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
+	}
+	if tokenUsageMode == TokenUsageModeSingle {
+		return trace.BadParameter("usage mode %q is not supported for github join method", TokenUsageModeSingle)
+	}
+	if strings.Contains(spec.GetEnterpriseServerHost(), "/") {
+		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
+	}
+	if spec.GetEnterpriseServerHost() != "" && spec.GetEnterpriseSlug() != "" {
+		return trace.BadParameter("'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("the github join method requires at least one token allow rule")
+	}
+
+	for _, rule := range spec.GetAllow() {
+		repoSet := rule.GetRepository() != ""
+		ownerSet := rule.GetRepositoryOwner() != ""
+		subSet := rule.GetSub() != ""
+		enterpriseSet := rule.GetEnterprise() != ""
+		enterpriseIDSet := rule.GetEnterpriseId() != ""
+		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
+			return trace.BadParameter(`allow rule for github must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -289,6 +408,12 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	case types.JoinMethodBoundKeypair:
 		// Bound keypair tokens are always valid
+	case types.JoinMethodGenericOIDC:
+		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
+	case types.JoinMethodGitHub:
+		if err := validateGithub(token.GetSpec().GetGithub(), TokenUsageMode(token.GetSpec().GetUsageMode())); err != nil {
+			return trace.Wrap(err, "github join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -402,10 +527,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	if expected, actual := "", token.GetSubKind(); expected != actual {
 		return trace.BadParameter("expected sub_kind %v, got %q", expected, actual)
 	}
-	if name := token.GetMetadata().GetName(); name == "" {
-		return trace.BadParameter("missing name")
-	} else if strings.Contains(name, ":") {
-		return trace.BadParameter("scoped token names cannot contain colons")
+	if err := scopes.StrongValidateResourceName(token.GetMetadata().GetName()); err != nil {
+		return trace.Wrap(err, "validating scoped token name")
 	}
 
 	if token.GetScope() == "" {
@@ -921,6 +1044,33 @@ func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 		MustMatchFields: globalMatchers,
 		AllowAny:        allow,
 	}, nil
+}
+
+func (t *Token) GetGithub() *types.ProvisionTokenSpecV2GitHub {
+	spec := t.scoped.GetSpec().GetGithub()
+
+	allow := make([]*types.ProvisionTokenSpecV2GitHub_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GitHub_Rule{
+			Sub:             rule.GetSub(),
+			Repository:      rule.GetRepository(),
+			RepositoryOwner: rule.GetRepositoryOwner(),
+			Workflow:        rule.GetWorkflow(),
+			Environment:     rule.GetEnvironment(),
+			Actor:           rule.GetActor(),
+			Ref:             rule.GetRef(),
+			RefType:         rule.GetRefType(),
+			Enterprise:      rule.GetEnterprise(),
+			EnterpriseID:    rule.GetEnterpriseId(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GitHub{
+		EnterpriseServerHost: spec.GetEnterpriseServerHost(),
+		EnterpriseSlug:       spec.GetEnterpriseSlug(),
+		StaticJWKS:           spec.GetStaticJwks(),
+		Allow:                allow,
+	}
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].

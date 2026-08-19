@@ -216,9 +216,7 @@ func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 		generateOpts = append(generateOpts, identity.WithPrivateKey(privKey))
 	}
 
-	if s.cfg.DelegationSessionID == "" {
-		generateOpts = append(generateOpts, identity.WithRoles(s.cfg.Roles))
-	} else {
+	if s.cfg.DelegationSessionID != "" {
 		generateOpts = append(generateOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 
@@ -302,9 +300,4 @@ func (*hardwareKeyService) NewPrivateKey(context.Context, hardwarekey.PrivateKey
 	// This method shouldn't be called because tsh explicitly bypasses the
 	// Hardware Key Agent during login.
 	return nil, trace.NotImplemented("generating new private keys is not supported")
-}
-
-func (*hardwareKeyService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	// This method is marked for deletion in v19.
-	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
 }

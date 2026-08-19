@@ -128,6 +128,41 @@ func newTraitsTrimmer(source wrappers.Traits, target *wrappers.Traits) fieldTrim
 	return newBaseTrimmer(source, target, nonEmptyTraits, trimTraits)
 }
 
+func newHTTPHeadersTrimmer(source []*HTTPHeader, target *[]*HTTPHeader) fieldTrimmer {
+	return newBaseTrimmer(source, target, nonEmptyHTTPHeaders, trimHTTPHeaders)
+}
+
+// nonEmptyHTTPHeaders counts the non-empty name and value strings across the
+// headers so each gets its share of the per-field trim budget.
+func nonEmptyHTTPHeaders(headers []*HTTPHeader) int {
+	var count int
+	for _, h := range headers {
+		if h == nil {
+			continue
+		}
+		count += nonEmptyStrs(h.Name, h.Value)
+	}
+	return count
+}
+
+// trimHTTPHeaders trims each header's name and value to maxFieldSize.
+func trimHTTPHeaders(headers []*HTTPHeader, maxFieldSize int) []*HTTPHeader {
+	if len(headers) == 0 {
+		return nil
+	}
+	trimmed := make([]*HTTPHeader, len(headers))
+	for i, h := range headers {
+		if h == nil {
+			continue
+		}
+		trimmed[i] = &HTTPHeader{
+			Name:  trimStr(h.Name, maxFieldSize),
+			Value: trimStr(h.Value, maxFieldSize),
+		}
+	}
+	return trimmed
+}
+
 // trimmableField defines an interface for any struct (that is a field of an
 // event) that can be trimmed.
 type trimmableField[T any] interface {

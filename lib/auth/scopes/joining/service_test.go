@@ -75,7 +75,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})
@@ -126,6 +126,7 @@ func TestScopedJoiningService(t *testing.T) {
 		// fetch a token
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -133,7 +134,8 @@ func TestScopedJoiningService(t *testing.T) {
 
 		// delete a token
 		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-			Name: namedToken.GetMetadata().GetName(),
+			Name:  namedToken.GetMetadata().GetName(),
+			Scope: namedToken.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 
@@ -156,11 +158,39 @@ func TestScopedJoiningService(t *testing.T) {
 		tokenStagingCC2, err = createToken(ctx, service, tokenStagingCC2)
 		require.NoError(t, err)
 
+		// list multiple pages using the public cursor returned by the service.
+		firstPage, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
+			Limit: 1,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				Scope: "/staging/cc",
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, firstPage.GetTokens(), 1)
+		require.NotEmpty(t, firstPage.GetCursor())
+		require.True(t, scopes.IsScopedResourceCursor(firstPage.GetCursor()))
+
+		secondPage, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
+			Limit:  1,
+			Cursor: firstPage.GetCursor(),
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				Scope: "/staging/cc",
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, secondPage.GetTokens(), 1)
+		require.NotEqual(t,
+			scopes.QualifiedName{Scope: firstPage.GetTokens()[0].GetScope(), Name: firstPage.GetTokens()[0].GetMetadata().GetName()},
+			scopes.QualifiedName{Scope: secondPage.GetTokens()[0].GetScope(), Name: secondPage.GetTokens()[0].GetMetadata().GetName()},
+		)
+
 		// list tokens while filtering their resource scope
 		res, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			WithSecrets: true,
-			ResourceScope: scopesv1.Filter_builder{
-				Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 				Scope: "/staging/cc",
 			}.Build(),
 		}.Build())
@@ -184,7 +214,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})
@@ -194,7 +224,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-create"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-create"}},
 				}),
 			}.Build(),
 		})
@@ -204,7 +234,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-read"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-read"}},
 				}),
 			}.Build(),
 		})
@@ -214,7 +244,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-readnosecrets"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-readnosecrets"}},
 				}),
 			}.Build(),
 		})
@@ -224,7 +254,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-delete"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-delete"}},
 				}),
 			}.Build(),
 		})
@@ -234,7 +264,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-upserter"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-upserter"}},
 				}),
 			}.Build(),
 		})
@@ -292,13 +322,15 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("user with readnosecret role cannot read secret at accessible scope", func(t *testing.T) {
 			t.Parallel()
 			getRes, err := readerNoSecrets.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-				Name: stageTokenAA.GetMetadata().GetName(),
+				Name:  stageTokenAA.GetMetadata().GetName(),
+				Scope: stageTokenAA.GetScope(),
 			}.Build())
 			require.NoError(t, err)
 			assert.Empty(t, getRes.GetToken().GetStatus().GetSecret())
 
 			_, err = readerNoSecrets.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 				Name:       stageTokenAA.GetMetadata().GetName(),
+				Scope:      stageTokenAA.GetScope(),
 				WithSecret: true,
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
@@ -308,6 +340,7 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			getRes, err := reader.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 				Name:       stageTokenAA.GetMetadata().GetName(),
+				Scope:      stageTokenAA.GetScope(),
 				WithSecret: true,
 			}.Build())
 			require.NoError(t, err)
@@ -319,7 +352,8 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("reader cannot get token at orthogonal scope", func(t *testing.T) {
 			t.Parallel()
 			_, err := reader.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-				Name: stageTokenBB.GetMetadata().GetName(),
+				Name:  stageTokenBB.GetMetadata().GetName(),
+				Scope: stageTokenBB.GetScope(),
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -329,7 +363,8 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			for _, ident := range nonReaderIdents {
 				_, err := ident.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-					Name: stageTokenAA.GetMetadata().GetName(),
+					Name:  stageTokenAA.GetMetadata().GetName(),
+					Scope: stageTokenAA.GetScope(),
 				}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			}
@@ -359,7 +394,8 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			for _, ident := range nonDeleterIdents {
 				_, err := ident.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-					Name: stageTokenAA.GetMetadata().GetName(),
+					Name:  stageTokenAA.GetMetadata().GetName(),
+					Scope: stageTokenAA.GetScope(),
 				}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			}
@@ -370,7 +406,8 @@ func TestScopedJoiningService(t *testing.T) {
 			tokenForDelete, err := createToken(ctx, admin, baseToken)
 			require.NoError(t, err)
 			_, err = deleter.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-				Name: tokenForDelete.GetMetadata().GetName(),
+				Name:  tokenForDelete.GetMetadata().GetName(),
+				Scope: tokenForDelete.GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		})
@@ -378,7 +415,8 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("ensure deleter can't delete a token at an orthogonal scope", func(t *testing.T) {
 			t.Parallel()
 			_, err := deleter.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-				Name: stageTokenBB.GetMetadata().GetName(),
+				Name:  stageTokenBB.GetMetadata().GetName(),
+				Scope: stageTokenBB.GetScope(),
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -461,17 +499,6 @@ func TestScopedJoiningService(t *testing.T) {
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
-
-		t.Run("ensure updater cannot bypass scope auth by spoofing scope in request", func(t *testing.T) {
-			tokenUpdate := proto.CloneOf(stageTokenBB)
-			tokenUpdate.SetScope("/staging/aa")
-			tokenUpdate.GetSpec().SetAssignedScope("/staging/aa")
-
-			_, err := updater.UpdateScopedToken(ctx, joiningv1.UpdateScopedTokenRequest_builder{
-				Token: tokenUpdate,
-			}.Build())
-			require.True(t, trace.IsBadParameter(err))
-		})
 	})
 
 	// ensure audit events are emitted when creating, updating, upserting, or deleting scoped tokens
@@ -481,7 +508,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})
@@ -526,7 +553,8 @@ func TestScopedJoiningService(t *testing.T) {
 		require.Len(t, pack.emitter.Events(), 3)
 
 		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-			Name: token.GetMetadata().GetName(),
+			Name:  token.GetMetadata().GetName(),
+			Scope: token.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 		require.Equal(t, events.ScopedTokenDeleteEvent, pack.emitter.LastEvent().GetType())
@@ -622,7 +650,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Create, scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List, scopedaccess.Delete, scopedaccess.Update),
 					}.Build(),
 				},
 			}.Build(),
@@ -638,7 +666,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbCreate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Create),
 					}.Build(),
 				},
 			}.Build(),
@@ -654,7 +682,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbRead, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List),
 					}.Build(),
 				},
 			}.Build(),
@@ -670,7 +698,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 					}.Build(),
 				},
 			}.Build(),
@@ -686,7 +714,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbDelete},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Delete),
 					}.Build(),
 				},
 			}.Build(),
@@ -702,7 +730,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Update, scopedaccess.Create),
 					}.Build(),
 				},
 			}.Build(),
@@ -718,7 +746,7 @@ func newBackendPack(t *testing.T) *backendPack {
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
 						Resources: []string{types.KindScopedToken},
-						Verbs:     []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.Secrets, scopedaccess.List, scopedaccess.Create, scopedaccess.Update, scopedaccess.Delete),
 					}.Build(),
 				},
 			}.Build(),

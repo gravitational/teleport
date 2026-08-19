@@ -30,10 +30,6 @@ function username(testInfo: TestInfo) {
 }
 
 test('switching between dark and light theme', async ({ page }, testInfo) => {
-  // The re-login below can trip Teleport's challenge-generation rate limiter,
-  // so allow extra time to retry it.
-  test.slow();
-
   await signup(page, username(testInfo), defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 
@@ -57,12 +53,7 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   // signing in on a fresh browser.
   await page.context().clearCookies();
   await page.evaluate(() => localStorage.clear());
-  // Logging back in right after signup can trip Teleport's challenge-generation
-  // rate limiter ("rate limit exceeded, try again in Ns"); retry until it lets
-  // us through.
-  await expect(async () => {
-    await login(page, username(testInfo), defaultPassword);
-  }).toPass({ timeout: 30_000, intervals: [3_000] });
+  await login(page, username(testInfo), defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
   // Switch to light theme.

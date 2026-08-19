@@ -187,6 +187,7 @@ export function splitSelectProps<
     customProps,
     defaultValue,
     elevated,
+    getOptionValue,
     helperText,
     inputId,
     inputValue,
@@ -236,6 +237,7 @@ export function splitSelectProps<
       customProps,
       defaultValue,
       elevated,
+      getOptionValue,
       inputValue,
       isClearable,
       isDisabled,
@@ -284,6 +286,7 @@ type KeysRemovedFromOthers =
   | 'customProps'
   | 'defaultValue'
   | 'elevated'
+  | 'getOptionValue'
   | 'helperText'
   | 'inputId'
   | 'inputValue'

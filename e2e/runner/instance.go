@@ -30,13 +30,16 @@ type testInstance struct {
 	log                *slog.Logger
 	proxyPort          int
 	authPort           int
-	sshPort            int
+	sshPorts           []int
+	kubePort           int
 	e2eDir             string
 	dataDir            string
 	tctlBin            string
+	noResourceSetup    bool
 	teleportConfigPath string
 	teleport           *teleportInstance
-	node               *dockerNode
+	nodes              []*dockerNode
+	kube               *kubeCluster
 }
 
 // start starts the Teleport instance and SSH node for this test instance.
@@ -50,6 +53,12 @@ func (inst *testInstance) start(ctx context.Context) error {
 		}
 	}()
 
+	if inst.kube != nil {
+		if err = inst.kube.start(ctx); err != nil {
+			return fmt.Errorf("failed to start kube fixture for %s: %w", inst.browser, err)
+		}
+	}
+
 	if inst.teleport != nil {
 		if err = inst.teleport.start(ctx); err != nil {
 			return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
@@ -60,16 +69,18 @@ func (inst *testInstance) start(ctx context.Context) error {
 		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
 			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 		}
-		if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
-			return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
+		if !inst.noResourceSetup {
+			if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
+				return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
+			}
 		}
 	}
 
-	if inst.node != nil {
-		if err = inst.node.start(ctx); err != nil {
+	for _, node := range inst.nodes {
+		if err = node.start(ctx); err != nil {
 			return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
 		}
-		if err = inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+		if err = node.waitJoined(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("docker node for %s failed to join cluster: %w", inst.browser, err)
 		}
 	}
@@ -78,8 +89,12 @@ func (inst *testInstance) start(ctx context.Context) error {
 }
 
 func (inst *testInstance) stop() {
-	if inst.node != nil {
-		inst.node.stop(context.Background())
+	for _, node := range inst.nodes {
+		node.stop(context.Background())
+	}
+
+	if inst.kube != nil {
+		inst.kube.stop()
 	}
 
 	if inst.teleport != nil {

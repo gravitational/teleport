@@ -37,8 +37,8 @@ type lockClient struct {
 }
 
 // Get gets the Teleport lock of a given name
-func (r lockClient) Get(ctx context.Context, name string) (types.Lock, error) {
-	lock, err := r.teleportClient.GetLock(ctx, name)
+func (r lockClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Lock, error) {
+	lock, err := r.teleportClient.GetLock(ctx, key.Name)
 	return lock, trace.Wrap(err)
 }
 
@@ -53,8 +53,8 @@ func (r lockClient) Update(ctx context.Context, lock types.Lock) error {
 }
 
 // Delete deletes a Teleport lock
-func (r lockClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteLock(ctx, name))
+func (r lockClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteLock(ctx, key.Name))
 }
 
 // Mutate ensures the spec.CreatedAt and spec.CreatedBy properties are persisted
@@ -67,7 +67,7 @@ func (r lockClient) Mutate(_ context.Context, new, existing types.Lock, _ kclien
 }
 
 // NewLockV2Reconciler instantiates a new Kubernetes controller reconciling lock resources
-func NewLockV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewLockV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	lockClient := &lockClient{
 		teleportClient: tClient,
 	}
