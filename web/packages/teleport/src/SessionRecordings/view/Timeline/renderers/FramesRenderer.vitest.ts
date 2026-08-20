@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { vi, test, afterEach, expect, beforeEach } from 'vitest';
+
 import { theme } from 'design/utils/testing';
 
 import { SessionRecordingThumbnail } from 'teleport/services/recordings';
@@ -24,10 +26,10 @@ import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Time
 import { FramesRenderer, type LoadedImageResult } from './FramesRenderer';
 
 // Mock the SVG utilities
-jest.mock('teleport/SessionRecordings/svg', () => ({
-  generateTerminalSVGStyleTag: jest.fn(() => '<style></style>'),
-  injectSVGStyles: jest.fn(svg => svg),
-  svgToDataURIBase64: jest.fn(svg => `data:image/svg+xml;base64,${svg}`),
+vi.mock('teleport/SessionRecordings/svg', () => ({
+  generateTerminalSVGStyleTag: vi.fn(() => '<style></style>'),
+  injectSVGStyles: vi.fn(svg => svg),
+  svgToDataURIBase64: vi.fn(svg => `data:image/svg+xml;base64,${svg}`),
 }));
 
 beforeEach(() => {
@@ -37,7 +39,12 @@ beforeEach(() => {
     value: 1,
   });
 
-  global.OffscreenCanvas = jest.fn().mockImplementation((width, height) => {
+  // Regular function, not an arrow: it's constructed with `new` and arrows
+  // aren't constructors.
+  global.OffscreenCanvas = vi.fn().mockImplementation(function (
+    width: number,
+    height: number
+  ) {
     const canvas = document.createElement('canvas');
 
     canvas.width = width;

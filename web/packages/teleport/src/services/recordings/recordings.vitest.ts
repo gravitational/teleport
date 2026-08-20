@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { vi, expect, test } from 'vitest';
+
 import api from 'teleport/services/api';
 
 import RecordingsService from './recordings';
 
 test('fetch session recordings, response formatting', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(recordingsJSON);
+  vi.spyOn(api, 'get').mockResolvedValue(recordingsJSON);
 
   const recordings = new RecordingsService();
   const response = await recordings.fetchRecordings('im-a-cluster', {
