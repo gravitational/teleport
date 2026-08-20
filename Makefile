@@ -1321,6 +1321,25 @@ integration-root: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -tags '$(SESSIONHELPER_EMBED_TAG)' -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-root.json --raw-command -- cat
 
+INTEGRATION_TEST_TIMEOUT ?= 10m
+.PHONY: integration-e
+integration-e: FLAGS ?= -race -shuffle on
+integration-e: SUBJECT ?= ./e/tests/integration/...
+integration-e: | $(TEST_LOG_DIR)
+ifneq ("$(SUBJECT)", "")
+	$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-e.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat;
+endif
+
+# test-antithesis-workloads runs tests in the Antithesis workloads Go module.
+.PHONY: test-antithesis-workloads
+test-antithesis-workloads: FLAGS ?= -race -shuffle on
+test-antithesis-workloads: SUBJECT ?= ./...
+test-antithesis-workloads: WORKLOAD_GO_TAGS ?= antithesis
+test-antithesis-workloads: | $(TEST_LOG_DIR)
+ifneq ("$(SUBJECT)", "")
+	cd ./e/tests/antithesis/workloads && $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.json -- $(SUBJECT) $(FLAGS) -tags "$(WORKLOAD_GO_TAGS)" $(ADDFLAGS)
+endif
 
 .PHONY: e2e-aws
 e2e-aws: FLAGS ?= -v -race
