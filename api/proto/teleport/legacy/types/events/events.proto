@@ -3353,6 +3353,60 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
+// AppSessionRequestDenied is emitted when the app agent denies an HTTP app
+// request according to fine-grained app access rules. The deny_kind field
+// contains the cause, e.g. no rule allows the request or version skew.
+message AppSessionRequestDenied {
+  // metadata is the common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // user is the user who initiated the session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // session holds the MFA and private key policy metadata. The session ID
+  // is unset, the denial precedes any app session. Use app_session_id to
+  // identify the certificate the denied request came from.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // server is the server metadata of the app agent that denied the request.
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app is the application being accessed.
+  AppMetadata app = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // method is the HTTP method, e.g. GET, POST.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // path is the relative path in the URL.
+  string path = 7 [(gogoproto.jsontag) = "path"];
+  // deny_kind is the machine-readable deny kind. e.g.
+  // teleport_request_not_allowed, teleport_role_version_unsupported.
+  string deny_kind = 8 [(gogoproto.jsontag) = "deny_kind"];
+  // connection holds the client address the denied request came from.
+  ConnectionMetadata connection = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app_session_id is the application session ID from the request's
+  // certificate.
+  string app_session_id = 10 [(gogoproto.jsontag) = "app_session_id"];
+}
+
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
 message HTTPHeader {
   string name = 1 [(gogoproto.jsontag) = "name"];
@@ -5494,6 +5548,7 @@ message OneOf {
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
     events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
+    events.AppSessionRequestDenied AppSessionRequestDenied = 272;
   }
 }
 

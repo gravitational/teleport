@@ -445,6 +445,11 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+
+	// AppSessionRequestDeniedEvent is emitted when the app agent denies a
+	// plain HTTP app request under fine-grained access rules.
+	AppSessionRequestDeniedEvent = "app.session.request.denied"
+
 	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
 	AppSessionHTTPRequestEvent = "http.request"
 	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
