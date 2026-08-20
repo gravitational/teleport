@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -52,7 +51,9 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
-	authServer := sut.Teleport.Process.GetAuthServer()
+	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
+	memberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
 
 	// 1. Create the integration with bidirectional sync disabled
 	beforeCreateIntegrationTime := time.Now()
@@ -74,46 +75,29 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	})
 
 	// 2. Verify users (user1 - ghost) are synchronized
-	var oktaUsers []types.User
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(beforeCreateIntegrationTime))
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		users, err := sut.Teleport.Process.GetAuthServer().GetUsers(ctx, false /* withSecrets */)
-		require.NoError(t, err)
-		oktaUsers = oktaUsers[:0] // clear
-		for _, u := range users {
-			if v, _ := u.GetLabel("teleport.dev/origin"); v == "okta" {
-				oktaUsers = append(oktaUsers, u)
-			}
-		}
-		require.Len(t, oktaUsers, 1, "expected 1 Okta users in all_users = %v", users)
-	}, time.Second*2, time.Millisecond*50)
+	waitForResourceCount(t, userWatcher, 1, func(u types.User) bool {
+		return u.Origin() == types.OriginOkta
+	})
 
 	// 3. Remember the name of the AL
 
-	var accessList *accesslist.AccessList
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		accessLists, err := authServer.GetAccessLists(ctx)
-		require.NoError(t, err)
-		require.Len(t, accessLists, 1)
-		accessList = accessLists[0]
-		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, app.Label, accessList.Spec.Title)
-	}, time.Second*2, time.Millisecond*50)
+	accessLists := waitForResourceCount(t, accessListWatcher, 1, func(*accesslist.AccessList) bool {
+		return true
+	})
+	accessList := accessLists[0]
+	require.NotEmpty(t, accessList.Spec.Title)
+	require.Equal(t, app.Label, accessList.Spec.Title)
 
 	// 4. Verify members (user1 - ghost)
 
-	var member1 *accesslist.AccessListMember
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		members, _, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), 1000, "")
-		require.NoError(t, err)
-		require.Len(t, members, 1)
-		member1 = members[0]
-		require.Equal(t, ghostEmail, member1.GetName())
-	}, time.Second*2, time.Millisecond*50)
+	member1 := waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.AccessList == accessList.GetName()
+	})
+	require.Equal(t, ghostEmail, member1.GetName())
 
 	// 5. Prepare user's client and member2 (specter) struct
 
@@ -238,7 +222,9 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
-	authServer := sut.Teleport.Process.GetAuthServer()
+	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
+	memberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
 
 	// 1. Create the integration with bidirectional sync disabled
 
@@ -265,44 +251,25 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	// 2. Verify users (user1 - ghost) are synchronized
 
-	var oktaUsers []types.User
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		users, err := sut.Teleport.Process.GetAuthServer().GetUsers(ctx, false /* withSecrets */)
-		require.NoError(t, err)
-		oktaUsers = oktaUsers[:0] // clear
-		for _, u := range users {
-			if v, _ := u.GetLabel("teleport.dev/origin"); v == "okta" {
-				oktaUsers = append(oktaUsers, u)
-			}
-		}
-		require.Len(t, oktaUsers, 1, "expected 1 Okta users in all_users = %v", users)
-	}, time.Second*2, time.Millisecond*50)
+	waitForResourceCount(t, userWatcher, 1, func(u types.User) bool {
+		return u.Origin() == types.OriginOkta
+	})
 
 	// 3. Remember the name of the AL
 
-	var accessList *accesslist.AccessList
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		accessLists, err := authServer.GetAccessLists(ctx)
-		require.NoError(t, err)
-		require.Len(t, accessLists, 1)
-		accessList = accessLists[0]
-		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, app.Label, accessList.Spec.Title)
-	}, time.Second*2, time.Millisecond*50)
+	accessLists := waitForResourceCount(t, accessListWatcher, 1, func(*accesslist.AccessList) bool {
+		return true
+	})
+	accessList := accessLists[0]
+	require.NotEmpty(t, accessList.Spec.Title)
+	require.Equal(t, app.Label, accessList.Spec.Title)
 
 	// 4. Verify members (user1 - ghost)
 
-	var member1 *accesslist.AccessListMember
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		members, _, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), 1000, "")
-		require.NoError(t, err)
-		require.Len(t, members, 1)
-		member1 = members[0]
-		require.Equal(t, ghostEmail, member1.GetName())
-	}, time.Second*2, time.Millisecond*50)
+	member1 := waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.AccessList == accessList.GetName()
+	})
+	require.Equal(t, ghostEmail, member1.GetName())
 
 	// 5. Assign user2 (specter) to the SAML app for user sync and the app on the Okta side
 
@@ -315,13 +282,12 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		members, nextToken, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), 1000, "")
-		require.NoError(t, err)
-		require.Empty(t, nextToken)
-		require.Len(t, members, 2, "members = %v", members)
-		for _, m := range members {
-			require.True(t, m.GetName() == ghostEmail || m.GetName() == specterEmail, "member name = %q", m.GetName())
-		}
-	}, time.Second*2, time.Millisecond*50)
+	waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.AccessList == accessList.GetName() && m.GetName() == specterEmail
+	})
+	members := mustListAccessListMembers(t, sut, accessList.GetName())
+	require.Len(t, members, 2, "members = %v", members)
+	for _, m := range members {
+		require.True(t, m.GetName() == ghostEmail || m.GetName() == specterEmail, "member name = %q", m.GetName())
+	}
 }

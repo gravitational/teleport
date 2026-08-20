@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"regexp"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -348,7 +350,7 @@ func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *t
 	}, time.Second*10, time.Millisecond*50)
 }
 
-func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) {
+func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
 	t.Helper()
 	for {
 		select {
@@ -361,12 +363,37 @@ func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn f
 			}
 			resource, ok := event.Resource.(T)
 			if ok && fn(resource) {
-				return
+				return resource
 			}
 		case <-t.Context().Done():
 			t.Fatal("timed out waiting for resource")
 		}
 	}
+}
+
+func waitForResourceCount[T types.Resource](t *testing.T, watcher types.Watcher, expectedCnt int, fn func(T) bool) []T {
+	t.Helper()
+	seen := make(map[string]T)
+	waitForResource(t, watcher, func(r T) bool {
+		if !fn(r) {
+			delete(seen, r.GetName())
+			return false
+		}
+		seen[r.GetName()] = r
+		return len(seen) == expectedCnt
+	})
+	return slices.Collect(maps.Values(seen))
+}
+
+func mustListAccessListMembers(t *testing.T, sut *common.SUT, accessListName string) []*accesslist.AccessListMember {
+	t.Helper()
+	members, err := stream.Collect(clientutils.Resources(t.Context(),
+		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
+		},
+	))
+	require.NoError(t, err)
+	return members
 }
 
 func mustUpsertAccessListMember(t *testing.T, sut *common.SUT, accessList *accesslist.AccessList, user types.User) {
