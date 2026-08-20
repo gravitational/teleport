@@ -60,7 +60,7 @@ jobs:
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
-      - name: Prepare unit tests
+      - name: Prepare tests
         run: make test-go-prepare
 
       - name: Get runtime values from kvstore
@@ -101,7 +101,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/terraform-mwi/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/terraform-mwi/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*" -e "e/tests/integration/**/*" -e "e/tests/antithesis/workloads/**/*"
           target: test-go-unit
 
       - name: Run touch-id difftest
@@ -127,3 +127,21 @@ jobs:
         with:
           flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
           target: test-teleport-usage
+
+      - name: Run Antithesis workloads difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "e/tests/antithesis/workloads/**/*" --relative "e/tests/antithesis/workloads"
+          target: test-antithesis-workloads
+
+      - name: Run e/tests/integration difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "e/tests/integration/**/*"
+          target: integration-e INTEGRATION_TEST_TIMEOUT=40m
+          attempts: 40
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

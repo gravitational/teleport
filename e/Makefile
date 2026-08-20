@@ -622,16 +622,6 @@ ifneq ("$(SUBJECT)", "")
 	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
 endif
 
-# test-go-antithesis-workloads runs tests in the Antithesis workloads Go module.
-.PHONY: test-go-antithesis-workloads
-test-go-antithesis-workloads: FLAGS ?= -race -shuffle on
-test-go-antithesis-workloads: SUBJECT ?= ./...
-test-go-antithesis-workloads: WORKLOAD_GO_TAGS ?= antithesis
-test-go-antithesis-workloads: | $(TEST_LOG_DIR)
-ifneq ("$(SUBJECT)", "")
-	cd tests/antithesis/workloads && $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.json -- $(SUBJECT) $(FLAGS) -tags "$(WORKLOAD_GO_TAGS)" $(ADDFLAGS)
-endif
-
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
 .PHONY: test-operator
@@ -743,16 +733,6 @@ deb: ent-deb
 .PHONY: version
 version:
 	$(MAKE) -C .. version
-
-INTEGRATION_TEST_TIMEOUT ?= 10m
-.PHONY: test-go-integration
-test-go-integration: FLAGS ?= -race -shuffle on
-test-go-integration: SUBJECT ?= ./tests/integration/...
-test-go-integration: | $(TEST_LOG_DIR)
-	@if [ -n "$(SUBJECT)" ]; then \
-		$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-			| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat; \
-	fi
 
 # All developers should run this upon cloning the repo. Unfortunately this
 # can't be done automatically with git.
