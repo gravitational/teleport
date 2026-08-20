@@ -100,6 +100,14 @@ linters:
               desc: lib/srv prevents client tools from build on non-linux platforms
             - pkg: github.com/gravitational/teleport/lib/web$
               desc: lib/web should not be imported to prevent increasing binary size
+        enterprise:
+          files:
+            - '!**/e/**'
+          deny:
+            - pkg: github.com/gravitational/teleport/e/
+              desc: enterprise packages should not be imported outside of the "e" directory
+            - pkg: github.com/gravitational/teleport/e$
+              desc: enterprise packages should not be imported outside of the "e" directory
         go-cmp:
           files:
             - '!$test'
