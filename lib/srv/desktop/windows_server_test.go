@@ -207,10 +207,7 @@ func TestGenerateCredentials(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-			defer cancel()
-
-			genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+			genResp, err := winpki.GenerateWindowsDesktopCredentials(t.Context(), client, &winpki.GenerateCredentialsRequest{
 				AD:                                true,
 				Username:                          user,
 				Domain:                            domain,
@@ -219,9 +216,9 @@ func TestGenerateCredentials(t *testing.T) {
 				ActiveDirectorySID:                test.activeDirectorySID,
 				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
 			})
+			require.NoError(t, err)
 			certb := genResp.CertDER
 			keyb := genResp.KeyDER
-			require.NoError(t, err)
 			require.NotNil(t, certb)
 			require.NotNil(t, keyb)
 
