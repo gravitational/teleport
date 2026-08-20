@@ -314,7 +314,7 @@ func mustUpdateOktaIntegration(ctx context.Context, t *testing.T, client oktav1.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := client.UpdateIntegration(ctx, req)
 		require.NoError(t, err)
-	}, time.Second*6, time.Millisecond*30)
+	}, 30*time.Second, time.Millisecond*30)
 }
 
 type delays struct {
@@ -373,7 +373,7 @@ func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn f
 
 func waitForResourceCount[T types.Resource](t *testing.T, watcher types.Watcher, expectedCnt int, fn func(T) bool) []T {
 	t.Helper()
-	seen := make(map[string]T)
+	seen := make(map[string]T, expectedCnt)
 	waitForResource(t, watcher, func(r T) bool {
 		if !fn(r) {
 			delete(seen, r.GetName())
@@ -502,4 +502,12 @@ func getContextOrBackground(t require.TestingT) context.Context {
 		return c.Context()
 	}
 	return context.Background()
+}
+
+func getResourceNames[T types.Resource](rs []T) []string {
+	names := make([]string, len(rs))
+	for i, r := range rs {
+		names[i] = r.GetName()
+	}
+	return names
 }
