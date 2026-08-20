@@ -30,8 +30,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 )
+
+func TestAbortUploadRejectsInvalidUploadID(t *testing.T) {
+	handler := &Handler{}
+	err := handler.AbortUpload(t.Context(), events.StreamUpload{
+		ID:        "../other-upload",
+		SessionID: session.NewID(),
+	})
+	require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
+}
 
 func TestUploadFromPath(t *testing.T) {
 	for _, test := range []struct {
