@@ -1,39 +1,34 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // mergeTeleportConfig deep-merges a custom config into the base Teleport config at basePath and writes the
-// result to outPath.
-func mergeTeleportConfig(basePath, outPath, e2eDir, raw string) error {
+// result to outPath. A non-empty licenseFile overrides auth_service.license_file in the result.
+func mergeTeleportConfig(basePath, outPath, e2eDir, raw, licenseFile string) error {
 	raw = strings.ReplaceAll(raw, "${E2E_DIR}", e2eDir)
 
-	var override map[string]any
-	if err := yaml.Unmarshal([]byte(raw), &override); err != nil {
-		return fmt.Errorf("parsing declared teleport config %q: %w", raw, err)
+	override := map[string]any{}
+	if raw != "" {
+		if err := yaml.Unmarshal([]byte(raw), &override); err != nil {
+			return fmt.Errorf("parsing declared teleport config %q: %w", raw, err)
+		}
+	}
+
+	if licenseFile != "" {
+		auth, ok := override["auth_service"].(map[string]any)
+		if !ok {
+			auth = map[string]any{}
+			override["auth_service"] = auth
+		}
+
+		auth["license_file"] = licenseFile
 	}
 
 	baseData, err := os.ReadFile(basePath)
@@ -55,6 +50,22 @@ func mergeTeleportConfig(basePath, outPath, e2eDir, raw string) error {
 		return fmt.Errorf("writing merged config %s: %w", outPath, err)
 	}
 	return nil
+}
+
+// licensePath resolves a test-declared license name to its PEM under e/fixtures, the single home
+// for licenses shared with the enterprise Go tests.
+func licensePath(repoRoot, name string) (string, error) {
+	if name != filepath.Base(name) || name == "." || name == ".." {
+		return "", fmt.Errorf("invalid license name %q: must not contain a path", name)
+	}
+
+	dir := filepath.Join(repoRoot, "e", "fixtures")
+	path := filepath.Join(dir, "license-"+name+".pem")
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("no license %q: %s does not exist", name, path)
+	}
+
+	return path, nil
 }
 
 func deepMerge(dst, src map[string]any) {

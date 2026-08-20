@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -41,7 +23,7 @@ func TestReadRoleFile(t *testing.T) {
 	rolesDir := createDir(t, e2eDir, "testdata", "roles")
 	writeFile(t, rolesDir, "viewer.yaml", viewerRoleYAML)
 
-	cr, err := readRoleFile(e2eDir, "viewer.yaml")
+	cr, err := readRoleFile([]string{e2eDir}, "viewer.yaml")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +47,7 @@ spec:
     logins: ['root']
 `)
 
-	_, err := readRoleFile(e2eDir, "bad.yaml")
+	_, err := readRoleFile([]string{e2eDir}, "bad.yaml")
 	if err == nil {
 		t.Fatal("expected error for missing metadata.name, got nil")
 	}
@@ -90,7 +72,7 @@ metadata:
 
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := readRoleFile(e2eDir, name); err == nil {
+			if _, err := readRoleFile([]string{e2eDir}, name); err == nil {
 				t.Fatalf("expected error for filename %q, got nil", name)
 			}
 		})
@@ -118,7 +100,7 @@ func TestBuildBootstrapState(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,7 +173,7 @@ func TestBuildBootstrapStateDeduplicatesRoles(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,7 +201,7 @@ func TestBuildBootstrapStateCustomTraits(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -248,7 +230,7 @@ func TestBuildBootstrapStateRecordings(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -308,7 +290,7 @@ func TestBuildBootstrapStateSharedRecording(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -350,7 +332,7 @@ func TestBuildBootstrapStateAggregatesDefaultRecordings(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -391,7 +373,7 @@ func TestBuildBootstrapStateAggregatesByCanonicalKey(t *testing.T) {
 		},
 	}
 
-	result, err := buildBootstrapState(e2eDir, scannedUsers)
+	result, err := buildBootstrapState([]string{e2eDir}, scannedUsers)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -428,7 +410,7 @@ func TestBuildBootstrapStateEmptyRolesError(t *testing.T) {
 	e2eDir := t.TempDir()
 
 	users := []scannedUser{{roles: nil, loginAs: true}}
-	_, err := buildBootstrapState(e2eDir, users)
+	_, err := buildBootstrapState([]string{e2eDir}, users)
 	if err == nil {
 		t.Fatal("expected error for user with no roles, got nil")
 	}

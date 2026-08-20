@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -232,7 +214,7 @@ func (p *playwrightRunner) runInstanceTests(ctx context.Context, inst *testInsta
 
 	args := []string{"exec", "playwright", "test", p.configFlag()}
 	args = append(args, extraArgs...)
-	args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
+	args = append(args, "--reporter=blob,"+filepath.Join(p.config.e2eDir, "scripts", "dot-progress-reporter.ts"))
 	// Avoid `.playwright-artifacts-<n>` collisions across parallel pnpm runs.
 	args = append(args, "--output=test-results/"+inst.browser)
 	if inst.browser == "connect" {
@@ -263,7 +245,15 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 	inst.teleport.stop()
 
 	mergedPath := filepath.Join(p.config.e2eDir, "config", fmt.Sprintf("%s-teleport-config-%d.yaml", inst.browser, idx))
-	if err := mergeTeleportConfig(baseConfigPath, mergedPath, p.config.e2eDir, cfg.raw); err != nil {
+	licenseFile := ""
+	if cfg.license != "" {
+		var err error
+		if licenseFile, err = licensePath(p.config.repoRoot, cfg.license); err != nil {
+			return err
+		}
+	}
+
+	if err := mergeTeleportConfig(baseConfigPath, mergedPath, p.config.suiteDir, cfg.raw, licenseFile); err != nil {
 		return fmt.Errorf("merging teleport config for %s: %w", inst.browser, err)
 	}
 	inst.teleport.configPath = mergedPath
@@ -338,7 +328,7 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 	slog.InfoContext(ctx, "opening playwright with auth and WebAuthn", "command", playwrightCmd)
 
 	return p.pnpm(ctx, []string{
-		"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-with-webauthn.ts"),
+		"exec", "tsx", filepath.Join(p.config.e2eDir, "scripts", "open-with-webauthn.ts"),
 		playwrightCmd,
 		p.startURL(inst),
 	}, env)
@@ -362,7 +352,7 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 	slog.InfoContext(ctx, "opening Teleport Connect (with auth)")
 
-	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
+	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.e2eDir, "scripts", "open-connect.ts")}, env)
 }
 
 // startEnv builds the environment variables that Playwright tests need,
@@ -377,6 +367,18 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	}
 
 	env = append(env, "E2E_DIR="+p.config.e2eDir)
+
+	// Always set, never inherited: playwright.config.ts keys spec collection off this, so an
+	// ambient value disagreeing with the resolved flag would collect the wrong edition.
+	if p.config.enterprise {
+		env = append(env, "E2E_ENTERPRISE=1")
+	} else {
+		env = append(env, "E2E_ENTERPRISE=")
+	}
+
+	// Spec paths are reported relative to the suite so they line up with the selectors the scanner
+	// produced, while E2E_DIR stays the shared tree that holds .auth.
+	env = append(env, "E2E_SUITE_DIR="+p.config.suiteDir)
 
 	if p.config.creds != nil {
 		env = append(env, "E2E_USERS_FILE="+filepath.Join(p.config.e2eDir, ".auth", "user-credentials.json"))
@@ -399,7 +401,7 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 
 func (p *playwrightRunner) pnpmQuiet(ctx context.Context, args []string, env []string) error {
 	cmd := exec.CommandContext(ctx, "pnpm", args...)
-	cmd.Dir = p.config.sharedDir
+	cmd.Dir = p.config.e2eDir
 	cmd.Env = env
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
@@ -418,7 +420,7 @@ func (p *playwrightRunner) pnpmQuiet(ctx context.Context, args []string, env []s
 
 func (p *playwrightRunner) pnpm(ctx context.Context, args []string, env []string) error {
 	cmd := exec.CommandContext(ctx, "pnpm", args...)
-	cmd.Dir = p.config.sharedDir
+	cmd.Dir = p.config.e2eDir
 	cmd.Env = env
 
 	stdout, stderr := p.outputWriters()

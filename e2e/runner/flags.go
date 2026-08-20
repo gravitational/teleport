@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -36,6 +18,7 @@ var validBrowsers = []string{"chromium", "firefox", "webkit"}
 type e2eFlags struct {
 	noBuild          bool
 	noResourceSetup  bool
+	enterprise       bool
 	quiet            bool
 	verbose          bool
 	replaceCerts     bool
@@ -56,6 +39,47 @@ type e2eFlags struct {
 
 var validTeleportLogLevels = []string{"DEBUG", "INFO", "WARN", "ERROR"}
 
+// inferEnterpriseFromArgs switches the run over when a named path lives in the enterprise suite, so
+// a path tab-completed out of the tree runs without also having to pass --enterprise. It reads the
+// raw arguments because the suite directory the rest of the run resolves against depends on it.
+func (f *e2eFlags) inferEnterpriseFromArgs(repoRoot string, args []string) error {
+	if f.enterprise {
+		return nil
+	}
+
+	entDir := filepath.Join(repoRoot, "e", "e2e")
+	for _, arg := range args {
+		abs := arg
+		if err := resolveAbsPaths(&abs); err != nil {
+			return err
+		}
+
+		if rel, err := filepath.Rel(entDir, abs); err == nil && !strings.HasPrefix(rel, "..") {
+			f.enterprise = true
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// applyEnterpriseDefaults points an enterprise run at the enterprise build and a license, leaving
+// anything the caller set explicitly alone. tctl is deliberately not switched: e/Makefile delegates
+// it back to the OSS target, so the two builds are identical.
+func (f *e2eFlags) applyEnterpriseDefaults(repoRoot string) {
+	if !f.enterprise {
+		return
+	}
+
+	if f.teleportBin == filepath.Join(repoRoot, "build", "teleport") {
+		f.teleportBin = filepath.Join(repoRoot, "e", "build", "teleport")
+	}
+
+	if f.licenseFile == "" {
+		f.licenseFile = filepath.Join(repoRoot, "e", "fixtures", "license-all-features.pem")
+	}
+}
+
 func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	var f e2eFlags
 
@@ -68,7 +92,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	modes.register("debug", "run tests with Playwright inspector (PWDEBUG=1)", modeDebug)
 	modes.register("browse", "open a signed-in browser for manual web testing", modeBrowse)
 	modes.register("browse-connect", "open a signed-in Teleport Connect app for manual testing", modeBrowseConnect)
-	modes.register("github-report", "publish test results as GitHub annotations, job summary, and PR comment (CI only)", modeGitHubReport)
+	modes.register("github-report", "publish test results as GitHub annotations and a job summary (CI only)", modeGitHubReport)
 
 	var testResultsPR int
 	flag.IntVar(&f.reportPR, "report", 0, "download and open a Playwright report for a given PR number")
@@ -77,6 +101,9 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")
 	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries") // useful for running during development to avoid rebuilding Teleport every time
 	flag.BoolVar(&f.noResourceSetup, "no-resource-setup", false, "skip applying resources to Teleport instance in advance of tests")
+	enterpriseDefault := os.Getenv("E2E_ENTERPRISE") != ""
+	flag.BoolVar(&f.enterprise, "enterprise", enterpriseDefault, "run the enterprise tests (tests/**/e/) against the enterprise Teleport build")
+	flag.BoolVar(&f.enterprise, "e", enterpriseDefault, "shorthand for --enterprise")
 	flag.BoolVar(&f.quiet, "quiet", false, "redirect Teleport logs to file instead of stdout") // used in CI to avoid flooding logs with Teleport logs
 	flag.BoolVar(&f.replaceCerts, "replace-certs", false, "generate new self-signed certificates")
 	flag.BoolVar(&f.updateSnapshots, "update-snapshots", false, "update Playwright snapshot baselines")
@@ -99,10 +126,6 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	modes.bindFlags(flag.CommandLine)
 
 	flag.Parse()
-
-	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin, &f.licenseFile); err != nil {
-		return nil, 0, err
-	}
 
 	if f.verbose {
 		logLevel.Set(slog.LevelDebug)
@@ -148,15 +171,19 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	isTestRun := mode == modeTest || mode == modeUI || mode == modeDebug
 	if isTestRun {
-		e2eDir := filepath.Join(repoRoot, "e2e")
+		if err := f.inferEnterpriseFromArgs(repoRoot, flag.Args()); err != nil {
+			return nil, 0, err
+		}
 
-		f.testFiles, err = normalizeTestFiles(e2eDir, flag.Args())
+		dirs := newSuiteDirs(repoRoot, f.enterprise)
+
+		f.testFiles, err = normalizeTestFiles(dirs.suite, flag.Args())
 		if err != nil {
 			return nil, 0, err
 		}
 
 		if len(f.testFiles) > 0 || mode != modeUI {
-			targets, resolveErr := resolveTargetsWithHelpers(e2eDir, f.testFiles)
+			targets, resolveErr := resolveTargetsWithHelpers(dirs, f.testFiles)
 			if resolveErr != nil {
 				slog.WarnContext(context.Background(), "scan: error resolving files", "error", resolveErr)
 			} else {
@@ -166,6 +193,12 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 				}
 			}
 		}
+	}
+
+	f.applyEnterpriseDefaults(repoRoot)
+
+	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin, &f.licenseFile); err != nil {
+		return nil, 0, err
 	}
 
 	// Auto-enable Connect if intent is explicit via mode or selected test paths.

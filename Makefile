@@ -1447,7 +1447,10 @@ lint-kube-agent-updater:
 .PHONY: lint-e2e-runner
 lint-e2e-runner: GO_LINT_FLAGS ?=
 lint-e2e-runner:
+# The e2e tree is stripped from the OSS export, so this is a no-op there rather than a failure.
+ifneq ("$(wildcard e2e/runner)","")
 	cd e2e/runner && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
+endif
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1497,6 +1500,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'build.assets/.cache/**' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
+		-ignore 'e2e/**' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \

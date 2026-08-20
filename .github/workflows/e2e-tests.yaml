@@ -22,21 +22,26 @@ jobs:
       pull-requests: read
 
     outputs:
-      changed: ${{ steps.changes.outputs.changed }}
+      oss: ${{ steps.changes.outputs.oss }}
+      ent: ${{ steps.changes.outputs.ent }}
+      any: ${{ steps.matrix.outputs.any }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
 
     steps:
       - name: Checkout
         if: github.event_name != 'pull_request'
         uses: actions/checkout@v6
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          predicate-quantifier: some-with-excludes
           filters: |
-            changed:
+            shared: &shared
               - '.github/workflows/e2e-tests.yaml'
-              - '.github/workflows/e2e-tests-base.yaml'
+              - '.github/actions/prepare-workspace/action.yml'
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
@@ -54,7 +59,6 @@ jobs:
               - '.npmrc'
               - 'tsconfig*.json'
               - 'gen/proto/ts/**'
-              - '.github/actions/prepare-workspace/action.yml'
               - 'common.mk'
               - 'build.assets/Makefile'
               - 'build.assets/versions.mk'
@@ -62,16 +66,415 @@ jobs:
               - 'build.assets/build-webassets-if-changed.sh'
               - 'build.assets/build-e2e-binaries.sh'
               - 'Makefile'
+            oss:
+              - *shared
+              - '!e/**'
+            ent:
+              - *shared
+              - 'e/e2e/**'
+              - 'e/Makefile'
+              - 'e/api/**'
+              - 'e/assets/**'
+              - 'e/fixtures/**'
+              - 'e/lib/**'
+              - 'e/tool/**'
+              - 'e/web/**'
 
-  e2e:
+      # We build a matrix here to decide if OSS or ent (or both) should run, as we cannot use `if` at the job
+      # level to skip running tests unnecessarily.
+      - name: Build edition matrix
+        id: matrix
+        shell: bash
+        env:
+          OSS_CHANGED: ${{ steps.changes.outputs.oss }}
+          ENT_CHANGED: ${{ steps.changes.outputs.ent }}
+        run: |
+          set -euo pipefail
+
+          oss='{"edition":"oss","name":"OSS","build-dir":"build","make-dir":".","enterprise":""}'
+          ent='{"edition":"ent","name":"Enterprise","build-dir":"e/build","make-dir":"e","enterprise":"1"}'
+
+          include=""
+          if [[ "$OSS_CHANGED" == "true" ]]; then
+            include="$oss"
+          fi
+          if [[ "$ENT_CHANGED" == "true" ]]; then
+            include="${include:+$include,}$ent"
+          fi
+
+          {
+            echo "matrix={\"include\":[$include]}"
+            echo "any=$([[ -n "$include" ]] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+  build-shared:
+    name: Build shared binaries
     needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
-    uses: ./.github/workflows/e2e-tests-base.yaml
-    with:
-      build-dir: build
-      e2e-dir: e2e
-      build-logs-dir: build-logs
-      type-check-package: '@gravitational/e2e'
-      build-command: make e2e-binaries
+    if: ${{ needs.changes.outputs.any == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
+
     permissions:
       contents: read
+
+    outputs:
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check e2e tests
+        run: pnpm --filter=@gravitational/e2e type-check
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        working-directory: e2e
+
+      - name: Get go mod cache path
+        id: cache-paths
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Restore Go module cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-oss-${{ hashFiles('go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-oss-
+
+      - name: Check generated files are up to date
+        working-directory: e2e/runner
+        run: |
+          go generate ./...
+          if ! git diff --quiet -- ../helpers/fixtures.ts; then
+            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./...' from e2e/runner and commit the result."
+            git diff -- ../helpers/fixtures.ts
+            exit 1
+          fi
+
+      - name: Restore Rust output cache
+        id: rust-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
+            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Build tctl and tsh
+        run: |
+          mkdir -p build-logs
+          make build/tctl >build-logs/tctl.log 2>&1 & pid_tctl=$!
+          go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh >build-logs/tsh.log 2>&1 & pid_tsh=$!
+
+          failed=0
+          wait $pid_tctl || { echo "::error::make build/tctl failed with exit code $?"; failed=1; }
+          wait $pid_tsh  || { echo "::error::go build tsh failed with exit code $?"; failed=1; }
+
+          for log in build-logs/*.log; do
+            echo "::group::$(basename "$log" .log) build log"
+            cat "$log"
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Build e2e runner
+        run: cd e2e/runner && go build -o e2e .
+
+      - name: Build Connect
+        if: ${{ needs.changes.outputs.oss == 'true' }}
+        run: pnpm --filter=@gravitational/teleterm build
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Upload shared binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-tools
+          path: |
+            build/tctl
+            build/tsh-e2e-webauthnmock
+          retention-days: 1
+
+      - name: Upload e2e runner
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-runner
+          path: e2e/runner/e2e
+          retention-days: 1
+
+      - name: Upload Connect
+        if: ${{ needs.changes.outputs.oss == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-connect
+          path: web/packages/teleterm/build/
+          retention-days: 1
+
+  build-teleport:
+    name: Build Teleport (${{ matrix.name }})
+    needs: changes
+    if: ${{ needs.changes.outputs.any == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Get go mod cache path
+        id: cache-paths
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      # The teleport binary embeds the web UI, so the JS deps have to be present before make runs.
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ matrix.edition }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-mod-${{ runner.os }}-${{ matrix.edition }}-
+            go-mod-${{ runner.os }}-
+
+      - name: Restore Rust output cache
+        id: rust-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
+            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Build Teleport
+        run: make -C ${{ matrix.make-dir }} build/teleport
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Upload Teleport binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-binary-${{ matrix.edition }}
+          path: ${{ matrix.build-dir }}/teleport
+          retention-days: 1
+
+      - name: Save Go module cache
+        if: github.event_name == 'push' && steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ matrix.edition }}-${{ hashFiles('go.sum') }}
+
+      - name: Save Rust output cache
+        if: github.event_name == 'push' && steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
+            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+  test:
+    name: E2E Tests (${{ matrix.name }})
+    needs: [changes, build-shared, build-teleport]
+    runs-on: ubuntu-22.04-8core
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+
+    env:
+      HOME: /root
+      E2E_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      E2E_ENTERPRISE: ${{ matrix.enterprise }}
+
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.build-shared.outputs.playwright-version }}-noble
+      options: --init --ipc=host
+      env:
+        DOCKER_HOST: tcp://docker:2375
+
+    services:
+      docker:
+        image: docker:dind
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+        ports:
+          - 2375:2375
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Docker CLI
+        run: |
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update && apt-get install -y docker-ce-cli
+
+      - name: Setup e2e environment
+        shell: bash
+        run: |
+          set -o pipefail
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break || sleep 1; done
+          docker info >/dev/null 2>&1 || { echo "Docker failed to start"; exit 1; }
+          mkdir -p setup-logs
+          docker pull debian:bookworm-slim 2>&1 | tee setup-logs/docker-pull.log & pid_docker=$!
+
+          corepack enable
+          pnpm install --frozen-lockfile 2>&1 | tee setup-logs/pnpm-install.log & pid_pnpm=$!
+
+          failed=0
+          wait $pid_docker || { echo "::error::docker pull failed with exit code $?"; failed=1; }
+          wait $pid_pnpm   || { echo "::error::pnpm install failed with exit code $?"; failed=1; }
+          exit $failed
+
+      - name: Upload setup logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-logs-${{ matrix.edition }}
+          path: setup-logs/
+          retention-days: 7
+
+      - name: Download shared binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: teleport-tools
+          path: build
+
+      - name: Download Teleport binary
+        uses: actions/download-artifact@v8
+        with:
+          name: teleport-binary-${{ matrix.edition }}
+          path: ${{ matrix.build-dir }}
+
+      - name: Download e2e runner
+        uses: actions/download-artifact@v8
+        with:
+          name: e2e-runner
+          path: e2e/runner
+
+      - name: Download Connect
+        if: ${{ matrix.edition == 'oss' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: teleport-connect
+          path: web/packages/teleterm/build
+
+      - name: Chmod binaries
+        run: |
+          chmod +x ${{ matrix.build-dir }}/teleport
+          chmod +x build/tctl
+          chmod +x build/tsh-e2e-webauthnmock
+          chmod +x e2e/runner/e2e
+
+      - name: Create Docker config
+        run: mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
+
+      - name: Run tests
+        run: xvfb-run e2e/runner/e2e --no-build
+        env:
+          E2E_DIR: ${{ github.workspace }}/e2e
+          E2E_CALLER_DIR: ${{ github.workspace }}
+          TELEPORT_BIN: ${{ github.workspace }}/${{ matrix.build-dir }}/teleport
+
+      - name: Publish GitHub report
+        if: ${{ !cancelled() }}
+        run: e2e/runner/e2e --github-report
+        env:
+          E2E_DIR: ${{ github.workspace }}/e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.edition }}
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.edition }}
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload Teleport logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-logs-${{ matrix.edition }}
+          path: e2e/teleport-*.log
+          retention-days: 7
+
+      - name: Upload Docker node logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-node-logs-${{ matrix.edition }}
+          path: e2e/docker-node-*.log
+          retention-days: 7
+
+  # Dynamic matrix jobs report no status at all, so we gather the status here.
+  e2e-passed:
+    name: E2E Tests Passed
+    needs: [changes, build-shared, build-teleport, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check job results
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "::error::One or more E2E jobs did not succeed"
+          exit 1

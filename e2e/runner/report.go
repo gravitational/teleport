@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -42,10 +24,11 @@ type reportConfig struct {
 	sha       string
 	e2eDir    string
 	tracePath string
+	edition   string
 }
 
 func runReport(ctx context.Context, cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(ctx, cfg, "playwright-report")
+	tmpDir, err := downloadArtifact(ctx, cfg, "playwright-report-"+cfg.edition)
 	if err != nil {
 		return err
 	}
@@ -61,7 +44,7 @@ func runReport(ctx context.Context, cfg *reportConfig) error {
 }
 
 func runTestResults(ctx context.Context, cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(ctx, cfg, "test-results")
+	tmpDir, err := downloadArtifact(ctx, cfg, "test-results-"+cfg.edition)
 	if err != nil {
 		return err
 	}
@@ -249,11 +232,30 @@ func ciShortHeadSHA() string {
 
 func ciReportCmd(pr int) string {
 	cmd := fmt.Sprintf("e2e/run.sh --report %d", pr)
+	// This only renders inside CI, where the edition is carried by the environment: the summary
+	// writers that call it have no access to the parsed flags.
+	if os.Getenv("E2E_ENTERPRISE") != "" {
+		cmd += " -e"
+	}
 	if sha := ciShortHeadSHA(); sha != "" {
 		cmd += " --sha " + sha
 	}
 
 	return cmd
+}
+
+const (
+	editionOSS        = "oss"
+	editionEnterprise = "ent"
+)
+
+// editionName names the half of the suite a run covers, matching the CI artifact name suffixes.
+func editionName(enterprise bool) string {
+	if enterprise {
+		return editionEnterprise
+	}
+
+	return editionOSS
 }
 
 func detectRepo(e2eDir string) string {

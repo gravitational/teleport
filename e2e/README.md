@@ -48,6 +48,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
 | `--teleport-log-level` | `INFO`           | Teleport log severity (`DEBUG`, `INFO`, `WARN`, `ERROR`)                                |
 | `--license-file`       |                  | Path to Teleport license file (required for Enterprise features)                        |
+| `--enterprise`, `-e`   | `false`          | Run the enterprise specs against the enterprise build (env: `E2E_ENTERPRISE`)            |
 | `--teleport-bin`       | `build/teleport` | Override teleport binary path (env: `TELEPORT_BIN`)                                     |
 | `--tctl-bin`           | `build/tctl`     | Override tctl binary path (env: `TCTL_BIN`)                                             |
 | `--teleport-url`       |                  | Override Teleport URL (env: `TELEPORT_URL`). If set, the runner skips starting Teleport |
@@ -227,16 +228,25 @@ with `test.use({ teleport: { config: {...} } })` inside a `test.describe()` bloc
 Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
 
 ```ts
-test.describe('custom license', () => {
+test.describe('custom proxy', () => {
   test.use({
     teleport: {
       config: {
-        auth_service: {
-          license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
+        proxy_service: {
+          ssh_public_addr: ['e2e.example.com:3023'],
         },
       },
     },
   });
+});
+```
+
+To run against a specific license, use `license` rather than spelling out `auth_service.license_file`. The name
+resolves to `e/fixtures/license-<name>.pem`, the same PEMs the enterprise Go tests use:
+
+```ts
+test.describe('feature hiding', () => {
+  test.use({ teleport: { license: 'featurehiding' } });
 });
 ```
 
@@ -248,14 +258,10 @@ A declared config can also set process environment variables scoped to just that
 which avoids a variable meant for one config leaking into unrelated tests:
 
 ```ts
-test.describe('cloud license', () => {
+test.describe('cloud panel', () => {
   test.use({
     teleport: {
-      config: {
-        auth_service: {
-          license_file: '${E2E_DIR}/testdata/licenses/cloud-license.pem',
-        },
-      },
+      license: 'cloud-ent-staging',
       env: {
         TELEPORT_CLOUD_HOSTPORT: 'api.cloud.gravitational.io',
       },
@@ -263,6 +269,36 @@ test.describe('cloud license', () => {
   });
 });
 ```
+
+### Enterprise tests
+
+Enterprise behaviour is tested by a second suite in [`e/e2e`](../e/e2e), which holds only content: specs,
+helpers, testdata and startup resources. Everything else — the runner, the shared helpers, the Playwright
+config, `run.sh` — is this directory's, so there is one of each.
+
+A run covers one suite or the other, never both. `--enterprise` (`-e`) switches `--teleport-bin` to
+`e/build/teleport`, defaults `--license-file` to `e/fixtures/license-all-features.pem` (the same PEM CI uses,
+so local and CI runs see the same features), and points the runner and Playwright at `e/e2e/tests`. Naming a
+path inside `e/e2e` turns the flag on by itself. `tctl` is shared, since the enterprise Makefile delegates it
+back to the OSS target.
+
+```bash
+# Run every enterprise spec
+./e2e/run.sh -e
+
+# Run one. Paths resolve against your shell's cwd, so tab-completing from the repo root works, and
+# -e is inferred from the path.
+./e2e/run.sh e/e2e/tests/web/authenticated/featureHiding.spec.ts
+
+# Run one against a different license
+./e2e/run.sh -e --license-file e/fixtures/license-cloud-ent.pem e/e2e/tests/web/authenticated/cloudPanel.spec.ts
+```
+
+Enterprise specs import their own helpers as `@gravitational/e-e2e/helpers/*` and the shared ones as
+`@gravitational/e2e/helpers/*`. `e/e2e/testdata/roles/` and `e/e2e/testdata/recordings/` are searched before
+the shared ones, so the suite can carry fixtures without copying what it shares. YAML in
+`e/e2e/config/resources/` is `tctl create`d on top of the shared `config/resources/` for enterprise runs only,
+so it can seed resource kinds a community build would reject.
 
 ### Restricting a spec to certain browsers
 

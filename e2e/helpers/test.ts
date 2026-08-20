@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,15 +43,23 @@ export interface UserDefinition {
 
 /**
  * TeleportOption lets a test declare a custom Teleport cluster config to use.
+ *
+ * `license` names a PEM under e/fixtures (`license-<name>.pem`) and is merged in as
+ * auth_service.license_file, so enterprise tests don't repeat the path in every config block.
  **/
-export interface TeleportOption {
-  config: Record<string, unknown>;
+export type TeleportOption = {
   env?: Record<string, string>;
-}
+} & (
+  | { config: Record<string, unknown>; license?: string }
+  | { config?: Record<string, unknown>; license: string }
+);
 
 const e2eDir =
   process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
+// Enterprise specs live in their own tree, so spec paths are keyed off the suite being run rather
+// than the shared directory that holds .auth.
+const suiteDir = process.env.E2E_SUITE_DIR ?? e2eDir;
 
 const tryLoadUserMapping =
   cachedJSONLoader<Record<string, string>>('user-mapping.json');
@@ -285,10 +275,10 @@ function wantsAuthenticatedUser(projectName: string): boolean {
   return projectName.endsWith(':authenticated') || projectName === 'connect';
 }
 
-// relSpecPath returns the spec file path relative to e2e/, matching the
+// relSpecPath returns the spec file path relative to the suite being run, matching the
 // `source` field the Go scanner emits for inline declarations.
 function relSpecPath(testInfo: { file: string }) {
-  return relative(e2eDir, testInfo.file);
+  return relative(suiteDir, testInfo.file);
 }
 
 // Mapping files are written once at runner startup and don't change during a

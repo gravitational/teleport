@@ -41,6 +41,8 @@ run_filter_repo() {
   local path_globs=(
     'e'
     'e/**'
+    'e2e'
+    'e2e/**'
     'rfd/**'
     '.github/**'
     'skills/**'

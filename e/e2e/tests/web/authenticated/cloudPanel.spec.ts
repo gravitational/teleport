@@ -5,11 +5,7 @@ import { expect, test } from '@gravitational/e-e2e/helpers/test';
 test.describe('cloud panel', () => {
   test.use({
     teleport: {
-      config: {
-        auth_service: {
-          license_file: '${E2E_DIR}/../fixtures/license-cloud-ent-staging.pem',
-        },
-      },
+      license: 'cloud-ent-staging',
       env: {
         TELEPORT_CLOUD_HOSTPORT: 'api.cloud.gravitational.io',
       },

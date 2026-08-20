@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 import {
   expect,
   test,
@@ -52,14 +34,7 @@ async function openResourcesPanel(page: Page): Promise<Locator> {
 test.describe('feature hiding with a limited-access user', () => {
   // Run these tests against a Teleport cluster with a license that has feature hiding enabled.
   test.use({
-    teleport: {
-      config: {
-        auth_service: {
-          license_file:
-            '${E2E_DIR}/testdata/licenses/license-featurehiding.pem',
-        },
-      },
-    },
+    teleport: { license: 'featurehiding' },
     user: {
       roles: [{ file: '@gravitational/e2e/roles/featurehiding-limited.yaml' }],
     },
@@ -134,14 +109,7 @@ test.describe('feature hiding with a limited-access user', () => {
 test.describe('feature hiding with a partial-access user', () => {
   // Run these tests against a Teleport cluster with a license that has feature hiding enabled.
   test.use({
-    teleport: {
-      config: {
-        auth_service: {
-          license_file:
-            '${E2E_DIR}/testdata/licenses/license-featurehiding.pem',
-        },
-      },
-    },
+    teleport: { license: 'featurehiding' },
     user: {
       roles: [
         { file: '@gravitational/e2e/roles/featurehiding-bots-only.yaml' },
@@ -157,7 +125,7 @@ test.describe('feature hiding with a partial-access user', () => {
 
     const panel = await sideNavPage.openSection('Machine & Workload ID');
 
-    // Bots is is the only thing this role should grant access to in this nav section
+    // Bots is the only thing this role should grant access to in this nav section
     await expect.poll(() => visibleNavItems(panel)).toEqual(new Set(['Bots']));
 
     // A section with no accessible features should be hidden entirely.
@@ -194,14 +162,7 @@ test.describe('feature hiding with a partial-access user', () => {
 test.describe("feature hiding with a full-access user shouldn't hide any features", () => {
   // Run these tests against a Teleport cluster with a license that has feature hiding enabled.
   test.use({
-    teleport: {
-      config: {
-        auth_service: {
-          license_file:
-            '${E2E_DIR}/testdata/licenses/license-featurehiding.pem',
-        },
-      },
-    },
+    teleport: { license: 'featurehiding' },
     user: { roles: ['access', 'editor'] },
   });
 

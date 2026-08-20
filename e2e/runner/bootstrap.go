@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -60,22 +42,31 @@ type credentialsJSON struct {
 	ClientIP             string `json:"clientIp"`
 }
 
-// readRoleFile reads e2eDir/testdata/roles/<filename> and extracts
+// readRoleFile reads testdata/roles/<filename> from the first directory that has it, so an
+// enterprise suite can carry its own roles without copying the shared ones. It extracts
 // metadata.name. Uses os.Root so filenames sourced from test code can't escape
 // the roles directory.
-func readRoleFile(e2eDir, filename string) (*customRole, error) {
-	rolesDir := filepath.Join(e2eDir, "testdata", "roles")
+func readRoleFile(dirs []string, filename string) (*customRole, error) {
+	var root *os.Root
+	var f *os.File
+	for _, dir := range dirs {
+		r, err := os.OpenRoot(filepath.Join(dir, "testdata", "roles"))
+		if err != nil {
+			continue
+		}
 
-	root, err := os.OpenRoot(rolesDir)
-	if err != nil {
-		return nil, fmt.Errorf("opening roles dir: %w", err)
+		if opened, err := r.Open(filename); err == nil {
+			root, f = r, opened
+			break
+		}
+
+		r.Close()
+	}
+
+	if f == nil {
+		return nil, fmt.Errorf("reading role file %s: not found in %v", filename, dirs)
 	}
 	defer root.Close()
-
-	f, err := root.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("reading role file %s: %w", filename, err)
-	}
 	defer f.Close()
 
 	data, err := io.ReadAll(f)
@@ -201,7 +192,7 @@ func writeUserMapping(path string, mapping map[string]string) error {
 // role refs, and dedupes custom-role files. Scanned users that share a
 // canonical key are aggregated into a single bootstrap account whose
 // recordings are the deduped union of every contributing declaration.
-func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapResult, error) {
+func buildBootstrapState(roleDirs []string, scannedUsers []scannedUser) (*bootstrapResult, error) {
 	type userGroup struct {
 		key string
 		su  scannedUser
@@ -279,7 +270,7 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 			if role.file != "" {
 				cr, ok := customRolesByFile[role.file]
 				if !ok {
-					cr, err = readRoleFile(e2eDir, role.file)
+					cr, err = readRoleFile(roleDirs, role.file)
 					if err != nil {
 						return nil, fmt.Errorf("reading role for user %s: %w", name, err)
 					}

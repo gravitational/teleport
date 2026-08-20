@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -73,7 +55,7 @@ type recordingInstance struct {
 // seedRecordings copies session recording .tar files into Teleport's records directory and injects
 // corresponding session.end audit events. Only recordings referenced in recordingOwners are seeded.
 // Each owner of a recording gets its own copy with a freshly-generated session ID.
-func (t *teleportInstance) seedRecordings(ctx context.Context, e2eDir, dataDir string) error {
+func (t *teleportInstance) seedRecordings(ctx context.Context, e2eDir, suiteDir, dataDir string) error {
 	if len(t.recordingOwners) == 0 {
 		return nil
 	}
@@ -168,7 +150,10 @@ func (t *teleportInstance) seedRecordings(ctx context.Context, e2eDir, dataDir s
 			return fmt.Errorf("writing audit event: %w", err)
 		}
 
-		if err := adjustAndCopySummary(srcDir, recordsDir, inst.recording.SessionID, inst.destSessionID, endEvent, newStop.Sub(originalStop)); err != nil {
+		// Summaries are looked up in the suite's own testdata: a community run finds none, which is
+		// correct, since only an enterprise build produces them.
+		summaryDir := filepath.Join(suiteDir, recordingsDir, string(inst.recording.Kind))
+		if err := adjustAndCopySummary(summaryDir, recordsDir, inst.recording.SessionID, inst.destSessionID, endEvent, newStop.Sub(originalStop)); err != nil {
 			return fmt.Errorf("adjusting summary for %s: %w", inst.destSessionID, err)
 		}
 	}

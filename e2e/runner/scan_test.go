@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -27,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -219,6 +202,7 @@ test.describe(() => {                                       // 17
 func TestParseHelperImports(t *testing.T) {
 	content := `import { test, expect } from '@gravitational/e2e/helpers/connect';
 import { startUrl } from '@gravitational/e2e/helpers/env';
+import { test as entTest } from '@gravitational/e-e2e/helpers/test';
 import { chromium } from '@playwright/test';
 `
 	tmpFile := filepath.Join(t.TempDir(), "test.spec.ts")
@@ -226,8 +210,9 @@ import { chromium } from '@playwright/test';
 		t.Fatal(err)
 	}
 
+	// Imports keep their package so the helper resolves against the right tree.
 	got := parseHelperImports(tmpFile)
-	want := []string{"connect", "env"}
+	want := []string{"e2e/connect", "e2e/env", "e-e2e/test"}
 
 	if len(got) != len(want) {
 		t.Fatalf("got %d imports, want %d: %v", len(got), len(want), got)
@@ -274,7 +259,7 @@ test('something', async () => {});
 
 	t.Run("connect test detects Connect fixture via helper", func(t *testing.T) {
 		rel, _ := filepath.Rel(e2eDir, filepath.Join(testsDir, "auth.spec.ts"))
-		targets, err := resolveTargetsWithHelpers(e2eDir, []string{rel})
+		targets, err := resolveTargetsWithHelpers(suiteDirs{shared: e2eDir, suite: e2eDir}, []string{rel})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -291,7 +276,7 @@ test('something', async () => {});
 
 	t.Run("web test does not detect Connect fixture", func(t *testing.T) {
 		rel, _ := filepath.Rel(e2eDir, filepath.Join(webDir, "roles.spec.ts"))
-		targets, err := resolveTargetsWithHelpers(e2eDir, []string{rel})
+		targets, err := resolveTargetsWithHelpers(suiteDirs{shared: e2eDir, suite: e2eDir}, []string{rel})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -508,7 +493,7 @@ func TestScanUsersDefaultUser(t *testing.T) {
 	// A spec that declares no users at all.
 	writeFile(t, testsDir, "basic.spec.ts", `test.use({ fixtures: ['ssh-node'] });`)
 
-	targets, err := resolveTargetsWithHelpers(e2eDir, []string{"tests/basic.spec.ts"})
+	targets, err := resolveTargetsWithHelpers(suiteDirs{shared: e2eDir, suite: e2eDir}, []string{"tests/basic.spec.ts"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1285,6 +1270,33 @@ test.describe('two', () => {
 });`,
 			wantErr: true,
 		},
+		{
+			name: "license without config",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { license: 'featurehiding' } });
+});`,
+			want: []scopedTeleportConfig{
+				{raw: "", license: "featurehiding", line: 1},
+			},
+		},
+		{
+			name: "license alongside config and env",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { license: 'cloud-ent-staging', config: { a: 1 }, env: { FOO: 'bar' } } });
+});`,
+			want: []scopedTeleportConfig{
+				{raw: `{ a: 1 }`, license: "cloud-ent-staging", line: 1, env: map[string]string{"FOO": "bar"}},
+			},
+		},
+		{
+			name: "license_file inside config is not read as the shorthand",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { auth_service: { license_file: 'x.pem' } } } });
+});`,
+			want: []scopedTeleportConfig{
+				{raw: `{ auth_service: { license_file: 'x.pem' } }`, line: 1},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1299,6 +1311,7 @@ test.describe('two', () => {
 			require.Len(t, got, len(tt.want))
 			for i := range tt.want {
 				require.Equal(t, tt.want[i].raw, got[i].raw)
+				require.Equal(t, tt.want[i].license, got[i].license)
 				require.Equal(t, tt.want[i].line, got[i].line)
 				require.Equal(t, tt.want[i].env, got[i].env)
 			}
@@ -1556,7 +1569,7 @@ test('t', async () => {});`)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			targets, err := resolveTargetsWithHelpers(e2eDir, test.args)
+			targets, err := resolveTargetsWithHelpers(suiteDirs{shared: e2eDir, suite: e2eDir}, test.args)
 			if test.wantErr {
 				require.Error(t, err)
 				return
@@ -1595,4 +1608,191 @@ func TestFilesForProjectHonoursBrowserRestrictions(t *testing.T) {
 	require.Equal(t, []string{
 		"tests/connect/shell.spec.ts",
 	}, p.filesForProject(&testInstance{browser: "connect"}, files))
+}
+
+func TestNewSuiteDirs(t *testing.T) {
+	repoRoot := filepath.Join("/repo")
+	shared := filepath.Join(repoRoot, "e2e")
+
+	t.Run("community run reads one tree", func(t *testing.T) {
+		dirs := newSuiteDirs(repoRoot, false)
+
+		require.Equal(t, shared, dirs.shared)
+		require.Equal(t, shared, dirs.suite)
+		require.Equal(t, filepath.Join(shared, "helpers", "test.ts"), dirs.helperPath("e2e/test"))
+	})
+
+	t.Run("enterprise run reads its own tree", func(t *testing.T) {
+		dirs := newSuiteDirs(repoRoot, true)
+		ent := filepath.Join(repoRoot, "e", "e2e")
+
+		require.Equal(t, shared, dirs.shared)
+		require.Equal(t, ent, dirs.suite)
+		require.Equal(t, filepath.Join(shared, "helpers", "login.ts"), dirs.helperPath("e2e/login"))
+		require.Equal(t, filepath.Join(ent, "helpers", "test.ts"), dirs.helperPath("e-e2e/test"))
+	})
+}
+
+func TestMergeTeleportConfigLicense(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.yaml")
+	require.NoError(t, os.WriteFile(base, []byte("auth_service:\n  cluster_name: e2e\n  license_file: base.pem\n"), 0644))
+
+	t.Run("license overrides the base license_file", func(t *testing.T) {
+		out := filepath.Join(dir, "license-only.yaml")
+		require.NoError(t, mergeTeleportConfig(base, out, dir, "", "/licenses/x.pem"))
+
+		merged := readMergedConfig(t, out)
+		auth := merged["auth_service"].(map[string]any)
+		require.Equal(t, "/licenses/x.pem", auth["license_file"])
+		require.Equal(t, "e2e", auth["cluster_name"])
+	})
+
+	t.Run("license merges alongside a declared config", func(t *testing.T) {
+		out := filepath.Join(dir, "with-config.yaml")
+		require.NoError(t, mergeTeleportConfig(base, out, dir, "{ proxy_service: { enabled: true } }", "/licenses/x.pem"))
+
+		merged := readMergedConfig(t, out)
+		require.Equal(t, "/licenses/x.pem", merged["auth_service"].(map[string]any)["license_file"])
+		require.Equal(t, true, merged["proxy_service"].(map[string]any)["enabled"])
+	})
+
+	t.Run("no license leaves the base untouched", func(t *testing.T) {
+		out := filepath.Join(dir, "no-license.yaml")
+		require.NoError(t, mergeTeleportConfig(base, out, dir, "", ""))
+
+		merged := readMergedConfig(t, out)
+		require.Equal(t, "base.pem", merged["auth_service"].(map[string]any)["license_file"])
+	})
+}
+
+func readMergedConfig(t *testing.T, path string) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var merged map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &merged))
+
+	return merged
+}
+
+func TestApplyEnterpriseDefaults(t *testing.T) {
+	root := filepath.Join("/repo")
+	ossBin := filepath.Join(root, "build", "teleport")
+	entBin := filepath.Join(root, "e", "build", "teleport")
+	entLicense := filepath.Join(root, "e", "fixtures", "license-all-features.pem")
+
+	t.Run("community run is untouched", func(t *testing.T) {
+		f := &e2eFlags{teleportBin: ossBin}
+		f.applyEnterpriseDefaults(root)
+
+		require.Equal(t, ossBin, f.teleportBin)
+		require.Empty(t, f.licenseFile)
+	})
+
+	t.Run("enterprise run switches the binary and license", func(t *testing.T) {
+		f := &e2eFlags{enterprise: true, teleportBin: ossBin}
+		f.applyEnterpriseDefaults(root)
+
+		require.Equal(t, entBin, f.teleportBin)
+		require.Equal(t, entLicense, f.licenseFile)
+	})
+
+	t.Run("explicit overrides win", func(t *testing.T) {
+		f := &e2eFlags{enterprise: true, teleportBin: "/custom/teleport", licenseFile: "/custom.pem"}
+		f.applyEnterpriseDefaults(root)
+
+		require.Equal(t, "/custom/teleport", f.teleportBin)
+		require.Equal(t, "/custom.pem", f.licenseFile)
+	})
+}
+
+func TestNormalizeTestFiles(t *testing.T) {
+	repoRoot := t.TempDir()
+	e2eDir := filepath.Join(repoRoot, "e2e")
+	spec := "tests/web/authenticated/e/cloudPanel.spec.ts"
+
+	// run.sh sets E2E_CALLER_DIR to the shell's cwd so paths can be tab-completed from anywhere in
+	// the repo, not just from e2e/.
+	tests := []struct {
+		name      string
+		callerDir string
+		arg       string
+	}{
+		{name: "from repo root", callerDir: repoRoot, arg: filepath.Join("e2e", spec)},
+		{name: "from e2e dir", callerDir: e2eDir, arg: spec},
+		{name: "from a nested dir", callerDir: filepath.Join(e2eDir, "tests"), arg: filepath.Join("..", spec)},
+		{name: "absolute", callerDir: repoRoot, arg: filepath.Join(e2eDir, spec)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("E2E_CALLER_DIR", tt.callerDir)
+
+			got, err := normalizeTestFiles(e2eDir, []string{tt.arg})
+			require.NoError(t, err)
+			require.Equal(t, []string{spec}, got)
+		})
+	}
+
+	t.Run("playwright line suffix survives normalization", func(t *testing.T) {
+		t.Setenv("E2E_CALLER_DIR", repoRoot)
+
+		got, err := normalizeTestFiles(e2eDir, []string{filepath.Join("e2e", spec) + ":42"})
+		require.NoError(t, err)
+		require.Equal(t, []string{spec + ":42"}, got)
+	})
+}
+
+func TestFindStringValueAtDepth(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "plain value", body: `{ license: 'featurehiding' }`, want: "featurehiding"},
+		{name: "double quotes", body: `{ license: "cloud-ent" }`, want: "cloud-ent"},
+		{name: "escaped quote in value", body: `{ license: 'cloud\'ent' }`, want: "cloud'ent"},
+		{name: "nested key of the same name is ignored", body: `{ config: { license: 'nested' } }`, want: ""},
+		{name: "license_file is not the license key", body: `{ config: { auth_service: { license_file: 'x.pem' } } }`, want: ""},
+		{name: "absent", body: `{ config: { a: 1 } }`, want: ""},
+		{name: "unterminated", body: `{ license: 'oops`, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, findStringValueAtDepth(tt.body, "license", 1))
+		})
+	}
+}
+
+func TestInferEnterpriseFromArgs(t *testing.T) {
+	repoRoot := t.TempDir()
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "no paths", want: false},
+		{name: "oss spec", args: []string{"e2e/tests/web/authenticated/rbac.spec.ts"}, want: false},
+		{name: "enterprise spec", args: []string{"e/e2e/tests/web/authenticated/cloudPanel.spec.ts"}, want: true},
+		{name: "enterprise directory", args: []string{"e/e2e/tests"}, want: true},
+		{name: "line suffix", args: []string{"e/e2e/tests/web/authenticated/cloudPanel.spec.ts:42"}, want: true},
+		{name: "mixed", args: []string{"e2e/tests/web/authenticated/rbac.spec.ts", "e/e2e/tests"}, want: true},
+		// e2e/ is not inside e/e2e/, so the shared tree never reads as enterprise.
+		{name: "shared tree", args: []string{"e2e/helpers/test.ts"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("E2E_CALLER_DIR", repoRoot)
+
+			f := &e2eFlags{}
+			require.NoError(t, f.inferEnterpriseFromArgs(repoRoot, tt.args))
+			require.Equal(t, tt.want, f.enterprise)
+		})
+	}
 }

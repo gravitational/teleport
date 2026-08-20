@@ -1,25 +1,6 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"io/fs"
@@ -42,7 +23,7 @@ var (
 	browsersArrayRe    = regexp.MustCompile(`browsers:\s*\[([^]]*)]`)
 	lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
 	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
-	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
+	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/(e2e|e-e2e)/helpers/(\w+)['"]`)
 	roleFileRe         = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
 	describeTitleRe    = regexp.MustCompile(`\.describe\(\s*['"]([^'"]*)['"]`)
 	testDefRe          = regexp.MustCompile(`\btest(?:\.(?:only|skip|fixme))?\(\s*['"]`)
@@ -114,14 +95,14 @@ type callRange struct {
 
 // resolveTargetsWithHelpers resolves test files plus any helper modules they
 // import, so fixtures and users declared in helpers are also discovered.
-func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget, error) {
-	targets, err := resolveFilesToScan(e2eDir, testFiles)
+func resolveTargetsWithHelpers(dirs suiteDirs, testFiles []string) ([]scanTarget, error) {
+	targets, err := resolveFilesToScan(dirs.suite, testFiles)
 	if err != nil {
 		return nil, err
 	}
 
 	for i := range targets {
-		if rel, err := filepath.Rel(e2eDir, targets[i].path); err == nil {
+		if rel, err := filepath.Rel(dirs.suite, targets[i].path); err == nil {
 			targets[i].sourceFile = rel
 		}
 	}
@@ -133,14 +114,39 @@ func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget,
 		}
 	}
 
-	helpersBase := cmp.Or(os.Getenv("E2E_SHARED_DIR"), e2eDir)
 	for helper := range importedHelpers {
-		targets = append(targets, scanTarget{
-			path: filepath.Join(helpersBase, "helpers", helper+".ts"),
-		})
+		targets = append(targets, scanTarget{path: dirs.helperPath(helper)})
 	}
 
 	return targets, nil
+}
+
+// suiteDirs locates the two trees a run reads from: the shared one holding the runner, helpers and
+// config templates, and the suite being run, which is the same directory for a community run and
+// e/e2e for an enterprise one.
+type suiteDirs struct {
+	shared string
+	suite  string
+}
+
+func newSuiteDirs(repoRoot string, enterprise bool) suiteDirs {
+	shared := filepath.Join(repoRoot, "e2e")
+	if !enterprise {
+		return suiteDirs{shared: shared, suite: shared}
+	}
+
+	return suiteDirs{shared: shared, suite: filepath.Join(repoRoot, "e", "e2e")}
+}
+
+// helperPath resolves an imported helper module. Enterprise helpers are imported as
+// @gravitational/e-e2e/helpers/x and the shared ones as @gravitational/e2e/helpers/x.
+func (d suiteDirs) helperPath(helper string) string {
+	pkg, name, _ := strings.Cut(helper, "/")
+	if pkg == "e-e2e" {
+		return filepath.Join(d.suite, "helpers", name+".ts")
+	}
+
+	return filepath.Join(d.shared, "helpers", name+".ts")
 }
 
 // scanFixturesFromTargets scans pre-resolved targets to discover which
@@ -290,7 +296,7 @@ func parseHelperImports(path string) []string {
 
 	var helpers []string
 	for _, match := range helperImportRe.FindAllStringSubmatch(cleaned, -1) {
-		helpers = append(helpers, match[1])
+		helpers = append(helpers, match[1]+"/"+match[2])
 	}
 
 	return helpers
@@ -837,6 +843,83 @@ func findKeyValueAtDepth(body, key string, openBracket, closeBracket byte, targe
 	return -1, -1
 }
 
+// findStringValueAtDepth returns the unquoted value of a string-literal key at targetDepth, or ""
+// when the key is absent.
+func findStringValueAtDepth(body, key string, targetDepth int) string {
+	depth := 0
+	var quote byte
+
+	for i := 0; i < len(body); i++ {
+		ch := body[i]
+
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+				continue
+			}
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+			continue
+		}
+
+		if depth == targetDepth {
+			for _, q := range []byte{'\'', '"', '`'} {
+				start, ok := matchesKeyAt(body, i, key, q)
+				if !ok {
+					continue
+				}
+
+				value, ok := readQuoted(body[start:], q)
+				if !ok {
+					return ""
+				}
+
+				return value
+			}
+		}
+
+		switch ch {
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+		}
+	}
+
+	return ""
+}
+
+// readQuoted reads the string literal opening at s[0], resolving backslash escapes, and reports
+// whether it was terminated.
+func readQuoted(s string, quote byte) (string, bool) {
+	var b strings.Builder
+
+	for i := 1; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			if i+1 >= len(s) {
+				return "", false
+			}
+
+			i++
+			b.WriteByte(s[i])
+		case quote:
+			return b.String(), true
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+
+	return "", false
+}
+
 func matchesKeyAt(body string, i int, key string, bracket byte) (int, bool) {
 	if i+len(key) > len(body) {
 		return 0, false
@@ -1160,6 +1243,8 @@ func scanBrowserRestrictions(targets []scanTarget) (map[string][]string, error) 
 type uniqueTeleportConfig struct {
 	// raw is the config object's raw JS text.
 	raw string
+	// license is the declared license name, resolved against e/fixtures at merge time.
+	license string
 	// env holds process environment variable overrides for this config.
 	env map[string]string
 	// files are the test files that declared this config.
@@ -1168,8 +1253,9 @@ type uniqueTeleportConfig struct {
 
 // configEnvKey is a dedup key for a declared config
 type configEnvKey struct {
-	config string
-	env    string
+	config  string
+	env     string
+	license string
 }
 
 // scanTeleportConfigs finds the unique custom Teleport configs declared by tests
@@ -1204,10 +1290,10 @@ func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, []string
 		}
 
 		for _, sc := range configs {
-			key := configEnvKey{config: normalizeConfigText(sc.raw), env: normalizeEnvText(sc.env)}
+			key := configEnvKey{config: normalizeConfigText(sc.raw), env: normalizeEnvText(sc.env), license: sc.license}
 			u, ok := byKey[key]
 			if !ok {
-				u = &uniqueTeleportConfig{raw: sc.raw, env: sc.env}
+				u = &uniqueTeleportConfig{raw: sc.raw, license: sc.license, env: sc.env}
 				byKey[key] = u
 				order = append(order, key)
 			}
@@ -1254,6 +1340,7 @@ func inConfiguredBlock(pos int, configs []scopedTeleportConfig) bool {
 // scopedTeleportConfig is a declared config and the describe block it's scoped to.
 type scopedTeleportConfig struct {
 	raw                string
+	license            string
 	line               int
 	startByte, endByte int
 	env                map[string]string
@@ -1276,9 +1363,15 @@ func extractTeleportConfigs(content string, blocks []blockRange, path string) ([
 		}
 
 		teleportBody := body[teleportOpen:teleportClose]
+		license := findStringValueAtDepth(teleportBody, "license", 1)
+
+		var raw string
 		configOpen, configClose := findKeyValueAtDepth(teleportBody, "config", '{', '}', 1)
-		if configOpen < 0 {
-			return nil, fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
+		switch {
+		case configOpen >= 0:
+			raw = teleportBody[configOpen:configClose]
+		case license == "":
+			return nil, fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object or a `license`", path)
 		}
 
 		b := smallestEnclosingBlock(call.start, blocks)
@@ -1297,14 +1390,16 @@ func extractTeleportConfigs(content string, blocks []blockRange, path string) ([
 		}
 
 		sc := scopedTeleportConfig{
-			raw:       teleportBody[configOpen:configClose],
+			raw:       raw,
+			license:   license,
 			line:      b.start,
 			startByte: b.startByte,
 			endByte:   b.endByte,
 			env:       env,
 		}
 		for _, existing := range out {
-			if existing.line == sc.line && normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) {
+			if existing.line == sc.line &&
+				(normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) || existing.license != sc.license) {
 				return nil, fmt.Errorf("%s: conflicting teleport configs declared in the same describe", path)
 			}
 		}

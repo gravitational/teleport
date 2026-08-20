@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 //go:generate go run ./cmd/gen-ts-fixtures
 
 package main
@@ -66,7 +48,14 @@ func main() {
 	}
 
 	if mode == modeGitHubReport {
-		if err := writeGitHubReport(resultsPath); err != nil {
+		// Annotations are anchored at the repo root, while Playwright reports spec paths relative to
+		// the suite's tests directory.
+		specPrefix := "e2e/tests/"
+		if flags.enterprise {
+			specPrefix = "e/e2e/tests/"
+		}
+
+		if err := writeGitHubReport(resultsPath, specPrefix); err != nil {
 			slog.ErrorContext(ctx, "failed to write GitHub report", "error", err)
 			os.Exit(1)
 		}
@@ -85,6 +74,7 @@ func main() {
 			sha:       flags.reportSHA,
 			e2eDir:    e2eDir,
 			tracePath: flags.tracePath,
+			edition:   editionName(flags.enterprise),
 		}
 
 		var runErr error
@@ -128,11 +118,11 @@ func main() {
 
 type e2eConfig struct {
 	e2eFlags
-	isCI      bool
-	repoRoot  string
-	e2eDir    string
-	sharedDir string // shared resource dir (templates, scripts); defaults to e2eDir
-	certsDir  string
+	isCI     bool
+	repoRoot string
+	e2eDir   string
+	suiteDir string // tests, testdata and startup resources for the edition being run
+	certsDir string
 
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
@@ -172,11 +162,6 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	sharedDir := e2eDir
-	if v := os.Getenv("E2E_SHARED_DIR"); v != "" {
-		sharedDir = v
-	}
-
 	repoRoot := filepath.Dir(e2eDir)
 
 	config := &e2eConfig{
@@ -184,11 +169,11 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		isCI:                   isCI,
 		repoRoot:               repoRoot,
 		e2eDir:                 e2eDir,
-		sharedDir:              sharedDir,
+		suiteDir:               newSuiteDirs(repoRoot, flags.enterprise).suite,
 		certsDir:               filepath.Join(e2eDir, "certs"),
-		stateTemplate:          filepath.Join(sharedDir, "config", "state.yaml.tmpl"),
-		teleportConfigTemplate: filepath.Join(sharedDir, "config", "teleport.yaml.tmpl"),
-		nodeConfigTemplate:     filepath.Join(sharedDir, "node", "node.yaml.tmpl"),
+		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
+		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
+		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
 		connectAppDir:          filepath.Join(repoRoot, "web", "packages", "teleterm"),
 		connectTshBinPath:      filepath.Join(repoRoot, "build", "tsh-e2e-webauthnmock"),
 	}
@@ -229,6 +214,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			dataDir:         filepath.Join(e2eDir, "data", browser),
 			tctlBin:         flags.tctlBin,
 			noResourceSetup: flags.noResourceSetup,
+			suiteDir:        config.suiteDir,
 		}
 		config.instances = append(config.instances, inst)
 	}
@@ -241,6 +227,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			dataDir:         filepath.Join(e2eDir, "data", "connect"),
 			tctlBin:         flags.tctlBin,
 			noResourceSetup: flags.noResourceSetup,
+			suiteDir:        config.suiteDir,
 		}
 	}
 
@@ -315,7 +302,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		targets := flags.scanTargets
 		if targets == nil {
 			var err error
-			targets, err = resolveTargetsWithHelpers(e2eDir, flags.testFiles)
+			targets, err = resolveTargetsWithHelpers(newSuiteDirs(repoRoot, flags.enterprise), flags.testFiles)
 			if err != nil {
 				return fmt.Errorf("failed to resolve scan targets: %w", err)
 			}
@@ -346,7 +333,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			slog.DebugContext(ctx, "discovered browser restrictions", "specs", config.browserRestrictions)
 		}
 
-		bootstrap, err := buildBootstrapState(e2eDir, scannedUsers)
+		bootstrap, err := buildBootstrapState(config.roleDirs(), scannedUsers)
 		if err != nil {
 			return fmt.Errorf("failed to build bootstrap state: %w", err)
 		}
@@ -532,13 +519,23 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	return pw.run(ctx, mode)
 }
 
-// applyResources applies all YAML resource files from e2eDir/config/resources/ via tctl create.
-// If the directory does not exist, this is a no-op.
-func applyResources(ctx context.Context, e2eDir, tctlBin, teleportConfig string) error {
-	resourcesDir := filepath.Join(e2eDir, "config", "resources")
-	files, err := filepath.Glob(filepath.Join(resourcesDir, "*.yaml"))
-	if err != nil {
-		return fmt.Errorf("globbing resources: %w", err)
+// applyResources applies all YAML resource files from config/resources/ via tctl create, taking the
+// shared set plus the suite's own so an enterprise run can seed resource kinds a community build
+// would reject. If a directory does not exist, it contributes nothing.
+func applyResources(ctx context.Context, e2eDir, suiteDir, tctlBin, teleportConfig string) error {
+	dirs := []string{filepath.Join(e2eDir, "config", "resources")}
+	if suiteDir != e2eDir {
+		dirs = append(dirs, filepath.Join(suiteDir, "config", "resources"))
+	}
+
+	var files []string
+	for _, dir := range dirs {
+		found, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+		if err != nil {
+			return fmt.Errorf("globbing resources: %w", err)
+		}
+
+		files = append(files, found...)
 	}
 
 	if len(files) == 0 {
@@ -560,4 +557,14 @@ func applyResources(ctx context.Context, e2eDir, tctlBin, teleportConfig string)
 	}
 
 	return nil
+}
+
+// roleDirs lists where a declared role file may live, suite first so an enterprise suite can carry
+// roles of its own without duplicating the shared ones.
+func (c *e2eConfig) roleDirs() []string {
+	if c.suiteDir == c.e2eDir {
+		return []string{c.e2eDir}
+	}
+
+	return []string{c.suiteDir, c.e2eDir}
 }

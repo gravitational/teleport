@@ -1,21 +1,3 @@
-/**
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package main
 
 import (
@@ -36,6 +18,7 @@ type testInstance struct {
 	dataDir            string
 	tctlBin            string
 	noResourceSetup    bool
+	suiteDir           string
 	teleportConfigPath string
 	teleport           *teleportInstance
 	nodes              []*dockerNode
@@ -66,11 +49,11 @@ func (inst *testInstance) start(ctx context.Context) error {
 		if err = inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
 		}
-		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
+		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.suiteDir, inst.dataDir); err != nil {
 			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 		}
 		if !inst.noResourceSetup {
-			if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
+			if err = applyResources(ctx, inst.e2eDir, inst.suiteDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
 				return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
 			}
 		}

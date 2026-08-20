@@ -1,15 +1,5 @@
 {
   "name": "@gravitational/teleport.e-e2e",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "Playwright tests for enterprise e2e testing.",
-  "scripts": {
-    "test": "./run.sh",
-    "type-check": "tsc --noEmit",
-    "show-report": "playwright show-report --port 0"
-  },
-  "license": "SEE LICENSE IN ../LICENSE",
-  "dependencies": {
-    "@gravitational/e2e": "workspace:*"
-  }
+  "private": true,
+  "type": "module"
 }
