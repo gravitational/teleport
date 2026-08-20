@@ -13,6 +13,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -85,6 +87,20 @@ type getEnrollPairingResponse struct {
 	// Token is the pairing token. The wizard sends it back with Approve/Deny to
 	// target this specific pairing.
 	Token string `json:"token"`
+	// Device describes the device asking to enroll. Populated once the mobile app
+	// has claimed the pairing through CreatePairedDeviceEnrollToken, so that the
+	// wizard can name the device the user is about to approve.
+	Device *enrollPairingDevice `json:"device,omitempty"`
+}
+
+// enrollPairingDevice is the JSON shape of [devicepb.EnrollPairingDevice].
+type enrollPairingDevice struct {
+	// OSType is the friendly OS name, e.g. "iOS".
+	OSType string `json:"osType"`
+	// SerialNumber is the device serial number.
+	SerialNumber string `json:"serialNumber"`
+	// OSVersion is the OS version number, without the leading 'v', e.g. "26.3.1".
+	OSVersion string `json:"osVersion"`
 }
 
 // getEnrollPairingHandle returns the current enroll pairing for the calling
@@ -99,13 +115,100 @@ func (p *Plugin) getEnrollPairingHandle(w http.ResponseWriter, r *http.Request, 
 
 	resp, err := clt.DevicesClient().GetCurrentEnrollPairing(r.Context(), &devicepb.GetCurrentEnrollPairingRequest{})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, p.rewrapEnrollPairingNotFound(r.Context(), err)
 	}
 	pairing := resp.GetEnrollPairing()
 	return getEnrollPairingResponse{
-		State: enrollPairingStateToString(pairing.GetStatus().GetState()),
-		Token: pairing.GetStatus().GetToken(),
+		State:  enrollPairingStateToString(pairing.GetStatus().GetState()),
+		Token:  pairing.GetStatus().GetToken(),
+		Device: enrollPairingDeviceFromProto(pairing.GetStatus().GetDevice()),
 	}, nil
+}
+
+func enrollPairingDeviceFromProto(device *devicepb.EnrollPairingDevice) *enrollPairingDevice {
+	if device == nil {
+		return nil
+	}
+	return &enrollPairingDevice{
+		OSType:       devicetrust.FriendlyOSType(device.GetOsType()),
+		SerialNumber: device.GetSerialNumber(),
+		OSVersion:    device.GetOsVersion(),
+	}
+}
+
+// approveEnrollPairingHandle approves the current enroll pairing for the
+// calling user, which lets the mobile app retrieve its enrollment token.
+func (p *Plugin) approveEnrollPairingHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	req, err := readEnrollPairingActionRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.DevicesClient().ApproveEnrollPairing(r.Context(), devicepb.ApproveEnrollPairingRequest_builder{
+		PairingToken: req.Token,
+	}.Build())
+	if err != nil {
+		return nil, p.rewrapEnrollPairingNotFound(r.Context(), err)
+	}
+	return web.OK(), nil
+}
+
+// denyEnrollPairingHandle denies the current enroll pairing for the calling
+// user by deleting it.
+func (p *Plugin) denyEnrollPairingHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	req, err := readEnrollPairingActionRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.DevicesClient().DenyEnrollPairing(r.Context(), devicepb.DenyEnrollPairingRequest_builder{
+		PairingToken: req.Token,
+	}.Build())
+	if err != nil {
+		return nil, p.rewrapEnrollPairingNotFound(r.Context(), err)
+	}
+	return web.OK(), nil
+}
+
+// enrollPairingActionRequest is the body of the approve and deny handlers.
+type enrollPairingActionRequest struct {
+	// Token is the pairing token the wizard was displaying, so that the user
+	// cannot act on a pairing other than the one they saw. Otherwise if the
+	// pairing expired while the wizard was open and a new one was created, the
+	// user could approve the new one unknowingly.
+	Token string `json:"token"`
+}
+
+func readEnrollPairingActionRequest(r *http.Request) (*enrollPairingActionRequest, error) {
+	var req enrollPairingActionRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Token == "" {
+		return nil, trace.BadParameter("missing token")
+	}
+	return &req, nil
+}
+
+// rewrapEnrollPairingNotFound replaces the NotFound message from the RPC which
+// is written for API clients. The kind must stay NotFound as the wizard relies
+// on the 404 status to show the denied-or-expired state.
+func (p *Plugin) rewrapEnrollPairingNotFound(ctx context.Context, err error) error {
+	if trace.IsNotFound(err) {
+		p.Logger.DebugContext(ctx, "Rewrapping enroll pairing NotFound error", "error", err)
+		return trace.NotFound("the enrollment request no longer exists")
+	}
+	return trace.Wrap(err)
 }
 
 func enrollPairingStateToString(s devicepb.EnrollPairingState) string {
