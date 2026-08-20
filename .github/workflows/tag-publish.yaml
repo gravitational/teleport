@@ -1,0 +1,216 @@
+---
+name: Publish Tag Build
+run-name: Publish ${{ inputs.cloud-only && 'Cloud ' || '' }}Tag Build of ${{ inputs.oss-teleport-repo }}@${{ inputs.oss-teleport-ref }}${{ inputs.teleport-version && format(' ({0})', inputs.teleport-version) }}
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/core
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to publish.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The tag/semver of the version to publish. If the oss-teleport-ref
+          input is not a version tag, this input must be provided.
+        type: string
+
+      cloud-only:
+        description: Perform a cloud-only release (distroless OCI only)
+        type: boolean
+        default: false
+
+      environment:
+        description: GitHub environment to publish to.
+        type: environment
+        default: stage/publish
+
+  # The workflow_call event duplicates the workflow_description input parameters, without descriptions.
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/core
+      oss-teleport-ref:
+        type: string
+      teleport-version:
+        type: string
+      cloud-only:
+        type: boolean
+        default: false
+      environment:
+        type: string
+        default: stage/publish
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      pre-release: ${{ steps.determine-version.outputs.pre-release }}
+      version: ${{ steps.determine-version.outputs.full }}
+    steps:
+      - name: Determine Teleport version
+        id: determine-version
+        uses: gravitational/core/.github/actions/parse-version@master
+        with:
+          ref: ${{ inputs.oss-teleport-ref }}
+          version: ${{ inputs.teleport-version }}
+      - name: Reject non-cloud prereleases being sent to production
+        env:
+          PRERELEASE_VERSION: ${{ steps.determine-version.outputs.pre-release }}
+          IS_CLOUD_ONLY: ${{ inputs.cloud-only }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          # If not a production release, allow it
+          if [[ "${TARGET_ENVIRONMENT}" != *prod* ]]; then
+            exit 0
+          fi
+
+          # If the prerelease version is not set (full release),
+          # allow it
+          if [[ -z "${PRERELEASE_VERSION}"  ]]; then
+            exit 0
+          fi
+
+          # If a cloud prerelease and a cloud only build, allow it
+          if [[ "${PRERELEASE_VERSION}" == cloud* && "${IS_CLOUD_ONLY}" == 'true' ]]; then
+            exit 0
+          fi
+
+          # Else reject it
+          echo "::error title=Prerelease sent to production environment::Prereleases must not be sent to production environments (${TARGET_ENVIRONMENT})." >&2
+          exit 1
+
+  publish-distroless-oci:
+    name: Publish distroless OCI images
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-teleport-oci-distroless.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-tbot-distroless-oci:
+    name: Publish Tbot distroless OCI images
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-tbot-distroless-oci.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-hardened-amis:
+    name: Publish hardened AMIs
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-teleport-hardened-amis.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-helm:
+    name: Publish Helm charts
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-helm.yaml
+    with:
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-kube-agent-updater-oci:
+    name: Publish kube agent updater OCI images
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-teleport-kube-agent-updater-oci.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-operator-oci:
+    name: Publish operator OCIs
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-operator-oci.yaml
+    with:
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-os-packages:
+    name: Publish OS Packages
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/publish-os-packages.yaml
+    with:
+      artifact-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-plugins:
+    name: Publish Teleport Plugins
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-plugins.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-release:
+    name: Publish release
+    if: ${{ !inputs.cloud-only }}
+    needs:
+      - setup
+      - publish-distroless-oci
+      - publish-tbot-distroless-oci
+      - publish-hardened-amis
+      - publish-helm
+      - publish-kube-agent-updater-oci
+      - publish-operator-oci
+      - publish-os-packages
+      - publish-plugins
+    secrets: inherit
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/publish-release-server.yaml
+    with:
+      version: "v${{ needs.setup.outputs.version }}"
+      environment: ${{ inputs.environment }}

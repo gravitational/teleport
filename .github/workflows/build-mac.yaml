@@ -1,0 +1,229 @@
+name: Build MacOS (Darwin)
+
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: 'The name of the OSS Teleport repo to checkout'
+        required: false
+        default: gravitational/core
+        type: string
+
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string
+
+      arch:
+        description: 'Build architecture. Either amd64 or arm64'
+        required: true
+        type: string
+
+      release:
+        description: 'Release level to build. Currently supports `oss` and `enterprise`'
+        required: true
+        type: string
+
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+        default: ''
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        required: false
+        default: gravitational/core
+        type: string
+      oss-teleport-ref:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
+      release:
+        required: true
+        type: string
+      release-version:
+        type: string
+        default: ''
+      environment:
+        type: string
+        default: stage/build
+jobs:
+  build-release-artifacts:
+    environment: ${{ inputs.environment }}
+    runs-on: macos-15-xlarge
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+      ARCH: ${{ inputs.arch }}
+    steps:
+      # --- Setup -------------------------------------------------------------
+
+      # https://github.com/actions/runner/issues/2996
+      # time.windows.com because github runners are in azure.
+      - name: Fix time sync
+        run: |
+          sudo sntp -sS time.windows.com
+
+      - name: Checkout Teleport
+        uses: gravitational/core/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: ${{ inputs.release }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Assume env-loader secrets decryption AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.BUILD_MAC_ENV_LOADER_AWS_ROLE_ARN }}
+          role-session-name: "gha-build-mac-env-loader-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: mac-signing
+          environments-directory: e/.environments
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          {
+            echo NODE_VERSION="$(make -s -C build.assets print-node-version)"
+            echo RUST_VERSION="$(make -s -C build.assets print-rust-version)"
+            echo PKG_CONFIG_PATH="$(make -s print-fido2-pkg-path)"
+          } >> "$GITHUB_ENV"
+
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        run: |
+          corepack enable pnpm
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: Install Rust Toolchain
+        run: |
+          make ARCH="${ARCH}" RUST_VERSION="${RUST_VERSION}" rustup-install-target-toolchain
+
+      - name: Install wasm-pack
+        run: make ensure-wasm-deps
+
+      - name: Setup keychain
+        env:
+          APP_KEY: ${{ env.APPLE_APPLICATION_PRIVATE_KEY }}
+          APP_KEY_PASSWORD: ${{ env.APPLE_APPLICATION_PRIVATE_KEY_PASSWORD }}
+          INST_KEY: ${{ env.APPLE_INSTALLER_PRIVATE_KEY }}
+          INST_KEY_PASSWORD: ${{ env.APPLE_INSTALLER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
+
+      # --- Build -------------------------------------------------------------
+      - name: Build FIDO2
+        run: |
+          make ARCH="${ARCH}" build-fido2
+
+      - name: Build Teleport Tarball
+        env:
+          APPLE_USERNAME: ${{ env.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ env.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ env.ENVIRONMENT_NAME }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          make release OS=darwin ARCH="${ARCH}" FIDO2=yes TOUCHID=yes PIV=yes VNETDAEMON=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+
+      # --- Upload ------------------------------------------------------------
+      # Generate release server manifests
+      - name: Generate release server manifests
+        env:
+          RELCLI_VERSION: ${{ env.RELCLI_VERSION }}
+          RELCLI_PATH: /tmp/relcli
+          RELEASE: ${{ inputs.release }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        shell: bash
+        working-directory: build/artifacts
+        run: |
+          # Download the release server CLI tool
+          curl -fsSL -o "${RELCLI_PATH}" "https://cdn.teleport.dev/relcli-${RELCLI_VERSION}-macos-$(uname -m)"
+          chmod +x "${RELCLI_PATH}"
+          ls -lh "${RELCLI_PATH}"
+
+          # Generate the manifest
+          ls -lah
+          # The version of macos on GH-hosted runners has an old version of bash that does
+          # not support associative arrays. Should this ever get bumped, this `case` statement
+          # should be replaced with:
+          # declare -A descarch=([amd64]=Intel [arm64]=ARM)
+          case "${ARCH}" in
+            amd64) descarch="Intel" ;;
+            arm64) descarch="ARM" ;;
+            *) echo "Unknown arch ${ARCH}"; exit 1 ;;
+          esac
+
+          # Always generate a manifest for OSS Teleport
+          "${RELCLI_PATH}" generate-manifest \
+            --path "teleport-v${TELEPORT_VERSION}-darwin-${ARCH}-bin.tar.gz" \
+            --products 'teleport' --os 'darwin' --architecture "$ARCH" \
+            --description "MacOS ${descarch}"
+          
+          # Generate a manifest for enterprise if it was built
+          if [[ "$RELEASE" == 'enterprise' ]]; then
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-ent-v${TELEPORT_VERSION}-darwin-${ARCH}-bin.tar.gz" \
+              --products 'teleport-ent' --os 'darwin' --architecture "$ARCH" \
+              --description "MacOS ${descarch}"
+          fi
+
+          ls -lah
+
+        # Upload to the pending artifacts bucket
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION}/" \
+            --no-progress \
+            --exclude '*unsigned*'

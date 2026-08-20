@@ -1,0 +1,102 @@
+name: Build Buildboxes
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: Branch to build the buildboxes for.
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      branch:
+        # Not required on workflow_dispatch as github.ref_name is valid.
+        type: string
+      assets-day:
+        description: Day on which assets are built. Overrides default 'Sunday' for testing.
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  buildbox:
+    strategy:
+      fail-fast: false
+      matrix:
+        hostarch: [amd64, arm64]
+        target:
+          - buildbox
+          - buildbox-node
+          - buildbox-arm
+          - buildbox-centos7
+          - build-centos7-assets
+        exclude:
+          # Exclude buildbox and buildbox-arm on arm64. They are amd64 only
+          - hostarch: arm64
+            target: buildbox
+          - hostarch: arm64
+            target: buildbox-arm
+
+        include:
+          # Add our self-hosted builder to arm64 matrix combos
+          - hostarch: arm64
+            builder:
+              group: prod
+              labels: [ self-hosted, linux, arm64 ]
+
+          # Only build assets once a week - it is slow and does not change often.
+          - target: build-centos7-assets
+            day: ${{ inputs.assets-day || 'Sunday' }}
+
+    name: ${{ matrix.hostarch }} ${{ matrix.target }}
+    runs-on: ${{ matrix.builder || 'ubuntu-22.04-32core' }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check day filter
+        id: day-filter
+        env:
+          DAY: ${{ matrix.day }}
+        run: |
+          if [[ -n "${DAY}" ]] && [[ "$(LOCALE=C date +%A)" != "${DAY^}" ]]; then
+            printf 'Skipping because day is not %s\n' "${DAY}" >> "$GITHUB_STEP_SUMMARY"
+            echo 'run=false'
+          else
+            echo 'run=true'
+          fi >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Teleport
+        if: steps.day-filter.outputs.run == 'true'
+        uses: gravitational/core/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-ref: ${{ inputs.branch || github.ref_name }}
+          edition: oss
+
+      - name: Set up Docker Buildx
+        if: steps.day-filter.outputs.run == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        with:
+          driver: docker
+
+      - name: Login to registry
+        if: steps.day-filter.outputs.run == 'true'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure required packages are installed
+        if: steps.day-filter.outputs.run == 'true'
+        uses: gravitational/core/.github/actions/setup-self-hosted-runner@master
+
+      - name: Build and push buildbox image
+        if: steps.day-filter.outputs.run == 'true'
+        env:
+          ARCH: ${{ matrix.hostarch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          make --no-print-directory -C build.assets "${TARGET}" PUSH=1 ARCH="${ARCH}"

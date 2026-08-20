@@ -1,0 +1,185 @@
+---
+name: Release Teleport Hardened AMIs
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/core
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      source-tag:
+        description: |
+          The semver version of Teleport that we're building for. If not set
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z.
+        type: string
+
+      dest-ami-regions:
+        description: A comma-separated list of AWS regions to receive the AMIs.
+        type: string
+        default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/core
+      oss-teleport-ref:
+        type: string
+        required: true
+      source-tag:
+        type: string
+      dest-ami-regions:
+        type: string
+        default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
+      environment:
+        type: string
+        default: stage/build
+
+run-name: Build Hardened AMIs for Teleport ${{ inputs.source-tag != '' && inputs.source-tag || inputs.oss-teleport-ref }}
+jobs:
+  build-amis:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write  # Required for aws-actions/configure-aws-credentials
+    strategy:
+      matrix:
+        architecture: ['amd64', 'arm64']
+        teleport-edition: ['oss', 'ent']
+        fips: [true, false]
+        exclude:
+          # There's no such thing as an OSS FIPS release
+          - teleport-edition: oss
+            fips: true
+        include:
+          - teleport-edition: oss
+            edition-infix: ""
+          - teleport-edition: ent
+            edition-infix: "-ent"
+          - fips: false
+            fips-infix: ""
+          - fips: true
+            fips-infix: "-fips"
+
+    steps:
+      - name: Parse Teleport version tag
+        id: version
+        env:
+          VERSION: ${{ inputs.source-tag || inputs.oss-teleport-ref }}
+        run: |
+          echo teleport="${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Teleport
+        uses: gravitational/core/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: enterprise
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: amis
+          environments-directory: e/.environments
+
+      - name: Assume Legacy Drone storage AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-ami-build-${{ github.run_number }}-${{ inputs.source-tag }}"
+          role-duration-seconds: 3600
+
+      - name: Download Teleport tarballs
+        id: download-tarball
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
+          TAR_EDITION_INFIX: ${{ matrix.edition-infix }}
+          TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
+          SRC_BUCKET: ${{ env.ARTIFACT_SOURCE_BUCKET }}
+        run: |
+          TARBALL_NAME="teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz"
+          aws s3 cp "s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME}" "./${TARBALL_NAME}"
+          echo path="$(readlink -f "./${TARBALL_NAME}")" >> "$GITHUB_OUTPUT"
+
+      - name: Assume tag build AWS role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AMI_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-${{ matrix.teleport-edition }}-ami-build-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Initialize packer
+        working-directory: "${{ github.workspace }}/assets/aws"
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}
+        run: packer init single-ami.pkr.hcl
+
+      - name: Build AMI
+        env:
+          AWS_VPC_ID: ${{ env.AMI_VPC_ID }}
+          TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
+          TELEPORT_TYPE: ${{ matrix.teleport-edition }}
+          TELEPORT_FIPS: ${{ matrix.fips }}
+          TELEPORT_TARBALL: ${{ steps.download-tarball.outputs.path }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          DEST_AMI_REGIONS: ${{ inputs.dest-ami-regions }}
+        working-directory: "${{ github.workspace }}/assets/aws"
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+          export TZ=UTC
+          BUILD_TIMESTAMP=$(/bin/date "+%Y%m%d-%H%M%S%Z")
+          echo timestamp="${BUILD_TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+          TELEPORT_FIPS_TAG=""
+          if ${TELEPORT_FIPS}; then
+            TELEPORT_FIPS_TAG="-fips"
+          fi
+
+          AMI_ARCH=""
+          AWS_INSTANCE_TYPE=""
+          if [ "$ARCHITECTURE" = "amd64" ]; then
+            AMI_ARCH="x86_64"
+            AWS_INSTANCE_TYPE="t3.medium"
+          elif [ "$ARCHITECTURE" = "arm64" ]; then
+            AMI_ARCH=${ARCHITECTURE}
+            AWS_INSTANCE_TYPE="t4g.medium"
+          fi
+
+          packer build \
+            -var aws_account_id="${AWS_ACCOUNT_ID}" \
+            -var aws_region=us-west-2 \
+            -var aws_vpc_id="${AWS_VPC_ID}" \
+            -var aws_instance_type="${AWS_INSTANCE_TYPE}" \
+            -var teleport_version="${TELEPORT_VERSION}" \
+            -var teleport_type="${TELEPORT_TYPE}" \
+            -var teleport_fips="${TELEPORT_FIPS}" \
+            -var teleport_tarball="${TELEPORT_TARBALL}" \
+            -var ami_name="teleport-${TELEPORT_TYPE}-${TELEPORT_VERSION}-${AMI_ARCH}${TELEPORT_FIPS_TAG}-${BUILD_TIMESTAMP}" \
+            -var ami_arch="${AMI_ARCH}" \
+            -var ami_build_timestamp="${BUILD_TIMESTAMP}" \
+            -var ami_destination_regions="${DEST_AMI_REGIONS}" \
+            single-ami.pkr.hcl

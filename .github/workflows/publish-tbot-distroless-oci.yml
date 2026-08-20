@@ -1,0 +1,66 @@
+---
+name: Publish Distroless Tbot Images
+on:
+  workflow_call:
+    inputs:
+      release-source-tag:
+        description: The semver version tag of the Teleport revision that we're building.
+        type: string
+        required: true
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: stage/publish
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      release-source-tag:
+        type: string
+        required: true
+      environment:
+        type: environment
+        default: stage/publish
+
+run-name: 'Publish Tbot OCI images for ${{ inputs.release-source-tag }}'
+
+jobs:
+  configure:
+    name: Configure Build
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.version.outputs.full }}
+      dest-image-tags: ${{ steps.version.outputs.labels }}
+    steps:
+      # Generates a list of tags that will be applied to the published image. In the
+      # case of a "normal" release (identified by a version tag with no pre-release
+      # suffix) the published image is assumed to take over all of the more-significant
+      # release numbers, as well as its own (e.g 11.2.3 implies tags of 11 and 11.2).
+      #
+      # A version tag with a pre-release sufffix will only be published as itself, in
+      # order to allow things like RCs and Betas to be published without overriding any
+      # existing release.
+      - name: Parse version
+        id: version
+        uses: gravitational/core/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.release-source-tag }}
+  publish-images:
+    needs: configure
+    permissions:
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['oss', 'fips']
+        include:
+          - release: 'fips'
+            repo-infix: '-fips'
+    uses: ./.github/workflows/oci-image-publish.yml
+    with:
+      repository: tbot${{ matrix.repo-infix }}-distroless
+      pending-tag: ${{ needs.configure.outputs.teleport-version }}
+      production-tags: ${{ needs.configure.outputs.dest-image-tags }}
+      environment: ${{ inputs.environment }}
