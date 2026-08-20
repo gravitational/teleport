@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -340,6 +341,10 @@ const (
 // ssm:DescribeInstanceInformation only accepts between 5 and 50.
 const awsEC2APIChunkSize = 50
 
+// ec2DiscoveryConcurrencyLimit limits the number of concurrent AWS API calls
+// made while discovering EC2 instances across accounts and regions.
+const ec2DiscoveryConcurrencyLimit = 10
+
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	tagFilters := []ec2types.Filter{{
 		Name:   aws.String(AWSInstanceStateName),
@@ -501,10 +506,6 @@ type matcherRegionsParams struct {
 }
 
 func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, params matcherRegionsParams) ([]string, error) {
-	if !f.Matcher.IsRegionWildcard() {
-		return f.Matcher.Regions, nil
-	}
-
 	regions, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, params.awsOpts...)
 	if err != nil {
 		return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermAccountDenied, params.assumeRoleARN, "")
@@ -547,6 +548,24 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 type assumeRoleWithExternalID struct {
 	RoleARN    string
 	ExternalID string
+}
+
+// ec2AccountScan contains the account-scoped AWS configuration and resolved
+// regions used to build individual region scans. err records a failure to
+// resolve wildcard regions for the account.
+type ec2AccountScan struct {
+	assumeRole assumeRoleWithExternalID
+	awsOpts    []awsconfig.OptionsFn
+	regions    []string
+	err        error
+}
+
+// ec2RegionScanResult contains the instances and error returned by one
+// account-region scan. scanRegions writes each result to its preallocated slot
+// and aggregates the results after all scans complete.
+type ec2RegionScanResult struct {
+	instances []*EC2Instances
+	err       error
 }
 
 // allAssumeRoles returns a list of all the AWS Assume Roles that must be assumed.
@@ -595,6 +614,106 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWi
 	return allAssumeRoles, nil
 }
 
+// resolveRegions builds the scan configuration for each account and resolves
+// enabled regions concurrently when the matcher uses a region wildcard.
+func (f *ec2InstanceFetcher) resolveRegions(ctx context.Context, accountRolesToAssume []assumeRoleWithExternalID) ([]ec2AccountScan, error) {
+	accountScans := make([]ec2AccountScan, len(accountRolesToAssume))
+	resolveRegionsGroup := new(errgroup.Group)
+	resolveRegionsGroup.SetLimit(ec2DiscoveryConcurrencyLimit)
+	regionWildcard := f.Matcher.IsRegionWildcard()
+
+	for i, assumeRole := range accountRolesToAssume {
+		awsOpts := []awsconfig.OptionsFn{
+			awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
+			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
+		}
+
+		accountScans[i] = ec2AccountScan{
+			assumeRole: assumeRole,
+			awsOpts:    awsOpts,
+		}
+
+		if !regionWildcard {
+			accountScans[i].regions = f.Matcher.Regions
+			continue
+		}
+
+		resolveRegionsGroup.Go(func() error {
+			regions, err := f.matcherRegions(ctx, matcherRegionsParams{
+				awsOpts:       awsOpts,
+				assumeRoleARN: assumeRole.RoleARN,
+			})
+			if err != nil {
+				accountScans[i].err = f.permissionErrorOrWarn(ctx, err, "", assumeRole.RoleARN)
+				return nil
+			}
+			accountScans[i].regions = regions
+			return nil
+		})
+	}
+
+	if err := resolveRegionsGroup.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accountScans, nil
+}
+
+// scanRegions fetches instances for all resolved account and region pairs with
+// bounded concurrency. It returns partial results alongside permission errors.
+func (f *ec2InstanceFetcher) scanRegions(ctx context.Context, accountScans []ec2AccountScan, rotation bool, ssmRunParams map[string]string) ([]*EC2Instances, error) {
+	var permissionErrors []error
+	var regionScans []getInstancesInRegionParams
+	for _, accountScan := range accountScans {
+		if accountScan.err != nil {
+			permissionErrors = append(permissionErrors, accountScan.err)
+			continue
+		}
+
+		for _, region := range accountScan.regions {
+			regionScans = append(regionScans, getInstancesInRegionParams{
+				rotation:     rotation,
+				region:       region,
+				assumeRole:   accountScan.assumeRole,
+				awsOpts:      accountScan.awsOpts,
+				ssmRunParams: ssmRunParams,
+			})
+		}
+	}
+
+	regionScanResults := make([]ec2RegionScanResult, len(regionScans))
+	scanRegionsGroup := new(errgroup.Group)
+	scanRegionsGroup.SetLimit(ec2DiscoveryConcurrencyLimit)
+
+	for i, scan := range regionScans {
+		scanRegionsGroup.Go(func() error {
+			instances, err := f.getInstancesInRegion(ctx, scan)
+			if err != nil {
+				err = f.permissionErrorOrWarn(ctx, err, scan.region, scan.assumeRole.RoleARN)
+			}
+
+			regionScanResults[i] = ec2RegionScanResult{
+				instances: instances,
+				err:       err,
+			}
+			return nil
+		})
+	}
+
+	if err := scanRegionsGroup.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var allInstances []*EC2Instances
+	for _, result := range regionScanResults {
+		allInstances = append(allInstances, result.instances...)
+		if result.err != nil {
+			permissionErrors = append(permissionErrors, result.err)
+		}
+	}
+
+	return allInstances, trace.NewAggregate(permissionErrors...)
+}
+
 // GetInstances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2Instances, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
@@ -603,51 +722,18 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 	}
 
 	f.cachedInstances.clear()
-	var allInstances []*EC2Instances
-	var permissionErrors []error
 
 	accountRolesToAssume, err := f.allAssumeRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, assumeRole := range accountRolesToAssume {
-		awsOpts := []awsconfig.OptionsFn{
-			awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
-			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
-		}
-
-		regions, err := f.matcherRegions(ctx, matcherRegionsParams{
-			awsOpts:       awsOpts,
-			assumeRoleARN: assumeRole.RoleARN,
-		})
-		if err != nil {
-			permissionErrors = append(permissionErrors,
-				f.permissionErrorOrWarn(ctx, err, "", assumeRole.RoleARN),
-			)
-			continue
-		}
-
-		for _, region := range regions {
-			regionInstances, err := f.getInstancesInRegion(ctx, getInstancesInRegionParams{
-				rotation:     rotation,
-				region:       region,
-				assumeRole:   assumeRole,
-				awsOpts:      awsOpts,
-				ssmRunParams: ssmRunParams,
-			})
-			if err != nil {
-				permissionErrors = append(permissionErrors,
-					f.permissionErrorOrWarn(ctx, err, region, assumeRole.RoleARN),
-				)
-				continue
-			}
-
-			allInstances = append(allInstances, regionInstances...)
-		}
+	accountScans, err := f.resolveRegions(ctx, accountRolesToAssume)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	allInstances, permissionErr := f.scanRegions(ctx, accountScans, rotation, ssmRunParams)
 
-	permissionErr := trace.NewAggregate(permissionErrors...)
 	if len(allInstances) == 0 {
 		if permissionErr != nil {
 			return nil, trace.Wrap(permissionErr)
