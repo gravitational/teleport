@@ -156,25 +156,37 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
-	// Upon successful connect, indicate to the Postgres client that startup
-	// has been completed, and it can start sending queries.
-	err = e.makeClientReady(e.client, hijackedConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// At this point Postgres client should be ready to start sending
-	// messages: this is where psql prompt appears on the other side.
-	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
-	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+	return trace.Wrap(e.handleEstablishedConnection(ctx, sessionCtx, server, hijackedConn, observe))
+}
 
+// handleEstablishedConnection owns the upstream database connection. It must
+// close the connection before returning so auto-user teardown cannot race with
+// a connection that failed during the client startup handoff.
+func (e *Engine) handleEstablishedConnection(ctx context.Context, sessionCtx *common.Session, server *pgproto3.Frontend, hijackedConn *pgconn.HijackedConn, observe func()) error {
 	// shutdownCh lets receiveFromServer distinguish intentional close from errors.
 	shutdownCh := make(chan struct{})
+	sessionStarted := false
 	defer func() {
 		close(shutdownCh)
 		if err := hijackedConn.Conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.ErrorContext(e.Context, "Failed to close connection.", "error", err)
 		}
+		// Audit event emission can block. Close the upstream connection first so
+		// an audit service outage cannot keep the database session open.
+		if sessionStarted {
+			e.Audit.OnSessionEnd(e.Context, sessionCtx)
+		}
 	}()
+
+	// Upon successful connect, indicate to the Postgres client that startup
+	// has been completed, and it can start sending queries.
+	if err := e.makeClientReady(e.client, hijackedConn); err != nil {
+		return trace.Wrap(err)
+	}
+	// At this point Postgres client should be ready to start sending
+	// messages: this is where psql prompt appears on the other side.
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	sessionStarted = true
 
 	observe()
 
