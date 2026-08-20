@@ -1585,6 +1585,7 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindLinuxDesktop,
 	KindUserGroup,
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
