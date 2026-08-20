@@ -511,6 +511,30 @@ function installCanvasMock() {
     const blob = new window.Blob([new Uint8Array(length)], { type: mime });
     setTimeout(() => callback(blob), 0);
   };
+
+  // happy-dom's OffscreenCanvas.getContext returns null; patch in the mock 2d
+  // context for renderers that draw offscreen (SessionRecordings timeline).
+  const offscreenProto = (
+    globalThis as { OffscreenCanvas?: { prototype: any } }
+  ).OffscreenCanvas?.prototype;
+  if (offscreenProto) {
+    Object.defineProperty(offscreenProto, 'getContext', {
+      configurable: true,
+      writable: true,
+      value: function getContext(
+        this: HTMLCanvasElement,
+        type: string
+      ): MockCanvasRenderingContext2D | null {
+        if (type !== '2d') return null;
+        let ctx = contexts.get(this);
+        if (!ctx) {
+          ctx = new MockCanvasRenderingContext2D(this);
+          contexts.set(this, ctx);
+        }
+        return ctx;
+      },
+    });
+  }
 }
 
 installCanvasMock();

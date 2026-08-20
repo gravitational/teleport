@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { vi, expect, test, afterEach } from 'vitest';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import {
@@ -29,7 +31,7 @@ const defaultProps: RecordingsPaginationProps = {
   to: 9,
   page: 0,
   pageSize: 10,
-  onPageChange: jest.fn(),
+  onPageChange: vi.fn(),
 };
 
 function setupTest(props: Partial<RecordingsPaginationProps> = {}) {
@@ -37,7 +39,7 @@ function setupTest(props: Partial<RecordingsPaginationProps> = {}) {
 }
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 function getPaginationIndicator() {
@@ -93,7 +95,7 @@ test('enables both buttons on middle page', async () => {
 });
 
 test('calls onPageChange with previous page when clicking previous', async () => {
-  const onPageChange = jest.fn();
+  const onPageChange = vi.fn();
 
   setupTest({
     page: 5,
@@ -109,7 +111,7 @@ test('calls onPageChange with previous page when clicking previous', async () =>
 });
 
 test('calls onPageChange with next page when clicking next', async () => {
-  const onPageChange = jest.fn();
+  const onPageChange = vi.fn();
 
   setupTest({
     page: 5,
@@ -125,7 +127,7 @@ test('calls onPageChange with next page when clicking next', async () => {
 });
 
 test('does not call onPageChange when clicking disabled previous button', async () => {
-  const onPageChange = jest.fn();
+  const onPageChange = vi.fn();
 
   setupTest({
     page: 0,
@@ -140,7 +142,7 @@ test('does not call onPageChange when clicking disabled previous button', async 
 });
 
 test('does not call onPageChange when clicking disabled next button', async () => {
-  const onPageChange = jest.fn();
+  const onPageChange = vi.fn();
 
   setupTest({
     page: 9,
@@ -158,7 +160,7 @@ test('does not call onPageChange when clicking disabled next button', async () =
 test('shows fetch more button when fetchMoreAvailable is true', async () => {
   setupTest({
     fetchMoreAvailable: true,
-    onFetchMore: jest.fn(),
+    onFetchMore: vi.fn(),
   });
 
   expect(screen.getByText('Fetch More')).toBeInTheDocument();
@@ -167,7 +169,7 @@ test('shows fetch more button when fetchMoreAvailable is true', async () => {
 test('does not show fetch more button when fetchMoreAvailable is false', async () => {
   setupTest({
     fetchMoreAvailable: false,
-    onFetchMore: jest.fn(),
+    onFetchMore: vi.fn(),
   });
 
   expect(screen.queryByText('Fetch More')).not.toBeInTheDocument();
@@ -182,7 +184,7 @@ test('does not show fetch more button when onFetchMore is not provided', async (
 });
 
 test('calls onFetchMore when clicking fetch more button', async () => {
-  const onFetchMore = jest.fn();
+  const onFetchMore = vi.fn();
 
   setupTest({
     fetchMoreAvailable: true,
@@ -199,7 +201,7 @@ test('disables fetch more button when fetchMoreDisabled is true', async () => {
   setupTest({
     fetchMoreAvailable: true,
     fetchMoreDisabled: true,
-    onFetchMore: jest.fn(),
+    onFetchMore: vi.fn(),
   });
 
   const fetchMoreButton = screen.getByText('Fetch More');
@@ -216,7 +218,7 @@ test('shows error message when fetchMoreError is true', async () => {
 });
 
 test('shows retry button instead of fetch more when error occurs', async () => {
-  const onFetchMore = jest.fn();
+  const onFetchMore = vi.fn();
 
   setupTest({
     fetchMoreAvailable: true,
@@ -229,7 +231,7 @@ test('shows retry button instead of fetch more when error occurs', async () => {
 });
 
 test('calls onFetchMore when clicking retry button', async () => {
-  const onFetchMore = jest.fn();
+  const onFetchMore = vi.fn();
 
   setupTest({
     fetchMoreAvailable: true,
@@ -256,7 +258,7 @@ test('displays correct page indicator for different pages', async () => {
   rerender(
     <RecordingsPagination
       {...defaultProps}
-      onPageChange={jest.fn()}
+      onPageChange={vi.fn()}
       page={5}
       from={50}
       to={59}
@@ -269,7 +271,7 @@ test('displays correct page indicator for different pages', async () => {
   rerender(
     <RecordingsPagination
       {...defaultProps}
-      onPageChange={jest.fn()}
+      onPageChange={vi.fn()}
       page={9}
       from={90}
       to={99}

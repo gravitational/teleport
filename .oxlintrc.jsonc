@@ -253,6 +253,82 @@
       }
     },
     {
+      "files": ["**/*.vitest.{ts,tsx}"],
+      "plugins": ["vitest"],
+      "rules": {
+        "vitest/expect-expect": "warn",
+        "vitest/no-alias-methods": "error",
+        "vitest/no-commented-out-tests": "warn",
+        "vitest/no-conditional-expect": "error",
+        "vitest/no-conditional-tests": "error",
+        "vitest/no-focused-tests": "error",
+        "vitest/no-identical-title": "error",
+        "vitest/no-interpolation-in-snapshots": "error",
+        "vitest/no-mocks-import": "error",
+        "vitest/no-standalone-expect": "error",
+        "vitest/no-test-prefixes": "error",
+        "vitest/prefer-importing-vitest-globals": "error",
+        "vitest/valid-describe-callback": "error",
+        "vitest/valid-expect": "error",
+        "vitest/valid-expect-in-promise": "error",
+        "vitest/valid-title": "error",
+        "vitest/no-large-snapshots": ["warn", { "maxSize": 200 }],
+
+        "vitest/prefer-comparison-matcher": "error",
+        "vitest/prefer-each": "error",
+        "vitest/prefer-expect-type-of": "error",
+        "vitest/prefer-hooks-in-order": "error",
+        "vitest/prefer-hooks-on-top": "error",
+        "vitest/prefer-mock-promise-shorthand": "error",
+        "vitest/prefer-to-be": "error",
+        "vitest/prefer-to-be-object": "error",
+        "vitest/prefer-to-contain": "error",
+        "vitest/prefer-to-have-length": "error",
+        "vitest/prefer-todo": "error",
+
+        "testing-library/await-async-events": [
+          "error",
+          { "eventModule": "userEvent" }
+        ],
+        "testing-library/await-async-queries": "error",
+        "testing-library/await-async-utils": "error",
+        "testing-library/no-await-sync-events": [
+          "error",
+          { "eventModules": ["fire-event"] }
+        ],
+        "testing-library/no-await-sync-queries": "error",
+        "testing-library/no-container": "error",
+        "testing-library/no-debugging-utils": "warn",
+        "testing-library/no-dom-import": ["error", "react"],
+        "testing-library/no-global-regexp-flag-in-query": "error",
+        "testing-library/no-manual-cleanup": "error",
+        "testing-library/no-node-access": "error",
+        "testing-library/no-promise-in-fire-event": "error",
+        "testing-library/no-render-in-lifecycle": "error",
+        "testing-library/no-unnecessary-act": "error",
+        "testing-library/no-wait-for-multiple-assertions": "error",
+        "testing-library/no-wait-for-side-effects": "error",
+        "testing-library/no-wait-for-snapshot": "error",
+        "testing-library/prefer-find-by": "error",
+        "testing-library/prefer-presence-queries": "error",
+        "testing-library/prefer-query-by-disappearance": "error",
+        "testing-library/prefer-screen-queries": "error",
+        "testing-library/render-result-naming-convention": "error",
+
+        "jest-dom/prefer-checked": "error",
+        "jest-dom/prefer-empty": "error",
+        "jest-dom/prefer-enabled-disabled": "error",
+        "jest-dom/prefer-focus": "error",
+        "jest-dom/prefer-in-document": "error",
+        "jest-dom/prefer-required": "error",
+        "jest-dom/prefer-to-have-attribute": "error",
+        "jest-dom/prefer-to-have-class": "error",
+        "jest-dom/prefer-to-have-style": "error",
+        "jest-dom/prefer-to-have-text-content": "error",
+        "jest-dom/prefer-to-have-value": "error"
+      }
+    },
+    {
       "files": [
         "**/*.stories.@(ts|tsx|js|jsx|mjs|cjs)",
         "**/*.story.@(ts|tsx|js|jsx|mjs|cjs)"

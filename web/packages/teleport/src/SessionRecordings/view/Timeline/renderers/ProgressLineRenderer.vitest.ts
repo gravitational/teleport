@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { expect, test } from 'vitest';
+
 import { theme } from 'design/utils/testing';
 
 import { SessionRecordingMetadata } from 'teleport/services/recordings';

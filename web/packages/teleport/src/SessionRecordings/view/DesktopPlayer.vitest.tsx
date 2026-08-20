@@ -19,6 +19,7 @@
 import { EventEmitter } from 'events';
 
 import { act, createRef } from 'react';
+import { vi, test, afterEach, expect, beforeEach } from 'vitest';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 
@@ -34,11 +35,11 @@ import { DesktopPlayer } from './DesktopPlayer';
 class FakePlayerClient {
   private events = new EventEmitter();
 
-  connect = jest.fn().mockResolvedValue(undefined);
-  shutdown = jest.fn();
-  togglePlayPause = jest.fn();
-  setPlaySpeed = jest.fn();
-  seekTo = jest.fn((pos: number) => {
+  connect = vi.fn().mockResolvedValue(undefined);
+  shutdown = vi.fn();
+  togglePlayPause = vi.fn();
+  setPlaySpeed = vi.fn();
+  seekTo = vi.fn((pos: number) => {
     this.emitAnchor({ ms: pos, speed: 1, paused: false });
   });
 
@@ -70,17 +71,19 @@ class FakePlayerClient {
 
 let mockPlayerClient: FakePlayerClient;
 
-jest.mock('teleport/lib/tdp', () => ({
-  PlayerClient: jest.fn().mockImplementation(() => mockPlayerClient),
+vi.mock('teleport/lib/tdp', () => ({
+  PlayerClient: vi.fn().mockImplementation(function () {
+    return mockPlayerClient;
+  }),
 }));
 
 beforeEach(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   mockPlayerClient = new FakePlayerClient();
 });
 
 afterEach(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 const INACTIVITY_EVENT: SessionRecordingEvent = {
@@ -110,12 +113,12 @@ function startPlayback() {
 
 function advance(ms: number) {
   act(() => {
-    jest.advanceTimersByTime(ms);
+    vi.advanceTimersByTime(ms);
   });
 }
 
 test('emits rAF-smoothed time updates from time anchors', () => {
-  const onTimeChange = jest.fn();
+  const onTimeChange = vi.fn();
   renderPlayer({ onTimeChange });
   startPlayback();
 
@@ -134,7 +137,7 @@ test('emits rAF-smoothed time updates from time anchors', () => {
 });
 
 test('interpolates at the anchor speed', () => {
-  const onTimeChange = jest.fn();
+  const onTimeChange = vi.fn();
   renderPlayer({ onTimeChange });
   startPlayback();
 
@@ -150,7 +153,7 @@ test('interpolates at the anchor speed', () => {
 });
 
 test('holds the time while paused', () => {
-  const onTimeChange = jest.fn();
+  const onTimeChange = vi.fn();
   renderPlayer({ onTimeChange });
   startPlayback();
 

@@ -15,6 +15,7 @@ on:
       - 'tsconfig.json'
       - 'tsconfig.node.json'
       - 'jest.config.js'
+      - 'vitest.config.mts'
   merge_group:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
@@ -28,6 +29,7 @@ on:
       - 'tsconfig.json'
       - 'tsconfig.node.json'
       - 'jest.config.js'
+      - 'vitest.config.mts'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
