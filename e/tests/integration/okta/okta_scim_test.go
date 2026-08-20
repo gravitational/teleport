@@ -96,10 +96,10 @@ func TestSCIMCRUD(t *testing.T) {
 	)
 	validToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
 
-	testSCIMCRUD(t, fakeOkta, createSCIMClient(t, sut, validToken))
+	testSCIMCRUD(t, sut, fakeOkta, createSCIMClient(t, sut, validToken))
 }
 
-func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client) {
+func testSCIMCRUD(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, client scimsdk.Client) {
 	ctx := t.Context()
 	scimUserName := "test-user+001@example.com"
 	scimUserExternalID := "test-user-001"
@@ -108,6 +108,7 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		"arbitrary_attr_number": float64(8),
 	}
 	scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: startingAttrs}
+	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
 
 	t.Run("Create SCIM User", func(t *testing.T) {
 		createdUser, err := client.CreateUser(ctx, scimUser)
@@ -187,11 +188,9 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 
 		// After deactivation the user should delete from downstream system
 		// and should not be found.
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			user, err = client.GetUser(ctx, scimUserName)
-			var notFound *trace.NotFoundError
-			require.ErrorAs(t, err, &notFound, "User %s must have been deleted", scimUserName)
-		}, time.Second*3, time.Millisecond*50)
+		common.WaitForDeleteEvent(t, userWatcher, func(r types.Resource) bool {
+			return r.GetName() == scimUserName
+		})
 	})
 
 	var group *scimsdk.Group
