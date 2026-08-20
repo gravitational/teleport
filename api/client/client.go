@@ -4776,6 +4776,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServer()
 		case types.KindNode:
 			resources[i] = respResource.GetNode()
+		case types.KindLinuxDesktop:
+			resources[i] = proto.UnpackLinuxDesktop(respResource.GetLinuxDesktop())
 		case types.KindWindowsDesktop:
 			resources[i] = respResource.GetWindowsDesktop()
 		case types.KindWindowsDesktopService:
