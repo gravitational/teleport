@@ -43,11 +43,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types/accessgraph"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-)
-
-var (
-	// ErrUnsupportedPlatform is returned when the operating system is not supported.
-	ErrUnsupportedPlatform = errors.New("unsupported platform")
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // Watcher watches for changes to authorized_keys files
@@ -96,7 +92,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	switch platform := getOS(config); platform {
 	case constants.LinuxOS, constants.DarwinOS:
 	default:
-		return nil, trace.Wrap(ErrUnsupportedPlatform)
+		return nil, trace.Wrap(hostuser.ErrUnsupportedPlatform)
 	}
 
 	if config.HostID == "" {
@@ -112,7 +108,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 		config.Clock = clockwork.NewRealClock()
 	}
 	if config.getHostUsers == nil {
-		config.getHostUsers = getHostUsers
+		config.getHostUsers = hostuser.GetHostUsers
 	}
 
 	w := &Watcher{

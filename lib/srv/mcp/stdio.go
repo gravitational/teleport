@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"sync"
 	"syscall"
 	"time"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 	hostutils "github.com/gravitational/teleport/session/host"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // handleAuthErrStdio starts a stdio message reader and replies with the auth
@@ -238,7 +238,7 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	}
 
 	// Set host user.
-	hostUser, err := user.Lookup(mcpSpec.RunAsHostUser)
+	hostUser, err := hostuser.Lookup(mcpSpec.RunAsHostUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/envutils"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
@@ -125,7 +125,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.BadParameter("missing parameter ChildLogConfig")
 	}
 
-	if _, err := user.Lookup(cfg.Login); err != nil {
+	if _, err := hostuser.Lookup(cfg.Login); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

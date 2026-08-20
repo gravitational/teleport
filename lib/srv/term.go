@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -481,7 +482,7 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
-	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, user.Lookup, user.LookupGroup)
+	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, hostuser.Lookup, hostuser.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}

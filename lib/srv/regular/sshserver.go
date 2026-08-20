@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
@@ -1081,7 +1082,7 @@ func (s *Server) startAuthorizedKeysManager(ctx context.Context, auth authclient
 			Clock:  s.clock,
 		},
 	)
-	if errors.Is(err, authorizedkeysreporter.ErrUnsupportedPlatform) {
+	if errors.Is(err, hostuser.ErrUnsupportedPlatform) {
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)

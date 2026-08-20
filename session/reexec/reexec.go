@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/host"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/logconstants"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -411,7 +412,7 @@ func RunCommand() (code int, err error) {
 		WtmpdbFile: c.UaccMetadata.WtmpdbPath,
 	})
 
-	localUser, err := user.Lookup(c.Login)
+	localUser, err := hostuser.Lookup(c.Login)
 	if err != nil {
 		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
 			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
@@ -549,8 +550,8 @@ type osWrapper struct {
 
 func newOsWrapper() *osWrapper {
 	return &osWrapper{
-		LookupGroup:    user.LookupGroup,
-		LookupUser:     user.Lookup,
+		LookupGroup:    hostuser.LookupGroup,
+		LookupUser:     hostuser.Lookup,
 		CommandContext: exec.CommandContext,
 	}
 }
@@ -576,7 +577,7 @@ func (s *systemUser) UID() string {
 }
 
 func (s *systemUser) GroupIds() ([]string, error) {
-	return s.u.GroupIds()
+	return hostuser.GroupIds(s.u)
 }
 
 // startNewParker starts a new parker process only if the requested user has been created
@@ -687,7 +688,7 @@ func RunNetworking() (code int, err error) {
 	// Once the PAM stack is called with parent process permissions, set the process uid
 	// and gid to the requested user. This way, the user's networking requests will be
 	// done with the user's permissions.
-	localUser, err := user.Lookup(c.Login)
+	localUser, err := hostuser.Lookup(c.Login)
 	if err != nil {
 		return reexecconstants.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
@@ -1317,7 +1318,7 @@ var accessibleHomeDirMu sync.Mutex
 // hasAccessibleHomeDir checks if the current user has access to an existing home directory.
 func hasAccessibleHomeDir() error {
 	// this should usually be fetching a cached value
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1359,7 +1360,7 @@ func hasAccessibleHomeDir() error {
 // errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
 // in a return of (false, nil)
 func checkHomeDir(localUser *user.User) (bool, error) {
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

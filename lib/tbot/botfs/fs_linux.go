@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // mostACLRead is a permission mode granting readonly access to a file.
@@ -485,7 +486,7 @@ func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
 			}, nil
 		}
 
-		user, err := user.Lookup(s.User)
+		user, err := hostuser.Lookup(s.User)
 		if err != nil {
 			return acl.Entry{}, trace.Wrap(err)
 		}
@@ -506,7 +507,7 @@ func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
 			}, nil
 		}
 
-		group, err := user.LookupGroup(s.Group)
+		group, err := hostuser.LookupGroup(s.Group)
 		if err != nil {
 			return acl.Entry{}, trace.Wrap(err)
 		}
@@ -711,7 +712,7 @@ func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
 		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")
 	}
 
-	user, err := user.LookupId(strconv.Itoa(int(info.Uid)))
+	user, err := hostuser.LookupId(strconv.Itoa(int(info.Uid)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

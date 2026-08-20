@@ -381,6 +381,9 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
+        - pkg: '^os/user$'
+          pattern: '^user\.(Lookup|LookupId|LookupGroup|LookupGroupId|Current|User\.GroupIds)$'
+          msg: 'os/user lookup APIs potentially unsafe; use the session/host/user wrapper instead'
       analyze-types: true
     misspell:
       locale: US
@@ -507,6 +510,12 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+
+      # Allow session/host/user and tests to use os/user functions directly.
+      - path: '(_test\.go$|^api/|^integration/helpers/|^lib/utils/testutils|^session/host/user/)'
+        text: "session/host/user"
+        linters:
+          - forbidigo
 
       # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
       # enforce this rule everywhere.

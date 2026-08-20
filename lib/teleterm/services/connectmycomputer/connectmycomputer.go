@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 type RoleSetup struct {
@@ -98,7 +98,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		}
 	}
 
-	systemUser, err := user.Current()
+	systemUser, err := hostuser.Current()
 	if err != nil {
 		return noCertsReloaded, trace.Wrap(err)
 	}

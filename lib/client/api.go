@@ -32,7 +32,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -100,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 const (
@@ -4988,7 +4988,7 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 
 // Username returns the current user's username
 func Username() (string, error) {
-	u, err := user.Current()
+	u, err := hostuser.Current()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

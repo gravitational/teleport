@@ -27,7 +27,6 @@ import (
 	"maps"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -61,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
@@ -1225,7 +1225,7 @@ func onSCP(scpFlags *scp.Flags) error {
 	}
 
 	// get user's home dir (it serves as a default destination)
-	user, err := user.Current()
+	user, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
