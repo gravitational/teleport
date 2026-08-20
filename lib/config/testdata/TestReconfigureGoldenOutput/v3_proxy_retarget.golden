@@ -1,0 +1,21 @@
+version: v3
+teleport:
+  nodename: node-04
+  data_dir: /var/lib/teleport_new
+  join_params:
+    token_name: new-token
+    method: token
+  proxy_server: new.example.com:443
+  ca_pin: sha256:bbb
+  diag_addr: ""
+ssh_service:
+  enabled: "yes"
+  labels:
+    env: dev
+    team: a
+    teleport.dev/reconfigure-source-uuid: 8a2b5c70-97d8-4d97-b3c4-6e54b4a63cfe
+proxy_service:
+  enabled: "no"
+  https_keypairs: []
+  https_keypairs_reload_interval: 0s
+  acme: {}

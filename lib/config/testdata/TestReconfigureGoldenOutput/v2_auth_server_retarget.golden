@@ -1,0 +1,11 @@
+version: v2
+teleport:
+  nodename: node-04
+  data_dir: /var/lib/teleport
+  join_params:
+    token_name: new-token
+    method: token
+  auth_servers:
+  - new.example.com:3025
+  ca_pin: sha256:bbb
+  diag_addr: ""
