@@ -352,23 +352,7 @@ func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *t
 
 func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
 	t.Helper()
-	for {
-		select {
-		case event, ok := <-watcher.Events():
-			if !ok {
-				t.Fatal("watcher closed")
-			}
-			if event.Type != types.OpPut {
-				continue
-			}
-			resource, ok := event.Resource.(T)
-			if ok && fn(resource) {
-				return resource
-			}
-		case <-t.Context().Done():
-			t.Fatal("timed out waiting for resource")
-		}
-	}
+	return common.WaitForPutEvent(t, watcher, fn)
 }
 
 func waitForResourceCount[T types.Resource](t *testing.T, watcher types.Watcher, expectedCnt int, fn func(T) bool) []T {
@@ -383,6 +367,11 @@ func waitForResourceCount[T types.Resource](t *testing.T, watcher types.Watcher,
 		return len(seen) == expectedCnt
 	})
 	return slices.Collect(maps.Values(seen))
+}
+
+func waitForResourceDeletion[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
+	t.Helper()
+	return common.WaitForDeleteEvent(t, watcher, fn)
 }
 
 func mustListAccessListMembers(t *testing.T, sut *common.SUT, accessListName string) []*accesslist.AccessListMember {

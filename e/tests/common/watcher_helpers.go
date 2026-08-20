@@ -18,34 +18,20 @@ import (
 //	expected, err := auth.CreateUser(ctx, &types.UserV2{...})
 //	require.NoError(t, err)
 //	// Wait for the resource to be created.
-//	WaitForEvent(t, w, func(r types.User) bool) { r.GetName() == expected.GetName() })
-func WaitForPutEvent[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) {
+//	WaitForPutEvent(t, w, func(r types.User) bool) { r.GetName() == expected.GetName() })
+func WaitForPutEvent[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
 	t.Helper()
-
-	ctx, cancel := watcherCtx(t)
-	defer cancel()
-	for {
-		select {
-		case event, ok := <-watcher.Events():
-			if !ok {
-				t.Fatal("watcher closed")
-			}
-			if event.Type != types.OpPut {
-				continue
-			}
-			resource, ok := event.Resource.(T)
-			if ok && fn(resource) {
-				return
-			}
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for resource kind")
-		}
-	}
+	return waitForEventOp(t, watcher, types.OpPut, fn)
 }
 
 // WaitForDeleteEvent waits on the watcher until `fn` returns true.
 // Expect minimal resource data such as ResourceHeader on delete events.
-func WaitForDeleteEvent(t *testing.T, watcher types.Watcher, fn func(types.Resource) bool) {
+func WaitForDeleteEvent[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
+	t.Helper()
+	return waitForEventOp(t, watcher, types.OpDelete, fn)
+}
+
+func waitForEventOp[T types.Resource](t *testing.T, watcher types.Watcher, op types.OpType, fn func(T) bool) T {
 	t.Helper()
 
 	ctx, cancel := watcherCtx(t)
@@ -56,11 +42,12 @@ func WaitForDeleteEvent(t *testing.T, watcher types.Watcher, fn func(types.Resou
 			if !ok {
 				t.Fatal("watcher closed")
 			}
-			if event.Type != types.OpDelete {
+			if event.Type != op {
 				continue
 			}
-			if event.Resource != nil && fn(event.Resource) {
-				return
+			resource, ok := event.Resource.(T)
+			if ok && fn(resource) {
+				return resource
 			}
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for resource")

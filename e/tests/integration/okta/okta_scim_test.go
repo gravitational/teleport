@@ -530,6 +530,8 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 
 	scimGroup := fakeOkta.CreateOktaGroup("Test SCIM Group1")
 
+	memberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
+	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
 	t.Run("SCIM group provisioning should create ACL", func(t *testing.T) {
 		var scimGroups = []*scimsdk.Group{
 			{
@@ -545,12 +547,10 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 		require.Equal(t, acl.Spec.Title, scimGroup.Profile.Name)
 		require.Equal(t, []string{oktacommon.CreateOktaAccessRoleFriendlyName(scimGroup.Profile.Name, scimGroup.Id)}, acl.Spec.Grants.Roles)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			members, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, scimGroup.Id, 0, "")
-			require.NoError(t, err)
-			require.Len(t, members, 1)
-			require.Equal(t, scimUsers[0].ID, members[0].GetName())
-		}, 10*time.Second, time.Millisecond*50)
+		member := waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
+			return m.Spec.AccessList == scimGroup.Id
+		})
+		require.Equal(t, scimUsers[0].ID, member.GetName())
 	})
 
 	t.Run("SCIM group update should update ACL membership", func(t *testing.T) {
@@ -562,21 +562,24 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 		})
 		_, err = scimClient.UpdateGroup(ctx, group)
 		require.NoError(t, err)
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			members, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, scimGroup.Id, 0, "")
-			require.NoError(t, err)
-			require.Len(t, members, 2)
-		}, time.Second, time.Millisecond*50)
+
+		waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
+			return m.Spec.AccessList == scimGroup.Id && m.GetName() == scimUsers[1].ID
+		})
+		members := mustListAccessListMembers(t, sut, scimGroup.Id)
+		require.Len(t, members, 2)
 	})
 
 	t.Run("SCIM group deprovisioning should delete ACL", func(t *testing.T) {
 		err := scimClient.DeleteGroup(ctx, scimGroup.Id)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			_, err = sut.Teleport.Process.GetAuthServer().GetAccessList(ctx, scimGroup.Id)
-			require.True(t, trace.IsNotFound(err))
-		}, time.Second, time.Millisecond*50)
+		waitForResourceDeletion(t, accessListWatcher, func(rh *types.ResourceHeader) bool {
+			return rh.GetName() == scimGroup.Id
+		})
+
+		_, err = sut.Teleport.Process.GetAuthServer().GetAccessList(ctx, scimGroup.Id)
+		require.True(t, trace.IsNotFound(err))
 	})
 }
 
@@ -585,25 +588,25 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 	user, err := client.GetUserByUserName(ctx, username)
 	require.NoError(t, err)
 
+	lockWatcher := sut.NewResourceWatcher(t, types.KindLock)
+	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+	lockTarget := types.LockTarget{User: user.ID}
+
 	user.Attributes = scimsdk.AttributeSet{"active": false}
 	_, err = client.UpdateUser(ctx, user)
 	require.NoError(t, err)
 
 	// When user is deactivated the user should be removed from teleport backend
 	// and a user lock should be created to kill all teleport active sessions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		userLocks, err := auth.GetLocks(ctx, false, types.LockTarget{User: user.ID})
-		require.NoError(t, err)
-		require.Len(t, userLocks, 1)
+	lock := waitForResource(t, lockWatcher, lockTarget.Match)
+	require.Equal(t, types.OriginOkta, lock.Origin())
+	require.Equal(t, libokta.LockReasonDeactivated, lock.GetAllLabels()[eteleport.OktaLockReasonLabel])
 
-		require.Equal(t, types.OriginOkta, userLocks[0].Origin())
-		require.Equal(t, libokta.LockReasonDeactivated, userLocks[0].GetAllLabels()[eteleport.OktaLockReasonLabel])
-	}, time.Second, time.Millisecond*40)
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = auth.GetUser(ctx, user.ID, false)
-		require.True(t, trace.IsNotFound(err))
-	}, time.Second, time.Millisecond*40)
+	waitForResourceDeletion(t, userWatcher, func(rh *types.ResourceHeader) bool {
+		return rh.GetName() == user.ID
+	})
+	_, err = auth.GetUser(ctx, user.ID, false)
+	require.True(t, trace.IsNotFound(err))
 
 	// Recover user by settings the user to active state. And recreate the user.
 	// User recreation is peculiar Okta behavior, when user is recovered from deactivated state  Okta will
@@ -615,14 +618,13 @@ func testUserDeactivationActivation(t *testing.T, ctx context.Context, sut *comm
 	_, err = auth.GetUser(ctx, user.ID, false)
 	require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// If a user was re-activated, the lock created by deactivation flow should be removed.
-		userLocks, err := sut.Teleport.Process.GetAuthServer().GetLocks(ctx, false, types.LockTarget{
-			User: user.ID,
-		})
-		require.NoError(t, err)
-		require.Empty(t, userLocks)
-	}, time.Second, time.Millisecond*40)
+	// If a user was re-activated, the lock created by deactivation flow should be removed.
+	waitForResourceDeletion(t, lockWatcher, func(rh *types.ResourceHeader) bool {
+		return rh.GetName() == lock.GetName()
+	})
+	userLocks, err := auth.GetLocks(ctx, false, lockTarget)
+	require.NoError(t, err)
+	require.Empty(t, userLocks)
 }
 
 // TestSCIMOnlyAPICredentials verifies that SCIM user provisioning correctly populates user's
