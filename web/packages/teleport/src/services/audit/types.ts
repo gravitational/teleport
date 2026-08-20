@@ -45,6 +45,7 @@ export const eventCodes = {
   APP_SESSION_HTTP_REQUEST_BODY_CHUNK: 'T2016I',
   APP_SESSION_HTTP_RESPONSE: 'T2017I',
   APP_SESSION_HTTP_RESPONSE_BODY_CHUNK: 'T2018I',
+  APP_SESSION_REQUEST_DENIED: 'T2020E',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -742,6 +743,16 @@ export type RawEvents = {
     {
       target: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_REQUEST_DENIED]: RawEvent<
+    typeof eventCodes.APP_SESSION_REQUEST_DENIED,
+    {
+      app_name: string;
+      method: string;
+      path: string;
+      deny_kind: string;
+      server_version?: string;
     }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<

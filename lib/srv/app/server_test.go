@@ -885,7 +885,7 @@ func TestHandleConnectionV9DefaultDeny(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Contains(t, string(buf), "teleport_request_not_allowed")
+		require.Contains(t, string(buf), denyBodyRequestNotAllowed)
 	})
 	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
 		require.Equal(t, http.StatusFound, resp.StatusCode)
