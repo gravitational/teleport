@@ -1628,6 +1628,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindWindowsDesktop:
 		keyPrefix = []string{windowsDesktopsPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktop
+	case types.KindLinuxDesktop:
+		keyPrefix = []string{linuxDesktopKey}
+		unmarshalItemFunc = backendItemToLinuxDesktop
 	case types.KindKubeServer:
 		return s.listKubeServers(ctx, req)
 	case types.KindUserGroup:
@@ -2117,6 +2120,17 @@ func backendItemToWindowsDesktop(item backend.Item) (types.ResourceWithLabels, e
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+// backendItemToLinuxDesktop unmarshals `backend.Item` into a
+// `LinuxDesktops`, returning it as a `types.ResourceWithLabels`.
+func backendItemToLinuxDesktop(item backend.Item) (types.ResourceWithLabels, error) {
+	linuxDesktop, err := services.UnmarshalLinuxDesktop(
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	return types.Resource153ToResourceWithLabels(linuxDesktop), err
 }
 
 // backendItemToWindowsDesktopService unmarshals `backend.Item` into a
