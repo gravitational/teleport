@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,17 +44,22 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 	ctx := context.Background()
 
 	uploadPartCalls := 0
+	var abortCalls atomic.Int64
 	uploader := &eventstest.MockUploader{
 		UploadPartError: errors.New("s3 persistent error"),
 		MockUploadPart: func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 			uploadPartCalls++
 			return nil, errors.New("s3 persistent error")
 		},
+		MockAbortUpload: func(context.Context, events.StreamUpload) error {
+			abortCalls.Add(1)
+			return nil
+		},
 	}
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       uploader,
-		MinUploadBytes: 1, // Force immediate upload after each event to avoid long test runtime
+		MinUploadBytes: 1,                                                   // Force immediate upload after each event to avoid long test runtime
 		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
@@ -73,13 +79,16 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 		require.NoError(t, err)
 		preparedEvent, err := prepared.PrepareSessionEvent(evt)
 		require.NoError(t, err)
-		require.NoError(t, stream.RecordEvent(ctx, preparedEvent))
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			break
+		}
 	}
 
 	// Complete should fail because parts could not be uploaded
 	err = stream.Complete(ctx)
 	require.Error(t, err)
 	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error indicating retry exhaustion, got: %v", err)
+	require.Equal(t, int64(1), abortCalls.Load())
 }
 
 // TestProtoStreamPartialPartFailure verifies that when some parts upload
@@ -88,6 +97,7 @@ func TestProtoStreamPartUploadRetryExhaustion(t *testing.T) {
 func TestProtoStreamPartialPartFailure(t *testing.T) {
 	ctx := context.Background()
 
+	var abortCalls atomic.Int64
 	uploader := &eventstest.MockUploader{
 		MockUploadPart: func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 			// First part succeeds, subsequent parts fail
@@ -96,11 +106,15 @@ func TestProtoStreamPartialPartFailure(t *testing.T) {
 			}
 			return nil, errors.New("s3 persistent error")
 		},
+		MockAbortUpload: func(context.Context, events.StreamUpload) error {
+			abortCalls.Add(1)
+			return nil
+		},
 	}
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       uploader,
-		MinUploadBytes: 1, // Force immediate upload after each event
+		MinUploadBytes: 1,                                                   // Force immediate upload after each event
 		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1}, // Short-circuit retries for test speed
 	})
 	require.NoError(t, err)
@@ -121,13 +135,81 @@ func TestProtoStreamPartialPartFailure(t *testing.T) {
 	for _, evt := range evts {
 		preparedEvent, err := preparer.PrepareSessionEvent(evt)
 		require.NoError(t, err)
-		require.NoError(t, stream.RecordEvent(ctx, preparedEvent))
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			break
+		}
 	}
 
 	// Complete should fail because not all parts uploaded successfully
 	err = stream.Complete(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to upload")
+	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error indicating retry exhaustion, got: %v", err)
+	require.Equal(t, int64(1), abortCalls.Load())
+}
+
+func TestProtoStreamClosePreservesFailedUploadForResume(t *testing.T) {
+	ctx := context.Background()
+
+	var abortCalls atomic.Int64
+	uploader := &eventstest.MockUploader{
+		MockUploadPart: func(context.Context, events.StreamUpload, int64, io.ReadSeeker) (*events.StreamPart, error) {
+			return nil, errors.New("persistent storage backend error")
+		},
+		MockAbortUpload: func(context.Context, events.StreamUpload) error {
+			abortCalls.Add(1)
+			return nil
+		},
+	}
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:       uploader,
+		MinUploadBytes: 1,
+		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1},
+	})
+	require.NoError(t, err)
+
+	sid := session.NewID()
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(&apievents.SessionPrint{
+		Metadata: apievents.Metadata{Type: events.SessionPrintEvent},
+		Data:     []byte("test data"),
+	})))
+
+	require.NoError(t, stream.Close(ctx))
+	require.Zero(t, abortCalls.Load(), "Close must preserve the upload for ResumeAuditStream")
+}
+
+func TestProtoStreamReturnsAbortFailure(t *testing.T) {
+	ctx := context.Background()
+	abortErr := errors.New("abort failed")
+	uploader := &eventstest.MockUploader{
+		MockUploadPart: func(context.Context, events.StreamUpload, int64, io.ReadSeeker) (*events.StreamPart, error) {
+			return nil, errors.New("persistent storage backend error")
+		},
+		MockAbortUpload: func(context.Context, events.StreamUpload) error {
+			return abortErr
+		},
+	}
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:       uploader,
+		MinUploadBytes: 1,
+		RetryConfig:    &retryutils.LinearConfig{First: 1, Step: 1, Max: 1},
+	})
+	require.NoError(t, err)
+
+	sid := session.NewID()
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(&apievents.SessionPrint{
+		Metadata: apievents.Metadata{Type: events.SessionPrintEvent},
+		Data:     []byte("test data"),
+	})))
+
+	err = stream.Complete(ctx)
+	require.ErrorIs(t, err, abortErr)
+	require.True(t, trace.IsLimitExceeded(err), "expected the part failure to remain in the aggregate, got: %v", err)
 }
 
 // TestProtoStreamUploadFailurePreservesLocalRecording verifies that when
@@ -164,12 +246,11 @@ func TestProtoStreamUploadFailurePreservesLocalRecording(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		evt := &apievents.SessionPrint{
 			Metadata: apievents.Metadata{
-				Type:  apievents.SessionPrintEvent,
+				Type:  events.SessionPrintEvent,
 				Time:  time.Now(),
 				Index: int64(i),
 			},
-			SessionMetadata: apievents.SessionMetadata{SessionID: string(sid)},
-			Data:            []byte("test data"),
+			Data: []byte("test data"),
 		}
 		prepared, err := preparer.PrepareSessionEvent(evt)
 		require.NoError(t, err)

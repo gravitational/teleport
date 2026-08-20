@@ -576,6 +576,7 @@ type MockUploader struct {
 	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
 	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
 	MockUploadPart     func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error)
+	MockAbortUpload    func(ctx context.Context, upload events.StreamUpload) error
 }
 
 func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
@@ -630,5 +631,8 @@ func (m *MockUploader) CompleteUpload(ctx context.Context, upload events.StreamU
 }
 
 func (m *MockUploader) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	if m.MockAbortUpload != nil {
+		return m.MockAbortUpload(ctx, upload)
+	}
 	return nil
 }

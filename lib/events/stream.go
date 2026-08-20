@@ -443,6 +443,11 @@ type ProtoStream struct {
 	completeType   atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
+	// abortOnComplete is set when the upload cannot be safely finalized because
+	// one or more parts failed or the completed part set is inconsistent. The
+	// upload is aborted only by Complete, never by Close, because Close is used
+	// by SessionWriter before resuming the same multipart upload.
+	abortOnComplete atomic.Bool
 
 	// uploadLoopDoneCh is closed when the slice exits the upload loop.
 	// The exit might be an indication of completion or a cancelation
@@ -527,8 +532,14 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 	s.complete()
 	select {
 	case <-s.uploadLoopDoneCh:
+		result := s.getCompleteResult()
+		if result != nil && s.abortOnComplete.Load() {
+			if err := s.cfg.Uploader.AbortUpload(ctx, s.cfg.Upload); err != nil {
+				result = trace.NewAggregate(result, trace.Wrap(err, "aborting failed upload"))
+			}
+		}
 		s.cancel()
-		return s.getCompleteResult()
+		return result
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
@@ -684,6 +695,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				// propagate the error to Complete so it doesn't return nil
 				// for a failed recording. This prevents data loss by ensuring
 				// the caller knows the recording is incomplete.
+				w.proto.abortOnComplete.Store(true)
 				w.proto.setCompleteResult(trace.Wrap(err))
 				return trace.Wrap(err)
 			}
@@ -905,14 +917,8 @@ func (w *sliceWriter) completeStream() {
 	// missing, which is a data-loss scenario.
 	if len(uploadErrors) > 0 {
 		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", w.totalParts)
+		w.proto.abortOnComplete.Store(true)
 		w.proto.setCompleteResult(trace.NewAggregate(uploadErrors...))
-		// Mark the upload as failed so the periodic completer won't
-		// try to finalize a truncated recording after the session tracker
-		// expires. This prevents the backend from emitting a misleading
-		// session.upload event for an incomplete recording.
-		if err := w.proto.cfg.Uploader.AbortUpload(w.proto.cancelCtx, w.proto.cfg.Upload); err != nil {
-			log.WarnContext(w.proto.cancelCtx, "Failed to abort upload after part failure", "error", err)
-		}
 		return
 	}
 
@@ -932,6 +938,7 @@ func (w *sliceWriter) completeStream() {
 		log.ErrorContext(w.proto.cancelCtx, "Part count mismatch detected, aborting completion",
 			"completed_parts", len(w.completedParts),
 			"expected_parts", w.totalParts)
+		w.proto.abortOnComplete.Store(true)
 		w.proto.setCompleteResult(trace.BadParameter("part count mismatch: expected %d, got %d", w.totalParts, len(w.completedParts)))
 		return
 	}

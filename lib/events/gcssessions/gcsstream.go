@@ -117,6 +117,17 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 // were uploaded. This prevents the periodic completer from finalizing
 // a truncated recording after part failures.
 func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	if err := checkUploadForCleanup(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete the upload marker before cleaning up parts so ListUploads can no
+	// longer expose this failed upload to the periodic completer.
+	marker := h.gcsClient.Bucket(h.Config.Bucket).Object(h.uploadPath(upload))
+	err := h.AfterObjectDelete(ctx, marker, marker.Delete(ctx))
+	if err = convertGCSError(err); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "deleting upload marker")
+	}
 	return h.cleanupUpload(ctx, upload)
 }
 
@@ -265,10 +276,14 @@ func (h *Handler) partsToObjects(upload events.StreamUpload, parts []events.Stre
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	if err := upload.CheckAndSetDefaults(); err != nil {
+	if err := checkUploadForCleanup(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
+	bucket := h.gcsClient.Bucket(h.Config.Bucket)
+	if _, err := bucket.Object(h.uploadPath(upload)).Attrs(ctx); err != nil {
+		return nil, trace.Wrap(convertGCSError(err), "reading upload marker")
+	}
+	i := bucket.Objects(ctx, &storage.Query{
 		Prefix: h.partsPrefix(upload),
 	})
 	var parts []events.StreamPart
@@ -292,6 +307,16 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		parts = append(parts, *part)
 	}
 	return parts, nil
+}
+
+func checkUploadForCleanup(upload events.StreamUpload) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := uuid.Parse(upload.ID); err != nil {
+		return trace.BadParameter("invalid upload ID %q", upload.ID)
+	}
+	return nil
 }
 
 // ListUploads lists uploads that have been initiated but not completed with

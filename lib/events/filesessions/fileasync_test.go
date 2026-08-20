@@ -34,6 +34,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -89,6 +90,113 @@ func TestUploadOK(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, uploads, 1)
 }
+
+func TestUploadPreservesRecordingOnRemoteCompletionError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	completionErr := errors.New("remote completion failed")
+	p := newUploaderPack(ctx, t, uploaderPackConfig{
+		wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
+			return &completionErrorStreamer{Streamer: streamer, err: completionErr}, nil
+		},
+	})
+	clock, ok := p.clock.(*clockwork.FakeClock)
+	require.True(t, ok)
+	require.NoError(t, clock.BlockUntilContext(ctx, 1))
+
+	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 10})
+	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+	p.emitEvents(ctx, t, inEvents)
+	clock.Advance(p.scanPeriod + time.Second)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, sid, event.SessionID)
+		require.ErrorIs(t, event.Error, completionErr)
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for remote completion failure")
+	}
+
+	require.FileExists(t, filepath.Join(p.scanDir, sid+tarExt))
+	require.FileExists(t, filepath.Join(p.scanDir, sid+checkpointExt))
+}
+
+type completionErrorStreamer struct {
+	events.Streamer
+	err error
+}
+
+func (s *completionErrorStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	stream, err := s.Streamer.CreateAuditStream(ctx, sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newCompletionErrorStream(stream, s.err), nil
+}
+
+func (s *completionErrorStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	stream, err := s.Streamer.ResumeAuditStream(ctx, sid, uploadID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newCompletionErrorStream(stream, s.err), nil
+}
+
+type completionErrorStream struct {
+	apievents.Stream
+	err  error
+	done chan struct{}
+	once sync.Once
+}
+
+func newCompletionErrorStream(stream apievents.Stream, err error) *completionErrorStream {
+	return &completionErrorStream{Stream: stream, err: err, done: make(chan struct{})}
+}
+
+func (s *completionErrorStream) Complete(context.Context) error {
+	s.once.Do(func() { close(s.done) })
+	return nil
+}
+
+func (s *completionErrorStream) Close(ctx context.Context) error {
+	s.once.Do(func() { close(s.done) })
+	return s.Stream.Close(ctx)
+}
+
+func (s *completionErrorStream) Done() <-chan struct{} {
+	return s.done
+}
+
+func (s *completionErrorStream) Error() error {
+	return s.err
+}
+
+type terminalErrorStream struct {
+	done   chan struct{}
+	status chan apievents.StreamStatus
+	err    error
+}
+
+func newTerminalErrorStream(err error) *terminalErrorStream {
+	done := make(chan struct{})
+	close(done)
+	return &terminalErrorStream{
+		done:   done,
+		status: make(chan apievents.StreamStatus),
+		err:    err,
+	}
+}
+
+func (s *terminalErrorStream) RecordEvent(context.Context, apievents.PreparedSessionEvent) error {
+	return s.err
+}
+
+func (s *terminalErrorStream) Status() <-chan apievents.StreamStatus { return s.status }
+func (s *terminalErrorStream) Done() <-chan struct{}                 { return s.done }
+func (s *terminalErrorStream) Complete(context.Context) error        { return s.err }
+func (s *terminalErrorStream) Close(context.Context) error           { return nil }
+func (s *terminalErrorStream) Error() error                          { return s.err }
 
 // TestUploadParallel verifies several parallel uploads that have to wait
 // for semaphore
@@ -305,6 +413,39 @@ func TestUploadResume(t *testing.T) {
 					},
 					OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer events.Streamer) (apievents.Stream, error) {
 						return nil, trace.NotFound("stream not found")
+					},
+				})
+				require.NoError(t, err)
+				return resumeTestTuple{
+					streamer: callbackStreamer,
+					verify: func(t *testing.T, tc resumeTestCase) {
+						require.Equal(t, 2, int(streamCreated.Load()), tc.name)
+					},
+				}
+			},
+		},
+		{
+			name:    "stream is recreated when remote resume asynchronously reports not found",
+			retries: 1,
+			newTest: func(streamer events.Streamer) resumeTestTuple {
+				var streamCreated, terminateConnection atomic.Uint64
+				terminateConnection.Store(1)
+
+				callbackStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+					Inner: streamer,
+					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+						event := pe.GetAuditEvent()
+						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) {
+							return trace.ConnectionProblem(nil, "connection terminated")
+						}
+						return nil
+					},
+					OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer events.Streamer) (apievents.Stream, error) {
+						streamCreated.Add(1)
+						return streamer.CreateAuditStream(ctx, sid)
+					},
+					OnResumeAuditStream: func(context.Context, session.ID, string, events.Streamer) (apievents.Stream, error) {
+						return newTerminalErrorStream(trace.NotFound("stream not found")), nil
 					},
 				})
 				require.NoError(t, err)

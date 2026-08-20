@@ -772,38 +772,56 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		}
 	}(ctx)
 
-	// The call to CreateAuditStream is async. To learn
-	// if it was successful get the first status update
-	// sent by the server after create.
-	select {
-	case <-u.closeC:
-		return trace.Errorf("operation has been canceled, uploader is closed")
-	case <-stream.Done():
-		if errStream, ok := stream.(interface{ Error() error }); ok {
-			if err := errStream.Error(); err != nil {
-				return trace.ConnectionProblem(err, "%s", err.Error())
+	// CreateAuditStream and ResumeAuditStream can both complete asynchronously
+	// when the streamer is backed by the remote gRPC client. In particular, a
+	// stale checkpoint may return a stream first and report NotFound through
+	// Done/Error only after the server handles the resume request. Fall back to
+	// a fresh upload in that case instead of retrying the same stale upload ID
+	// forever across uploader restarts.
+waitForInitialStatus:
+	for {
+		select {
+		case <-u.closeC:
+			return trace.Errorf("operation has been canceled, uploader is closed")
+		case <-stream.Done():
+			if errStream, ok := stream.(interface{ Error() error }); ok {
+				if err := errStream.Error(); err != nil {
+					if status != nil && trace.IsNotFound(err) {
+						log.WarnContext(ctx, "Upload not found, starting a new upload from scratch.", "error", err, "upload", status.UploadID)
+						status = nil
+						stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						continue
+					}
+					return trace.ConnectionProblem(err, "%s", err.Error())
+				}
 			}
-		}
 
-		return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
-	case status := <-stream.Status():
-		if err := up.writeStatus(status); err != nil {
-			// all other stream status writes are optimistic, but we want to make sure the initial
-			// status is written to disk so that we don't create orphaned multipart uploads.
-			return trace.Errorf("failed to write initial stream status: %v", err)
-		}
-	case <-time.After(events.NetworkRetryDuration):
-		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
-	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
+			return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
+		case initialStatus := <-stream.Status():
+			if err := up.writeStatus(initialStatus); err != nil {
+				// all other stream status writes are optimistic, but we want to make sure the initial
+				// status is written to disk so that we don't create orphaned multipart uploads.
+				return trace.Errorf("failed to write initial stream status: %v", err)
+			}
+			break waitForInitialStatus
+		case <-time.After(events.NetworkRetryDuration):
+			return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
 
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	monitorDone := make(chan struct{})
 	u.wg.Add(1)
 	go func() {
 		defer u.wg.Done()
+		defer close(monitorDone)
 		u.monitorStreamStatus(ctx, up, stream, cancel)
 	}()
 
@@ -831,6 +849,8 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	if err := stream.Complete(ctx); err != nil {
 		log.ErrorContext(ctx, "Failed to complete upload.", "error", err)
+		cancel()
+		<-monitorDone
 		// When the upload fails (e.g., due to persistent storage backend errors
 		// or retry exhaustion on the auth server), we must NOT delete the local
 		// recording file. The file is the only copy of the session recording,
@@ -842,23 +862,35 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		return trace.Wrap(err)
 	}
 
-	// Only remove local files after the server has confirmed the upload
-	// is complete. If we reach this point, stream.Complete returned
-	// successfully, meaning all parts were uploaded and the multipart
-	// upload was finalized.
-	log.DebugContext(ctx, "Upload completed successfully, removing local files")
-
-	// make sure that checkpoint writer goroutine finishes
-	// before the files are closed to avoid async writes
-	// the timeout is a defensive measure to avoid blocking
-	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	// A remote gRPC stream's Complete method only sends the completion request.
+	// The server's final status (including retry-exhaustion failures) arrives
+	// asynchronously through Done and Error, so do not remove the only local
+	// recording until that response has arrived.
+	wctx, wcancel := context.WithTimeout(context.Background(), apidefaults.DefaultIOTimeout)
 	defer wcancel()
-
-	<-wctx.Done()
-	if errors.Is(wctx.Err(), context.DeadlineExceeded) {
-		log.WarnContext(ctx, "Checkpoint function failed to complete the write due to timeout. Possible slow disk write.", "error", wctx.Err())
+	select {
+	case <-stream.Done():
+	case <-wctx.Done():
+		cancel()
+		<-monitorDone
+		return trace.ConnectionProblem(wctx.Err(), "timed out waiting for the server to confirm upload completion")
 	}
+
+	// Stop and join the checkpoint writer before closing or deleting its file.
+	cancel()
+	select {
+	case <-monitorDone:
+	case <-wctx.Done():
+		return trace.ConnectionProblem(wctx.Err(), "timed out waiting for the checkpoint writer to stop")
+	}
+
+	if errStream, ok := stream.(interface{ Error() error }); ok {
+		if err := errStream.Error(); err != nil && !errors.Is(trace.Unwrap(err), io.EOF) {
+			return trace.Wrap(err, "server failed to complete upload")
+		}
+	}
+
+	log.DebugContext(ctx, "Upload completed successfully, removing local files")
 
 	// In linux it is possible to remove a file while holding a file descriptor
 	if err := up.removeFiles(); err != nil {

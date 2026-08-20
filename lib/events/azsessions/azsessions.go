@@ -505,12 +505,24 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 // were uploaded. This prevents the periodic completer from finalizing
 // a truncated recording after part failures.
 func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
-	// Delete all parts for this upload to prevent the periodic completer
-	// from finalizing a truncated recording.
-	for partNumber := int64(1); partNumber <= maxParts; partNumber++ {
-		_, err := h.partBlob(upload, partNumber).Delete(ctx, nil)
-		if err != nil && !bloberror.HasCode(err, bloberror.BlobNotFound) {
-			return trace.Wrap(err, "deleting part %d", partNumber)
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
+	parts, err := h.ListParts(ctx, upload)
+	if err != nil {
+		return trace.Wrap(err, "listing upload parts")
+	}
+
+	// Remove the marker first so the periodic completer cannot observe and
+	// finalize the upload while its parts are being deleted.
+	if _, err := cErr(h.uploadMarkerBlob(upload).Delete(ctx, nil)); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "deleting upload marker")
+	}
+
+	for _, part := range parts {
+		if _, err := cErr(h.partBlob(upload, part.Number).Delete(ctx, nil)); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "deleting part %d", part.Number)
 		}
 	}
 	return nil
@@ -670,6 +682,13 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // ListParts implements [events.MultipartUploader].
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	if err := checkUpload(upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := cErr(h.uploadMarkerBlob(upload).GetProperties(ctx, nil)); err != nil {
+		return nil, trace.Wrap(err, "reading upload marker")
+	}
+
 	prefix := partPrefix(upload)
 
 	var parts []events.StreamPart
@@ -713,6 +732,16 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	slices.SortFunc(parts, func(a, b events.StreamPart) int { return cmp.Compare(a.Number, b.Number) })
 
 	return parts, nil
+}
+
+func checkUpload(upload events.StreamUpload) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := uuid.Parse(upload.ID); err != nil {
+		return trace.BadParameter("invalid upload ID %q", upload.ID)
+	}
+	return nil
 }
 
 // ListUploads implements [events.MultipartUploader].
