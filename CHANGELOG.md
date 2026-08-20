@@ -1,5 +1,97 @@
 # Changelog
 
+## 17.7.28 (08/19/27)
+
+This is a public release announcing security vulnerabilities addressed in 17.7.27.
+In addition to the issues addressed in 17.7.27, this release includes an additional
+security fix:
+
+* Remove generic write permissions from system agent roles
+
+The following issues were addressed in 17.7.27.
+
+### [High] SSO MFA bypass
+
+Teleport could accept an empty SSO MFA token before the SSO callback populated
+the expected token, allowing an attacker to bypass SSO MFA in affected MFA
+flows.
+
+All users that use SSO MFA are advised to upgrade their Auth services.
+
+### [High] AWS Console federation destination validation bypass
+
+Teleport validated AWS Console application URLs using raw string prefixes rather
+than parsed hostnames. A crafted URL could be accepted as an AWS Console
+destination while pointing to an attacker-controlled host, allowing an AWS
+federation destination validation bypass.
+
+All users that use AWS Console Application Access are advised to upgrade
+affected Teleport services.
+
+### [High] Application Access authorization bypass for TCP/MCP apps sharing a public address
+
+When multiple application resources shared the same public address, Teleport
+could authorize access against one application while dispatching the live
+TCP/MCP connection to another application selected during routing.
+
+All users that use TCP or MCP Application Access are advised to upgrade affected
+Teleport services.
+
+### [High] Kubernetes Access URL-encoding RBAC bypass
+
+Teleport Kubernetes Access could misclassify URL-encoded Kubernetes subresource
+requests, allowing requests such as exec, attach, or port-forward to bypass
+Teleport RBAC checks in certain proxying paths.
+
+All users that use Kubernetes Access are advised to upgrade affected Teleport
+proxy and Kubernetes services.
+
+### [High] Cross-cluster authentication bypass via x509 subject forgery
+
+Several trusted-cluster TLS verification paths did not enforce the intended peer
+certificate verification. In affected deployments, a compromised leaf cluster
+could issue certificates with arbitrary usernames and roles for certain
+cross-cluster access paths.
+
+All users that use Trusted Clusters, especially with Kubernetes, Desktop, or
+Application Access, are advised to upgrade affected Teleport services.
+
+### [High] Proxy crash via malformed IAM/Azure join request
+
+The proxy could dereference missing IAM or Azure join request data. A crafted
+unauthenticated join request could crash the proxy process.
+
+All users are advised to upgrade proxy services.
+
+### [High] Teleport Cloud discovery integration validation bypass
+
+Teleport Cloud DiscoveryConfigs targeting cloud-discovery-group did not
+consistently require integrations on all AWS and Azure matcher types. This could
+allow discovery to use ambient cloud credentials rather than the intended
+integration-scoped credentials.
+
+Teleport Cloud customers will receive the patched control plane as part of this
+release. Self-hosted customers using equivalent Teleport Cloud discovery
+integration controls should upgrade affected Auth and Discovery services.
+
+### [High] Moderated file-transfer approval could authorize unsupervised exec sessions
+
+A moderated session file-transfer approval could be consumed by a
+non-interactive SSH exec request, allowing a user with an approved file-transfer
+request to run commands without moderator oversight.
+
+All users that use moderated SSH sessions and file-transfer approvals are
+advised to upgrade node/proxy services.
+
+### [High] Arbitrary SSH session termination via global request authorization bypass
+
+Teleport v17 did not consistently enforce authorization for certain global SSH
+requests, such as force-terminate. An attacker with access to the same node and
+knowledge of another session ID could terminate another user’s SSH session.
+
+This vulnerability is addressed in v17.7.27. All v17 users that use SSH Access
+are advised to upgrade node services.
+
 ## 17.7.27 (07/17/27)
 
 This is a private security release. The changelog will be publicly announced in a later version.
