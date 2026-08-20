@@ -19,7 +19,8 @@
 // Package appresource checks whether an HTTP app request is allowed
 // by a role. Roles carry allow-only rules. A rule can match on
 // request path, HTTP method, and a where predicate over the user
-// identity. Every field is optional.
+// identity. A rule sets either paths, with the other fields
+// optional, or allow_all, which stands alone.
 //
 // Example role fragment:
 //
