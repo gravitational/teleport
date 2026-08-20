@@ -30,22 +30,23 @@ jobs:
     steps:
       - name: Get runtime values from kvstore
         id: kvstore
-        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.2
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.3
         with:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
-          existing-gh-secrets: "${{ toJSON(secrets) }}"
-          existing-gh-variables: "${{ toJSON(vars) }}"
-          # values: |
-          #   APP_ID,variable
-          #   PRIVATE_KEY,secret
-
-      - name: Generate Github token
+          values: |
+            APP_ID,variable
+            PRIVATE_KEY,secret
+      - name: Generate GitHub token
         id: generate_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.PRIVATE_KEY }}
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.PRIVATE_KEY }}
+      - name: Clear runtime values
+        id: clear_kvstore_env
+        run: |
+            echo "PRIVATE_KEY=" >> $GITHUB_ENV
 
       - name: Checkout repository
         uses: actions/checkout@v6
