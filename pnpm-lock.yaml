@@ -199,9 +199,6 @@ importers:
       oxlint:
         specifier: ^1.77.0
         version: 1.77.0
-      playwright:
-        specifier: ^1.62.1
-        version: 1.62.1
       react-select-event:
         specifier: ^5.5.1
         version: 5.5.1
@@ -217,12 +214,6 @@ importers:
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.11)(yaml@2.9.0)
-
-  e/e2e:
-    dependencies:
-      '@gravitational/e2e':
-        specifier: workspace:*
-        version: link:../../e2e
 
   e/web/teleport: {}
 
