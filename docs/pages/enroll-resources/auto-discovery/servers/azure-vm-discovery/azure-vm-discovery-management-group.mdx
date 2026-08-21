@@ -1,7 +1,7 @@
 ---
-title: Manual Azure VM Auto-Discovery Configuration
-sidebar_label: Manual
-description: How to manually configure Teleport to automatically enroll Azure virtual machines.
+title: Azure VM Auto-Discovery for Management Groups
+sidebar_label: Management Group Discovery
+description: How to configure Teleport Azure VM auto-discovery across subscriptions using management group scope.
 page_type: how-to
 tags:
  - how-to
@@ -10,34 +10,50 @@ tags:
  - azure
 ---
 
-This guide shows you how to set up automatic server discovery for Azure virtual
-machines.
+This guide shows you how to configure Teleport to automatically enroll Azure
+virtual machines across multiple subscriptions using management groups.
+
+If you only want to discover VMs in specific subscriptions, read
+[Manual Azure VM Auto-Discovery](azure-vm-discovery-manual.mdx).
 
 ## How it works
 
-The Teleport Discovery Service can connect to Azure and automatically
-discover and enroll virtual machines matching configured labels. It will then
-execute a script on these discovered instances that will install Teleport,
-start it and join the cluster.
+The Teleport Discovery Service authenticates to Azure as a service principal
+with permissions assigned at the management group scope. This allows it to list
+all subscriptions under that management group and discover virtual machines in
+each one.
 
-To discover VMs across multiple subscriptions in a management group, see
-[Management Group Azure VM Auto-Discovery](azure-vm-discovery-management-group.mdx).
+For each discovered VM, the Discovery Service executes a script using the Azure
+Run Command feature that installs Teleport, starts it and joins the cluster.
+
+You can also enroll VMs across your entire Azure environment, including any
+additional subscriptions and management groups added later, using the
+[Tenant root
+group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory).
+The Tenant root management group ID is the same as your Azure tenant ID.
+
+<Admonition type="note">
+Discovery for Azure using management groups is currently only supported for virtual
+machines and virtual machine scale sets.
+</Admonition>
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Azure subscription with virtual machines and permissions to create and attach
-managed identities.
+- Azure management group or tenant containing subscriptions for discovery.
+- Permissions to create managed identities, custom role definitions, and role
+  assignments at the management group scope.
 - Azure virtual machines to join the Teleport cluster, running
-Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
-other Linux distributions, you can install Teleport manually.)
+  Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
+  other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create an Azure invite token
+## Step 1/5. Create an Azure join token
 
-When discovering Azure virtual machines, Teleport makes use of Azure invite tokens for
-authenticating joining SSH Service instances.
+When discovering Azure virtual machines, Teleport uses Azure join tokens for
+authenticating joining SSH Service instances. Using an allow rule scoped to the
+tenant allows VMs from any subscription in the tenant to join the cluster.
 
 Create a file called `token.yaml`:
 
@@ -46,25 +62,20 @@ Create a file called `token.yaml`:
 kind: token
 version: v2
 metadata:
-  # the token name is not a secret because instances must prove that they are
-  # running in your Azure subscription to use this token
   name: azure-discovery-token
-  # set a long expiry time, as the default for tokens is only 30 minutes
   expires: "3000-01-01T00:00:00Z"
 spec:
-  # use the minimal set of roles required
   roles: [Node]
-
-  # set the join method allowed for this token
   join_method: azure
 
   azure:
     allow:
-    # specify the Azure subscription which Nodes may join from
-    - subscription: "11111111-1111-1111-1111-111111111111"
+    # specify the Azure tenant which Nodes may join from.
+    # this allows joining from any subscription in the tenant.
+    - tenant: "<Var name="tenant-id" />"
 ```
 
-Assign the `subscription` field to your Azure subscription ID.
+Assign <Var name="tenant-id" /> to your Azure tenant ID.
 
 Add the token to the Teleport cluster with:
 
@@ -74,13 +85,15 @@ $ tctl create -f token.yaml
 
 ## Step 2/5. Configure IAM permissions for Teleport
 
-The Teleport Discovery Service needs Azure IAM permissions to discover and register Azure virtual machines.
+The Teleport Discovery Service needs Azure IAM permissions to discover and
+register Azure virtual machines.
 
 (!docs/pages/includes/auto-discovery/azure-vm-configure-service-principal.mdx!)
 
 ### Create a custom role
 
-Teleport requires the following permissions to discover and enroll Azure VMs:
+Teleport requires the following permissions to discover and enroll Azure VMs
+across a management group:
 
 - `Microsoft.Compute/virtualMachines/read`
 - `Microsoft.Compute/virtualMachines/runCommands/write`
@@ -89,9 +102,14 @@ Teleport requires the following permissions to discover and enroll Azure VMs:
 - `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read`
 - `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read`
 - `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write`
+- `Microsoft.Resources/subscriptions/read`
 
-Here is a sample role definition allowing Teleport to read and run commands on Azure
-virtual machines:
+The `Microsoft.Resources/subscriptions/read` permission is required so the
+Discovery Service can list subscriptions under the management group when using a
+wildcard subscription matcher.
+
+Here is a sample role definition allowing Teleport to read and run commands on
+Azure virtual machines at the management group scope:
 
 ```json
 {
@@ -99,7 +117,7 @@ virtual machines:
         "roleName": "TeleportDiscovery",
         "description": "Allows Teleport to discover Azure virtual machines",
         "assignableScopes": [
-            "/subscriptions/11111111-2222-3333-4444-555555555555"
+            "/providers/Microsoft.Management/managementGroups/<management-group-id>"
         ],
         "permissions": [
             {
@@ -110,7 +128,8 @@ virtual machines:
                     "Microsoft.Compute/virtualMachineScaleSets/read",
                     "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
                     "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write",
-                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read"
+                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read",
+                    "Microsoft.Resources/subscriptions/read"
                 ],
                 "notActions": [],
                 "dataActions": [],
@@ -121,6 +140,38 @@ virtual machines:
 }
 ```
 
+Replace `<management-group-id>` with your management group ID. The
+`assignableScopes` field determines where the role can be assigned — set it to
+the management group that contains the subscriptions you want to discover.
+
+Azure allows [only one management group in
+`assignableScopes`](https://learn.microsoft.com/en-us/azure/role-based-access-control/custom-roles#custom-role-limits). To
+discover VMs across multiple management groups, set `assignableScopes` to a
+management group at the top of your resource hierarchy and create a role
+assignment for each management group you wish to discover.
+
+To discover VMs across all subscriptions in the tenant, use the tenant ID as
+the management group ID, which targets the
+[Tenant root group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory).
+
+<Admonition type="warning">
+Using the tenant ID as the management group ID targets the Tenant root group,
+which requires
+[elevated access](https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin).
+
+If you have recently elevated privileges in the Azure CLI or Azure portal, you
+may need to refresh your Azure CLI credentials before proceeding:
+
+```code
+$ az logout && az login
+```
+
+</Admonition>
+
+Navigate to the [Management Groups](https://portal.azure.com/#view/Microsoft_Azure_ManagementGroups/ManagementGroupBrowseBlade)
+page and select your management group. Click on *Access control (IAM)* and
+select *Add > Add custom role*, then paste the JSON role definition above.
+
 <Admonition type="tip">
 Using the role definition above grants Teleport access to enroll VMs and VMs from Virtual Machine Scale Sets (VMSSs).
 
@@ -130,25 +181,21 @@ If you are not using or don't want to enroll VMSSs with Uniform orchestration mo
 Navigate to the [Azure portal](https://portal.azure.com/#view/Microsoft_Azure_ComputeHub/ComputeHubMenuBlade/~/virtualMachineScaleSetsBrowse) and look for the Orchestration mode column to check the orchestration mode of your VMSSs and make sure to adjust the role permissions accordingly.
 </Admonition>
 
-The `assignableScopes` field above includes a subscription
-`/subscriptions/<subscription>`, allowing the role to be assigned at any
-resource scope within that subscription or the subscription scope itself. If
-you want to further limit the `assignableScopes`, you can use a resource group
-`/subscriptions/<subscription>/resourceGroups/<group>` or a management group
-`/providers/Microsoft.Management/managementGroups/<group>` instead.
-
-Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
-
-Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
-
-In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
-and replace the subscription in `assignableScopes` with your own subscription id:
-![Create JSON role](../../../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
-
 ### Create a role assignment for the Teleport Discovery Service principal
 
-(!docs/pages/includes/server-access/azure-assign-service-principal.mdx!)
+To grant Teleport permissions, the custom role you created must be assigned to
+the Teleport service principal at the management group level.
+
+Navigate to the
+[Management Groups](https://portal.azure.com/#view/Microsoft_Azure_ManagementGroups/ManagementGroupBrowseBlade)
+page, select your management group, and click *Access control (IAM)*. Select
+*Add > Add role assignment*. Choose the custom role you created as the role and
+the Teleport service principal as a member.
+
+![Assign role](../../../../../img/server-access/guides/azure/create-role-assignment@2x.png)
+
+The Discovery Service will discover VMs in all subscriptions under the assigned
+management group scope.
 
 ## Step 3/5. Set up an identity for discovered nodes
 
@@ -190,8 +237,8 @@ Install Teleport on the virtual machine that will run the Discovery Service:
     discovery_group: <Var name="azure-prod" />
     azure:
       - types: ["vm"]
-        subscriptions: ["<subscription>"]
-        resource_groups: ["<resource-group>"]
+        # Only exact matches or wildcard (*) are supported.
+        subscriptions: ["*"]
         regions: ["<region>"]
         tags:
           "env": "prod" # Match virtual machines where tag:env=prod
@@ -203,7 +250,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
             client_id: "<client-id>"
   ```
   Adjust the keys under `spec.azure` to match your Azure environment,
-  specifically the resource groups, regions and tags you want to associate with the Discovery Service.
+  specifically the regions and tags you want to associate with the Discovery Service.
 
   Create the Discovery Config by running the following command:
   ```code
@@ -227,8 +274,8 @@ Install Teleport on the virtual machine that will run the Discovery Service:
     discovery_group: <Var name="azure-prod" />
     azure:
       - types: ["vm"]
-        subscriptions: ["<subscription>"]
-        resource_groups: ["<resource-group>"]
+        # Only exact matches or wildcard (*) are supported.
+        subscriptions: ["*"]
         regions: ["<region>"]
         tags:
           "env": "prod" # Match virtual machines where tag:env=prod
@@ -239,12 +286,24 @@ Install Teleport on the virtual machine that will run the Discovery Service:
             # ID of the identity created in step 3.
             client_id: "<client-id>"
   ```
-  
-  Adjust the keys under `discovery_service.azure` to match your Azure environment, 
+
+  Adjust the keys under `discovery_service.azure` to match your Azure environment,
   specifically the regions and tags you want to associate with the Discovery Service.
 </TabItem>
 
 </Tabs>
+
+<Admonition type="tip">
+To configure Terraform for VM discovery across subscriptions in a management group, see
+[Discover VMs in multiple subscriptions using management groups](azure-vm-discovery-terraform.mdx#discover-vms-in-multiple-subscriptions-using-management-groups)
+in the Terraform Azure VM Auto-Discovery guide.
+</Admonition>
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+Once you have started the Discovery Service, Azure virtual machines matching the
+tags you specified earlier will begin to be added to the Teleport cluster
+automatically across all subscriptions under the management group.
 
 ## Auto-discovery labels
 
