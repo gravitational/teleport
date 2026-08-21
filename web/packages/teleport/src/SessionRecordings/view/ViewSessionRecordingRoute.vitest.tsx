@@ -23,7 +23,7 @@ import type { ComponentType } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { vi, expect, test, afterEach } from 'vitest';
 
-import { render, server, testQueryClient } from 'design/utils/testing';
+import { render, server } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -50,7 +50,6 @@ vi.mock('teleport/lib/AuthenticatedWebSocket', async () => ({
 }));
 
 afterEach(() => {
-  testQueryClient.clear();
   vi.clearAllMocks();
 });
 

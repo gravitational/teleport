@@ -18,14 +18,13 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
-import { vi, test, afterEach, expect, beforeEach } from 'vitest';
+import { vi, test, expect, beforeEach } from 'vitest';
 
 import {
   createDeferredResponse,
   render,
   screen,
   server,
-  testQueryClient,
   userEvent,
   waitFor,
 } from 'design/utils/testing';
@@ -53,9 +52,6 @@ beforeEach(() => {
       ]);
     })
   );
-});
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 const listRecordingsUrl = generatePath(cfg.api.clusterEventsRecordingsPath, {

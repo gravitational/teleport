@@ -18,15 +18,9 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
-import { vi, beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  render,
-  screen,
-  server,
-  testQueryClient,
-  userEvent,
-} from 'design/utils/testing';
+import { render, screen, server, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -64,9 +58,6 @@ beforeEach(() => {
       ]);
     })
   );
-});
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 const defaultState: RecordingsListState = {

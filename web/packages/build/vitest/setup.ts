@@ -26,7 +26,7 @@ import '../jest/canvasMock';
 import { afterAll, afterEach, beforeAll, expect } from 'vitest';
 import failOnConsole from 'vitest-fail-on-console';
 
-import { server } from 'design/utils/testing';
+import { server, testQueryClient } from 'design/utils/testing';
 
 // happy-dom doesn't implement requestIdleCallback (SessionRecordings timeline).
 if (typeof globalThis.requestIdleCallback === 'undefined') {
@@ -43,9 +43,6 @@ expect.extend(jestDomMatchers);
 
 failOnConsole();
 
-// @testing-library/react only self-registers this when a global afterEach exists.
-afterEach(cleanup);
-
 // React reads this to decide whether act() is supported. RTL only sets it around its own act() calls, so without
 // it React warns on every state update and vitest-fail-on-console turns that into a failure.
 (
@@ -53,5 +50,10 @@ afterEach(cleanup);
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+afterEach(() => {
+  cleanup();
+  testQueryClient.clear();
+  server.resetHandlers();
+});
