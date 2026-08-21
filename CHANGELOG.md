@@ -111,7 +111,7 @@ accepted by relying parties that trust the Teleport cluster as an OIDC issuer.
 
 This issue affects Teleport v18.6.5 and later and is addressed in v18.10.3. All
 affected v18 users are advised to upgrade Auth services. App services that use
-the {{internal.id_token}} rewrite trait for MCP egress must also be upgraded for
+the `{{internal.id_token}}` rewrite trait for MCP egress must also be upgraded for
 that feature to continue working.
 
 ### [High] Proxy-local application integration routing remote code execution for unsupported apps
