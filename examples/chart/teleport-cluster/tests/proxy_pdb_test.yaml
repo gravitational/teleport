@@ -1,23 +1,34 @@
 suite: Proxy PodDisruptionBudget
 templates:
-  - proxy/pdb.yaml
+  - proxy.yaml
 tests:
   - it: not should create a PDB when disabled in values
     set:
+      clusterName: helm-lint.example.com
       highAvailability:
         podDisruptionBudget:
           enabled: false
     asserts:
-      - hasDocuments:
-          count: 0
+      - containsDocument:
+          kind: PodDisruptionBudget
+          apiVersion: policy/v1
+          name: RELEASE-NAME-proxy
+        not: true
+
   - it: should create a PDB when enabled in values (pdb.yaml)
     values:
       - ../.lint/pdb.yaml
+    # expected: PodDisruptionBudget/RELEASE-NAME-proxy
+    # 2 - PodDisruptionBudget/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
       - hasDocuments:
-          count: 1
+          count: 8
       - isKind:
           of: PodDisruptionBudget
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: spec.minAvailable
           value: 2
@@ -34,7 +45,15 @@ tests:
         extraLabels:
           podDisruptionBudget:
             baz: overridden
+    # expected: PodDisruptionBudget/RELEASE-NAME-proxy
+    # 2 - PodDisruptionBudget/RELEASE-NAME-proxy
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
       - equal:
           path: metadata.labels.foo
           value: bar
