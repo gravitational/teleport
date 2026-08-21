@@ -157,7 +157,7 @@ func (s *Service) generateScoped(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating scoped output")
 
-	id, err := s.identityGenerator.GenerateScoped(ctx, s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval)
+	id, err := s.identityGenerator.GenerateScoped(ctx, s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval, identity.UsageIdentity())
 	if err != nil {
 		return trace.Wrap(err, "generating scoped identity")
 	}

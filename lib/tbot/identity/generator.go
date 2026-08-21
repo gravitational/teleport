@@ -440,16 +440,59 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 	}, nil
 }
 
+// ScopedUsage is used to set the type of usage when issuing
+// scoped bot certificates.
+type ScopedUsage struct {
+	apply func(*issuancev1pb.IssueScopedBotCertsRequest)
+}
+
+// Validate checks that the ScopedUsage is valid for use.
+func (u *ScopedUsage) Validate() error {
+	if u == nil {
+		return trace.BadParameter("usage is undefined")
+	}
+	if u.apply == nil {
+		return trace.BadParameter("usage is incomplete: no apply set")
+	}
+	return nil
+}
+
+// UsageIdentity sets the IssueScopedBotCertsRequest.Usage to be of the UsageIdentity type.
+func UsageIdentity() *ScopedUsage {
+	return &ScopedUsage{
+		apply: func(req *issuancev1pb.IssueScopedBotCertsRequest) {
+			req.SetIdentity(&issuancev1pb.UsageIdentity{})
+		},
+	}
+}
+
+// UsageApp sets the IssueScopedBotCertsRequest.Usage to be of the UsageApp type.
+func UsageApp(route proto.RouteToApp) *ScopedUsage {
+	return &ScopedUsage{
+		apply: func(req *issuancev1pb.IssueScopedBotCertsRequest) {
+			req.SetApp(issuancev1pb.UsageApp_builder{
+				Name:       route.Name,
+				PublicAddr: route.PublicAddr,
+				Scope:      route.Scope,
+			}.Build())
+		},
+	}
+}
+
 // GenerateScoped generates scoped certificates. Bot must already be scoped/
 // hold a scoped identity.
 // TODO(noah): add optional args to this like for Generate.
 func (g *Generator) GenerateScoped(
-	ctx context.Context, ttl, renewalInterval time.Duration,
+	ctx context.Context, ttl, renewalInterval time.Duration, usage *ScopedUsage,
 ) (*Identity, error) {
+	if err := usage.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
-		Ttl:      durationpb.New(ttl),
-		Identity: &issuancev1pb.UsageIdentity{},
+		Ttl: durationpb.New(ttl),
 	}.Build()
+	usage.apply(req)
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
 	key, err := cryptosuites.GenerateKey(ctx,
@@ -526,9 +569,9 @@ func (g *Generator) GenerateScoped(
 // GenerateScopedFacade calls GenerateScoped and wraps the resulting Identity
 // in a Facade for easy use in API clients, etc.
 func (g *Generator) GenerateScopedFacade(
-	ctx context.Context, ttl, renewalInterval time.Duration,
+	ctx context.Context, ttl, renewalInterval time.Duration, usage *ScopedUsage,
 ) (*Facade, error) {
-	id, err := g.GenerateScoped(ctx, ttl, renewalInterval)
+	id, err := g.GenerateScoped(ctx, ttl, renewalInterval, usage)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
