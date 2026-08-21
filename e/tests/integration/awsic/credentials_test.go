@@ -124,36 +124,27 @@ func TestSCIMAuthFailureMarksPluginUnauthorized(t *testing.T) {
 		common.WithUser(t, "alice", "editor"),
 	)
 	alice := sut.GetClusterClientForUser(t, "alice")
+
+	pluginWatcher := sut.NewResourceWatcher(t, types.KindPlugin)
+
 	mustSetupAWSIdentityCenterIntegration(t, alice.AuthClient)
 
 	// Verify that the plugin starts in a healthy running state.
-	require.Eventually(t,
-		func() bool {
-			plugin := mustGetPluginResource(t, alice.AuthClient, false)
-			return plugin.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
-		},
-		5*time.Second, 100*time.Millisecond,
-		"Plugin must reach running state before SCIM auth failure is simulated")
+	common.WaitForPutEvent(t, pluginWatcher, func(p *types.PluginV1) bool {
+		return p.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+	})
 
 	// Introduce an auth failure and verify that the plugin is marked unauthorized.
 	scimProxy.SetAuthFailure(true)
-	require.Eventually(t,
-		func() bool {
-			plugin := mustGetPluginResource(t, alice.AuthClient, false)
-			return plugin.GetStatus().GetCode() == types.PluginStatusCode_UNAUTHORIZED
-		},
-		5*time.Second, 100*time.Millisecond,
-		"SCIM auth failures must mark the AWS IAM Identity Center plugin unauthorized")
+	common.WaitForPutEvent(t, pluginWatcher, func(p *types.PluginV1) bool {
+		return p.GetStatus().GetCode() == types.PluginStatusCode_UNAUTHORIZED
+	})
 
 	// Resolve the auth failure.
 	scimProxy.SetAuthFailure(false)
 
 	// Verify that the plugin recovers to running.
-	require.Eventually(t,
-		func() bool {
-			plugin := mustGetPluginResource(t, alice.AuthClient, false)
-			return plugin.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
-		},
-		5*time.Second, 100*time.Millisecond,
-		"Plugin must recover to running state after SCIM auth is restored")
+	common.WaitForPutEvent(t, pluginWatcher, func(p *types.PluginV1) bool {
+		return p.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+	})
 }
