@@ -71,8 +71,8 @@ test('renders display names for user options and selected chips', async () => {
 
   await user.click(screen.getByText('Alice Liddell'));
 
-  // Expect the user chip to be visible with the correct label
-  expect(screen.getByLabelText('Alice Liddell, username alice')).toBeVisible();
+  expect(screen.getByText('Alice Liddell')).toBeVisible();
+  expect(screen.getByText('alice')).toBeVisible();
   expect(screen.queryByText('alice@example.com')).not.toBeInTheDocument();
 });
 

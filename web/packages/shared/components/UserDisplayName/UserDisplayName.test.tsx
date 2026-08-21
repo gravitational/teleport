@@ -16,63 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent, within } from 'design/utils/testing';
+import { render, screen, within } from 'design/utils/testing';
 
 import { UserDisplayName, type UserDisplayNameLayout } from './UserDisplayName';
 
 describe('UserDisplayName', () => {
   const username = 'alice@example.com';
-  const layouts: UserDisplayNameLayout[] = ['inline', 'stacked', 'tooltip'];
+  const layouts: UserDisplayNameLayout[] = ['inline', 'stacked'];
   const valueScenarios: {
     name: string;
     primaryText?: string;
     secondaryText?: string;
     expectedPrimary: string;
-    expectedSecondary: string | null;
-    expectedVisibleUsernameCountByLayout: Record<UserDisplayNameLayout, number>;
+    expectedVisibleSecondaryCountByLayout: Record<
+      UserDisplayNameLayout,
+      number
+    >;
   }[] = [
     {
       name: 'primary, secondary, and username',
       primaryText: 'Alice Jones',
       secondaryText: 'Engineering',
       expectedPrimary: 'Alice Jones',
-      expectedSecondary: 'Engineering',
-      expectedVisibleUsernameCountByLayout: {
-        inline: 1,
+      expectedVisibleSecondaryCountByLayout: {
+        inline: 0,
         stacked: 1,
-        tooltip: 0,
       },
     },
     {
       name: 'only username',
       expectedPrimary: username,
-      expectedSecondary: null,
-      expectedVisibleUsernameCountByLayout: {
-        inline: 1,
-        stacked: 1,
-        tooltip: 1,
+      expectedVisibleSecondaryCountByLayout: {
+        inline: 0,
+        stacked: 0,
       },
     },
     {
       name: 'primary and username',
       primaryText: 'Alice Jones',
       expectedPrimary: 'Alice Jones',
-      expectedSecondary: null,
-      expectedVisibleUsernameCountByLayout: {
-        inline: 1,
-        stacked: 1,
-        tooltip: 0,
+      expectedVisibleSecondaryCountByLayout: {
+        inline: 0,
+        stacked: 0,
       },
     },
     {
       name: 'secondary and username',
       secondaryText: 'Engineering',
       expectedPrimary: username,
-      expectedSecondary: 'Engineering',
-      expectedVisibleUsernameCountByLayout: {
-        inline: 1,
+      expectedVisibleSecondaryCountByLayout: {
+        inline: 0,
         stacked: 1,
-        tooltip: 1,
       },
     },
   ];
@@ -91,29 +85,16 @@ describe('UserDisplayName', () => {
 
         expect(screen.getByText(scenario.expectedPrimary)).toBeInTheDocument();
         expect(screen.queryAllByText('Engineering')).toHaveLength(
-          scenario.expectedSecondary ? 1 : 0
+          scenario.expectedVisibleSecondaryCountByLayout[layout]
         );
 
-        const expectedVisibleUsernameCount =
-          scenario.expectedVisibleUsernameCountByLayout[layout];
-        expect(screen.queryAllByText(username)).toHaveLength(
-          expectedVisibleUsernameCount
-        );
-
-        const tooltipTriggerLabel = getTooltipAriaLabel(
-          scenario.expectedPrimary,
-          scenario.expectedSecondary,
-          username
-        );
-        expect(screen.queryAllByLabelText(tooltipTriggerLabel)).toHaveLength(
-          layout === 'tooltip' && expectedVisibleUsernameCount === 0 ? 1 : 0
-        );
+        expect(screen.queryAllByText(username)).toHaveLength(1);
       });
     }
   }
 
-  it('formats inline supporting values with delimiters', () => {
-    render(
+  it('ignores secondary text in inline layout', () => {
+    const { container, rerender } = render(
       <UserDisplayName
         username={username}
         primaryText="Alice Jones"
@@ -126,9 +107,6 @@ describe('UserDisplayName', () => {
       .parentElement as HTMLElement;
     const inlineUsername = within(primaryLine).getByText(username);
     const inlineSupportingValues = inlineUsername.parentElement as HTMLElement;
-    const inlineSecondary = within(inlineSupportingValues).getByText(
-      'Engineering'
-    );
 
     expect(primaryLine).toContainElement(inlineSupportingValues);
     expect(inlineSupportingValues).toHaveStyleRule('content', "'('", {
@@ -137,9 +115,17 @@ describe('UserDisplayName', () => {
     expect(inlineSupportingValues).toHaveStyleRule('content', "')'", {
       modifier: '::after',
     });
-    expect(inlineSecondary).toHaveStyleRule('content', "'•'", {
-      modifier: '::before',
-    });
+    expect(screen.queryByText('Engineering')).not.toBeInTheDocument();
+
+    const withSecondaryText = container.innerHTML;
+    rerender(
+      <UserDisplayName
+        username={username}
+        primaryText="Alice Jones"
+        layout="inline"
+      />
+    );
+    expect(container.innerHTML).toBe(withSecondaryText);
   });
 
   it('renders stacked supporting values together below the primary line', () => {
@@ -186,49 +172,4 @@ describe('UserDisplayName', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText('Engineering')).toBeInTheDocument();
   });
-
-  it('defaults to tooltip layout', async () => {
-    const user = userEvent.setup();
-
-    render(
-      <UserDisplayName
-        username={username}
-        primaryText="Alice Jones"
-        secondaryText="Engineering"
-      />
-    );
-
-    expect(screen.queryByText(username)).not.toBeInTheDocument();
-
-    await user.hover(screen.getByText('Alice Jones'));
-
-    const tooltip = await screen.findByRole('tooltip');
-    expect(within(tooltip).getByText(username)).toBeInTheDocument();
-  });
-
-  it('anchors tooltip layout to the primary text', () => {
-    render(
-      <UserDisplayName
-        username={username}
-        primaryText="Alice Jones"
-        secondaryText="Engineering"
-        layout="tooltip"
-      />
-    );
-
-    const tooltipTrigger = screen.getByLabelText(
-      'Alice Jones, Engineering, username alice@example.com'
-    );
-    expect(tooltipTrigger).toBe(screen.getByText('Alice Jones'));
-  });
-
-  function getTooltipAriaLabel(
-    primary: string,
-    secondary: string | null | undefined,
-    username: string
-  ) {
-    return [primary, secondary, `username ${username}`]
-      .filter(Boolean)
-      .join(', ');
-  }
 });

@@ -31,12 +31,12 @@ const meta = {
     username: 'alice@example.com',
     primaryText: 'Alice Jones',
     secondaryText: 'Engineering',
-    layout: 'tooltip',
+    layout: 'inline',
   },
   argTypes: {
     layout: {
       control: { type: 'radio' },
-      options: ['inline', 'stacked', 'tooltip'],
+      options: ['inline', 'stacked'],
     },
   },
   decorators: [
@@ -68,7 +68,7 @@ export const LayoutVariants: Story = {
     >
       <LayoutExample
         value="inline"
-        description="Username and secondary render inside the parenthetical group."
+        description="Username renders inside the parenthetical group."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -86,17 +86,6 @@ export const LayoutVariants: Story = {
           primaryText="Alice Jones"
           secondaryText="Engineering"
           layout="stacked"
-        />
-      </LayoutExample>
-      <LayoutExample
-        value="tooltip"
-        description="Primary stays visible, and username appears in a tooltip."
-      >
-        <UserDisplayName
-          username="alice@example.com"
-          primaryText="Alice Jones"
-          secondaryText="Engineering"
-          layout="tooltip"
         />
       </LayoutExample>
     </Flex>
@@ -131,16 +120,6 @@ export const LayoutVariantsWithoutSecondary: Story = {
           layout="stacked"
         />
       </LayoutExample>
-      <LayoutExample
-        value="tooltip"
-        description="Primary stays visible, and username appears in a tooltip."
-      >
-        <UserDisplayName
-          username="alice@example.com"
-          primaryText="Alice Jones"
-          layout="tooltip"
-        />
-      </LayoutExample>
     </Flex>
   ),
 };
@@ -155,7 +134,7 @@ export const LayoutVariantsWithoutPrimary: Story = {
     >
       <LayoutExample
         value="inline"
-        description="Username and secondary stay on one line."
+        description="Username is the only visible value."
       >
         <UserDisplayName
           username="alice@example.com"
@@ -171,16 +150,6 @@ export const LayoutVariantsWithoutPrimary: Story = {
           username="alice@example.com"
           secondaryText="Engineering"
           layout="stacked"
-        />
-      </LayoutExample>
-      <LayoutExample
-        value="tooltip"
-        description="Username stays visible, with secondary below it."
-      >
-        <UserDisplayName
-          username="alice@example.com"
-          secondaryText="Engineering"
-          layout="tooltip"
         />
       </LayoutExample>
     </Flex>
@@ -200,9 +169,6 @@ export const LayoutVariantsWithoutPrimaryOrSecondary: Story = {
       </LayoutExample>
       <LayoutExample value="stacked" description="Username is the only value.">
         <UserDisplayName username="alice@example.com" layout="stacked" />
-      </LayoutExample>
-      <LayoutExample value="tooltip" description="Username is the only value.">
-        <UserDisplayName username="alice@example.com" layout="tooltip" />
       </LayoutExample>
     </Flex>
   ),
@@ -233,17 +199,6 @@ export const LongValues: Story = {
           primaryText="Alice Jones-Anderson-Engineering"
           secondaryText="Platform Engineering"
           layout="stacked"
-        />
-      </LayoutExample>
-      <LayoutExample
-        value="tooltip"
-        description="Primary truncates inline; full username appears on hover."
-      >
-        <UserDisplayName
-          username="alice.jones.engineering@very-long-example-domain.com"
-          primaryText="Alice Jones-Anderson-Engineering"
-          secondaryText="Platform Engineering"
-          layout="tooltip"
         />
       </LayoutExample>
     </Flex>

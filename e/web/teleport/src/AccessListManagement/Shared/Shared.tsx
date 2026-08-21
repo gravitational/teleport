@@ -171,7 +171,7 @@ export function UserDisplayNameMultiValueLabel<
       <UserDisplayName
         username={userDisplay.username}
         primaryText={userDisplay.primaryText}
-        layout="tooltip"
+        layout="inline"
       />
     </components.MultiValueLabel>
   );
