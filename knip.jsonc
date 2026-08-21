@@ -168,6 +168,10 @@
       "project": ["{tests,helpers,config}/**/*.{ts,tsx,js,mjs}"]
     }
   },
+  // Exports tagged @allowunused are excluded from the unused-exports report. The tag must name
+  // an owner responsible for removing it: /** @allowunused TODO(github-username): reason */
+  // (the format is enforced by the teleport/allowunused-todo oxlint rule).
+  "tags": ["-allowunused"],
   "ignoreBinaries": [
     // Run by .github/workflows/doc-tests.yaml against the separately checked out docs site.
     // Runs `buf generate` in web/packages/teleterm.

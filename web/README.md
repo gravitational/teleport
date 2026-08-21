@@ -220,6 +220,20 @@ pnpm dlx browserslist 'last 2 chrome version, last 2 edge version, last 2 firefo
     "editor.tabSize": 2,
 ```
 
+### Unused Exports
+
+[Knip](https://knip.dev/) runs in CI as part of `pnpm lint` and fails on exports that nothing
+imports. If an unused export has to stay (for example, an upcoming PR depends on it), tag it:
+
+```ts
+/** @allowunused TODO(your-github-username): remove once X lands. */
+export function futureThing() {}
+```
+
+The owner is required so suppressions don't accumulate with nobody responsible for removing them.
+A lint rule (`teleport/allowunused-todo`) enforces the format. Knip only reads JSDoc, so the tag
+must be in a `/** */` comment attached to the export.
+
 ### MFA Development
 
 #### Local cluster with nip.io

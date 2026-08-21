@@ -2,6 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "jest", "import"],
   "jsPlugins": [
+    "./web/scripts/oxlint/allowunused-todo.mjs",
     "eslint-plugin-unused-imports",
     "eslint-plugin-storybook",
     "eslint-plugin-testing-library",
@@ -29,6 +30,7 @@
     "jest": "readonly"
   },
   "rules": {
+    "teleport/allowunused-todo": "error",
     "constructor-super": "error",
     "for-direction": "error",
     "no-async-promise-executor": "error",
