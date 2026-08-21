@@ -1625,19 +1625,25 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 				"search", expanded.Search,
 			),
 		)
-		// Expanded template should override all previous search criteria.
-		host = ""
-		predExpr = ""
-		search = nil
-		if expanded.Host != "" {
+		// A target provided by the template should override all previous search
+		// criteria. Templates that only set routing options, such as proxy or
+		// cluster, should preserve the original target.
+		switch {
+		case expanded.Host != "":
 			host = expanded.Host
+			predExpr = ""
+			search = nil
 			if expandedHost, expandedPort, err := net.SplitHostPort(expanded.Host); err == nil {
 				host = expandedHost
 				port = expandedPort
 			}
-		} else if expanded.Query != "" {
+		case expanded.Query != "":
+			host = ""
 			predExpr = expanded.Query
-		} else if expanded.Search != "" {
+			search = nil
+		case expanded.Search != "":
+			host = ""
+			predExpr = ""
 			search = ParseSearchKeywords(expanded.Search, ',')
 		}
 	}

@@ -1360,18 +1360,24 @@ func (f fakeGetTargetNodeClient) GetClusterNetworkingConfig(ctx context.Context)
 func TestGetTargetNode(t *testing.T) {
 	now := time.Now()
 	then := now.Add(-5 * time.Hour)
+	clusterOnlyTemplate := &ProxyTemplate{
+		Template: `^test:1234$`,
+		Cluster:  "leaf",
+	}
+	require.NoError(t, clusterOnlyTemplate.Check())
 
 	tests := []struct {
-		name         string
-		options      *SSHOptions
-		labels       map[string]string
-		search       []string
-		predicate    string
-		host         string
-		port         int
-		clt          fakeGetTargetNodeClient
-		errAssertion require.ErrorAssertionFunc
-		expected     TargetNode
+		name           string
+		options        *SSHOptions
+		labels         map[string]string
+		search         []string
+		predicate      string
+		host           string
+		port           int
+		proxyTemplates ProxyTemplates
+		clt            fakeGetTargetNodeClient
+		errAssertion   require.ErrorAssertionFunc
+		expected       TargetNode
 	}{
 		{
 			name: "options override",
@@ -1389,6 +1395,14 @@ func TestGetTargetNode(t *testing.T) {
 			port:         1234,
 			errAssertion: require.NoError,
 			expected:     TargetNode{Hostname: "test", Addr: "test:1234"},
+		},
+		{
+			name:           "cluster-only proxy template preserves explicit target",
+			host:           "test",
+			port:           1234,
+			proxyTemplates: ProxyTemplates{clusterOnlyTemplate},
+			errAssertion:   require.NoError,
+			expected:       TargetNode{Hostname: "test", Addr: "test:1234"},
 		},
 		{
 			name:         "resolved labels",
@@ -1495,6 +1509,7 @@ func TestGetTargetNode(t *testing.T) {
 					PredicateExpression: test.predicate,
 					Host:                test.host,
 					HostPort:            test.port,
+					ProxyTemplates:      test.proxyTemplates,
 				},
 			}
 
