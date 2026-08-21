@@ -20,15 +20,14 @@ import type { ComponentProps } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Text } from 'design';
-import { HoverTooltip } from 'design/Tooltip';
 
-export type UserDisplayNameLayout = 'inline' | 'stacked' | 'tooltip';
+export type UserDisplayNameLayout = 'inline' | 'stacked';
 
 export function UserDisplayName({
   username,
   primaryText,
   secondaryText,
-  layout = 'tooltip',
+  layout,
   className,
   primaryTextProps,
   usernameTextProps,
@@ -37,7 +36,7 @@ export function UserDisplayName({
   username: string;
   primaryText?: string;
   secondaryText?: string;
-  layout?: UserDisplayNameLayout;
+  layout: UserDisplayNameLayout;
   className?: string;
   primaryTextProps?: ComponentProps<typeof Text>;
   usernameTextProps?: ComponentProps<typeof Text>;
@@ -46,10 +45,9 @@ export function UserDisplayName({
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
   const primary = displayPrimary || username;
-  const tooltipLabel = getTooltipAriaLabel(primary, displaySecondary, username);
 
-  const primaryValue = (ariaLabel?: string) => (
-    <PrimaryValue {...primaryTextProps} title={primary} aria-label={ariaLabel}>
+  const primaryValue = () => (
+    <PrimaryValue {...primaryTextProps} title={primary}>
       {primary}
     </PrimaryValue>
   );
@@ -66,35 +64,35 @@ export function UserDisplayName({
     </SeparatedSecondaryValue>
   );
 
-  const supportingValues = displayPrimary ? (
-    <>
-      <UsernameValue {...usernameTextProps} title={username}>
-        {username}
-      </UsernameValue>
-      {separatedSecondaryValue}
-    </>
-  ) : (
-    secondaryValue
-  );
-
   switch (layout) {
     case 'inline':
       return (
         <Root className={className}>
           <DisplayLine>
             {primaryValue()}
-            {displayPrimary ? (
+            {displayPrimary && (
               <InlineSupportingValues>
-                {supportingValues}
+                <UsernameValue {...usernameTextProps} title={username}>
+                  {username}
+                </UsernameValue>
               </InlineSupportingValues>
-            ) : (
-              supportingValues
             )}
           </DisplayLine>
         </Root>
       );
 
-    case 'stacked':
+    case 'stacked': {
+      const supportingValues = displayPrimary ? (
+        <>
+          <UsernameValue {...usernameTextProps} title={username}>
+            {username}
+          </UsernameValue>
+          {separatedSecondaryValue}
+        </>
+      ) : (
+        secondaryValue
+      );
+
       return (
         <Root className={className}>
           <DisplayLine>{primaryValue()}</DisplayLine>
@@ -105,22 +103,7 @@ export function UserDisplayName({
           )}
         </Root>
       );
-
-    case 'tooltip':
-      return (
-        <Root className={className}>
-          {displayPrimary ? (
-            <DisplayLine>
-              <HoverTooltip tipContent={username}>
-                {primaryValue(tooltipLabel)}
-              </HoverTooltip>
-            </DisplayLine>
-          ) : (
-            <DisplayLine>{primaryValue()}</DisplayLine>
-          )}
-          {secondaryValue}
-        </Root>
-      );
+    }
 
     default:
       layout satisfies never;
@@ -131,16 +114,6 @@ export function UserDisplayName({
 function normalizeText(text?: string) {
   const trimmedText = text?.trim();
   return trimmedText || undefined;
-}
-
-function getTooltipAriaLabel(
-  primary: string,
-  secondary: string | undefined,
-  username: string
-) {
-  return [primary, secondary, `username ${username}`]
-    .filter(Boolean)
-    .join(', ');
 }
 
 // `min-width: 0` lets a flex item shrink below its content size, which is what
