@@ -170,7 +170,7 @@ export const defaultAccess = {
   remove: false,
 };
 
-export const defaultAccessWithUse = {
+const defaultAccessWithUse = {
   ...defaultAccess,
   use: false,
 };

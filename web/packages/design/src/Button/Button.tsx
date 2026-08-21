@@ -116,7 +116,7 @@ export const Button = <E extends React.ElementType = 'button'>({
 
 Button.displayName = 'Button';
 
-export type ThemedButtonProps<E extends React.ElementType> = ButtonProps<E> & {
+type ThemedButtonProps<E extends React.ElementType> = ButtonProps<E> & {
   theme: Theme;
   fill: ButtonFill;
   intent: ButtonIntent;

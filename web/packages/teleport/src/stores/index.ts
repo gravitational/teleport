@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import StoreNav, { defaultNavState } from './storeNav';
+import StoreNav from './storeNav';
 import StoreUserContext from './storeUserContext';
 
-export { StoreNav, StoreUserContext, defaultNavState };
+export { StoreNav, StoreUserContext };

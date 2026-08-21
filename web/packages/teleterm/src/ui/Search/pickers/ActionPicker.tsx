@@ -264,7 +264,7 @@ function getKey(searchResult: SearchResult): string {
   }
 }
 
-export const InputWrapper = styled(Flex).attrs({ px: 2 })`
+const InputWrapper = styled(Flex).attrs({ px: 2 })`
   row-gap: ${props => props.theme.space[2]}px;
   column-gap: ${props => props.theme.space[2]}px;
   align-items: center;
@@ -619,7 +619,7 @@ function ResourceTypeFilterItem(
   );
 }
 
-export function ServerItem(props: SearchResultItem<SearchResultServer>) {
+function ServerItem(props: SearchResultItem<SearchResultServer>) {
   const { searchResult } = props;
   const mainField = 'hostname';
   const visibleMatches = getVisibleMatches(searchResult, mainField);
@@ -661,7 +661,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 }
 
-export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
+function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   const { searchResult } = props;
   const db = searchResult.resource;
   const mainField = 'name';
@@ -796,7 +796,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
-export function WindowsDesktopItem(
+function WindowsDesktopItem(
   props: SearchResultItem<SearchResultWindowsDesktop>
 ) {
   const { searchResult } = props;
@@ -861,7 +861,7 @@ function getAppItemCopy(
   return 'Set up an app connection';
 }
 
-export function KubeItem(props: SearchResultItem<SearchResultKube>) {
+function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
   const mainField = 'name';
   const visibleMatches = getVisibleMatches(searchResult, mainField);

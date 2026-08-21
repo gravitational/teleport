@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { integrationService, makeIntegrations } from './integrations';
+export { integrationService } from './integrations';
 
 export * from './constants';
 export * from './types';

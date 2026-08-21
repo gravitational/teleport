@@ -29,8 +29,8 @@ export type Resource<T extends Kind> = {
   content: string;
 };
 
-export type KindRole = 'role';
-export type KindTrustedCluster = 'trusted_cluster';
+type KindRole = 'role';
+type KindTrustedCluster = 'trusted_cluster';
 export type KindAuthConnectors = 'github' | 'saml' | 'oidc';
 export type KindJoinToken = 'join_token';
 export type Kind =
@@ -70,7 +70,7 @@ export type Role = {
   spec: RoleSpec;
 };
 
-export type RoleSpec = {
+type RoleSpec = {
   allow: RoleConditions;
   deny: RoleConditions;
   options: RoleOptions;
@@ -497,7 +497,7 @@ export type RoleWithYaml = {
   yaml: string;
 };
 
-export type GitHubServerMetadata = {
+type GitHubServerMetadata = {
   /**
    * specifies the name of the github org
    */
@@ -529,7 +529,7 @@ export type GitServer = {
   github: GitHubServerMetadata;
 };
 
-export type CreateOrOverwriteGitServerBase = {
+type CreateOrOverwriteGitServerBase = {
   id: string;
   /**
    * if true, performs an update of existing resource
@@ -537,7 +537,7 @@ export type CreateOrOverwriteGitServerBase = {
   overwrite?: boolean;
 };
 
-export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
+type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
   subKind: 'github';
   github?: GitHubServerMetadata;
 };

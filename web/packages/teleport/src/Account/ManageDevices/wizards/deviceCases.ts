@@ -39,31 +39,3 @@ export const dummyPasskey: MfaDevice = {
   type: 'webauthn',
   usage: 'passwordless',
 };
-
-/** A dummy MFA device for test purposes. */
-export const dummyAuthenticatorApp: MfaDevice = {
-  id: '4',
-  description: 'Authenticator App',
-  name: 'iphone 12',
-  registeredDate: new Date(1623722252),
-  lastUsedDate: new Date(1623981452),
-  type: 'totp',
-  usage: 'mfa',
-};
-
-/**
- * Repeats devices twice to make sure we support multiple devices of the same
- * type and purpose.
- */
-function twice(arr) {
-  return [...arr, ...arr];
-}
-
-/** Dummy devices for testing purposes. */
-export const deviceCases: Record<string, MfaDevice[]> = {
-  all: twice([dummyAuthenticatorApp, dummyHardwareDevice, dummyPasskey]),
-  authApps: twice([dummyAuthenticatorApp]),
-  mfaDevices: twice([dummyHardwareDevice]),
-  passkeys: twice([dummyPasskey]),
-  none: [],
-};

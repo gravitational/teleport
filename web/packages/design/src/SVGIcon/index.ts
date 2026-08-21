@@ -17,6 +17,3 @@
  */
 
 export { TeleportGearIcon } from './TeleportGearIcon';
-
-export { SVGIcon } from './SVGIcon';
-export type { SVGIconProps } from './common';

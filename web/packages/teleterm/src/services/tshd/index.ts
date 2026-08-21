@@ -20,7 +20,6 @@ export * from './createClient';
 export {
   cloneAbortSignal,
   isTshdRpcError,
-  isRpcError,
   isRpcErrorReloginResolvable,
 } from './cloneableClient';
 export type { CloneableAbortSignal } from './cloneableClient';

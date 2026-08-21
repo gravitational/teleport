@@ -35,7 +35,7 @@ import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 import { VnetLauncher } from 'teleterm/ui/Vnet';
 
-export interface SimpleAction {
+interface SimpleAction {
   type: 'simple-action';
   searchResult: SearchResult;
   preventAutoInputReset?: boolean;

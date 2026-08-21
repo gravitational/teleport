@@ -29,7 +29,7 @@ import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { isIntegrationTag, type IntegrationTag } from './common';
 
-export interface IntegrationPickerFilters {
+interface IntegrationPickerFilters {
   tags: IntegrationTag[];
 }
 

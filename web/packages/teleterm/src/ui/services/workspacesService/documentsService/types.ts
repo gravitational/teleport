@@ -339,4 +339,4 @@ export type CreateAccessRequestDocumentOpts = {
   requestId?: string;
 };
 
-export type AccessRequestDocumentState = 'browsing' | 'creating' | 'reviewing';
+type AccessRequestDocumentState = 'browsing' | 'creating' | 'reviewing';

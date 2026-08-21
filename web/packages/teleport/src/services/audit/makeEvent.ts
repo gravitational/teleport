@@ -2825,13 +2825,7 @@ function contactTypeStr(type: number): string {
 
 // Formats an object with a scope and name into a scope-qualified name (RFD0229f).
 // If a scope is not provided, the unformatted name is returned.
-export function formatSqn({
-  scope,
-  name,
-}: {
-  scope?: string;
-  name: string;
-}): string {
+function formatSqn({ scope, name }: { scope?: string; name: string }): string {
   if (!scope) {
     return name;
   }

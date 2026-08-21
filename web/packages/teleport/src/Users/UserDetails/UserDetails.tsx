@@ -254,7 +254,7 @@ export const SectionTitle = styled(InfoTitle)`
 
 export const SectionParagraph = InfoParagraph;
 
-export const UserDetailsSection = styled(Box)`
+const UserDetailsSection = styled(Box)`
   border-bottom: 1px solid
     ${props => props.theme.colors.interactive.tonal.neutral[0]};
   margin: -${props => props.theme.space[3]}px;
@@ -267,28 +267,16 @@ export const UserDetailsSection = styled(Box)`
   }
 `;
 
-export const UserDetailsGrid = styled.div`
+const UserDetailsGrid = styled.div`
   display: grid;
   grid-template-columns: 3fr 2fr;
   gap: 12px;
 `;
 
-export const UserDetailField = styled.div`
+const UserDetailField = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${props => props.theme.space[1]}px;
-`;
-
-export const StyledInfoParagraph = styled(InfoParagraph)`
-  border-bottom: 1px solid ${props => props.theme.colors.levels.sunken};
-
-  margin: -${props => props.theme.space[3]}px;
-  padding: ${props => props.theme.space[3]}px;
-
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
 `;
 
 export const ClickableLabel = styled(Label)`

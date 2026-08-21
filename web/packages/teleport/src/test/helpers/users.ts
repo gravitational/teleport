@@ -58,12 +58,6 @@ export const errorGetUsers = (message: string) =>
       }
     )
   );
-export const successUpdateUser = () =>
-  handleUpdateUser(async res => HttpResponse.json(await res.request.json()));
-
-export const successDeleteUser = () =>
-  handleDeleteUser(() => HttpResponse.json({ message: 'ok' }));
-
 export const errorDeleteUser = (message: string) =>
   handleDeleteUser(() =>
     HttpResponse.json(

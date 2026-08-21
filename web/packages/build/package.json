@@ -2,7 +2,6 @@
   "name": "@gravitational/build",
   "version": "1.0.1",
   "description": "build scripts",
-  "main": "index.js",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -20,7 +19,6 @@
     "@types/jsdom": "^28.0.3",
     "@vitejs/plugin-react-swc": "^4.3.3",
     "babel-plugin-styled-components": "^2.3.0",
-    "globals": "^17.9.0",
     "jest-environment-jsdom": "^30.4.1",
     "jest-fail-on-console": "^3.3.4",
     "jsdom": "^29.1.1",

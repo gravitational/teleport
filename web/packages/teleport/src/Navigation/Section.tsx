@@ -327,11 +327,7 @@ export const CategoryButton = styled.button<{
   ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}
 `;
 
-export function getCategoryStyles(
-  theme: Theme,
-  active: boolean,
-  isExpanded: boolean
-) {
+function getCategoryStyles(theme: Theme, active: boolean, isExpanded: boolean) {
   if (active) {
     return css`
       color: ${theme.colors.brand};
@@ -406,7 +402,7 @@ export function SubsectionItem({
   );
 }
 
-export const StyledSubsectionItem = styled(NavLink)<{
+const StyledSubsectionItem = styled(NavLink)<{
   $active: boolean;
 }>`
   display: flex;

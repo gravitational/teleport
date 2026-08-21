@@ -2013,7 +2013,7 @@ const cfg = {
   },
 };
 
-export interface UrlParams {
+interface UrlParams {
   clusterId: string;
   sid?: string;
   login?: string;
@@ -2036,7 +2036,7 @@ export interface CreateAppSessionParams {
   mfaResponse?: MfaChallengeResponse;
 }
 
-export interface UrlScpParams {
+interface UrlScpParams {
   clusterId: string;
   serverId: string;
   login: string;
@@ -2067,14 +2067,14 @@ export interface UrlDbConnectParams {
   serviceName: string;
 }
 
-export interface UrlSessionRecordingsParams {
+interface UrlSessionRecordingsParams {
   start: string;
   end: string;
   limit?: number;
   startKey?: string;
 }
 
-export interface UrlClusterEventsParams {
+interface UrlClusterEventsParams {
   start: string;
   end: string;
   limit?: number;
@@ -2094,7 +2094,7 @@ export interface UrlPlayerParams {
   sid: string;
 }
 
-export interface UrlPlayerSearch {
+interface UrlPlayerSearch {
   recordingType: RecordingType;
   durationMs?: number;
 }
@@ -2181,7 +2181,7 @@ export interface UrlAwsConfigureIamScriptParams {
   accountID: string;
 }
 
-export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
+interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   region: Regions;
   iamRoleName: string;
   ssmDocument: string;
@@ -2189,7 +2189,7 @@ export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   accountID: string;
 }
 
-export interface UrlGcpWorkforceConfigParam {
+interface UrlGcpWorkforceConfigParam {
   orgId: string;
   poolName: string;
   poolProviderName: string;
@@ -2202,5 +2202,3 @@ export interface UrlNotificationParams {
 }
 
 export default cfg;
-
-export type TeleportEdition = 'ent' | 'community' | 'oss';

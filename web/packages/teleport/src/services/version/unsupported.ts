@@ -89,10 +89,7 @@ export function withGenericUnsupportedError(
  * succeed eg: 17.3.0
  * @returns the error message to display to the user
  */
-export function makeUnsupportedErrorMessage(
-  err: ApiError,
-  supportedVersion?: string
-) {
+function makeUnsupportedErrorMessage(err: ApiError, supportedVersion?: string) {
   const formattedProxyVersion = err.proxyVersion
     ? `(v${err.proxyVersion.string}) `
     : '';

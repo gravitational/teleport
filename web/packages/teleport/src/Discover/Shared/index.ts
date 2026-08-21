@@ -18,12 +18,11 @@
 
 export { ActionButtons, AlternateInstructionButton } from './ActionButtons';
 export { ButtonBlueText } from './ButtonBlueText';
-export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
+export { Header, HeaderSubtitle } from './Header';
 export { Finished } from './Finished';
 export { PermissionsErrorMessage } from '../SelectResource/PermissionsErrorMessage';
 export { ResourceKind } from './ResourceKind';
-export { Step, StepContainer } from './Step';
-export { TextBox, TextIcon } from './Text';
+export { TextIcon } from './Text';
 export { LabelsCreater } from './LabelsCreater';
 export {
   ConnectionDiagnosticResult,
@@ -32,12 +31,9 @@ export {
 export { useShowHint } from './useShowHint';
 export { StepBox } from './StepBox';
 export { SecurityGroupPicker } from './SecurityGroupPicker';
-export type {
-  ViewRulesSelection,
-  SecurityGroupWithRecommendation,
-} from './SecurityGroupPicker';
+export type { SecurityGroupWithRecommendation } from './SecurityGroupPicker';
 export { AwsAccount } from './AwsAccount';
-export { StatusLight, ItemStatus } from './StatusLight';
+export { ItemStatus } from './StatusLight';
 export {
   DisableableCell,
   Labels,

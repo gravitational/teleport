@@ -131,7 +131,7 @@ export function emptyDiscoverContext({
   };
 }
 
-export function emptyResourceSpec(kind: ResourceKind): SelectResourceSpec {
+function emptyResourceSpec(kind: ResourceKind): SelectResourceSpec {
   return {
     name: '',
     kind,

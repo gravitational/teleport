@@ -22,7 +22,7 @@ import { useStore } from 'shared/libs/stores';
 
 import ConsoleContext from './consoleContext';
 
-export const ConsoleReactContext = React.createContext<ConsoleContext>(null);
+const ConsoleReactContext = React.createContext<ConsoleContext>(null);
 
 const ConsoleContextProvider: React.FC<
   PropsWithChildren<{

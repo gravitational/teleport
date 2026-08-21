@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Box, Flex, H2, ResourceIcon, Text } from 'design';
+import { Flex, ResourceIcon } from 'design';
 
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;
@@ -55,16 +55,6 @@ export const IntegrationTile = styled(Flex)<{
     `;
   }};
 `;
-
-export const NoCodeIntegrationDescription = () => (
-  <Box mb={3}>
-    <H2 mb={1}>No-Code Integrations</H2>
-    <Text>
-      Set up Teleport to post notifications to messaging apps, discover and
-      import resources from cloud providers and other services.
-    </Text>
-  </Box>
-);
 
 /**
  * IntegrationIcon wraps ResourceIcon with css required for integration

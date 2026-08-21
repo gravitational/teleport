@@ -52,7 +52,7 @@ type ClustersServiceState = {
 
 enablePatches();
 
-export function createClusterServiceState(): ClustersServiceState {
+function createClusterServiceState(): ClustersServiceState {
   return {
     clusters: new Map(),
     gateways: new Map(),

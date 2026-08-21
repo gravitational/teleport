@@ -28,8 +28,6 @@ import {
   isPathNotFoundError,
   withGenericUnsupportedError,
 } from '../version/unsupported';
-import { yamlService } from '../yaml';
-import { YamlSupportedResourceKind } from '../yaml/types';
 import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,
@@ -38,7 +36,6 @@ import {
   makeResourceList,
   RequestableRole,
   Resource,
-  Role,
   RoleResource,
 } from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
@@ -271,26 +268,6 @@ export async function fetchRole(
   return makeResource<'role'>(
     await api.get(cfg.getRoleUrl({ action: 'get', name }), signal, undefined)
   );
-}
-
-export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
-  const { content } = await fetchRole(name);
-  return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
-    yaml: content,
-  });
-}
-
-export async function updateRoleWithYamlConversion({
-  name,
-  role,
-}: {
-  name: string;
-  role: Role;
-}) {
-  const content = await yamlService.stringify(YamlSupportedResourceKind.Role, {
-    resource: role,
-  });
-  return updateRole({ name, content });
 }
 
 export async function updateRole({

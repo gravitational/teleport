@@ -115,7 +115,7 @@ type TableColumnBase<T> = {
 
 export type PagerPosition = 'top' | 'bottom' | 'both';
 
-export type PaginationConfig<T> = {
+type PaginationConfig<T> = {
   pageSize?: number;
   /**
    * "undefined" will show both pagers if data on current page is some

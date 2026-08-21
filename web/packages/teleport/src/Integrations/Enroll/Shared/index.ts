@@ -17,10 +17,5 @@
  */
 
 export { IntegrationPicker, displayName } from './IntegrationPicker';
-export {
-  type IntegrationTag,
-  type BaseIntegration,
-  isIntegrationTag,
-  integrationTagOptions,
-} from './common';
+export { type IntegrationTag, type BaseIntegration } from './common';
 export { Tile, IntegrationTileWithSpec } from './Tile';

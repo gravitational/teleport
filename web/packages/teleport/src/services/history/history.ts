@@ -23,7 +23,7 @@ import cfg from 'teleport/config';
 
 let _inst: History = null;
 
-export type LoginOptions = {
+type LoginOptions = {
   rememberLocation?: boolean;
   withAccessChangedMessage?: boolean;
   scope?: string;

@@ -23,7 +23,7 @@ export type AuthType = 'local' | 'sso' | 'passwordless';
 
 export type WebTerminalClipboardMode = '' | 'unrestricted' | 'no-copy';
 
-export interface AccessStrategy {
+interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';
   prompt: string;
 }
@@ -76,7 +76,7 @@ export interface Access {
   remove: boolean;
 }
 
-export interface AccessWithUse extends Access {
+interface AccessWithUse extends Access {
   use: boolean;
 }
 

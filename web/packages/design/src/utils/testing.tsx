@@ -25,7 +25,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
-  getByTestId,
   prettyDOM,
   screen,
   render as testingRender,
@@ -37,7 +36,6 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter as Router } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
@@ -208,10 +206,7 @@ export {
   testThemeSystem,
   tick,
   render,
-  prettyDOM,
   waitFor,
-  getByTestId,
-  Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

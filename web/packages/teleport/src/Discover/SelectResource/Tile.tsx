@@ -268,10 +268,7 @@ const InnerCard = styled.div<{ hasAccess?: boolean; wantLargeTile?: boolean }>`
   }
 `;
 
-export const getBackgroundColor = (props: {
-  pinned?: boolean;
-  theme: Theme;
-}) => {
+const getBackgroundColor = (props: { pinned?: boolean; theme: Theme }) => {
   if (props.pinned) {
     return props.theme.colors.interactive.tonal.primary[1];
   }

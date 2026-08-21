@@ -143,7 +143,7 @@ type Writeable<T> = {
  * The regular one is replaced with `CloneableAbortSignal`
  * that can be passed over the context bridge.
  */
-export type CloneableRpcOptions = Omit<RpcOptions, 'abort'> & {
+type CloneableRpcOptions = Omit<RpcOptions, 'abort'> & {
   abort?: CloneableAbortSignal;
 };
 

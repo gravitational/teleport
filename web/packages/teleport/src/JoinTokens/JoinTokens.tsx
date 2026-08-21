@@ -336,7 +336,7 @@ const JoinTokenTable = styled(Table)`
   }
 ` as typeof Table;
 
-export function searchMatcher(
+function searchMatcher(
   targetValue: any,
   searchValue: string,
   propName: keyof JoinToken & string

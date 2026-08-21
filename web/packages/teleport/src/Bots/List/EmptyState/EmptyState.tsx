@@ -23,13 +23,9 @@ import styled, { useTheme } from 'styled-components';
 import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';
 import { ResourceIcon } from 'design/ResourceIcon';
 import {
-  Description,
   DetailsTab,
-  Feature,
   FeatureContainer,
-  FeatureProps,
   FeatureSlider,
-  Title,
 } from 'shared/components/EmptyState/EmptyState';
 
 import { DisplayTile } from 'teleport/Bots/Add/AddBotsPicker';
@@ -128,30 +124,12 @@ export function EmptyState() {
   );
 }
 
-export const EliminateSecrets = ({
-  active,
-  onClick,
-  isSliding,
-}: FeatureProps) => {
-  return (
-    <Feature $active={active} onClick={onClick} $isSliding={isSliding}>
-      <Title>
-        Eliminate secrets and shared credentials from CI/CD workflows.
-      </Title>
-      <Description>
-        Teleport Machine ID replaces passwords, API, and static keys with
-        short-lived SSH and x.509 certificates.
-      </Description>
-    </Feature>
-  );
-};
-
 const eliminateSecretsImages = {
   light: elimiateSecretsLightImage,
   dark: elimiateSecretsImage,
 };
 
-export const EliminateSecretsPreview = () => {
+const EliminateSecretsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox includeShadow>
@@ -165,7 +143,7 @@ const controlWorkflowsImages = {
   dark: controlWorkflowsDarkImage,
 };
 
-export const ControlWorkflowsPreview = () => {
+const ControlWorkflowsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox includeShadow>
@@ -208,7 +186,7 @@ const integrationsBottom = [
   },
 ];
 
-export const BotTiles = () => {
+const BotTiles = () => {
   return (
     <PreviewBox>
       <Flex>

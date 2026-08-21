@@ -40,7 +40,7 @@ export function RecordingsContainer() {
   return <Recordings {...state} />;
 }
 
-export function Recordings({
+function Recordings({
   recordings,
   fetchStatus,
   fetchMore,

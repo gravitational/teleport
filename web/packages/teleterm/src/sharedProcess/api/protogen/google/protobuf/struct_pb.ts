@@ -81,7 +81,7 @@ export interface Struct {
  *
  * @generated from protobuf message google.protobuf.Value
  */
-export interface Value {
+interface Value {
     /**
      * @generated from protobuf oneof: kind
      */
@@ -144,7 +144,7 @@ export interface Value {
  *
  * @generated from protobuf message google.protobuf.ListValue
  */
-export interface ListValue {
+interface ListValue {
     /**
      * Repeated field of dynamically typed values.
      *
@@ -160,7 +160,7 @@ export interface ListValue {
  *
  * @generated from protobuf enum google.protobuf.NullValue
  */
-export enum NullValue {
+enum NullValue {
     /**
      * Null value.
      *
@@ -416,7 +416,7 @@ class Value$Type extends MessageType<Value> {
 /**
  * @generated MessageType for protobuf message google.protobuf.Value
  */
-export const Value = new Value$Type();
+const Value = new Value$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ListValue$Type extends MessageType<ListValue> {
     constructor() {
@@ -481,4 +481,4 @@ class ListValue$Type extends MessageType<ListValue> {
 /**
  * @generated MessageType for protobuf message google.protobuf.ListValue
  */
-export const ListValue = new ListValue$Type();
+const ListValue = new ListValue$Type();

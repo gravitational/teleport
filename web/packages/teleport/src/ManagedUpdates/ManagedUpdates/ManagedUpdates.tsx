@@ -46,7 +46,7 @@ import { ClientToolsCard, RolloutCard } from './Cards';
 import { GroupDetailsPanel } from './GroupDetailsPanel';
 import { checkIsConfigured, getMissingPermissions } from './utils';
 
-export interface ClusterMaintenanceCardProps {
+interface ClusterMaintenanceCardProps {
   data: ClusterMaintenanceInfo;
 }
 

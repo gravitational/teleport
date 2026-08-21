@@ -76,7 +76,7 @@ export type SortType = {
   dir: SortDir;
 };
 
-export type SortDir = 'ASC' | 'DESC';
+type SortDir = 'ASC' | 'DESC';
 
 /**
  * ResourceIdKind are the same id constants used to mark the type of
@@ -170,7 +170,7 @@ export type KubeImpersonation = {
   groups?: string[]; // `json:"kubernetes_impersonation.kubernetes_groups"
 };
 
-export type DatabaseTester = {
+type DatabaseTester = {
   user?: string; // `json:"database_user"`
   name?: string; // `json:"database_name"`
 };

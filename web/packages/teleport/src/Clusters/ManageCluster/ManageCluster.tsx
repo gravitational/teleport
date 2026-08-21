@@ -84,7 +84,7 @@ export function ManageCluster() {
   );
 }
 
-export function ManageClusterHeader({ clusterId }: { clusterId: string }) {
+function ManageClusterHeader({ clusterId }: { clusterId: string }) {
   return (
     <FeatureHeader>
       <Flex alignItems="center">
@@ -114,7 +114,7 @@ type ClusterInformationProps = {
   attempt: Attempt<ClusterInfo>;
 } & BoxProps;
 
-export function ClusterInformation({
+function ClusterInformation({
   cluster,
   style,
   attempt,
@@ -173,7 +173,7 @@ export function ClusterInformation({
   );
 }
 
-export const IconBox = styled(Box)`
+const IconBox = styled(Box)`
   line-height: 0;
   padding: ${props => props.theme.space[2]}px;
   border-radius: ${props => props.theme.radii[3]}px;
@@ -181,7 +181,7 @@ export const IconBox = styled(Box)`
   background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
 `;
 
-export const DataItem = ({ title = '', data = null, isLoading = false }) => (
+const DataItem = ({ title = '', data = null, isLoading = false }) => (
   <DataItemFlex>
     <Text typography="body2" bold style={{ width: '136px' }}>
       {title}:

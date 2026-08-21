@@ -17,6 +17,5 @@
  */
 
 import { BannerList } from './BannerList';
-import { StandardBanner } from './StandardBanner';
 
-export { StandardBanner, BannerList };
+export { BannerList };

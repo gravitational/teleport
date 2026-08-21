@@ -42,7 +42,7 @@ export function AuditContainer() {
   return <Audit {...state} />;
 }
 
-export function Audit(props: State) {
+function Audit(props: State) {
   const {
     attempt,
     range,

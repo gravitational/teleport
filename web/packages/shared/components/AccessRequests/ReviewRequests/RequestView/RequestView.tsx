@@ -381,7 +381,7 @@ export function RequestorTimestamp({
   );
 }
 
-export function Timestamp({
+function Timestamp({
   author,
   state,
   createdDuration,

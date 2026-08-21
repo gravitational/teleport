@@ -37,7 +37,7 @@ import * as grpc from "@grpc/grpc-js";
 /**
  * @generated from protobuf service PtyHost
  */
-export interface IPtyHostClient {
+interface IPtyHostClient {
     /**
      * @generated from protobuf rpc: CreatePtyProcess(PtyCreate) returns (PtyId);
      */

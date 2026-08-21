@@ -17,7 +17,6 @@
  */
 
 export { FileTransfer } from './FileTransfer';
-export { FileTransferContainer } from './FileTransferContainer';
 export {
   FileTransferContextProvider,
   useFileTransferContext,

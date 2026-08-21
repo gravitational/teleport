@@ -58,7 +58,7 @@ export type Integration =
  *  SD is the provider-specific status containing status details
  *   - currently only defined for plugin resource
  */
-export type IntegrationTemplate<
+type IntegrationTemplate<
   T extends string,
   K extends string,
   SP extends Record<string, any> = null,
@@ -99,7 +99,7 @@ export enum IntegrationKind {
   GoogleCloud = 'google-cloud',
 }
 
-export type IntegrationSpecGitHub = {
+type IntegrationSpecGitHub = {
   /**
    * name of github organization
    */
@@ -112,7 +112,7 @@ export type IntegrationGitHub = IntegrationTemplate<
   IntegrationSpecGitHub
 >;
 
-export type IntegrationSpecAzureOidc = {
+type IntegrationSpecAzureOidc = {
   tenantId: string;
   clientId: string;
   managedIdentity?: {
@@ -166,7 +166,7 @@ export type RolesAnywhereProfileSync = {
   syncEndTime: number;
 };
 
-export type IntegrationSpecAwsOidc = {
+type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
@@ -182,7 +182,7 @@ export type IntegrationSpecAwsOidc = {
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
-export type IntegrationSpecAwsRa = {
+type IntegrationSpecAwsRa = {
   trustAnchorARN: string; // ARN per API json tag
   profileSyncConfig: AwsRolesAnywhereProfileSyncConfig;
 };
@@ -454,7 +454,7 @@ export type PluginOktaSpec = {
  * credentials for a plugin. Can be all true, or all omitted.
  * Omitted fields should be assumed as false.
  */
-export type CredentialsInfo = {
+type CredentialsInfo = {
   hasSSMSToken?: boolean;
   hasConfiguredOauthCredentials?: boolean;
   hasSCIMToken?: boolean;
@@ -478,7 +478,7 @@ export type PluginMsTeamsSpec = {
   defaultRecipient: string;
 };
 
-export type PluginOpsgenieSpec = {
+type PluginOpsgenieSpec = {
   defaultSchedules: string[];
 };
 
@@ -549,7 +549,7 @@ export type PluginEntraIdSpec = {
 /**
  * PluginEntraIdSyncIntervals defines Entra ID service sync intervals.
  */
-export type PluginEntraIdSyncIntervals = {
+type PluginEntraIdSyncIntervals = {
   /**
    * Go duration string that configures delta sync interval.
    */
@@ -593,7 +593,7 @@ export type PluginEntraIDStatusDetails = {
   sync_mode?: 'full' | 'delta';
 };
 
-export type IntegrationOAuthCredentials = {
+type IntegrationOAuthCredentials = {
   id: string;
   secret: string;
 };
@@ -806,7 +806,7 @@ export type DiscoverRdsDatabase = {
 };
 
 // DiscoverAzureVm contains the VMs that failed to auto-enroll into the cluster.
-export type DiscoverAzureVm = {
+type DiscoverAzureVm = {
   // instances maps a VM resource ID to the result of enrolling that VM into teleport.
   instances: Record<string, DiscoverAzureVmInstance>;
   // subscription_id is the Azure Subscription ID for the VMs.
@@ -1166,19 +1166,19 @@ export type ListAwsRdsFromAllEnginesResponse = {
   oneOfError?: string;
 };
 
-export type UpdateIntegrationAwsOidc = {
+type UpdateIntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc;
   awsoidc: {
     roleArn: string;
   };
 };
 
-export type UpdateIntegrationAwsRa = {
+type UpdateIntegrationAwsRa = {
   kind: IntegrationKind.AwsRa;
   awsRa: IntegrationSpecAwsRa;
 };
 
-export type UpdateIntegrationGithub = {
+type UpdateIntegrationGithub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
   github: { organization: string };
@@ -1378,7 +1378,7 @@ export type SecurityGroupRule = {
   groups: GroupIdRule[];
 };
 
-export type Cidr = {
+type Cidr = {
   /**
    * CIDR is the IP range using CIDR notation.
    */
@@ -1389,7 +1389,7 @@ export type Cidr = {
   description: string;
 };
 
-export type GroupIdRule = {
+type GroupIdRule = {
   /**
    * GroupId is the ID of the security group that is allowed by the rule.
    */
@@ -1436,16 +1436,16 @@ export type CreateAwsAppAccessRequest = {
   labels?: Record<string, string>;
 };
 
-export type SshKey = {
+type SshKey = {
   publicKey: string;
   fingerprint: string;
 };
 
-export type TlsKey = {
+type TlsKey = {
   cert: string;
 };
 
-export type JwtKey = {
+type JwtKey = {
   publicKey: string;
 };
 

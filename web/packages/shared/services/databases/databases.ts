@@ -134,8 +134,6 @@ export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
   }
 };
 
-export type DatabaseInfo = ReturnType<typeof formatDatabaseInfo>;
-
 export type DbNameRequirement = 'unsupported' | 'optional' | 'required';
 
 const dbNameRequirementsByProtocol: Record<DbProtocol, DbNameRequirement> = {

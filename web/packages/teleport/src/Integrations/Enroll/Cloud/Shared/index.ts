@@ -19,4 +19,3 @@
 export * from './common';
 export * from './hooks';
 export type * from './types';
-export { default as LiveTextEditor } from './LiveTextEditor';

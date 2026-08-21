@@ -25,13 +25,3 @@ export function isIamPermError(attempt: Attempt) {
     attempt.statusText.includes('operation error')
   );
 }
-
-export function getAttemptsOneOfErrorMsg(attemptA: Attempt, attemptB: Attempt) {
-  if (attemptA.status === 'failed') {
-    return attemptA.statusText;
-  }
-  if (attemptB.status === 'failed') {
-    return attemptB.statusText;
-  }
-  return '';
-}

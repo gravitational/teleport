@@ -273,7 +273,7 @@ export function NewMfaDeviceForm({
   );
 }
 
-export function getDefaultDeviceName(mfaType: Auth2faType) {
+function getDefaultDeviceName(mfaType: Auth2faType) {
   if (mfaType === 'webauthn') {
     return 'webauthn-device';
   }

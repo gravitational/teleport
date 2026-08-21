@@ -33,7 +33,6 @@ import {
   useJoinTokenSuspender,
 } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { ResourceLabel } from 'teleport/services/agents';
-import { JoinToken } from 'teleport/services/joinToken';
 import { Node } from 'teleport/services/nodes';
 
 import {
@@ -108,7 +107,7 @@ const Heading = () => (
   </>
 );
 
-export function StepOne({
+function StepOne({
   labels,
   onChangeLabels,
   showScript,
@@ -184,7 +183,7 @@ export function StepOne({
   );
 }
 
-export function StepTwoWithActionBtns(
+function StepTwoWithActionBtns(
   props: AgentStepProps & { labels: ResourceLabel[] }
 ) {
   // Fetches join token.
@@ -300,9 +299,3 @@ export function StepTwoWithActionBtns(
 function createBashCommand(tokenId: string) {
   return `sudo bash -c "$(curl -fsSL ${cfg.getNodeScriptUrl(tokenId)})"`;
 }
-
-export type State = {
-  joinToken: JoinToken;
-  nextStep(): void;
-  regenerateScriptAndRepoll(): void;
-};

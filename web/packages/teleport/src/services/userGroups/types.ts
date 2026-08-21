@@ -36,13 +36,7 @@ export type UserGroup = {
   requiresRequest?: false;
 };
 
-export type ApplicationAndFriendlyName = {
+type ApplicationAndFriendlyName = {
   name: string;
   friendlyName: string;
-};
-
-export type UserGroupsResponse = {
-  userGroups: UserGroup[];
-  startKey?: string;
-  totalCount?: number;
 };

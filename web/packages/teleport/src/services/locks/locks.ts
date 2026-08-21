@@ -74,10 +74,7 @@ export const createLockMutationFn: MutationFunction<
   return createLock(vars);
 };
 
-export async function createLock(
-  variables: CreateLockRequest,
-  signal?: AbortSignal
-) {
+async function createLock(variables: CreateLockRequest, signal?: AbortSignal) {
   const json = await api.put(
     cfg.getLockUrl({ action: 'create' }),
     variables,
@@ -93,10 +90,7 @@ export const deleteLockMutationFn: MutationFunction<
   return deleteLock(vars);
 };
 
-export async function deleteLock(
-  variables: { uuid: string },
-  signal?: AbortSignal
-) {
+async function deleteLock(variables: { uuid: string }, signal?: AbortSignal) {
   return api.deleteWithOptions(
     cfg.getLockUrl({ action: 'delete', uuid: variables.uuid }),
     {

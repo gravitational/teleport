@@ -24,18 +24,6 @@ import {
   Switch,
   useLocation,
   useParams,
-  useRouteMatch,
-  withRouter,
 } from './Router';
 
-export {
-  withRouter,
-  Redirect,
-  Router,
-  Route,
-  Switch,
-  NavLink,
-  useRouteMatch,
-  useParams,
-  useLocation,
-};
+export { Redirect, Router, Route, Switch, NavLink, useParams, useLocation };

@@ -55,7 +55,7 @@ export enum AccessListEvent {
   Custom = 'tp.ui.access_list.custom',
 }
 
-export type AccessListStepStatus = {
+type AccessListStepStatus = {
   stepStatus: AccessListStepStatusEvent;
   stepStatusError?: string;
 };
@@ -65,7 +65,7 @@ export type AccessListEventRequest = UserEventWithData<
   AccessListEventData
 >;
 
-export type AccessListEventData = AccessListStepStatus & {
+type AccessListEventData = AccessListStepStatus & {
   id: string;
   preset: AccessListPresetEvent;
 

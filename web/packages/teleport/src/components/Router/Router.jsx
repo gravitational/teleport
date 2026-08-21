@@ -17,13 +17,7 @@
  */
 
 import { useEffect } from 'react';
-import {
-  Router,
-  useLocation,
-  useParams,
-  useRouteMatch,
-  withRouter,
-} from 'react-router';
+import { Router, useLocation, useParams } from 'react-router';
 import * as RouterDOM from 'react-router-dom';
 
 import { NotFound } from 'design/CardError';
@@ -61,14 +55,4 @@ const Route = props => {
 const NavLink = RouterDOM.NavLink;
 const Redirect = RouterDOM.Redirect;
 
-export {
-  Router,
-  Route,
-  Switch,
-  NavLink,
-  Redirect,
-  withRouter,
-  useRouteMatch,
-  useParams,
-  useLocation,
-};
+export { Router, Route, Switch, NavLink, Redirect, useParams, useLocation };

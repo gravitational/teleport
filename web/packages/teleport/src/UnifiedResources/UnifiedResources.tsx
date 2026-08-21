@@ -376,7 +376,7 @@ export function ClusterResources({
   );
 }
 
-export const emptyStateInfo: EmptyStateInfo = {
+const emptyStateInfo: EmptyStateInfo = {
   title: 'Add Your First Resource',
   readOnly: {
     title: 'No Resources Found',

@@ -20,7 +20,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Card, Flex, H2, H3, Text } from 'design';
+import { Box, Card, Flex, H2, H3 } from 'design';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
 
@@ -269,14 +269,6 @@ const SupportLinksFlex = styled(Flex)`
   }
 `;
 
-const DataItemFlex = styled(Flex)`
-  margin-bottom: ${props => props.theme.space[3]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    flex-direction: column;
-    padding-left: ${props => props.theme.space[2]}px;
-  }
-`;
-
 /**
  * getDocUrls returns an object of URLs appended with
  * UTM, version, and type of teleport.
@@ -367,15 +359,6 @@ const StyledSupportLink = styled.a.attrs({
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
-
-export const DataItem = ({ title = '', data = null }) => (
-  <DataItemFlex>
-    <Text typography="body2" bold style={{ width: '136px' }}>
-      {title}:
-    </Text>
-    <Text typography="body2">{data}</Text>
-  </DataItemFlex>
-);
 
 export type Props = {
   clusterId: string;

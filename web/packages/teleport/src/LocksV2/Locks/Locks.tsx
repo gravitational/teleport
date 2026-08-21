@@ -186,7 +186,7 @@ function getFormattedDate(d: string): string {
   }
 }
 
-export function lockTargetsMatcher(
+function lockTargetsMatcher(
   targetValue: any,
   searchValue: string,
   propName: keyof Lock & string

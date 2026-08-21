@@ -121,7 +121,7 @@ type EventMap = {
   'terminal.webauthn': [string];
 };
 
-export enum LogType {
+enum LogType {
   OFF = 'OFF',
   ERROR = 'ERROR',
   WARN = 'WARN',

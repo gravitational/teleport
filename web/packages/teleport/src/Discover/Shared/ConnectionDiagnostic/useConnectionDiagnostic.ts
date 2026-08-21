@@ -181,5 +181,3 @@ function getMfaRequest(
       };
   }
 }
-
-export type State = ReturnType<typeof useConnectionDiagnostic>;

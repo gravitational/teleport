@@ -285,18 +285,6 @@ export type AgentProcessState =
       message: string;
     };
 
-export interface ClusterContextMenuOptions {
-  isClusterConnected: boolean;
-
-  onRefresh(): void;
-
-  onLogin(): void;
-
-  onLogout(): void;
-
-  onRemove(): void;
-}
-
 export interface TabContextMenuOptions {
   document: Document;
   onClose(): void;

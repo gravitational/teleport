@@ -36,11 +36,6 @@ export interface Node {
   requiresRequest?: boolean;
 }
 
-export interface BashCommand {
-  text: string;
-  expires: string;
-}
-
 export type AwsMetadata = {
   accountId: string;
   instanceId: string;

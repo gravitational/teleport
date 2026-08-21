@@ -44,7 +44,7 @@ export function DocumentAccessRequests(props: DocumentProps) {
   );
 }
 
-export function DocumentAccessRequestsViews({
+function DocumentAccessRequestsViews({
   attempt,
   doc,
   assumeRole,
@@ -81,7 +81,7 @@ export function DocumentAccessRequestsViews({
   );
 }
 
-export type DocumentAccessRequestsProps = ReturnType<typeof useAccessRequests>;
+type DocumentAccessRequestsProps = ReturnType<typeof useAccessRequests>;
 
 type DocumentProps = {
   visible: boolean;

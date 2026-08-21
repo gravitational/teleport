@@ -87,8 +87,3 @@ export function makeClusterList(json: any): Cluster[] {
     return 0;
   });
 }
-
-export const StatusEnum = {
-  OFFLINE: 'offline',
-  ONLINE: 'online',
-};

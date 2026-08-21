@@ -74,7 +74,7 @@ export const KeysEnum = {
 };
 
 // SurveyRequest is the request for sending data to the back end
-export type SurveyRequest = {
+type SurveyRequest = {
   companyName: string;
   employeeCount: string;
   resources: Array<string>;
@@ -89,7 +89,7 @@ export type LocalStorageSurvey = SurveyRequest & {
 };
 
 // LocalStorageMarketingParams is the MarketingParams type defined in Enterprise
-export type LocalStorageMarketingParams = {
+type LocalStorageMarketingParams = {
   campaign: string;
   source: string;
   medium: string;

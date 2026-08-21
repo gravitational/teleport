@@ -110,13 +110,13 @@ export type AWSRules = {
   aws_arn?: string;
 };
 
-export type GCPRules = {
+type GCPRules = {
   project_ids: string[];
   locations: string[];
   service_accounts: string[];
 };
 
-export type OracleRules = {
+type OracleRules = {
   tenancy: string;
   parent_compartments: string[];
   regions: string[];
@@ -133,7 +133,7 @@ type GithubConfig = {
   allow?: GithubRule[] | null;
 };
 
-export type GithubRule = {
+type GithubRule = {
   /** repository is a fully qualified (e.g. including the owner) name of a GitHub repository. */
   repository?: string | null;
   /** repository_owner is the name of an organization or user that a repository belongs to. */
@@ -161,7 +161,7 @@ type GitlabConfig = {
   allow?: GitlabRule[] | null;
 };
 
-export type GitlabRule = {
+type GitlabRule = {
   /** project_path restricts joins to jobs that originate within the specified project. */
   project_path?: string | null;
   /** namespace_path restricts joins to any run within project that exists within the specified namespace. */
@@ -174,7 +174,7 @@ export type GitlabRule = {
   ref_type?: string | null;
 };
 
-export type JoinTokenRulesObject = AWSRules | GCPRules;
+type JoinTokenRulesObject = AWSRules | GCPRules;
 
 export type CreateJoinTokenRequest = {
   name: string;

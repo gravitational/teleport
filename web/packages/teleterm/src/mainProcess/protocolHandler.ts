@@ -52,7 +52,7 @@ export const PACKAGED_APP_WINDOW_URL = buildAppFileUri(
  * Builds a URI for the custom 'app-file://' scheme.
  * The path will be resolved against `app.getAppPath()`.
  */
-export function buildAppFileUri(relativePath: string) {
+function buildAppFileUri(relativePath: string) {
   const baseUrl = `${APP_FILE_SCHEMA}://${CONNECT_AUTHORITY}`;
 
   const uri = new URL(relativePath, baseUrl);

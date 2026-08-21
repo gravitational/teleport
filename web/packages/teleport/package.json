@@ -2,7 +2,6 @@
   "name": "@gravitational/teleport",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "start": "pnpm build-wasm && vite",
     "build": "pnpm build-wasm && vite build",

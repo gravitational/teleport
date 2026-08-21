@@ -86,11 +86,6 @@ export function displayDateWithPrefixedTime(date: Date): string {
   }
 }
 
-/** Converts a UNIX timestamp do the Date object. */
-export function unixTimestampToDate(seconds: number): Date {
-  return new Date(seconds * 1000);
-}
-
 function dateToUtc(date: Date): Date {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }

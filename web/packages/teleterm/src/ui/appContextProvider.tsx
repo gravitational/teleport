@@ -20,7 +20,7 @@ import React, { PropsWithChildren } from 'react';
 
 import { IAppContext } from 'teleterm/ui/types';
 
-export const AppReactContext = React.createContext<IAppContext>(null);
+const AppReactContext = React.createContext<IAppContext>(null);
 
 const AppContextProvider: React.FC<PropsWithChildren<Props>> = props => {
   return <AppReactContext.Provider {...props} />;
