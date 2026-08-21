@@ -6,18 +6,22 @@ on:
       - master
   pull_request:
     paths:
-      - 'windowsauth/**'
+      - 'e/windowsauth/**'
+      - '.github/workflows/windows-auth-package.yaml'
   merge_group:
 jobs:
   Build:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: e
     steps:
       - name: Check out repository code
         uses: actions/checkout@v6
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: 'windowsauth/installer/go.mod'
+          go-version-file: 'e/windowsauth/installer/go.mod'
       - name: Setup Rust
         # this uses the version of rust in rust-toolchain.toml but sets the
         # global rustup config to use the -gnu toolchain rather than the -msvc
