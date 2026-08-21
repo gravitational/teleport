@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, test, afterEach } from 'vitest';
+import { expect, test } from 'vitest';
 
-import { render, screen, server, testQueryClient } from 'design/utils/testing';
+import { render, screen, server } from 'design/utils/testing';
 
 import { getThumbnail, MOCK_THUMBNAIL } from './mock';
 import { RecordingThumbnail } from './RecordingThumbnail';
-
-afterEach(() => {
-  testQueryClient.clear();
-});
 
 function setupTest(clusterId = 'localhost', sessionId = 'test-session') {
   return render(

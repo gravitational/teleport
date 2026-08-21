@@ -19,15 +19,9 @@
 import { format } from 'date-fns';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router';
-import { vi, test, afterEach, expect, beforeEach } from 'vitest';
+import { vi, test, expect, beforeEach } from 'vitest';
 
-import {
-  render,
-  screen,
-  server,
-  testQueryClient,
-  tick,
-} from 'design/utils/testing';
+import { render, screen, server, tick } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -83,10 +77,6 @@ async function setupTest({
 
 beforeEach(() => {
   server.use(getThumbnail(MOCK_THUMBNAIL));
-});
-
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 test('renders recording item with basic information', async () => {
