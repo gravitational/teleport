@@ -96,7 +96,7 @@ No modules.
 | security\_group\_ids | Additional security group IDs to attach to the Teleport agent ECS tasks. | `list(string)` | `[]` | no |
 | teleport\_config | Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition. | `any` | n/a | yes |
 | teleport\_container\_image | Container image used for Teleport ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
-| teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"18.10.0"` | no |
+| teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"18.10.7"` | no |
 | vpc\_id | VPC ID where the Teleport agent will be deployed. | `string` | n/a | yes |
 
 ## Outputs

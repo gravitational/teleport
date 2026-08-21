@@ -88,7 +88,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | teleport\_provision\_token\_name | Name for the Teleport provision token resource. | `string` | `"db-agent"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Determines whether the name of the Teleport provision token is used as a prefix. | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address `host:port`. | `string` | n/a | yes |
-| teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"18.10.0"` | no |
+| teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"18.10.7"` | no |
 | vpc\_id | VPC ID where the Teleport db agent will be deployed. | `string` | n/a | yes |
 
 ## Outputs

@@ -1,5 +1,141 @@
 # Changelog
 
+## 18.10.7 (08/19/26)
+
+This release is a public equivalent of 18.10.6 that announces security issues
+addressed in the private release 18.10.1.
+
+### [High] SSO MFA bypass
+
+Teleport could accept an empty SSO MFA token before the SSO callback populated
+the expected token, allowing an attacker to bypass SSO MFA in affected MFA
+flows.
+
+All users that use SSO MFA are advised to upgrade their Auth services.
+
+### [High] AWS Console federation destination validation bypass
+
+Teleport validated AWS Console application URLs using raw string prefixes rather
+than parsed hostnames. A crafted URL could be accepted as an AWS Console
+destination while pointing to an attacker-controlled host, allowing an AWS
+federation destination validation bypass.
+
+All users that use AWS Console Application Access are advised to upgrade
+affected Teleport services.
+
+### [High] Application Access authorization bypass for TCP/MCP apps sharing a public address
+
+When multiple application resources shared the same public address, Teleport
+could authorize access against one application while dispatching the live
+TCP/MCP connection to another application selected during routing.
+
+All users that use TCP or MCP Application Access are advised to upgrade affected
+Teleport services.
+
+### [High] Kubernetes Access URL-encoding RBAC bypass
+
+Teleport Kubernetes Access could misclassify URL-encoded Kubernetes subresource
+requests, allowing requests such as exec, attach, or port-forward to bypass
+Teleport RBAC checks in certain proxying paths.
+
+All users that use Kubernetes Access are advised to upgrade affected Teleport
+proxy and Kubernetes services.
+
+### [High] Cross-cluster authentication bypass via x509 subject forgery
+
+Several trusted-cluster TLS verification paths did not enforce the intended peer
+certificate verification. In affected deployments, a compromised leaf cluster
+could issue certificates with arbitrary usernames and roles for certain
+cross-cluster access paths.
+
+All users that use Trusted Clusters, especially with Kubernetes, Desktop, or
+Application Access, are advised to upgrade affected Teleport services.
+
+### [High] Proxy crash via malformed IAM/Azure join request
+
+The proxy could dereference missing IAM or Azure join request data. A crafted
+unauthenticated join request could crash the proxy process.
+
+All users are advised to upgrade proxy services.
+
+### [High] Teleport Cloud discovery integration validation bypass
+
+Teleport Cloud DiscoveryConfigs targeting cloud-discovery-group did not
+consistently require integrations on all AWS and Azure matcher types. This could
+allow discovery to use ambient cloud credentials rather than the intended
+integration-scoped credentials.
+
+Teleport Cloud customers will receive the patched control plane as part of this
+release. Self-hosted customers using equivalent Teleport Cloud discovery
+integration controls should upgrade affected Auth and Discovery services.
+
+### [High] Moderated file-transfer approval could authorize unsupervised exec sessions
+
+A moderated session file-transfer approval could be consumed by a
+non-interactive SSH exec request, allowing a user with an approved file-transfer
+request to run commands without moderator oversight.
+
+All users that use moderated SSH sessions and file-transfer approvals are
+advised to upgrade node/proxy services.
+
+### [High] AWS Roles Anywhere credential generation authorization bypass
+
+AWS Roles Anywhere app credential generation could issue externally usable AWS
+credentials before the request passed through the normal app authorization path.
+A user who could call certificate-generation APIs could request credentials for
+an AWS Roles Anywhere app and role ARN even when their Teleport roles did not
+allow access to that app or AWS role.
+
+This vulnerability is addressed in v18.10.3. All v18 users that use AWS Roles
+Anywhere Application Access are advised to upgrade Auth services.
+
+### [High] Access Monitoring Rules constrained-resource policy bypass
+
+Access Monitoring Rules did not include constrained requested resources when
+evaluating resource label conditions. This could allow constrained resource
+access requests to bypass auto-deny or notification rules and be evaluated only
+by remaining auto-approve rules.
+
+This vulnerability is addressed in v18.10.3. All v18 users that use Access
+Monitoring Rules for resource access requests are advised to upgrade Auth
+services and affected access plugins.
+
+### [High] Arbitrary OIDC IdP JWT minting via app service nodes
+
+Teleport did not adequately authorize OIDC IdP JWT issuance via
+GenerateAppToken. App service nodes, or roles with create permission on JWT
+resources, could request tokens signed with the cluster’s OIDC IdP CA with
+arbitrary subject, audience, roles, and traits. An attacker with filesystem or
+equivalent access to an app service node identity could mint OIDC IdP JWTs
+accepted by relying parties that trust the Teleport cluster as an OIDC issuer.
+
+This issue affects Teleport v18.6.5 and later and is addressed in v18.10.3. All
+affected v18 users are advised to upgrade Auth services. App services that use
+the {{internal.id_token}} rewrite trait for MCP egress must also be upgraded for
+that feature to continue working.
+
+### [High] Proxy-local application integration routing remote code execution for unsupported apps
+
+Applications that do not support integrations, such as MCP apps, could
+incorrectly trigger integration-backed routing in the Proxy. In affected
+configurations, an authenticated user with permissions to create or update
+app_server resources could cause unsupported app metadata to execute through
+Proxy-local integration handling rather than normal App Service routing.
+
+This vulnerability is addressed in v18.10.3. All v18 users that use Application
+Access integrations or MCP apps are advised to upgrade control plane and proxy
+services.
+
+### [High] Teleport Connect Windows updater local privilege escalation
+
+The Teleport Connect per-machine Windows updater staged installers in a location
+under ProgramData that standard users could influence. A local low-privilege
+Windows user could abuse the updater service to execute an attacker-controlled
+binary as SYSTEM.
+
+This vulnerability is addressed in v18.10.3. All users with per-machine Teleport
+Connect installations on Windows are advised to upgrade Teleport Connect.
+
 ## 18.10.6 (08/18/26)
 
 This is a follow up to the 18.10.1 private security release that includes an additional non-security improvement:
@@ -10,7 +146,9 @@ Note: 18.10.5 release was skipped due to internal CI/CD issue.
 
 ## 18.10.4 (08/11/26)
 
-This is a follow up to the 18.10.1 private security release. The changelog will be publicly announced in a later version.
+This is a follow up to the 18.10.1 private security release that includes the following fix:
+
+* Remove generic write permissions from system agent roles.
 
 More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
 
