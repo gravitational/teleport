@@ -232,7 +232,7 @@ func (s *X509OutputService) generateIdentity(ctx context.Context) (*identity.Fac
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	if s.scoped {
 		return s.identityGenerator.GenerateScopedFacade(
-			ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+			ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
 		)
 	}
 	return s.identityGenerator.GenerateFacade(ctx,

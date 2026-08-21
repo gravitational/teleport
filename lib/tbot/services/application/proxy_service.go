@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -177,7 +178,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	})
 	s.log.InfoContext(ctx, "Finished initializing")
 
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		s.log.DebugContext(ctx, "Starting proxy request handler goroutine")
 		errCh <- httpSrv.Serve(l)
@@ -247,8 +248,11 @@ func (s *ProxyService) issueCert(
 			)
 		}
 	}()
+
+	// ProxyService does not support scopes yet, so we give it an SQN without scope set
+	// to signal to the getRouteToApp internals that this is an unscoped request.
 	route, app, err := getRouteToApp(
-		ctx, s.getBotIdentity(), impersonatedClient, appName,
+		ctx, s.getBotIdentity(), impersonatedClient, scopes.QualifiedName{Name: appName},
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
