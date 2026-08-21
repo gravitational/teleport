@@ -88,6 +88,7 @@ jobs:
               - 'gen/proto/js/**'
               - 'gen/proto/ts/**'
               - 'knip.jsonc'
+              - '.oxlintrc.jsonc'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'
