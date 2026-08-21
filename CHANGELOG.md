@@ -1,6 +1,6 @@
 # Changelog
 
-## 17.7.28 (08/19/27)
+## 17.7.28 (08/19/26)
 
 This is a public release announcing security vulnerabilities addressed in 17.7.27.
 In addition to the issues addressed in 17.7.27, this release includes an additional
@@ -92,7 +92,7 @@ knowledge of another session ID could terminate another user’s SSH session.
 This vulnerability is addressed in v17.7.27. All v17 users that use SSH Access
 are advised to upgrade node services.
 
-## 17.7.27 (07/17/27)
+## 17.7.27 (07/17/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
 
