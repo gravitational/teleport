@@ -122,3 +122,51 @@ Teleport can use provisioned SCIM name and email attributes to show [display
 names](../../../reference/access-controls/user-display-names.mdx) in the
 Web UI.
 </Admonition>
+
+## Rate limiting
+
+The Teleport SCIM server enforces rate limits on incoming SCIM
+requests. Limits apply uniformly to all SCIM operations (`GET` for retrieve
+and search, `POST` for create, `PUT` for replace, `PATCH` for modify, and
+`DELETE`).
+
+There are two independent limits:
+
+- A **token-bucket request limit** that caps the average and burst request rate
+  over a sliding window. This limit applies to every SCIM request.
+- A **concurrency limit** that caps the number of simultaneous mutating
+  operations (`POST`, `PUT`, `PATCH`, `DELETE`) in flight. `GET` (retrieve and
+  search) requests are not counted toward this limit.
+
+<Admonition type="note">
+Each Auth Service instance enforces these limits independently. Limits are
+not shared between Auth Service instances.
+</Admonition>
+
+### Defaults
+
+If no rate-limit configuration is set on the SCIM plugin, the server applies
+the following defaults:
+
+| Setting                     | Default | Description                                                                   |
+|-----------------------------|---------|-------------------------------------------------------------------------------|
+| `average`                   | `600`   | Average requests permitted per `period_seconds` window.                       |
+| `burst`                     | `1200`  | Maximum burst above the average within the window.                            |
+| `period_seconds`            | `60`    | Length of the rate-limit window, in seconds.                                  |
+| `max_concurrent_operations` | `300`   | Maximum simultaneous mutating operations.                                     |
+
+### Behavior on limit exceeded
+
+When a SCIM request is rejected because the rate limit is exceeded, Teleport
+responds with HTTP `429 Too Many Requests` and sets the standard
+[`Retry-After`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After)
+header to the number of seconds the client should wait before retrying:
+
+- For the **request rate limit**, `Retry-After` is the time until the next
+  token becomes available, rounded up to the nearest second.
+- For the **concurrency limit**, `Retry-After` equals the configured
+  `period_seconds`.
+
+SCIM clients should honor the `Retry-After` header and back off accordingly
+before retrying.
+
