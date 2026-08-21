@@ -500,3 +500,12 @@ func getResourceNames[T types.Resource](rs []T) []string {
 	}
 	return names
 }
+
+func assignmentHasTarget(a types.OktaAssignment, typ, id string) bool {
+	for _, t := range a.GetTargets() {
+		if t.GetTargetType() == typ && t.GetID() == id {
+			return true
+		}
+	}
+	return false
+}

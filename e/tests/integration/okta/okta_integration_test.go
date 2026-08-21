@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
@@ -663,11 +664,20 @@ func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName 
 	require.NoError(t, err)
 }
 
+// assertUserIsNotAccessListMember is deprecated.
+//
+// Deprecated: use requireUserIsNotAccessListMember and/or waitForResourceDeletion
 func assertUserIsNotAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.True(t, trace.IsNotFound(err))
 	}, time.Minute, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
+}
+
+func requireUserIsNotAccessListMember(ctx context.Context, t *testing.T, sut *common.SUT, acl, user string) {
+	t.Helper()
+	_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) *accesslist.AccessListMember {
@@ -690,11 +700,13 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
+	const groupCount = 1
+
 	// Setup Okta mock.
 	fakeOkta := newFakeOktaServer(
 		withUserCount(7),
 		withAppCount(1),
-		withGroupCount(1),
+		withGroupCount(groupCount),
 		withSAMLApp(),
 	)
 	t.Cleanup(fakeOkta.Stop)
@@ -713,7 +725,8 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	start := time.Now()
+	userLoginStateWatcher := sut.NewResourceWatcher(t, types.KindUserLoginState)
+	roleWatcher := sut.NewResourceWatcher(t, types.KindRole)
 	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
@@ -721,13 +734,11 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	}.Build()), withEnableFullSync())
 	scimClient := createSCIMClient(t, sut, scimToken)
 
-	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(ctx, reviewerLogin)
-		require.NoError(t, err)
-		require.Len(t, s.GetRoles(), 2) // okta-requester + 2 ACL reviewer roles
-	}, time.Minute, time.Millisecond*100)
+	// If the reviewer's UserLoginState has okta-requester and roles that means, both the User
+	// and Access Lists are synced.
+	waitForResource(t, userLoginStateWatcher, func(uls *userloginstate.UserLoginState) bool {
+		return uls.GetName() == reviewerLogin && len(uls.GetRoles()) == 1+groupCount // okta-requester + ACL reviewer role for each group (default owner)
+	})
 
 	auth := sut.Teleport.Process.GetAuthServer()
 	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
@@ -737,9 +748,17 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	require.NotNil(t, group)
 	groupID := group.GetName()
 
+	// Wait for the "okta-requester" role to be updated with search_as_roles, otherwise we can
+	// hit an error like: Resource Access Requests require usable "search_as_roles", none found
+	// for user "user-4@example.com"
+	waitForResource(t, roleWatcher, func(r types.Role) bool {
+		return r.GetName() == teleport.SystemOktaRequesterRoleName && len(r.GetSearchAsRoles(types.Allow)) == groupCount
+	})
+
 	accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requesterLogin)
 
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 	approveAccessRequest(t, sut, accessRequest.GetName(), reviewerLogin)
 
 	g, err := scimClient.GetGroup(ctx, fakeOkta.provisionedGroups[0].Id)
@@ -750,20 +769,29 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	_, err = scimClient.UpdateGroup(t.Context(), g)
 	require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetCleanupTime().Equal(accessRequest.GetAccessExpiry()) &&
+			a.GetStatus() == constants.OktaAssignmentStatusSuccessful &&
+			assignmentHasTarget(a, constants.OktaAssignmentTargetGroup, fakeOkta.provisionedGroups[0].Id)
+	})
+	require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
 
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 
-	err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
-	require.NoError(t, err)
+	// TODO(kopiczko): Replace with a regular auth.DeleteAccessRequest call. currently there is
+	// a race between AccessRequestReconciler.OnLogin and .onDelete. Details here
+	// https://github.com/gravitational/teleport.e/issues/8118#issuecomment-5367514561. So the
+	// lock has to be created to make sure the corresponding okta_assignment is cleaned up.
+	deleteAccessRequest(t, sut, accessRequest.GetName())
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+	// https://github.com/gravitational/teleport.e/issues/8654
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.IsFinalized() &&
+			assignmentHasTarget(a, constants.OktaAssignmentTargetGroup, fakeOkta.provisionedGroups[0].Id)
+	})
+	require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
 
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 }
 
 func TestOktaAssignmentRaceCheck(t *testing.T) {
