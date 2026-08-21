@@ -6,6 +6,7 @@ on:
       - .github/workflows/docs-amplify.yaml
       - .github/scripts/preview-links.js
       - .github/scripts/post-preview-links.js
+      - CHANGELOG.md
   workflow_dispatch:
 
 # Default to no permissions; each job grants only what it needs.
