@@ -303,6 +303,9 @@ export
 # To avoid breaking other parts of the release pipeline, the easiest fix is to
 # unexport HELMJANITOR so the child uses the definition from its Makefile.
 unexport HELMJANITOR
+# Same as above for HELMJANITOR - without this unexport statement, the `-e` flag breaks terraform-docs recipes,
+# because every recipe becomes a blank command, e.g., `"" markdown table ...`
+unexport TERRAFORM_DOCS
 export KUBECONFIG
 export TEST_KUBE
 
@@ -2257,11 +2260,7 @@ cli-docs-tctl:
 .PHONY: cli-docs-up-to-date
 cli-docs-up-to-date: must-start-clean/host cli-docs
 	@if ! git diff --quiet -- docs/pages/reference/cli/; then \
-		echo ""; \
-		echo "CLI reference documentation is out of date."; \
-		echo "Please run 'make cli-docs' and commit the changes."; \
-		echo ""; \
-		git diff --stat -- docs/pages/reference/cli/; \
+		./build.assets/please-run.sh "CLI reference documentation" "make cli-docs"; \
 		exit 1; \
 	fi
 

@@ -1,3 +1,5 @@
+include ../../common.mk
+
 .PHONY: all
 all: ;
 
@@ -11,7 +13,10 @@ force: ;
 fmt:
 	terraform fmt -recursive .
 
-MODULE_DIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
+MODULE_DIRS := $(shell find . \
+  -type d -name .terraform -prune -o \
+  -type f -name '*.tf' -exec dirname {} \; \
+  2>/dev/null | sort -u)
 README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
@@ -19,7 +24,7 @@ docs: $(README_FILES)
 	./gen/docs.sh "$(VERSION)" $(PUBLISHED_TF_MODULES)
 
 %/README.md: force
-	terraform-docs markdown table --config .terraform-docs.yml $*
+	$(TERRAFORM_DOCS) markdown table --config .terraform-docs.yml $*
 
 .PHONY: test
 test:
@@ -102,10 +107,12 @@ tfclean:
 
 #
 # update-version updates Terraform source code that depends on the current release version.
+# The version may appear in module references, so it also regenerates docs.
 #
 .PHONY: update-version
 update-version:
-	./gen/update-version.sh $(VERSION)
+	./gen/update-version.sh "$(VERSION)"
+	$(MAKE) docs VERSION="$(VERSION)"
 
 .PHONY: create-module
 create-module:
