@@ -320,11 +320,17 @@ else
 bpf-bytecode-e:
 endif
 
+RDPCLIENT_SKIP_CARGO ?= 0
+
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
+ifneq ($(RDPCLIENT_SKIP_CARGO),1)
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+else
+	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
+endif
 endif
 
 # make clean: cleans the build
