@@ -65,3 +65,4 @@ BENCHSTAT = "$$( GOWORK=off go -C $(TOOLS_DIR)/benchstat tool -n benchstat )"
 # TOOLING_DIR contains internal tooling
 TOOLING_DIR := $(abspath $(COMMON_MK_DIR)/build.assets/tooling)
 HELMJANITOR = "$$( GOWORK=off CGO_ENABLED=0 go -C $(TOOLING_DIR) tool -n helm-janitor )"
+TERRAFORM_DOCS = "$$( GOWORK=off CGO_ENABLED=0 go -C $(TOOLING_DIR) tool -n terraform-docs )"
