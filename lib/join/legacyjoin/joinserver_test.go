@@ -251,6 +251,13 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 			certs: &proto.Certs{SSH: []byte("baz")},
 		},
 		{
+			desc:      "nil payload error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
+				RegisterUsingTokenRequest: nil},
+			authErr: trace.BadParameter("expected non-nil RegisterUsingTokenRequest payload"),
+		},
+		{
 			desc:      "auth error",
 			challenge: "foo",
 			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
@@ -324,6 +331,13 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
 				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
 			certs: &proto.Certs{SSH: []byte("qux")},
+		},
+		{
+			desc:      "nil payload error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
+				RegisterUsingTokenRequest: nil},
+			authErr: trace.BadParameter("expected non-nil RegisterUsingTokenRequest payload"),
 		},
 		{
 			desc:      "auth error",
