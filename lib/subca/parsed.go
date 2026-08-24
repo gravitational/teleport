@@ -64,6 +64,16 @@ func SubKindToCertAuthType(subKind string) types.CertAuthType {
 	}
 }
 
+// CertAuthTypeToSubKind maps a CertAuthType to its CA override sub_kind.
+func CertAuthTypeToSubKind(caType types.CertAuthType) string {
+	switch caType {
+	case types.SPIFFECA:
+		return SPIFFECAOverrideSubKind
+	default:
+		return string(caType)
+	}
+}
+
 // ParsedCertAuthorityOverride is a CertAuthorityOverride with a
 // ParsedCertificateOverride list.
 type ParsedCertAuthorityOverride struct {
