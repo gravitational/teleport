@@ -81,7 +81,7 @@ export interface Gateway {
     localPort: string;
     /**
      * protocol is the protocol used by the gateway. For databases, it matches the type of the
-     * database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+     * database that the gateway targets. For apps, it's one of "HTTP", "TCP", "MCP", or "LLM".
      *
      * @generated from protobuf field: string protocol = 7;
      */

@@ -166,6 +166,20 @@ export interface App {
      * @generated from protobuf field: repeated int32 supported_feature_ids = 15;
      */
     supportedFeatureIds: number[];
+    /**
+     * llm_format is the inference API format of an LLM app, e.g. "anthropic" or
+     * "openai". Empty for non-LLM apps.
+     *
+     * @generated from protobuf field: string llm_format = 16;
+     */
+    llmFormat: string;
+    /**
+     * llm_provider is the inference provider serving an LLM app, e.g.
+     * "anthropic", "openai" or "bedrock". Empty for non-LLM apps.
+     *
+     * @generated from protobuf field: string llm_provider = 17;
+     */
+    llmProvider: string;
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -314,7 +328,9 @@ class App$Type extends MessageType<App> {
             { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange },
             { no: 13, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 14, name: "permission_sets", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentityCenterPermissionSet },
-            { no: 15, name: "supported_feature_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 5 /*ScalarType.INT32*/ }
+            { no: 15, name: "supported_feature_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 5 /*ScalarType.INT32*/ },
+            { no: 16, name: "llm_format", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 17, name: "llm_provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -334,6 +350,8 @@ class App$Type extends MessageType<App> {
         message.subKind = "";
         message.permissionSets = [];
         message.supportedFeatureIds = [];
+        message.llmFormat = "";
+        message.llmProvider = "";
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -391,6 +409,12 @@ class App$Type extends MessageType<App> {
                             message.supportedFeatureIds.push(reader.int32());
                     else
                         message.supportedFeatureIds.push(reader.int32());
+                    break;
+                case /* string llm_format */ 16:
+                    message.llmFormat = reader.string();
+                    break;
+                case /* string llm_provider */ 17:
+                    message.llmProvider = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -453,6 +477,12 @@ class App$Type extends MessageType<App> {
                 writer.int32(message.supportedFeatureIds[i]);
             writer.join();
         }
+        /* string llm_format = 16; */
+        if (message.llmFormat !== "")
+            writer.tag(16, WireType.LengthDelimited).string(message.llmFormat);
+        /* string llm_provider = 17; */
+        if (message.llmProvider !== "")
+            writer.tag(17, WireType.LengthDelimited).string(message.llmProvider);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

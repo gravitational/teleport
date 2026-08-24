@@ -168,6 +168,18 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
+    {
+      name: 'creates tunnel for an LLM app',
+      app: makeApp({
+        endpointUri: 'llm://',
+      }),
+    },
+    {
+      name: 'creates tunnel for a TLS app',
+      app: makeApp({
+        endpointUri: 'tls://localhost:9443',
+      }),
+    },
   ])('$name', async ({ app, targetPort, expectedTitle }) => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);

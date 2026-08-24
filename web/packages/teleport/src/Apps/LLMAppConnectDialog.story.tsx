@@ -18,6 +18,11 @@
 import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 
+import {
+  OverrideUserAgent,
+  UserAgent,
+} from 'shared/components/OverrideUserAgent';
+
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
@@ -58,4 +63,21 @@ export function OpenAI() {
 
 export function OpenAIBedrock() {
   return <Component app={llmOpenAIBedrockApp} onClose={() => {}} />;
+}
+
+// On Windows the env vars render as PowerShell assignments instead of `export`.
+export function BedrockOnWindows() {
+  return (
+    <OverrideUserAgent userAgent={UserAgent.Windows}>
+      <Component app={llmBedrockApp} onClose={() => {}} />
+    </OverrideUserAgent>
+  );
+}
+
+export function OpenAIOnWindows() {
+  return (
+    <OverrideUserAgent userAgent={UserAgent.Windows}>
+      <Component app={llmOpenAIApp} onClose={() => {}} />
+    </OverrideUserAgent>
+  );
 }
