@@ -323,6 +323,12 @@ func TestResourceRequest(t *testing.T) {
 	testReqID := uuid.New().String()
 	testRuleName := "test-rule"
 	requesterUserName := "requester"
+	resourceID := types.ResourceID{
+		ClusterName:     "test-cluster",
+		Kind:            types.KindNode,
+		Name:            "test-node",
+		SubResourceName: types.SubKindTeleportNode,
+	}
 
 	userLoginState, err := userloginstate.New(
 		header.Metadata{Name: requesterUserName},
@@ -341,6 +347,7 @@ func TestResourceRequest(t *testing.T) {
 	tests := []struct {
 		description string
 		setupMock   func(m *mockClient)
+		resources   []types.ResourceAccessID
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
@@ -357,6 +364,7 @@ func TestResourceRequest(t *testing.T) {
 
 				m.AssertNotCalled(t, "SubmitAccessReview")
 			},
+			resources: []types.ResourceAccessID{{Id: resourceID}},
 			assertErr: require.NoError,
 		},
 		{
@@ -379,6 +387,7 @@ func TestResourceRequest(t *testing.T) {
 
 				m.AssertNotCalled(t, "SubmitAccessReview")
 			},
+			resources: []types.ResourceAccessID{{Id: resourceID}},
 			assertErr: require.NoError,
 		},
 		{
@@ -413,6 +422,54 @@ func TestResourceRequest(t *testing.T) {
 					Review:    review,
 				}).Return(mock.Anything, nil)
 			},
+			resources: []types.ResourceAccessID{{Id: resourceID}},
+			assertErr: require.NoError,
+		},
+		{
+			description: "test matching resource labels with constraints",
+			setupMock: func(m *mockClient) {
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
+
+				m.On("ListResources", mock.Anything, mock.Anything).
+					Return(&types.ListResourcesResponse{
+						Resources: []types.ResourceWithLabels{
+							&types.ServerV2{
+								Metadata: types.Metadata{
+									Labels: map[string]string{"env": "test"},
+								},
+							},
+						},
+						TotalCount: 1,
+					}, nil)
+
+				review, err := newAccessReview(
+					requesterUserName,
+					testRuleName,
+					types.RequestState_APPROVED.String(),
+					"",
+					time.Time{},
+				)
+				require.NoError(t, err)
+
+				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+					RequestID: testReqID,
+					Review:    review,
+				}).Return(mock.Anything, nil)
+			},
+			resources: []types.ResourceAccessID{
+				{
+					Id: resourceID,
+					Constraints: &types.ResourceConstraints{
+						Version: "v1",
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
+				},
+			},
 			assertErr: require.NoError,
 		},
 	}
@@ -437,16 +494,7 @@ func TestResourceRequest(t *testing.T) {
 				testReqID,
 				requesterUserName,
 				[]string{"role"},
-				[]types.ResourceAccessID{
-					{
-						Id: types.ResourceID{
-							ClusterName:     "test-cluster",
-							Kind:            types.KindNode,
-							Name:            "test-node",
-							SubResourceName: types.SubKindTeleportNode,
-						},
-					},
-				},
+				test.resources,
 			)
 			require.NoError(t, err)
 

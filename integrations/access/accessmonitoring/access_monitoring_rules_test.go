@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -152,69 +153,108 @@ func TestRecipientsWithResources(t *testing.T) {
 		recipient  = "recipient@goteleport.com"
 	)
 
-	teleportClient := &mockTeleportClient{}
-	teleportClient.
-		On("GetUserLoginState", mock.Anything, mock.Anything).
-		Return(&userloginstate.UserLoginState{}, nil)
-
-	teleportClient.
-		On("ListResources", mock.Anything, mock.Anything).
-		Return(&types.ListResourcesResponse{
-			Resources: []types.ResourceWithLabels{
-				&types.ServerV2{
-					Metadata: types.Metadata{
-						Name:   "test-node",
-						Labels: map[string]string{"env": "dev"},
+	tests := []struct {
+		description string
+		resources   []types.ResourceAccessID
+	}{
+		{
+			description: "resource ID without constraints",
+			resources: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{
+						Kind: types.KindNode,
+						Name: "test-node",
 					},
 				},
 			},
-			NextKey:    "",
-			TotalCount: 1,
-		}, nil)
-
-	amrh := NewRuleHandler(RuleHandlerConfig{
-		Client:     teleportClient,
-		PluginType: pluginType,
-		PluginName: pluginName,
-		FetchRecipientCallback: func(ctx context.Context, recipient string) (*common.Recipient, error) {
-			return emailRecipient(recipient), nil
 		},
-	})
-
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
-		Subjects:  []string{types.KindAccessRequest},
-		Condition: `access_request.spec.resource_labels_intersection["env"].contains("dev")`,
-		Notification: pb.Notification_builder{
-			Name:       pluginName,
-			Recipients: []string{recipient},
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
-	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
-		Type:     types.OpPut,
-		Resource: types.Resource153ToLegacy(rule1),
-	})
-	require.NoError(t, err)
-	require.Len(t, amrh.getAccessMonitoringRules(), 1)
-
-	ctx := context.Background()
-
-	req := &types.AccessRequestV3{
-		Spec: types.AccessRequestSpecV3{
-			RequestedResourceIDs: []types.ResourceID{
+		{
+			description: "resource ID with constraints",
+			resources: []types.ResourceAccessID{
 				{
-					Kind: types.KindNode,
-					Name: "test-node",
+					Id: types.ResourceID{
+						Kind:            types.KindNode,
+						Name:            "test-node",
+						SubResourceName: types.SubKindTeleportNode,
+					},
+					Constraints: &types.ResourceConstraints{
+						Version: "v1",
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
 				},
 			},
 		},
 	}
 
-	recipients := amrh.RecipientsFromAccessMonitoringRules(ctx, req)
-	require.ElementsMatch(t, []common.Recipient{*emailRecipient(recipient)}, recipients.ToSlice())
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			teleportClient := &mockTeleportClient{}
+			teleportClient.
+				On("GetUserLoginState", mock.Anything, mock.Anything).
+				Return(&userloginstate.UserLoginState{}, nil)
 
-	rawRecipients := amrh.RawRecipientsFromAccessMonitoringRules(ctx, req)
-	require.ElementsMatch(t, []string{recipient}, rawRecipients)
+			teleportClient.
+				On("ListResources", mock.Anything, mock.Anything).
+				Return(&types.ListResourcesResponse{
+					Resources: []types.ResourceWithLabels{
+						&types.ServerV2{
+							Metadata: types.Metadata{
+								Name:   "test-node",
+								Labels: map[string]string{"env": "dev"},
+							},
+						},
+					},
+					NextKey:    "",
+					TotalCount: 1,
+				}, nil)
+
+			amrh := NewRuleHandler(RuleHandlerConfig{
+				Client:     teleportClient,
+				PluginType: pluginType,
+				PluginName: pluginName,
+				FetchRecipientCallback: func(ctx context.Context, recipient string) (*common.Recipient, error) {
+					return emailRecipient(recipient), nil
+				},
+			})
+
+			rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: `access_request.spec.resource_labels_intersection["env"].contains("dev")`,
+				Notification: pb.Notification_builder{
+					Name:       pluginName,
+					Recipients: []string{recipient},
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+			err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+				Type:     types.OpPut,
+				Resource: types.Resource153ToLegacy(rule1),
+			})
+			require.NoError(t, err)
+			require.Len(t, amrh.getAccessMonitoringRules(), 1)
+
+			ctx := context.Background()
+
+			req, err := types.NewAccessRequestWithResources(
+				uuid.New().String(),
+				"requester",
+				[]string{"role"},
+				test.resources,
+			)
+			require.NoError(t, err)
+
+			recipients := amrh.RecipientsFromAccessMonitoringRules(ctx, req)
+			require.ElementsMatch(t, []common.Recipient{*emailRecipient(recipient)}, recipients.ToSlice())
+
+			rawRecipients := amrh.RawRecipientsFromAccessMonitoringRules(ctx, req)
+			require.ElementsMatch(t, []string{recipient}, rawRecipients)
+		})
+	}
+
 }
 
 func TestRecipientsWithSchedules(t *testing.T) {
