@@ -251,6 +251,10 @@ const ReactSlider = createReactClass({
     this.tempArray = value.slice();
 
     for (var i = 0; i < value.length; i++) {
+      // Note: this is a bad practice, but at this point, it's easier to simply
+      // disable the lint warning instead of trying to fix code that works and
+      // potentially cause real problems.
+      // oxlint-disable-next-line react/no-direct-mutation-state
       this.state.value[i] = this._trimAlignValue(value[i], newProps);
     }
     if (this.state.value.length > value.length)
