@@ -2417,6 +2417,218 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	}
 }
 
+func TestSSHMFADeviceLock(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	osUser, err := user.Current()
+	require.NoError(t, err)
+
+	perSessionMFARole, err := types.NewRole(
+		"mfa-login",
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins:     []string{osUser.Username},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+			Options: types.RoleOptions{RequireMFAType: types.RequireMFAType_SESSION},
+		})
+	require.NoError(t, err)
+
+	connector := mockConnector(t)
+
+	const (
+		rootClusterName = "root"
+		rootHostName    = "node01"
+
+		leafClusterName = "leaf"
+		leafHostName    = "node02"
+	)
+
+	rootServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName(rootClusterName),
+		testserver.WithHostname(rootHostName),
+		testserver.WithBootstrap(connector, perSessionMFARole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = rootServer.Close()
+		_ = rootServer.Wait()
+	})
+
+	leafServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName(leafClusterName),
+		testserver.WithHostname(leafHostName),
+		testserver.WithBootstrap(connector, perSessionMFARole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = leafServer.Close()
+		_ = leafServer.Wait()
+	})
+
+	SetupTrustedCluster(ctx, t, rootServer, leafServer, types.RoleMapping{
+		Remote: perSessionMFARole.GetName(),
+		Local:  []string{perSessionMFARole.GetName()},
+	})
+
+	rootAuth := rootServer.GetAuthServer()
+	leafAuth := leafServer.GetAuthServer()
+
+	const (
+		rpid   = "localhost"
+		origin = "https://" + rpid
+	)
+
+	for _, auth := range []*auth.Server{rootAuth, leafAuth} {
+		_, err := auth.UpsertAuthPreference(ctx,
+			&types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn:     &types.Webauthn{RPID: rpid},
+				},
+			})
+		require.NoError(t, err)
+	}
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+	leafProxyAddr, err := leafServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Dial proxies by hostname rather than the loopback address they bind to. This is because tsh derives the webauthn
+	// origin from the proxy address it connects to ("https://" + WebProxyAddr), and that origin must match the RP ID.
+	rootProxyHost := net.JoinHostPort(rpid, strconv.Itoa(rootProxyAddr.Port(0)))
+	leafProxyHost := net.JoinHostPort(rpid, strconv.Itoa(leafProxyAddr.Port(0)))
+
+	// Wait for the in-process SSH nodes to register with their auth servers.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootAuth.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+
+		leafNodes, err := leafAuth.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, leafNodes, 1)
+	}, 10*time.Second, 100*time.Millisecond, "SSH nodes never registered")
+
+	// newUserWithDevice creates a fresh user with the per-session MFA role and enrolls a webauthn device for them on
+	// the given auth server. A unique user and device per subtest keeps the parallel subtests isolated.
+	newUserWithDevice := func(t *testing.T, asrv *auth.Server) (types.User, *mocku2f.Key, string) {
+		u, err := types.NewUser("alice-" + uuid.NewString())
+		require.NoError(t, err)
+		u.SetRoles([]string{perSessionMFARole.GetName()})
+		u, err = asrv.UpsertUser(ctx, u)
+		require.NoError(t, err)
+
+		device, err := mocku2f.Create()
+		require.NoError(t, err)
+		device.SetPasswordless()
+		registerDeviceForUser(t, asrv, device, u.GetName(), origin)
+
+		devices, err := asrv.Services.GetMFADevices(ctx, u.GetName(), false)
+		require.NoError(t, err)
+		require.Len(t, devices, 1)
+		return u, device, devices[0].Id
+	}
+
+	for _, tc := range []struct {
+		name         string
+		proxyAddr    string
+		loginCluster string
+		userAuth     *auth.Server // cluster that owns the user and the MFA device
+		lockAuth     *auth.Server // cluster where the lock is created
+		target       string
+	}{
+		{
+			name:      "root cluster",
+			proxyAddr: rootProxyHost,
+			userAuth:  rootAuth,
+			lockAuth:  rootAuth,
+			target:    rootHostName,
+		},
+		{
+			name:      "leaf cluster direct",
+			proxyAddr: leafProxyHost,
+			userAuth:  leafAuth,
+			lockAuth:  leafAuth,
+			target:    leafHostName,
+		},
+		{
+			name:         "root user to leaf cluster",
+			proxyAddr:    rootProxyHost,
+			loginCluster: "leaf",
+			userAuth:     rootAuth,
+			lockAuth:     leafAuth,
+			target:       leafHostName,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			user, device, deviceID := newUserWithDevice(t, tc.userAuth)
+
+			tshHome := t.TempDir()
+			loginArgs := []string{"login", "--insecure", "--proxy", tc.proxyAddr, "--user", user.GetName()}
+			if tc.loginCluster != "" {
+				loginArgs = append(loginArgs, tc.loginCluster)
+			}
+			err := Run(
+				ctx,
+				loginArgs,
+				setHomePath(tshHome),
+				setMockSSOLogin(tc.userAuth, user, connector.GetName()),
+				func(cf *CLIConf) error {
+					cf.AddKeysToAgent = client.AddKeysToAgentNo
+					return nil
+				},
+			)
+			require.NoError(t, err)
+
+			lock, err := types.NewLock("test-lock-"+uuid.NewString(), types.LockSpecV2{
+				Target: types.LockTarget{MFADevice: deviceID},
+			})
+			require.NoError(t, err)
+
+			err = tc.lockAuth.UpsertLock(ctx, lock)
+			require.NoError(t, err)
+
+			lockInForceMsg := services.LockInForceAccessDenied(lock).Error()
+
+			// The lock is enforced by the target node's own lock watcher, which replicates backend events
+			// asynchronously and is not observable from the outside. Rejection is the only signal that the watcher
+			// caught up, so the assertion is a poll: an attempt that succeeds (lock not yet propagated) or fails with
+			// any other error (node or tunnel transiently unavailable) keeps polling.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				err := Run(ctx, []string{"ssh", "--insecure", tc.target, "echo", "hello"},
+					setHomePath(tshHome),
+					setMockSSOLogin(tc.userAuth, user, connector.GetName()),
+					setupWebAuthnChallengeSolver(device, true /* success */),
+					func(cf *CLIConf) error {
+						cf.OverrideStdout = io.Discard
+						cf.overrideStderr = io.Discard
+						cf.UseLocalSSHAgent = false
+						return nil
+					},
+				)
+				assert.ErrorContains(t, err, lockInForceMsg)
+			}, 30*time.Second, time.Second, "node never rejected the SSH connection with the MFA device lock error")
+
+			require.GreaterOrEqual(t, int(device.Counter()), 2, "expected MFA device to be used at least twice (init and ceremony)")
+		})
+	}
+}
+
 type input struct {
 	lock sync.Mutex
 	buf  bytes.Buffer
