@@ -844,14 +844,27 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[4])
 	groupID := fakeOkta.provisionedGroups[0].Id
 
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
 	const iterCount = 10
 	for i := range iterCount {
 		fakeOkta.AddUserToGroup(groupID, memberID)
 		m := assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
 
+		// remove this check after RFD 0328 - Fix Okta Cleanup Assignment Race is implemeted.
+		// Ref: https://github.com/gravitational/rfd/blob/main/rfd/0328-fix-okta-cleanup-assignment-race.md
+		// Assert Okta assignment state to force correct cache state
+		assignment := common.WaitForPutEvent(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+			return a.GetUser() == memberLogin && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+		})
+
 		fakeOkta.RemoveUserFromGroup(groupID, memberID)
 		assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+
+		common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
+			return r.GetName() == assignment.GetName()
+		})
 
 		// TODO(smallinsky): Remove this check when https://github.com/gravitational/teleport.e/issues/6558 is fixed.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
