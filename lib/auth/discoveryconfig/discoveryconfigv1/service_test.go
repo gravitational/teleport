@@ -20,6 +20,9 @@ package discoveryconfigv1
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -494,7 +497,13 @@ type testClient struct {
 	services.Presence
 }
 
-func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *Service) {
+type initSvcOption func(*ServiceConfig)
+
+func withTeleportCloud() initSvcOption {
+	return func(cfg *ServiceConfig) { cfg.IsTeleportCloud = true }
+}
+
+func initSvc(t *testing.T, clusterName string, opts ...initSvcOption) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -542,14 +551,17 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 	localResourceService, err := local.NewDiscoveryConfigService(backend)
 	require.NoError(t, err)
 
-	emitter := events.NewDiscardEmitter()
-
-	resourceSvc, err := NewService(ServiceConfig{
+	cfg := ServiceConfig{
 		Backend:       localResourceService,
 		Authorizer:    authorizer,
-		Emitter:       emitter,
+		Emitter:       events.NewDiscardEmitter(),
 		UsageReporter: usagereporter.DiscardUsageReporter{},
-	})
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	resourceSvc, err := NewService(cfg)
 	require.NoError(t, err)
 
 	return ctx, struct {
@@ -682,4 +694,291 @@ func TestDowngrade(t *testing.T) {
 			require.Equal(t, tc.expected, downgraded)
 		})
 	}
+}
+
+func TestValidateDiscoveryConfigCalledInMutateMethods(t *testing.T) {
+	t.Parallel()
+
+	ctx, localClient, svc := initSvc(t, "test-cluster", withTeleportCloud())
+	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{{
+			Resources: []string{types.KindDiscoveryConfig},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		}}},
+	}, localClient)
+
+	invalidDC, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: "cloud-dc"},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "cloud-discovery-group",
+			AWS:            []types.AWSMatcher{{Types: []string{"ec2"}, Regions: []string{"us-east-1"}}},
+		},
+	)
+	require.NoError(t, err)
+	invalidProto := convert.ToProto(invalidDC)
+
+	const wantMsg = `AWS matchers in discovery configs targeting the "cloud-discovery-group" discovery group must specify an integration`
+
+	_, err = svc.CreateDiscoveryConfig(ctx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{DiscoveryConfig: invalidProto}.Build())
+	require.True(t, trace.IsBadParameter(err), "Create: expected BadParameter, got: %v", err)
+	require.ErrorContains(t, err, wantMsg)
+
+	_, err = svc.UpdateDiscoveryConfig(ctx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{DiscoveryConfig: invalidProto}.Build())
+	require.True(t, trace.IsBadParameter(err), "Update: expected BadParameter, got: %v", err)
+	require.ErrorContains(t, err, wantMsg)
+
+	_, err = svc.UpsertDiscoveryConfig(ctx, discoveryconfigpb.UpsertDiscoveryConfigRequest_builder{DiscoveryConfig: invalidProto}.Build())
+	require.True(t, trace.IsBadParameter(err), "Upsert: expected BadParameter, got: %v", err)
+	require.ErrorContains(t, err, wantMsg)
+}
+
+func TestValidateDiscoveryConfigIntegrationFields(t *testing.T) {
+	t.Parallel()
+
+	svc := &Service{isTeleportCloud: true}
+	const cloudGroup = "cloud-discovery-group"
+
+	makeDC := func(t *testing.T, spec discoveryconfig.Spec) *discoveryconfig.DiscoveryConfig {
+		t.Helper()
+		spec.DiscoveryGroup = cloudGroup
+		dc, err := discoveryconfig.NewDiscoveryConfig(header.Metadata{Name: "test"}, spec)
+		require.NoError(t, err)
+		return dc
+	}
+
+	tests := []struct {
+		name    string
+		dc      *discoveryconfig.DiscoveryConfig
+		wantErr bool
+	}{
+		{
+			name: "AWS matcher without integration is rejected",
+			dc: makeDC(t, discoveryconfig.Spec{
+				AWS: []types.AWSMatcher{{Types: []string{"ec2"}, Regions: []string{"us-east-1"}}},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "AWS matcher with integration is accepted",
+			dc: makeDC(t, discoveryconfig.Spec{
+				// Use "rds" to avoid triggering EC2 Instance Connect Endpoint validation.
+				AWS: []types.AWSMatcher{{Types: []string{"rds"}, Regions: []string{"us-east-1"}, Integration: "my-integration"}},
+			}),
+			wantErr: false,
+		},
+		{
+			name: "Azure matcher without integration is rejected",
+			dc: makeDC(t, discoveryconfig.Spec{
+				Azure: []types.AzureMatcher{{Types: []string{"aks"}}},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "Azure matcher with integration is accepted",
+			dc: makeDC(t, discoveryconfig.Spec{
+				Azure: []types.AzureMatcher{{Types: []string{"aks"}, Integration: "my-integration"}},
+			}),
+			wantErr: false,
+		},
+		{
+			name: "AccessGraph AWS sync without integration is rejected",
+			dc: makeDC(t, discoveryconfig.Spec{
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{{Regions: []string{"us-east-1"}}},
+				},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "AccessGraph AWS sync with integration is accepted",
+			dc: makeDC(t, discoveryconfig.Spec{
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{{Regions: []string{"us-east-1"}, Integration: "my-integration"}},
+				},
+			}),
+			wantErr: false,
+		},
+		{
+			name: "AccessGraph Azure sync without integration is rejected",
+			dc: makeDC(t, discoveryconfig.Spec{
+				AccessGraph: &types.AccessGraphSync{
+					Azure: []*types.AccessGraphAzureSync{{SubscriptionID: "sub-1"}},
+				},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "AccessGraph Azure sync with integration is accepted",
+			dc: makeDC(t, discoveryconfig.Spec{
+				AccessGraph: &types.AccessGraphSync{
+					Azure: []*types.AccessGraphAzureSync{{SubscriptionID: "sub-1", Integration: "my-integration"}},
+				},
+			}),
+			wantErr: false,
+		},
+		{
+			name: "non-cloud-discovery group skips integration validation",
+			dc: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "test"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "other-group",
+						AWS:            []types.AWSMatcher{{Types: []string{"ec2"}, Regions: []string{"us-east-1"}}},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := svc.validateDiscoveryConfigIntegration(tc.dc)
+			if tc.wantErr {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got: %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+	const knownIntegrationFieldCount = 4
+
+	typeCount := countSpecIntegrationFields(reflect.TypeFor[discoveryconfig.Spec](), make(map[reflect.Type]bool))
+	require.Equal(t, knownIntegrationFieldCount, typeCount,
+		"DiscoveryConfig.Spec has %d Integration string fields; expected %d — "+
+			"add validation in validateDiscoveryConfig and update knownIntegrationFieldCount",
+		typeCount, knownIntegrationFieldCount,
+	)
+
+	spec := discoveryconfig.Spec{DiscoveryGroup: cloudGroup}
+	populateWithOneElem(reflect.ValueOf(&spec).Elem(), 0)
+	walkValueIntegrationFields(reflect.ValueOf(&spec).Elem(), "Spec", func(_ string, fv reflect.Value) {
+		fv.SetString("my-integration")
+	})
+
+	baseDC := &discoveryconfig.DiscoveryConfig{Spec: spec}
+	require.NoError(t, svc.validateDiscoveryConfigIntegration(baseDC), "fully-populated DC should pass validation")
+
+	specV := reflect.ValueOf(baseDC).Elem().FieldByName("Spec")
+	var paths []string
+	walkValueIntegrationFields(specV, "Spec", func(path string, _ reflect.Value) {
+		paths = append(paths, path)
+	})
+	require.Len(t, paths, knownIntegrationFieldCount,
+		"baseDC exposes %d Integration fields; expected %d — populate the missing fields in baseDC above",
+		len(paths), knownIntegrationFieldCount,
+	)
+
+	for i, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			dc := baseDC.Clone()
+			idx := 0
+			walkValueIntegrationFields(reflect.ValueOf(dc).Elem().FieldByName("Spec"), "Spec", func(_ string, fv reflect.Value) {
+				if idx == i {
+					fv.SetString("")
+				}
+				idx++
+			})
+			require.True(t, trace.IsBadParameter(svc.validateDiscoveryConfigIntegration(dc)),
+				"validateDiscoveryConfig should reject DC with %s cleared", path)
+		})
+	}
+}
+
+func walkValueIntegrationFields(v reflect.Value, prefix string, fn func(path string, fv reflect.Value)) {
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Slice:
+		for i := range v.Len() {
+			walkValueIntegrationFields(v.Index(i), fmt.Sprintf("%s[%d]", prefix, i), fn)
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := range t.NumField() {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			fv := v.Field(i)
+			path := prefix + "." + f.Name
+			if strings.Contains(strings.ToLower(f.Name), "integration") && f.Type.Kind() == reflect.String {
+				fn(path, fv)
+			} else {
+				walkValueIntegrationFields(fv, path, fn)
+			}
+		}
+	}
+}
+
+func populateWithOneElem(v reflect.Value, depth int) {
+	if depth > 10 || v.Kind() != reflect.Struct {
+		return
+	}
+	t := v.Type()
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		fv := v.Field(i)
+		switch fv.Kind() {
+		case reflect.Slice:
+			if fv.Len() == 0 {
+				et := fv.Type().Elem()
+				var elem reflect.Value
+				if et.Kind() == reflect.Pointer {
+					p := reflect.New(et.Elem())
+					populateWithOneElem(p.Elem(), depth+1)
+					elem = p
+				} else {
+					elem = reflect.New(et).Elem()
+					populateWithOneElem(elem, depth+1)
+				}
+				fv.Set(reflect.Append(fv, elem))
+			}
+		case reflect.Pointer:
+			if fv.IsNil() {
+				p := reflect.New(fv.Type().Elem())
+				fv.Set(p)
+				populateWithOneElem(p.Elem(), depth+1)
+			}
+		case reflect.Struct:
+			populateWithOneElem(fv, depth+1)
+		}
+	}
+}
+
+func countSpecIntegrationFields(t reflect.Type, visited map[reflect.Type]bool) int {
+	for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return 0
+	}
+	if visited[t] {
+		return 0
+	}
+	visited[t] = true
+
+	count := 0
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if strings.HasPrefix(f.Name, "XXX_") {
+			continue
+		}
+		if strings.Contains(strings.ToLower(f.Name), "integration") && f.Type.Kind() == reflect.String {
+			count++
+		} else {
+			count += countSpecIntegrationFields(f.Type, visited)
+		}
+	}
+	return count
 }

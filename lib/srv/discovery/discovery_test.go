@@ -4321,6 +4321,22 @@ func TestDiscardAmbientCredentialMatchers(t *testing.T) {
 		Integration:   "azure-int",
 	}
 
+	accessGraphAWSDrop := &types.AccessGraphAWSSync{
+		Regions: []string{"us-east-1"},
+	}
+	accessGraphAWSKeep := &types.AccessGraphAWSSync{
+		Regions:     []string{"us-east-2"},
+		Integration: "aws-int",
+	}
+
+	accessGraphAzureDrop := &types.AccessGraphAzureSync{
+		SubscriptionID: "sub-drop",
+	}
+	accessGraphAzureKeep := &types.AccessGraphAzureSync{
+		SubscriptionID: "sub-keep",
+		Integration:    "azure-int",
+	}
+
 	matchers := Matchers{
 		AWS:   []types.AWSMatcher{awsDrop, awsKeep},
 		Azure: []types.AzureMatcher{azureDrop, azureKeep},
@@ -4330,6 +4346,10 @@ func TestDiscardAmbientCredentialMatchers(t *testing.T) {
 		Kubernetes: []types.KubernetesMatcher{
 			{Types: []string{"app"}},
 		},
+		AccessGraph: &types.AccessGraphSync{
+			AWS:   []*types.AccessGraphAWSSync{accessGraphAWSDrop, accessGraphAWSKeep},
+			Azure: []*types.AccessGraphAzureSync{accessGraphAzureDrop, accessGraphAzureKeep},
+		},
 	}
 
 	discardAmbientCredentialMatchers(t.Context(), logger, &matchers)
@@ -4338,6 +4358,19 @@ func TestDiscardAmbientCredentialMatchers(t *testing.T) {
 	require.Equal(t, []types.AzureMatcher{azureKeep}, matchers.Azure)
 	require.Empty(t, matchers.GCP)
 	require.Empty(t, matchers.Kubernetes)
+	require.Equal(t, []*types.AccessGraphAWSSync{accessGraphAWSKeep}, matchers.AccessGraph.AWS)
+	require.Equal(t, []*types.AccessGraphAzureSync{accessGraphAzureKeep}, matchers.AccessGraph.Azure)
+}
+
+func TestDiscardAmbientCredentialMatchersNilAccessGraph(t *testing.T) {
+	t.Parallel()
+
+	logger := logtest.NewLogger()
+	matchers := Matchers{}
+
+	// Should not panic when AccessGraph is nil.
+	discardAmbientCredentialMatchers(t.Context(), logger, &matchers)
+	require.Nil(t, matchers.AccessGraph)
 }
 
 func TestEmitUsageEvents(t *testing.T) {
