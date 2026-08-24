@@ -1120,6 +1120,8 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	// The Decision API only checks on the default namespace.
 	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		// The OpenSSH registration join flow uses direct UpsertNode rather than
+		// a control stream, so RoleNode needs permission to self-upsert.
 		if err := a.scopedContext.AgentOwnedResourceAction(s.GetScope(), s.GetName(), types.RoleNode); err == nil {
 			return nil
 		}
@@ -1142,33 +1144,8 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	scopedServer := a.ScopedServerWithRoles()
 	switch handle.GetType() {
-	case constants.KeepAliveNode:
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction(handle.Scope, handle.Name, types.RoleNode); err != nil {
-			return trace.Wrap(err)
-		}
-	case constants.KeepAliveApp:
-		hostID := handle.HostID
-		if hostID == "" { // DELETE IN 9.0. Legacy app server is heartbeating back.
-			hostID = handle.Name
-		}
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", hostID, types.RoleApp, types.RoleOkta); err != nil {
-			return trace.Wrap(err)
-		}
-	case constants.KeepAliveDatabase:
-		// There can be multiple database servers per host so they send their
-		// host ID in a separate field because unlike SSH nodes the resource
-		// name cannot be the host ID.
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleDatabase); err != nil {
-			return trace.Wrap(err)
-		}
 	case constants.KeepAliveWindowsDesktopService:
 		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleWindowsDesktop); err != nil {
-			return trace.Wrap(err)
-		}
-	case constants.KeepAliveKube:
-		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
-		// we need to check if the host has the Kube or Proxy role.
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleKube, types.RoleProxy); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabaseService:
@@ -1176,6 +1153,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	default:
+		// Node/App/Database/Kube keepalives were a HeartbeatV1 mechanism; all v18+ agents use HeartbeatV2.
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
 
@@ -6496,6 +6474,8 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
 func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	// TODO(Joerger): DELETE IN v20.0.0 - remove the RoleDatabase agent-owned path.
+	// Only v18 agents attempt to fallback to upsert.
 	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", server.GetHostID(), types.RoleDatabase); err != nil {
 		if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
@@ -6659,10 +6639,8 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 
 // UpsertApplicationServer registers an application server.
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
-	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", server.GetHostID(), types.RoleApp); err != nil {
-		if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if server.GetScope() != "" {
 		return nil, trace.BadParameter("scoped app server must register a control stream")
@@ -7136,6 +7114,8 @@ func (a *ScopedServerWithRoles) GetApplicationServers(ctx context.Context, names
 // UpsertKubernetesServer creates or updates a Server representing a teleport
 // kubernetes server.
 func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
+	// TODO(Joerger): DELETE IN v20.0.0 - remove the RoleKube agent-owned path.
+	// Only v18 agents attempt to fallback to upsert.
 	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", s.GetHostID(), types.RoleKube); err != nil {
 		if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
