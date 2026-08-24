@@ -26,6 +26,19 @@ The Teleport Discovery Service uses an IAM invite token with a long time-to-live
 (TTL), so that new instances can be discovered and added to the Teleport cluster
 for the lifetime of the token.
 
+### Discover EC2 instances in Auto Scaling groups
+
+Teleport supports discovering EC2 instances launched by Amazon EC2 Auto Scaling
+groups (ASGs). The Discovery Service discovers and enrolls ASG members as
+ordinary EC2 instances through the existing EC2 discovery process. No
+ASG-specific Teleport configuration is required.
+
+When matching instances by AWS tags, configure the ASG tags with
+`PropagateAtLaunch=true`. Tags applied only to the ASG are not present on its EC2
+instances and therefore cannot be used by the Discovery Service matcher. The
+Discovery Service enrolls newly launched instances during later discovery
+scans. It excludes terminated instances from discovery.
+
 ## Choosing guided or manual EC2 auto-discovery configuration
 
 In the guided EC2 auto-discovery configuration process, Teleport generates
