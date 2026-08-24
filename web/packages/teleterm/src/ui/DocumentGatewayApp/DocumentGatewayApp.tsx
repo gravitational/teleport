@@ -97,6 +97,8 @@ export function DocumentGatewayApp(props: {
       ) : (
         <AppGateway
           gateway={gateway}
+          llmFormat={doc.llmFormat}
+          llmProvider={doc.llmProvider}
           disconnect={disconnect}
           disconnectAttempt={disconnectAttempt}
           changeLocalPort={changeLocalPort}

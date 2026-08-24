@@ -95,6 +95,8 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   permissionSets: [],
   subKind: '',
   supportedFeatureIds: [],
+  llmFormat: '',
+  llmProvider: '',
   ...props,
 });
 
