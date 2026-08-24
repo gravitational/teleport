@@ -6064,37 +6064,6 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
-// plumbs NormalizeAppServerForHeartbeat through to the backend write
-// for a legacy agent's mixed-case heartbeat.
-func TestApplicationServerHeartbeatLowercase(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	server := newTestTLSServer(t)
-	// The RoleApp identity's host ID must match the app server's HostID.
-	agent := authtest.TestServerID(types.RoleApp, "host-id")
-	client, err := server.NewClient(agent)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
-		URI: "http://localhost:8080",
-	})
-	require.NoError(t, err)
-	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
-	require.NoError(t, err)
-
-	_, err = client.UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-
-	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, stored, 1)
-	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
-	require.Equal(t, "mixedcaseapp", stored[0].GetName())
-}
-
 // TestServerUpsertApplicationServerValidates asserts
 // (*Server).UpsertApplicationServer validates rather than relying on
 // the gRPC handler. Moving validation up would re-open the

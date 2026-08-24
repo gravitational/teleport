@@ -2012,10 +2012,15 @@ func TestAppServerCRUD(t *testing.T) {
 
 	testSrv := newTestTLSServer(t)
 
-	// A RoleApp agent may only manage app servers with its own host ID, so the
-	// identity's host ID and the app server's HostID must match.
+	// A RoleApp agent can read and delete app servers with its own host ID, so
+	// the identity's host ID and the app server's HostID must match. It can no
+	// longer upsert app servers directly (app agents heartbeat via the inventory
+	// control stream); an admin client seeds the app server instead.
 	const appHostID = "app-host-id"
 	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleApp, appHostID))
+	require.NoError(t, err)
+
+	adminClt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -2039,8 +2044,8 @@ func TestAppServerCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Upsert application.
-	_, err = clt.UpsertApplicationServer(ctx, server)
+	// Upsert application (seeded by admin; RoleApp can no longer upsert).
+	_, err = adminClt.UpsertApplicationServer(ctx, server)
 	require.NoError(t, err)
 
 	// Check again, expect a single application to be found.
@@ -4546,79 +4551,6 @@ func TestClusterAlertAccessControls(t *testing.T) {
 
 // TestEventsNodePresence tests streaming node presence API -
 // announcing node and keeping node alive
-func TestEventsNodePresence(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-	nodeName := "node1." + testSrv.ClusterName()
-	node := &types.ServerV2{
-		Kind:    types.KindNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      nodeName,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.ServerSpecV2{
-			Addr: "localhost:3022",
-		},
-	}
-	node.SetExpiry(time.Now().Add(2 * time.Second))
-	clt, err := testSrv.NewClient(authtest.TestIdentity{
-		I: authz.BuiltinRole{
-			Role:     types.RoleNode,
-			Username: nodeName,
-		},
-	})
-	require.NoError(t, err)
-	defer clt.Close()
-
-	keepAlive, err := clt.UpsertNode(ctx, node)
-	require.NoError(t, err)
-	require.NotNil(t, keepAlive)
-
-	keepAliver, err := clt.NewKeepAliver(ctx)
-	require.NoError(t, err)
-	defer keepAliver.Close()
-
-	keepAlive.Expires = time.Now().Add(2 * time.Second)
-	select {
-	case keepAliver.KeepAlives() <- *keepAlive:
-		// ok
-	case <-time.After(time.Second):
-		t.Fatalf("time out sending keep alive")
-	case <-keepAliver.Done():
-		t.Fatalf("unknown problem sending keep alive")
-	}
-
-	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
-	require.NoError(t, err)
-	defer nopClt.Close()
-
-	_, err = nopClt.UpsertNode(ctx, node)
-	require.True(t, trace.IsAccessDenied(err))
-
-	k2, err := nopClt.NewKeepAliver(ctx)
-	require.NoError(t, err)
-
-	keepAlive.Expires = time.Now().Add(2 * time.Second)
-	go func() {
-		select {
-		case k2.KeepAlives() <- *keepAlive:
-		case <-k2.Done():
-		}
-	}()
-
-	select {
-	case <-time.After(time.Second):
-		t.Fatalf("time out expecting error")
-	case <-k2.Done():
-	}
-
-	require.True(t, trace.IsAccessDenied(k2.Error()))
-}
-
 // ExpectResource expects a Put event of a certain resource
 func ExpectResource(t *testing.T, w types.Watcher, timeout time.Duration, resource types.Resource) {
 	timeoutC := time.After(timeout)

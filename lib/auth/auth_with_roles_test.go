@@ -106,7 +106,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -13191,102 +13190,6 @@ func collectWatchKind(kinds []types.WatchKind) []string {
 	return res
 }
 
-func TestKubeKeepAliveServer(t *testing.T) {
-	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
-	domainName, err := authServer.GetDomainName()
-	require.NoError(t, err)
-
-	tests := map[string]struct {
-		builtInRole types.SystemRole
-		assertErr   require.ErrorAssertionFunc
-	}{
-		"as kube service": {
-			builtInRole: types.RoleKube,
-			assertErr:   require.NoError,
-		},
-		"as legacy proxy service": {
-			builtInRole: types.RoleProxy,
-			assertErr:   require.NoError,
-		},
-		"as database service": {
-			builtInRole: types.RoleDatabase,
-			assertErr:   require.Error,
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			hostID := uuid.New().String()
-			// Create a kubernetes cluster.
-			kube, err := types.NewKubernetesClusterV3(
-				types.Metadata{
-					Name:      "kube",
-					Namespace: apidefaults.Namespace,
-				},
-				types.KubernetesClusterSpecV3{},
-			)
-			require.NoError(t, err)
-			// Create a kubernetes server.
-			// If the built-in role is proxy, the server name should be
-			// kube-proxy_service
-			serverName := "kube"
-			if test.builtInRole == types.RoleProxy {
-				serverName += teleport.KubeLegacyProxySuffix
-			}
-			kubeServer, err := types.NewKubernetesServerV3(
-				types.Metadata{
-					Name:      serverName,
-					Namespace: apidefaults.Namespace,
-				},
-				types.KubernetesServerSpecV3{
-					Cluster: kube,
-					HostID:  hostID,
-				},
-			)
-			require.NoError(t, err)
-			// Upsert the kubernetes server into the backend.
-			_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
-			require.NoError(t, err)
-
-			// Create a built-in role.
-			username := utils.HostFQDN(hostID, domainName)
-			authContext, err := authz.ContextForBuiltinRole(
-				authz.BuiltinRole{
-					Role:        test.builtInRole,
-					Username:    username,
-					ClusterName: domainName,
-					Identity:    tlsca.Identity{Username: username},
-				},
-				types.DefaultSessionRecordingConfig(),
-			)
-			require.NoError(t, err)
-
-			// Create a server with the built-in role.
-			srv := auth.NewServerWithRoles(
-				authServer,
-				events.NewDiscardAuditLog(),
-				*authContext,
-			)
-			// Keep alive the server.
-			err = srv.KeepAliveServer(context.Background(),
-				types.KeepAlive{
-					Type:      types.KeepAlive_KUBERNETES,
-					Expires:   time.Now().Add(5 * time.Minute),
-					Name:      serverName,
-					Namespace: apidefaults.Namespace,
-					HostID:    hostID,
-				},
-			)
-			test.assertErr(t, err)
-		},
-		)
-	}
-}
-
 // inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
 // instead of in a background goroutine, making it safe to fail the test from within the closure.
 func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...any) {
@@ -14716,15 +14619,6 @@ func TestRoleNodeLeastPrivilege(t *testing.T) {
 		return node
 	}
 
-	nodeKeepAlive := func(name string) types.KeepAlive {
-		return types.KeepAlive{
-			Type:      types.KeepAlive_NODE,
-			Name:      name,
-			Namespace: apidefaults.Namespace,
-			Expires:   time.Now().Add(5 * time.Minute),
-		}
-	}
-
 	// node is authenticated as the built-in RoleNode for ownID.
 	node := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleNode)
 
@@ -14735,15 +14629,6 @@ func TestRoleNodeLeastPrivilege(t *testing.T) {
 
 	t.Run("upsert other node denied", func(t *testing.T) {
 		_, err := node.ScopedServerWithRoles().UpsertNode(ctx, makeNode(t, otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("keepalive own node allowed", func(t *testing.T) {
-		require.NoError(t, node.KeepAliveServer(ctx, nodeKeepAlive(ownID)))
-	})
-
-	t.Run("keepalive other node denied", func(t *testing.T) {
-		err := node.KeepAliveServer(ctx, nodeKeepAlive(otherID))
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 
@@ -14785,16 +14670,6 @@ func TestRoleDatabaseLeastPrivilege(t *testing.T) {
 		})
 		require.NoError(t, err)
 		return server
-	}
-
-	dbKeepAlive := func(hostID string) types.KeepAlive {
-		return types.KeepAlive{
-			Type:      types.KeepAlive_DATABASE,
-			Name:      "db",
-			Namespace: apidefaults.Namespace,
-			HostID:    hostID,
-			Expires:   time.Now().Add(5 * time.Minute),
-		}
 	}
 
 	// A DatabaseService is name-keyed: its name is the host ID of the db_service.
@@ -14842,6 +14717,8 @@ func TestRoleDatabaseLeastPrivilege(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 
+	// TODO(Joerger): DELETE IN v20.0.0 - flip to denied when the RoleDatabase agent
+	// upsert path is removed (only v18 HeartbeatV1 fallback uses it).
 	t.Run("upsert own database server allowed", func(t *testing.T) {
 		_, err := db.UpsertDatabaseServer(ctx, makeDBServer(t, ownID))
 		require.NoError(t, err)
@@ -14849,15 +14726,6 @@ func TestRoleDatabaseLeastPrivilege(t *testing.T) {
 
 	t.Run("upsert other database server denied", func(t *testing.T) {
 		_, err := db.UpsertDatabaseServer(ctx, makeDBServer(t, otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("keepalive own database server allowed", func(t *testing.T) {
-		require.NoError(t, db.KeepAliveServer(ctx, dbKeepAlive(ownID)))
-	})
-
-	t.Run("keepalive other database server denied", func(t *testing.T) {
-		err := db.KeepAliveServer(ctx, dbKeepAlive(otherID))
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 
@@ -14908,78 +14776,26 @@ func TestRoleAppLeastPrivilege(t *testing.T) {
 		return server
 	}
 
-	appKeepAlive := func(hostID string) types.KeepAlive {
-		return types.KeepAlive{
-			Type:      types.KeepAlive_APP,
-			Name:      "app",
-			Namespace: apidefaults.Namespace,
-			HostID:    hostID,
-			Expires:   time.Now().Add(5 * time.Minute),
-		}
-	}
-
-	// legacyAppKeepAlive builds a pre-9.0 style keepalive with an empty HostID,
-	// exercising the fallback branch in KeepAliveServer that authorizes on Name.
-	legacyAppKeepAlive := func(name string) types.KeepAlive {
-		return types.KeepAlive{
-			Type:      types.KeepAlive_APP,
-			Name:      name,
-			Namespace: apidefaults.Namespace,
-			Expires:   time.Now().Add(5 * time.Minute),
-		}
-	}
-
 	// app is authenticated as the built-in RoleApp for ownID.
 	app := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleApp)
-	// okta is authenticated as the built-in RoleOkta for ownID.
-	okta := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleOkta)
-
-	t.Run("upsert own app server allowed", func(t *testing.T) {
-		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, ownID))
-		require.NoError(t, err)
-	})
-
-	t.Run("upsert other app server denied", func(t *testing.T) {
-		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("keepalive own app server allowed", func(t *testing.T) {
-		require.NoError(t, app.KeepAliveServer(ctx, appKeepAlive(ownID)))
-	})
-
-	t.Run("keepalive other app server denied", func(t *testing.T) {
-		err := app.KeepAliveServer(ctx, appKeepAlive(otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("okta keepalive own app server allowed", func(t *testing.T) {
-		require.NoError(t, okta.KeepAliveServer(ctx, appKeepAlive(ownID)))
-	})
-
-	t.Run("okta keepalive other app server denied", func(t *testing.T) {
-		err := okta.KeepAliveServer(ctx, appKeepAlive(otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("legacy keepalive own app server allowed", func(t *testing.T) {
-		// The pre-9.0 keepalive format has no HostID; the ownership check is
-		// keyed on handle.Name. Assert authorization succeeds even if the
-		// backend has no legacy-format server to update.
-		err := app.KeepAliveServer(ctx, legacyAppKeepAlive(ownID))
-		require.False(t, trace.IsAccessDenied(err), "unexpected access denied: %v", err)
-	})
-
-	t.Run("legacy keepalive other app server denied", func(t *testing.T) {
-		err := app.KeepAliveServer(ctx, legacyAppKeepAlive(otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
 
 	// Seed the app's own server and a foreign server directly in the backend.
 	_, err = as.AuthServer.UpsertApplicationServer(ctx, makeAppServer(t, ownID))
 	require.NoError(t, err)
 	_, err = as.AuthServer.UpsertApplicationServer(ctx, makeAppServer(t, otherID))
 	require.NoError(t, err)
+
+	// App agents heartbeat exclusively via the inventory control stream, so
+	// upserts through this RPC are rejected.
+	t.Run("upsert own app server denied", func(t *testing.T) {
+		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, ownID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("upsert other app server denied", func(t *testing.T) {
+		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
 
 	t.Run("delete own app server allowed", func(t *testing.T) {
 		require.NoError(t, app.DeleteApplicationServer(ctx, apidefaults.Namespace, ownID, "app"))
@@ -15021,19 +14837,11 @@ func TestRoleKubeLeastPrivilege(t *testing.T) {
 		return server
 	}
 
-	kubeKeepAlive := func(hostID string) types.KeepAlive {
-		return types.KeepAlive{
-			Type:      types.KeepAlive_KUBERNETES,
-			Name:      "kube",
-			Namespace: apidefaults.Namespace,
-			HostID:    hostID,
-			Expires:   time.Now().Add(5 * time.Minute),
-		}
-	}
-
 	// kube is authenticated as the built-in RoleKube for ownID.
 	kube := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleKube)
 
+	// TODO(Joerger): DELETE IN v20.0.0 - flip to denied when the RoleKube agent
+	// upsert path is removed (only v18 HeartbeatV1 fallback uses it).
 	t.Run("upsert own kube server allowed", func(t *testing.T) {
 		_, err := kube.UpsertKubernetesServer(ctx, makeKubeServer(t, ownID))
 		require.NoError(t, err)
@@ -15041,15 +14849,6 @@ func TestRoleKubeLeastPrivilege(t *testing.T) {
 
 	t.Run("upsert other kube server denied", func(t *testing.T) {
 		_, err := kube.UpsertKubernetesServer(ctx, makeKubeServer(t, otherID))
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-	})
-
-	t.Run("keepalive own kube server allowed", func(t *testing.T) {
-		require.NoError(t, kube.KeepAliveServer(ctx, kubeKeepAlive(ownID)))
-	})
-
-	t.Run("keepalive other kube server denied", func(t *testing.T) {
-		err := kube.KeepAliveServer(ctx, kubeKeepAlive(otherID))
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 

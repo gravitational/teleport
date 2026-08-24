@@ -221,7 +221,6 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 func (s *LinuxService) startServiceHeartbeat() error {
 	heartbeat, err := srv.NewLinuxDesktopHeartbeat(srv.HeartbeatV2Config[*linuxdesktopv1pb.LinuxDesktop]{
 		InventoryHandle: s.cfg.InventoryHandle,
-		Announcer:       s.cfg.AccessPoint,
 		GetResource: func(ctx context.Context) (*linuxdesktopv1pb.LinuxDesktop, error) {
 			desktop, err := linuxdesktopv1.NewLinuxDesktop(s.cfg.Heartbeat.HostUUID, linuxdesktopv1pb.LinuxDesktopSpec_builder{
 				Addr:     s.cfg.Heartbeat.PublicAddr,
