@@ -32,9 +32,11 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
@@ -48,11 +50,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 		}.Build(),
 	}
 
-	inPerms := &ssh.Permissions{
-		Extensions: map[string]string{
-			"foo": "bar",
-		},
-	}
+	inPerms := newPerms(t)
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
 	require.Nil(t, outPerms)
@@ -75,20 +73,29 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 		user:      "test-user",
 	}
 
-	// Verify that the KeyboardInteractiveCallback processes the MFA response and returns the original permissions.
+	// Verify that the KeyboardInteractiveCallback processes the MFA response and records the MFA device as a lock
+	// target on the returned permissions.
 	outPerms, err = sshErr.Next.KeyboardInteractiveCallback(
 		metadata,
 		mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
 	)
 	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"KeyboardInteractiveCallback() perms mismatch (-want +got)",
-	)
+
+	wantPermit := decisionpb.SSHAccessPermit_builder{
+		LockTargets: []*decisionpb.LockTarget{
+			decisionpb.LockTarget_builder{MfaDevice: "test-device-id"}.Build(),
+		},
+	}.Build()
+	wantPermitJSON, err := decision.MarshalSSHAccessPermit(wantPermit)
+	require.NoError(t, err)
+
+	want := &ssh.Permissions{
+		Extensions: map[string]string{
+			utils.ExtIntSSHAccessPermit: wantPermitJSON,
+		},
+	}
+
+	require.Empty(t, cmp.Diff(want, outPerms), "KeyboardInteractiveCallback() perms mismatch (-want +got)")
 }
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.T) {
@@ -105,7 +112,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.
 		}.Build(),
 	}
 
-	inPerms := &ssh.Permissions{}
+	inPerms := newPerms(t)
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
 	require.Nil(t, outPerms)
@@ -208,6 +215,20 @@ func setupKeyboardInteractiveAuthTestWithVerifier(t *testing.T, verifier mfav2.M
 	return h, id
 }
 
+func newPerms(t *testing.T) *ssh.Permissions {
+	t.Helper()
+
+	permit := decisionpb.SSHAccessPermit_builder{}.Build()
+	permitJSON, err := decision.MarshalSSHAccessPermit(permit)
+	require.NoError(t, err)
+
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			utils.ExtIntSSHAccessPermit: permitJSON,
+		},
+	}
+}
+
 type mockAccessPoint struct {
 	srv.AccessPoint
 }
@@ -236,7 +257,9 @@ func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, re
 		return nil, m.verifyErr
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		MfaDevice: mfav2.MFADevice_builder{Id: "test-device-id"}.Build(),
+	}.Build(), nil
 }
 
 type mockConnMetadata struct {

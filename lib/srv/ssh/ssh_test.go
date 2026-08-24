@@ -25,8 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var keyboardInteractiveCallbackParams = srvssh.KeyboardInteractiveCallbackParams{
@@ -108,6 +111,103 @@ func TestKeyboardInteractiveCallback_MultiplePromptVerifiers(t *testing.T) {
 	require.Equal(t, params.Permissions, perms)
 }
 
+func TestKeyboardInteractiveCallback_AppendsLockTargets(t *testing.T) {
+	t.Parallel()
+
+	var (
+		existing = []string{"mfa-device-1", "mfa-device-2"}
+		verified = []string{"mfa-device-3", "mfa-device-4"}
+		want     = []string{"mfa-device-1", "mfa-device-2", "mfa-device-3", "mfa-device-4"}
+	)
+
+	params := keyboardInteractiveCallbackParams
+	params.Permissions = newPerms(t, existing...)
+	params.PromptVerifiers = []srvssh.PromptVerifier{
+		&mockPromptVerifier{
+			Prompt:         "test-prompt",
+			Echo:           false,
+			ExpectedAnswer: "test-answer",
+			LockTargets:    newLockTargets(verified...),
+		},
+	}
+
+	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
+	require.NoError(t, err)
+	require.Equal(t, want, permitMFADeviceIDs(t, perms))
+}
+
+func TestKeyboardInteractiveCallback_AppendLockTargetsFailClosed(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		perms  *ssh.Permissions
+		assert func(t *testing.T, perms *ssh.Permissions, err error)
+	}{
+		{
+			name:  "missing SSH access permit",
+			perms: &ssh.Permissions{},
+			assert: func(t *testing.T, _ *ssh.Permissions, err error) {
+				require.ErrorIs(t, err, trace.BadParameter("missing SSH access permit (this is a bug)"))
+			},
+		},
+		{
+			name: "invalid SSH access permit",
+			perms: &ssh.Permissions{
+				Extensions: map[string]string{
+					utils.ExtIntSSHAccessPermit: "not-json",
+				},
+			},
+			assert: func(t *testing.T, perms *ssh.Permissions, err error) {
+				require.Error(t, err)
+				require.Nil(t, perms)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params := keyboardInteractiveCallbackParams
+			params.Permissions = tc.perms
+			params.PromptVerifiers = []srvssh.PromptVerifier{
+				&mockPromptVerifier{
+					Prompt:         "test-prompt",
+					Echo:           false,
+					ExpectedAnswer: "test-answer",
+					LockTargets:    newLockTargets("device-1"),
+				},
+			}
+
+			perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
+			tc.assert(t, perms, err)
+		})
+	}
+}
+
+func TestKeyboardInteractiveCallback_MultipleVerifiersCollectLockTargets(t *testing.T) {
+	t.Parallel()
+
+	params := keyboardInteractiveCallbackParams
+	params.Permissions = newPerms(t)
+	params.PromptVerifiers = []srvssh.PromptVerifier{
+		&mockPromptVerifier{
+			Prompt:         "test-prompt-1",
+			Echo:           false,
+			ExpectedAnswer: "test-answer-1",
+			LockTargets:    newLockTargets("device-1"),
+		},
+		&mockPromptVerifier{
+			Prompt:         "test-prompt-2",
+			Echo:           false,
+			ExpectedAnswer: "test-answer-2",
+			LockTargets:    newLockTargets("device-2"),
+		},
+	}
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{"test-answer-1", "test-answer-2"})
+
+	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"device-1", "device-2"}, permitMFADeviceIDs(t, perms))
+}
+
 func TestKeyboardInteractiveCallback_CheckParams(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +283,7 @@ type mockPromptVerifier struct {
 	Prompt         string
 	Echo           bool
 	ExpectedAnswer string
+	LockTargets    []*decisionpb.LockTarget
 }
 
 var _ srvssh.PromptVerifier = (*mockPromptVerifier)(nil)
@@ -191,10 +292,34 @@ func (m *mockPromptVerifier) MarshalPrompt() (string, bool, error) {
 	return m.Prompt, m.Echo, nil
 }
 
-func (m *mockPromptVerifier) VerifyAnswer(ctx context.Context, answer string) error {
+func (m *mockPromptVerifier) VerifyAnswer(ctx context.Context, answer string) (*srvssh.VerifyAnswerResult, error) {
 	if answer != m.ExpectedAnswer {
-		return trace.BadParameter("got %q, want %q", answer, m.ExpectedAnswer)
+		return &srvssh.VerifyAnswerResult{}, trace.BadParameter("got %q, want %q", answer, m.ExpectedAnswer)
 	}
 
-	return nil
+	return &srvssh.VerifyAnswerResult{LockTargets: m.LockTargets}, nil
+}
+
+func newLockTargets(deviceIDs ...string) []*decisionpb.LockTarget {
+	targets := make([]*decisionpb.LockTarget, 0, len(deviceIDs))
+	for _, id := range deviceIDs {
+		targets = append(targets, decisionpb.LockTarget_builder{MfaDevice: id}.Build())
+	}
+
+	return targets
+}
+
+func permitMFADeviceIDs(t *testing.T, perms *ssh.Permissions) []string {
+	t.Helper()
+
+	permit := &decisionpb.SSHAccessPermit{}
+	//nolint:forbidigo // The permit is marshaled in-process, so unknown fields cannot occur.
+	require.NoError(t, protojson.Unmarshal([]byte(perms.Extensions[utils.ExtIntSSHAccessPermit]), permit))
+
+	deviceIDs := make([]string, 0, len(permit.GetLockTargets()))
+	for _, target := range permit.GetLockTargets() {
+		deviceIDs = append(deviceIDs, target.GetMfaDevice())
+	}
+
+	return deviceIDs
 }

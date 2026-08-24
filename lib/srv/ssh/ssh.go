@@ -23,6 +23,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/lib/decision"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // PromptVerifier defines an interface for marshaling authentication prompts and verifying answers.
@@ -31,7 +35,13 @@ type PromptVerifier interface {
 	MarshalPrompt() (prompt string, echo bool, err error)
 
 	// VerifyAnswer verifies the UTF-8 encoded answer provided by the client.
-	VerifyAnswer(ctx context.Context, answer string) error
+	VerifyAnswer(ctx context.Context, answer string) (*VerifyAnswerResult, error)
+}
+
+// VerifyAnswerResult carries data produced while verifying an answer.
+type VerifyAnswerResult struct {
+	// LockTargets are additional lock targets to record on the access permit once verification succeeds.
+	LockTargets []*decisionpb.LockTarget
 }
 
 // KeyboardInteractiveCallbackParams contains required parameters for KeyboardInteractiveCallback.
@@ -80,14 +90,22 @@ func KeyboardInteractiveCallback(
 		return nil, trace.BadParameter("expected exactly %d answer(s), got %d answer(s)", len(questions), len(answers))
 	}
 
-	// Process each answer using its corresponding PromptVerifier.
+	// Process each answer using its corresponding PromptVerifier, collecting any lock additional targets produced.
+	var extraLockTargets []*decisionpb.LockTarget
 	for i, answer := range answers {
-		if err := params.PromptVerifiers[i].VerifyAnswer(ctx, answer); err != nil {
+		result, err := params.PromptVerifiers[i].VerifyAnswer(ctx, answer)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		extraLockTargets = append(extraLockTargets, result.LockTargets...)
 	}
 
-	// Return the original permissions upon successful verification to signal success.
+	// Record any lock targets on the access permit so downstream lock enforcement observes them.
+	if err := appendLockTargets(params.Permissions, extraLockTargets); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return params.Permissions, nil
 }
 
@@ -108,4 +126,33 @@ func checkKeyboardInteractiveCallbackParams(params KeyboardInteractiveCallbackPa
 	default:
 		return nil
 	}
+}
+
+func appendLockTargets(perms *ssh.Permissions, targets []*decisionpb.LockTarget) error {
+	if len(targets) == 0 {
+		return nil
+	}
+
+	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return trace.BadParameter("missing SSH access permit (this is a bug)")
+	}
+
+	permit, err := decision.UnmarshalSSHAccessPermit(rawPermit)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, target := range targets {
+		permit.SetLockTargets(append(permit.GetLockTargets(), target))
+	}
+
+	permitJSON, err := decision.MarshalSSHAccessPermit(permit)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	perms.Extensions[utils.ExtIntSSHAccessPermit] = permitJSON
+
+	return nil
 }

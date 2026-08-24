@@ -24,12 +24,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
+	"github.com/gravitational/teleport/lib/decision"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -37,66 +41,83 @@ const (
 	challengeName    = "test-challenge-name"
 	sourceCluster    = "test-cluster"
 	teleportUsername = "alice"
+	deviceID         = "test-device-id"
 )
 
 func TestNewMFAPromptVerifier_InvalidParams(t *testing.T) {
 	t.Parallel()
 
-	for _, testCase := range []struct {
-		name          string
+	type params struct {
 		verifier      srvssh.ValidatedMFAChallengeVerifier
 		sourceCluster string
 		username      string
 		sessionID     []byte
-		wantErr       error
+	}
+
+	baseParams := params{
+		verifier:      &mockValidatedMFAChallengeVerifier{},
+		sourceCluster: sourceCluster,
+		username:      teleportUsername,
+		sessionID:     []byte(sessionID),
+	}
+
+	for _, testCase := range []struct {
+		name    string
+		params  params
+		wantErr error
 	}{
 		{
-			name:          "nil verifier",
-			verifier:      nil,
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params Verifier must be set"),
+			name: "nil verifier",
+			params: func() params {
+				p := baseParams
+				p.verifier = nil
+				return p
+			}(),
+			wantErr: trace.BadParameter("params Verifier must be set"),
 		},
 		{
-			name:          "empty sourceCluster",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: "",
-			username:      teleportUsername,
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params SourceCluster must be set"),
+			name: "empty sourceCluster",
+			params: func() params {
+				p := baseParams
+				p.sourceCluster = ""
+				return p
+			}(),
+			wantErr: trace.BadParameter("params SourceCluster must be set"),
 		},
 		{
-			name:          "empty username",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      "",
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params Username must be set"),
+			name: "empty username",
+			params: func() params {
+				p := baseParams
+				p.username = ""
+				return p
+			}(),
+			wantErr: trace.BadParameter("params Username must be set"),
 		},
 		{
-			name:          "nil sessionID",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     nil,
-			wantErr:       trace.BadParameter("params SessionID must be set and be non-empty"),
+			name: "nil sessionID",
+			params: func() params {
+				p := baseParams
+				p.sessionID = nil
+				return p
+			}(),
+			wantErr: trace.BadParameter("params SessionID must be set and be non-empty"),
 		},
 		{
-			name:          "empty sessionID",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     []byte(""),
-			wantErr:       trace.BadParameter("params SessionID must be set and be non-empty"),
+			name: "empty sessionID",
+			params: func() params {
+				p := baseParams
+				p.sessionID = []byte("")
+				return p
+			}(),
+			wantErr: trace.BadParameter("params SessionID must be set and be non-empty"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := srvssh.NewMFAPromptVerifier(
-				testCase.verifier,
-				testCase.sourceCluster,
-				testCase.username,
-				testCase.sessionID,
+				testCase.params.verifier,
+				testCase.params.sourceCluster,
+				testCase.params.username,
+				testCase.params.sessionID,
 			)
 			require.ErrorIs(t, err, testCase.wantErr)
 		})
@@ -120,89 +141,112 @@ func TestMFAPromptVerifier_MarshalPrompt(t *testing.T) {
 	require.Contains(t, prompt, srvssh.MFAPromptMessage)
 }
 
-func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
+func TestMFAPromptVerifier_VerifyAnswer(t *testing.T) {
 	t.Parallel()
 
-	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		sourceCluster,
-		teleportUsername,
-		[]byte(sessionID),
-	)
-	require.NoError(t, err)
-
-	resp := sshpb.MFAPromptResponse_builder{
+	validRefResp := sshpb.MFAPromptResponse_builder{
 		Reference: sshpb.MFAPromptResponseReference_builder{
 			ChallengeName: challengeName,
 		}.Build(),
 	}.Build()
-	respJSON, err := protojson.Marshal(resp)
+	validRefJSON, err := protojson.Marshal(validRefResp)
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.NoError(t, err)
-}
-
-func TestMFAPromptVerifier_VerifyAnswer_InvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		sourceCluster,
-		teleportUsername,
-		[]byte(sessionID),
-	)
+	emptyRespJSON, err := protojson.Marshal(sshpb.MFAPromptResponse_builder{}.Build())
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(t.Context(), "not-json")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid value not-json")
-}
-
-func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
-	t.Parallel()
-
-	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		sourceCluster,
-		teleportUsername,
-		[]byte(sessionID),
-	)
-	require.NoError(t, err)
-
-	resp := sshpb.MFAPromptResponse_builder{}.Build()
-	respJSON, err := protojson.Marshal(resp)
-	require.NoError(t, err)
-
-	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorIs(t, err, trace.BadParameter("missing Response in MFAPromptResponse"))
-}
-
-func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
-	t.Parallel()
-
-	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		sourceCluster,
-		teleportUsername,
-		[]byte(sessionID),
-	)
-	require.NoError(t, err)
-
-	resp := sshpb.MFAPromptResponse_builder{
+	emptyChallengeJSON, err := protojson.Marshal(sshpb.MFAPromptResponse_builder{
 		Reference: sshpb.MFAPromptResponseReference_builder{
 			ChallengeName: "",
 		}.Build(),
-	}.Build()
-	respJSON, err := protojson.Marshal(resp)
+	}.Build())
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorIs(t, err, trace.BadParameter("missing ChallengeName in MFAPromptResponseReference"))
+	for _, tc := range []struct {
+		name          string
+		mockMFADevice *mfav2.MFADevice
+		answer        string
+		assert        func(t *testing.T, result *srvssh.VerifyAnswerResult, err error)
+	}{
+		{
+			name:   "success",
+			answer: string(validRefJSON),
+			assert: func(t *testing.T, result *srvssh.VerifyAnswerResult, err error) {
+				require.NoError(t, err)
+				require.Len(t, result.LockTargets, 1)
+				require.Equal(t, deviceID, result.LockTargets[0].GetMfaDevice())
+			},
+		},
+		{
+			name:   "invalid JSON",
+			answer: "not-json",
+			assert: func(t *testing.T, _ *srvssh.VerifyAnswerResult, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid value not-json")
+			},
+		},
+		{
+			name:   "missing Response",
+			answer: string(emptyRespJSON),
+			assert: func(t *testing.T, _ *srvssh.VerifyAnswerResult, err error) {
+				require.ErrorIs(t, err, trace.BadParameter("missing Response in MFAPromptResponse"))
+			},
+		},
+		{
+			name:   "empty ChallengeName",
+			answer: string(emptyChallengeJSON),
+			assert: func(t *testing.T, _ *srvssh.VerifyAnswerResult, err error) {
+				require.ErrorIs(t, err, trace.BadParameter("missing ChallengeName in MFAPromptResponseReference"))
+			},
+		},
+		{
+			name:          "empty MFA device",
+			mockMFADevice: mfav2.MFADevice_builder{Id: ""}.Build(),
+			answer:        string(validRefJSON),
+			assert: func(t *testing.T, _ *srvssh.VerifyAnswerResult, err error) {
+				require.ErrorIs(t, err, trace.BadParameter("missing MFA device with non-empty ID (this is a bug)"))
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			verifier, err := srvssh.NewMFAPromptVerifier(
+				&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName, mfaDevice: tc.mockMFADevice},
+				sourceCluster,
+				teleportUsername,
+				[]byte(sessionID),
+			)
+			require.NoError(t, err)
+
+			result, err := verifier.VerifyAnswer(t.Context(), tc.answer)
+			tc.assert(t, result, err)
+		})
+	}
+}
+
+func newPerms(t *testing.T, mfaDeviceIDs ...string) *ssh.Permissions {
+	t.Helper()
+
+	lockTargets := make([]*decisionpb.LockTarget, 0, len(mfaDeviceIDs))
+	for _, deviceID := range mfaDeviceIDs {
+		lockTargets = append(lockTargets, decisionpb.LockTarget_builder{MfaDevice: deviceID}.Build())
+	}
+
+	permit := decisionpb.SSHAccessPermit_builder{
+		LockTargets: lockTargets,
+	}.Build()
+	permitJSON, err := decision.MarshalSSHAccessPermit(permit)
+	require.NoError(t, err)
+
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			utils.ExtIntSSHAccessPermit: permitJSON,
+		},
+	}
 }
 
 type mockValidatedMFAChallengeVerifier struct {
 	expectedChallengeName string
+	mfaDevice             *mfav2.MFADevice
 	err                   error
 }
 
@@ -223,5 +267,14 @@ func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
 		)
 	}
 
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	mfaDevice := mfav2.MFADevice_builder{
+		Id: deviceID,
+	}.Build()
+	if m.mfaDevice != nil {
+		mfaDevice = m.mfaDevice
+	}
+
+	return mfav2.VerifyValidatedMFAChallengeResponse_builder{
+		MfaDevice: mfaDevice,
+	}.Build(), nil
 }
