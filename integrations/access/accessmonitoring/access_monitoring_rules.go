@@ -266,10 +266,17 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 		req.UsePreviewAsRoles = true
 	}
 
+	// GetAllRequestedResourceIDs() returns []ResourceAccessID.
+	// RiskyExtractResourceIDs() maps []ResourceAccessID to []ResourceID,
+	// removing constrains associated with resourceIDs. This is not risky
+	// in this context as we just need the resource IDs for getting the
+	// resource labels for the access monitoring rule condition expression
+	// evaluation.
+	resourceIDs := types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs())
 	requestedResources, err := accessrequest.GetResourcesByResourceIDs(
 		ctx,
 		amrh.apiClient,
-		req.GetRequestedResourceIDs(),
+		resourceIDs,
 		usePreviewAsRoles,
 	)
 	if err != nil {

@@ -293,7 +293,15 @@ func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRe
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
 
-	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, req.GetRequestedResourceIDs())
+	// GetAllRequestedResourceIDs includes resources that carry
+	// constraints; RiskyExtractResourceIDs then drops those constraints,
+	// keeping only the bare IDs to fetch. Dropping them is safe here:
+	// access monitoring expressions have no access to constraints, and
+	// because a constraint only narrows the request, evaluating the
+	// un-narrowed resource means a restrictive (DENY) expression cannot be
+	// circumvented by adding a constraint.
+	resourceIDs := types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs())
+	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, resourceIDs)
 	if err != nil {
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
