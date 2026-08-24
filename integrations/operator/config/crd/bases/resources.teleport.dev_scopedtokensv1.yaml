@@ -413,6 +413,62 @@ spec:
                       that are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
+              gitlab:
+                description: Configuration specific to the "gitlab" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A set of claim-matching fields evaluated against
+                      the GitLab CI token.
+                    items:
+                      properties:
+                        ci_config_ref_uri:
+                          type: string
+                        ci_config_sha:
+                          type: string
+                        deployment_tier:
+                          type: string
+                        environment:
+                          type: string
+                        environment_protected:
+                          type: boolean
+                        namespace_path:
+                          type: string
+                        pipeline_source:
+                          type: string
+                        project_path:
+                          type: string
+                        project_visibility:
+                          type: string
+                        ref:
+                          type: string
+                        ref_protected:
+                          type: boolean
+                        ref_type:
+                          type: string
+                        sub:
+                          type: string
+                        user_email:
+                          type: string
+                        user_id:
+                          type: string
+                        user_login:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  domain:
+                    description: The domain of your GitLab instance. This will default
+                      to `gitlab.com` - but can be set to the domain of your self-hosted
+                      GitLab e.g `gitlab.example.com`.
+                    type: string
+                  static_jwks:
+                    description: Disables fetching of the GitLab signing keys via
+                      the JWKS/OIDC endpoints, and allows them to be directly specified.
+                      This allows joining from GitLab CI instances that are not reachable
+                      by the Teleport Auth Service.
+                    type: string
+                type: object
               immutable_labels:
                 description: Immutable labels that should be applied to any resulting
                   resources provisioned using this token.

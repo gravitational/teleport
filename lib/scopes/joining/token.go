@@ -385,6 +385,36 @@ func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error
 	return nil
 }
 
+// validateGitLab validates the GitLab-specific scoped token configuration.
+// The token usage mode must not be "single".
+// The domain must not contain a scheme or path.
+// There must be at least one allow rule.
+// Each allow rule must have at least one of ['sub', 'project_path', 'namespace_path', 'ci_config_ref_uri'].
+func validateGitLab(spec *joiningv1.GitLab, tokenUsageMode TokenUsageMode) error {
+	if spec == nil {
+		return trace.BadParameter("gitlab configuration must be defined for a scoped token when using the gitlab join method")
+	}
+	if tokenUsageMode == TokenUsageModeSingle {
+		return trace.BadParameter("usage mode %q is not supported for gitlab join method", TokenUsageModeSingle)
+	}
+
+	// empty domain field allowed
+	if spec.GetDomain() != "" && strings.Contains(spec.GetDomain(), "/") {
+		return trace.BadParameter("'spec.gitlab.domain' should not contain a scheme or path")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("the gitlab join method requires defined gitlab allow rules")
+	}
+
+	for _, allowRule := range spec.GetAllow() {
+		if allowRule.GetSub() == "" && allowRule.GetNamespacePath() == "" && allowRule.GetProjectPath() == "" && allowRule.GetCiConfigRefUri() == "" {
+			return trace.BadParameter("the gitlab join method requires allow rules with at least one of ['sub', 'project_path', 'namespace_path', 'ci_config_ref_uri'] to ensure security.")
+		}
+	}
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -414,6 +444,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if err := validateGithub(token.GetSpec().GetGithub(), TokenUsageMode(token.GetSpec().GetUsageMode())); err != nil {
 			return trace.Wrap(err, "github join method")
 		}
+	case types.JoinMethodGitLab:
+		return trace.Wrap(validateGitLab(token.GetSpec().GetGitlab(), TokenUsageMode(token.GetSpec().GetUsageMode())), "gitlab join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1070,6 +1102,42 @@ func (t *Token) GetGithub() *types.ProvisionTokenSpecV2GitHub {
 		EnterpriseSlug:       spec.GetEnterpriseSlug(),
 		StaticJWKS:           spec.GetStaticJwks(),
 		Allow:                allow,
+	}
+}
+
+func (t *Token) GetGitLab() *types.ProvisionTokenSpecV2GitLab {
+	spec := t.scoped.GetSpec().GetGitlab()
+
+	allow := make([]*types.ProvisionTokenSpecV2GitLab_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GitLab_Rule{
+			Sub:               rule.GetSub(),
+			Ref:               rule.GetRef(),
+			RefType:           rule.GetRefType(),
+			NamespacePath:     rule.GetNamespacePath(),
+			ProjectPath:       rule.GetProjectPath(),
+			PipelineSource:    rule.GetPipelineSource(),
+			Environment:       rule.GetEnvironment(),
+			UserLogin:         rule.GetUserLogin(),
+			UserID:            rule.GetUserId(),
+			UserEmail:         rule.GetUserEmail(),
+			CIConfigSHA:       rule.GetCiConfigSha(),
+			CIConfigRefURI:    rule.GetCiConfigRefUri(),
+			DeploymentTier:    rule.GetDeploymentTier(),
+			ProjectVisibility: rule.GetProjectVisibility(),
+		}
+		if rule.HasRefProtected() {
+			allow[i].RefProtected = types.NewBoolOption(rule.GetRefProtected())
+		}
+		if rule.HasEnvironmentProtected() {
+			allow[i].EnvironmentProtected = types.NewBoolOption(rule.GetEnvironmentProtected())
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GitLab{
+		Domain:     spec.GetDomain(),
+		StaticJWKS: spec.GetStaticJwks(),
+		Allow:      allow,
 	}
 }
 

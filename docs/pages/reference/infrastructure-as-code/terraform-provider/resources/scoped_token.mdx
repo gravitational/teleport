@@ -109,6 +109,7 @@ Optional:
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
 - `github` (Attributes) Configuration specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
+- `gitlab` (Attributes) Configuration specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
 - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
 - `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
@@ -295,6 +296,37 @@ Optional:
 - `repository_owner` (String) repository_owner is the name of the organization in which the repository is stored.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `sub` (String) sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `workflow` (String) workflow name.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+
+
+
+### Nested Schema for `spec.gitlab`
+
+Optional:
+
+- `allow` (Attributes List) A set of claim-matching fields evaluated against the GitLab CI token. (see [below for nested schema](#nested-schema-for-specgitlaballow))
+- `domain` (String) The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.
+- `static_jwks` (String) Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.
+
+### Nested Schema for `spec.gitlab.allow`
+
+Optional:
+
+- `ci_config_ref_uri` (String) The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+- `ci_config_sha` (String) The git commit SHA for the ci_config_ref_uri.
+- `deployment_tier` (String) The deployment tier of the environment the job specifies
+- `environment` (String) Limits access by the environment the job deploys to (if one is associated)
+- `environment_protected` (Boolean) True if the Git ref is protected, false otherwise.
+- `namespace_path` (String) Used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `pipeline_source` (String) Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`
+- `project_path` (String) Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `project_visibility` (String) The visibility of the project where the pipeline is running. Can be internal, private, or public.
+- `ref` (String) Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref_protected` (Boolean) True if the Git ref is protected, false otherwise.
+- `ref_type` (String) Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`
+- `sub` (String) Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `user_email` (String) The email of the user executing the job
+- `user_id` (String) The ID of the user executing the job
+- `user_login` (String) The username of the user executing the job
 
 
 

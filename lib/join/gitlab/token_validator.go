@@ -80,6 +80,8 @@ func (id *IDTokenValidator) issuerURL(domain string) string {
 	return fmt.Sprintf("%s://%s", scheme, domain)
 }
 
+const defaultGitLabDomain = "gitlab.com"
+
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, domain string, token string,
 ) (*IDTokenClaims, error) {
@@ -87,7 +89,9 @@ func (id *IDTokenValidator) Validate(
 	if err != nil {
 		return nil, err
 	}
-
+	if domain == "" {
+		domain = defaultGitLabDomain
+	}
 	audience := clusterNameResource.GetClusterName()
 	issuer := id.issuerURL(domain)
 
