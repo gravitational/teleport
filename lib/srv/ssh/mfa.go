@@ -25,14 +25,15 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
 // ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
 // completed MFA.
 type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error)
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2pb.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2pb.VerifyValidatedMFAChallengeResponse, error)
 }
 
 // MFAPromptVerifier is a PromptVerifier that marshals and verifies MFA prompts and responses.
@@ -93,37 +94,51 @@ func (pv *MFAPromptVerifier) MarshalPrompt() (string, bool, error) {
 	return string(json), false, nil
 }
 
-// VerifyAnswer verifies the MFA answer by unmarshaling it and checking that the validated MFA challenge exists.
-func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) error {
+// VerifyAnswer verifies the MFA answer by unmarshaling it and checking that the validated MFA challenge exists. On
+// success it returns the lock targets to record for downstream lock enforcement (the MFA device used).
+func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) (*VerifyAnswerResult, error) {
 	mfaPromptResp := &sshpb.MFAPromptResponse{}
 
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(answer), mfaPromptResp); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch resp := mfaPromptResp.WhichResponse(); resp {
 	case sshpb.MFAPromptResponse_Reference_case:
 		challengeName := mfaPromptResp.GetReference().GetChallengeName()
 		if challengeName == "" {
-			return trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
+			return nil, trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
 		}
 
-		req := mfav2.VerifyValidatedMFAChallengeRequest_builder{
+		req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
 			Name: challengeName,
-			Payload: mfav2.SessionIdentifyingPayload_builder{
+			Payload: mfav2pb.SessionIdentifyingPayload_builder{
 				SshSessionId: pv.sessionID,
 			}.Build(),
 			SourceCluster: pv.sourceCluster,
 			Username:      pv.username,
 		}.Build()
 
-		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
-		return trace.Wrap(err)
+		verifyResp, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		device := verifyResp.GetMfaDevice()
+		if device.GetId() == "" {
+			return nil, trace.BadParameter("missing MFA device with non-empty ID (this is a bug)")
+		}
+
+		return &VerifyAnswerResult{
+			LockTargets: []*decisionpb.LockTarget{
+				decisionpb.LockTarget_builder{MfaDevice: device.GetId()}.Build(),
+			},
+		}, nil
 
 	case 0:
-		return trace.BadParameter("missing Response in MFAPromptResponse")
+		return nil, trace.BadParameter("missing Response in MFAPromptResponse")
 
 	default:
-		return trace.BadParameter("unsupported MFAPromptResponse Response type: %v", resp)
+		return nil, trace.BadParameter("unsupported MFAPromptResponse Response type: %v", resp)
 	}
 }

@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -189,8 +188,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	var permitCount int
 	var accessPermit *decisionpb.SSHAccessPermit
 	if permitRaw, ok := sconn.Permissions.Extensions[utils.ExtIntSSHAccessPermit]; ok {
-		accessPermit = &decisionpb.SSHAccessPermit{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(permitRaw), accessPermit); err != nil {
+		accessPermit, err = decision.UnmarshalSSHAccessPermit(permitRaw)
+		if err != nil {
 			return IdentityContext{}, trace.Wrap(err)
 		}
 		permitCount++
@@ -646,12 +645,12 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 	}
 
 	if accessPermit != nil {
-		encodedPermit, err := protojson.Marshal(accessPermit)
+		encodedPermit, err := decision.MarshalSSHAccessPermit(accessPermit)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		outputPermissions.Extensions[utils.ExtIntSSHAccessPermit] = string(encodedPermit)
+		outputPermissions.Extensions[utils.ExtIntSSHAccessPermit] = encodedPermit
 	}
 
 	if proxyPermit != nil {
@@ -727,8 +726,8 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return perms, nil
 	}
 
-	permit := &decisionpb.SSHAccessPermit{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
+	permit, err := decision.UnmarshalSSHAccessPermit(rawPermit)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
