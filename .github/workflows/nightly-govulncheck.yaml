@@ -20,15 +20,17 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       branches-json: ${{ steps.branches.outputs.branches-json }}
     steps:
       - name: Get the latest release version
-        uses: gravitational/teleport.e/.github/actions/latest-version@master
+        uses: gravitational/core/.github/actions/latest-version@master
         id: latest-version
       - name: Parse the latest version
         id: version
-        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        uses: gravitational/core/.github/actions/parse-version@master
         with:
           version: ${{ steps.latest-version.outputs.latest-version }}
       - name: Checkout repository
@@ -62,16 +64,17 @@ jobs:
   run:
     runs-on: ubuntu-22.04-32core
     needs: setup
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         branch: ${{ fromJson(needs.setup.outputs.branches-json) }}
     steps:
       - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-ref: ${{ matrix.branch }}
-          edition: enterprise
+          ref: ${{ matrix.branch }}
 
       - name: Install Go
         uses: actions/setup-go@v6

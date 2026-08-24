@@ -54,10 +54,12 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-ref: master
-          edition: enterprise
+          fetch-depth: 0
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
 
       # Allow the workflow_dispatch input parameter slack-channel-id to override the
       # channel the report is sent to.
