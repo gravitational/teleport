@@ -914,7 +914,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 								Sub: "asub",
 							},
 						},
-						Domain: defaultGitLabDomain,
 					},
 				},
 			},

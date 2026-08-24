@@ -81,4 +81,6 @@ type Token interface {
 	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 	// GetGithub returns the Github-specific configuration for this token.
 	GetGithub() *types.ProvisionTokenSpecV2GitHub
+	// GetGitLab returns the GitLab-specific configuration for this token.
+	GetGitLab() *types.ProvisionTokenSpecV2GitLab
 }

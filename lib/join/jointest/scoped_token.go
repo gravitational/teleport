@@ -185,6 +185,10 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		if err := setProviderConfig(scopedToken.GetSpec(), "github", base.GitHub); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodGitLab:
+		if err := setProviderConfig(scopedToken.GetSpec(), "gitlab", base.GitLab); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}

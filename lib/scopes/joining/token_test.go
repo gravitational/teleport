@@ -1282,6 +1282,64 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "github configuration must be defined",
 		},
 		{
+			name: "gitlab token nil spec",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitLab))
+			},
+			expectedStrongErr: "gitlab configuration must be defined for a scoped token when using the gitlab join method",
+			expectedWeakErr:   "gitlab configuration must be defined for a scoped token when using the gitlab join method",
+		},
+		{
+			name: "gitlab token with invalid usage mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitLab))
+				tok.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+
+				tok.GetSpec().SetGitlab(joiningv1.GitLab_builder{}.Build())
+			},
+			expectedStrongErr: fmt.Sprintf("usage mode %q is not supported for gitlab join method", joining.TokenUsageModeSingle),
+			expectedWeakErr:   fmt.Sprintf("usage mode %q is not supported for gitlab join method", joining.TokenUsageModeSingle),
+		},
+		{
+			name: "gitlab token invalid domain",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitLab))
+
+				tok.GetSpec().SetGitlab(joiningv1.GitLab_builder{
+					Domain: "/",
+				}.Build())
+			},
+			expectedStrongErr: "'spec.gitlab.domain' should not contain a scheme or path",
+			expectedWeakErr:   "'spec.gitlab.domain' should not contain a scheme or path",
+		},
+		{
+			name: "gitlab token with no rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitLab))
+
+				tok.GetSpec().SetGitlab(joiningv1.GitLab_builder{
+					Allow: []*joiningv1.GitLab_Rule{},
+				}.Build())
+			},
+			expectedStrongErr: "the gitlab join method requires defined gitlab allow rules",
+			expectedWeakErr:   "the gitlab join method requires defined gitlab allow rules",
+		},
+		{
+			name: "gitlab token with empty rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitLab))
+
+				tok.GetSpec().SetGitlab(joiningv1.GitLab_builder{
+					Allow: []*joiningv1.GitLab_Rule{
+						joiningv1.GitLab_Rule_builder{}.Build(),
+						joiningv1.GitLab_Rule_builder{}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "the gitlab join method requires allow rules with at least one of ['sub', 'project_path', 'namespace_path', 'ci_config_ref_uri'] to ensure security.",
+			expectedWeakErr:   "the gitlab join method requires allow rules with at least one of ['sub', 'project_path', 'namespace_path', 'ci_config_ref_uri'] to ensure security.",
+		},
+		{
 			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetBot("/aa/bb::foo")
