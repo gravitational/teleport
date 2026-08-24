@@ -66,6 +66,11 @@ type ServiceConfig struct {
 
 	// UsageReporter is the reporter for sending usage events.
 	UsageReporter usagereporter.UsageReporter
+
+	// IsTeleportCloud indicates if the service is running in Teleport Cloud
+	// environment. This is used to block creation of DiscoveryConfigs
+	// without an integration set up and targeting the cloud discovery group.
+	IsTeleportCloud bool
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -100,12 +105,13 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log           *slog.Logger
-	authorizer    authz.Authorizer
-	backend       services.DiscoveryConfigs
-	clock         clockwork.Clock
-	emitter       apievents.Emitter
-	usageReporter usagereporter.UsageReporter
+	log             *slog.Logger
+	authorizer      authz.Authorizer
+	backend         services.DiscoveryConfigs
+	clock           clockwork.Clock
+	emitter         apievents.Emitter
+	usageReporter   usagereporter.UsageReporter
+	isTeleportCloud bool
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -115,12 +121,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:           cfg.Logger,
-		authorizer:    cfg.Authorizer,
-		backend:       cfg.Backend,
-		clock:         cfg.Clock,
-		emitter:       cfg.Emitter,
-		usageReporter: cfg.UsageReporter,
+		log:             cfg.Logger,
+		authorizer:      cfg.Authorizer,
+		backend:         cfg.Backend,
+		clock:           cfg.Clock,
+		emitter:         cfg.Emitter,
+		usageReporter:   cfg.UsageReporter,
+		isTeleportCloud: cfg.IsTeleportCloud,
 	}, nil
 }
 
@@ -195,6 +202,10 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.validateDiscoveryConfigIntegration(dc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Set the status to an empty struct to clear any status that may have been set
 	// in the request.
 	dc.Status = discoveryconfig.Status{}
@@ -237,6 +248,10 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.validateDiscoveryConfigIntegration(dc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -285,6 +300,10 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.validateDiscoveryConfigIntegration(dc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -539,4 +558,48 @@ func maybeDowngradeDiscoveryConfigAWSWildcardRegion(dc *discoveryconfig.Discover
 	}
 	dc.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 	return dc
+}
+
+// validateDiscoveryConfigIntegration enforces that on Teleport Cloud, any
+// DiscoveryConfig targeting the "cloud-discovery-group" discovery group must
+// specify an integration for every AWS and Azure matcher (including AccessGraph
+// sync entries). This ensures cloud-managed discovery always runs through an
+// integration rather than ambient credentials.
+func (s *Service) validateDiscoveryConfigIntegration(dc *discoveryconfig.DiscoveryConfig) error {
+	if !s.isTeleportCloud {
+		return nil
+	}
+
+	const cloudDiscoveryGroup = "cloud-discovery-group"
+
+	if dc.Spec.DiscoveryGroup != cloudDiscoveryGroup {
+		return nil
+	}
+
+	for _, awsMatcher := range dc.Spec.AWS {
+		if awsMatcher.Integration == "" {
+			return trace.BadParameter("AWS matchers in discovery configs targeting the %q discovery group must specify an integration", cloudDiscoveryGroup)
+		}
+	}
+
+	for _, azureMatcher := range dc.Spec.Azure {
+		if azureMatcher.Integration == "" {
+			return trace.BadParameter("Azure matchers in discovery configs targeting the %q discovery group must specify an integration", cloudDiscoveryGroup)
+		}
+	}
+
+	if dc.Spec.AccessGraph != nil {
+		for _, awsSync := range dc.Spec.AccessGraph.AWS {
+			if awsSync.Integration == "" {
+				return trace.BadParameter("AccessGraph AWS sync in discovery configs targeting the %q discovery group must specify an integration", cloudDiscoveryGroup)
+			}
+		}
+		for _, azureSync := range dc.Spec.AccessGraph.Azure {
+			if azureSync.Integration == "" {
+				return trace.BadParameter("AccessGraph Azure sync in discovery configs targeting the %q discovery group must specify an integration", cloudDiscoveryGroup)
+			}
+		}
+	}
+
+	return nil
 }
