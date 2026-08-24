@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -61,11 +62,16 @@ func (o *kubernetesClusterOps) Create(ctx context.Context, resource types.Resour
 }
 
 func (o *kubernetesClusterOps) Get(ctx context.Context, name string) (types.KubeCluster, error) {
-	return o.clt.GetKubernetesCluster(ctx, name)
+	return o.clt.GetKubeCluster(ctx, &presencev1.GetKubeClusterRequest{
+		Name: name,
+	})
 }
 
 func (o *kubernetesClusterOps) List(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-	clusters, next, err := o.clt.ListKubernetesClusters(ctx, pageSize, pageToken)
+	clusters, next, err := o.clt.ListKubeClusters(ctx, &presencev1.ListKubeClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
 	return clusters, next, trace.Wrap(err)
 }
 
@@ -78,7 +84,9 @@ func (o *kubernetesClusterOps) Update(ctx context.Context, resource types.Resour
 }
 
 func (o *kubernetesClusterOps) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(o.clt.DeleteKubernetesCluster(ctx, name))
+	return trace.Wrap(o.clt.DeleteKubeCluster(ctx, &presencev1.DeleteKubeClusterRequest{
+		Name: name,
+	}))
 }
 
 func (o *kubernetesClusterOps) DeleteAll(ctx context.Context) error {

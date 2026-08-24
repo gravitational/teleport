@@ -208,6 +208,11 @@ func newLocalServiceClient(bk backend.Backend) (localServiceClient, error) {
 		return localServiceClient{}, trace.Wrap(err, "creating user group service")
 	}
 
+	kubeService, err := local.NewKubernetesService(bk)
+	if err != nil {
+		return localServiceClient{}, trace.Wrap(err, "creating kube service")
+	}
+
 	return localServiceClient{
 		AccessService:                 local.NewAccessService(bk),
 		AppService:                    local.NewAppService(bk),
@@ -220,7 +225,7 @@ func newLocalServiceClient(bk backend.Backend) (localServiceClient, error) {
 		HealthCheckConfigService:      healthCheckConfigs,
 		IntegrationsService:           integrations,
 		IdentityService:               identity,
-		KubernetesService:             local.NewKubernetesService(bk),
+		KubernetesService:             kubeService,
 		LinuxDesktopService:           linuxDesktops,
 		SAMLIdPServiceProviderService: samlIdPServiceProviders,
 		StaticHostUserService:         staticHostUsers,

@@ -24,24 +24,12 @@ _output() {
 
 REPO_PATH="${REPO_PATH:-$(_repo_toplevel)}"
 REPO_PATH="$(realpath "${REPO_PATH}")"
-SUBMODULE_PATH="${SUBMODULE_PATH:-e}"
 
-# Resolve submodule to absolute path
-if [[ "${SUBMODULE_PATH}" != /* ]]; then
-  SUBMODULE_ABS="${REPO_PATH}/${SUBMODULE_PATH}"
-else
-  SUBMODULE_ABS="${SUBMODULE_PATH}"
-fi
 
 TAG="$(git -C "${REPO_PATH}" rev-parse --short HEAD)"
-OSS_SUB_MOVED=$(git -C "${REPO_PATH}" status --porcelain -- "${SUBMODULE_PATH}" | grep -c '' || true)
-if [[ "$OSS_SUB_MOVED" -gt 0 ]]; then
-	TAG="${TAG}-$(git -C "${SUBMODULE_ABS}" rev-parse --short HEAD)"
-fi
 
-OSS_DIRTY=$(git -C "${REPO_PATH}"  status --porcelain -- . ":(exclude)${SUBMODULE_PATH}" | grep -c '' || true)
-SUB_INTERNAL_DIRTY=$(git -C "${SUBMODULE_ABS}" status --porcelain | grep -c '' || true)
-if [[ "$OSS_DIRTY" -gt 0 || "$SUB_INTERNAL_DIRTY" -gt 0 ]]; then
+DIRTY=$(git -C "${REPO_PATH}"  status --porcelain -- . | grep -c '' || true)
+if [[ "$DIRTY" -gt 0 ]]; then
   TAG="${TAG}-dirty"
 fi
 

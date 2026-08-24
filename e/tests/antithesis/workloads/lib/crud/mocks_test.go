@@ -11,6 +11,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -147,15 +148,15 @@ func (fakeClient) GetKubernetesClusters(context.Context) ([]types.KubeCluster, e
 	return nil, trace.NotImplemented("not used")
 }
 
-func (fakeClient) GetKubernetesCluster(context.Context, string) (types.KubeCluster, error) {
+func (fakeClient) GetKubeCluster(context.Context, *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	return nil, trace.NotImplemented("not used")
 }
 
-func (fakeClient) ListKubernetesClusters(context.Context, int, string) ([]types.KubeCluster, string, error) {
+func (fakeClient) ListKubeClusters(context.Context, *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	return nil, "", trace.NotImplemented("not used")
 }
 
-func (fakeClient) RangeKubernetesClusters(context.Context, string, string) iter.Seq2[types.KubeCluster, error] {
+func (fakeClient) RangeKubeClusters(context.Context, *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
 	return func(yield func(types.KubeCluster, error) bool) {}
 }
 
@@ -163,7 +164,7 @@ func (fakeClient) UpdateKubernetesCluster(context.Context, types.KubeCluster) er
 	return trace.NotImplemented("not used")
 }
 
-func (fakeClient) DeleteKubernetesCluster(context.Context, string) error {
+func (fakeClient) DeleteKubeCluster(context.Context, *presencev1.DeleteKubeClusterRequest) error {
 	return trace.NotImplemented("not used")
 }
 

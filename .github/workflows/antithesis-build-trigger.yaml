@@ -11,14 +11,10 @@ on:
         type: choice
         options:
           - core
-      oss-teleport-ref:
-        description: "Teleport OSS git ref to build (SHA, tag, or branch)"
+      teleport-ref:
+        description: "Teleport git ref to build (SHA, tag, or branch)"
         required: false
         default: "master"
-      ent-teleport-ref:
-        description: "Teleport Enterprise git ref to build (SHA, tag, or branch), when not set defaults to what OSS is set to."
-        required: false
-        default: ""
       description:
         description: "Description shown in the Antithesis report"
         required: false
@@ -57,30 +53,28 @@ jobs:
               MATRIX=$(jq -cn '
                 {
                   include: [
-                    { "sut": "core", "oss-teleport-ref": "master", "ent-teleport-ref": "" }
+                    { "sut": "core", "teleport-ref": "master" }
                   ]
                 }
               ')
               ;;
             push)
               MATRIX=$(jq -cn \
-                --arg oss_teleport_ref "master" \
-                --arg ent_teleport_ref "${{ github.sha }}" \
-                '{include: [{"sut": "core", "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
+                --arg teleport_ref "${{ github.sha }}" \
+                '{include: [{"sut": "core", "teleport-ref": $teleport_ref}]}')
               ;;
             workflow_dispatch)
               MATRIX=$(jq -cn \
                 --arg sut "${{ inputs.sut }}" \
-                --arg oss_teleport_ref "${{ inputs.oss-teleport-ref }}" \
-                --arg ent_teleport_ref "${{ inputs.ent-teleport-ref }}" \
-                '{include: [{"sut": $sut, "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
+                --arg teleport_ref "${{ inputs.teleport-ref }}" \
+                '{include: [{"sut": $sut, "teleport-ref": $teleport_ref}]}')
               ;;
           esac
 
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build ${{ matrix.sut }} ${{ matrix.oss-teleport-ref }}
+    name: Build ${{ matrix.sut }} ${{ matrix.teleport-ref }}
     needs: params
     runs-on: ubuntu-22.04-16core
     permissions:
@@ -93,19 +87,10 @@ jobs:
       SUT: ${{ matrix.sut }}
       REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
     steps:
-      - name: Checkout OSS Teleport
+      - name: Checkout Teleport
         uses: actions/checkout@v4
         with:
-          repository: gravitational/teleport
-          ref: ${{ matrix.oss-teleport-ref }}
-          submodules: recursive
-
-      - name: Checkout Enterprise Teleport
-        uses: actions/checkout@v4
-        if: ${{ matrix.ent-teleport-ref != '' }}
-        with:
-          path: e
-          ref: ${{ matrix.ent-teleport-ref }}
+          ref: ${{ matrix.teleport-ref }}
 
       - name: Compute tag
         id: tag
@@ -164,18 +149,17 @@ jobs:
         with:
           notebook_name: teleport
           tenant: teleport
-          username: ${{ secrets.ANTITHESIS_USERNAME }}
-          password: ${{ secrets.ANTITHESIS_PASSWORD }}
+          api_key: ${{ secrets.ANTITHESIS_API_KEY }}
           config_image: ${{ steps.images.outputs.config_image }}
           images: ${{steps.images.outputs.images }}
           description: >-
             ${{ inputs.description
                 || format('{0} {1} @ {2} ({3})',
-                     matrix.sut, matrix.oss-teleport-ref,
+                     matrix.sut, matrix.teleport-ref,
                      steps.tag.outputs.tag,
                      github.event_name == 'schedule' && 'nightly' || 'manual') }}
           email_recipients: ${{ inputs.email_recipients }}
-          test_name: teleport-${{ matrix.sut }}-${{ matrix.oss-teleport-ref }}
+          test_name: teleport-${{ matrix.sut }}-${{ matrix.teleport-ref }}
           additional_parameters: |
             antithesis.duration=${{ inputs.antithesis_duration || 60 }}
             ${{ steps.params.outputs.params  }}
