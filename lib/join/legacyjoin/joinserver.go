@@ -137,10 +137,14 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_Reg
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+		tokenRequest := req.GetRegisterUsingTokenRequest()
+		if tokenRequest == nil {
+			return nil, trace.BadParameter("expected non-nil RegisterUsingTokenRequest payload")
+		}
+		if err := setClientRemoteAddr(ctx, tokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setBotParameters(ctx, req.RegisterUsingTokenRequest)
+		setBotParameters(ctx, tokenRequest)
 
 		return req, nil
 	})
@@ -244,10 +248,14 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_R
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+		tokenRequest := req.GetRegisterUsingTokenRequest()
+		if tokenRequest == nil {
+			return nil, trace.BadParameter("expected non-nil RegisterUsingTokenRequest payload")
+		}
+		if err := setClientRemoteAddr(ctx, tokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setBotParameters(ctx, req.RegisterUsingTokenRequest)
+		setBotParameters(ctx, tokenRequest)
 
 		return req, nil
 	})
