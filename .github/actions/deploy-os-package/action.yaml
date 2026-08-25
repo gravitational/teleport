@@ -36,7 +36,7 @@ inputs:
     default: "refs/heads/master"
   github-token:
     description: >
-      The Github token used to call the Github API on the `gravitational/teleport.e` repo. 
+      The Github token used to call the Github API on the `gravitational/core` repo. 
       Must have `actions: write` permission.
     default: ${{ github.token }}
     required: true
@@ -117,12 +117,12 @@ runs:
             };
           }
 
-          // Call the Github API to trigger the workflow in teleport.e
+          // Call the Github API to trigger the workflow in core
           async function triggerWorkflow(workflowInputs) {
             process.stdout.write(`Starting workflow with inputs: ${JSON.stringify(workflowInputs, null, 2)}\n`);
             await github.rest.actions.createWorkflowDispatch({
               owner: "gravitational",
-              repo: "teleport.e",
+              repo: "core",
               workflow_id: "deploy-packages.yaml",
               ref: core.getInput("workflow-git-reference", { required: true }),
               inputs: workflowInputs
@@ -136,7 +136,7 @@ runs:
           async function doesRunHaveStepWithName(runId, name) {
             const workflowJobs = (await github.rest.actions.listJobsForWorkflowRun({
               owner: "gravitational",
-              repo: "teleport.e",
+              repo: "core",
               run_id: runId,
             })).data;
 
@@ -155,7 +155,7 @@ runs:
             const concurrencyGroupStepName = `${workflowInputs["repo-type"]}-${workflowInputs["environment"]}`
             const workflowRuns = (await github.rest.actions.listWorkflowRuns({
               owner: "gravitational",
-              repo: "teleport.e",
+              repo: "core",
               workflow_id: "deploy-packages.yaml",
               per_page: 100
             })).data;
@@ -192,7 +192,7 @@ runs:
             // TODO handle pagination
             const workflowRuns = (await github.rest.actions.listWorkflowRuns({
               owner: "gravitational",
-              repo: "teleport.e",
+              repo: "core",
               workflow_id: "deploy-packages.yaml",
               per_page: 100
             })).data;
@@ -254,7 +254,7 @@ runs:
             while (true) {
                 const workflowRun = (await github.rest.actions.getWorkflowRun({
                   owner: "gravitational",
-                  repo: "teleport.e",
+                  repo: "core",
                   run_id: workflowRunId
                 })).data;
 
