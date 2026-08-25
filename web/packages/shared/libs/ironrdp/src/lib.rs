@@ -17,6 +17,8 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
+mod painter;
+
 use ironrdp_core::decode_cursor;
 use ironrdp_core::ReadCursor;
 use ironrdp_core::WriteBuf;
@@ -111,6 +113,11 @@ pub struct FastPathProcessor {
     fast_path_processor: IronRdpFastPathProcessor,
     image: DecodedImage,
     remote_fx_check_required: bool,
+    // When a canvas is attached (see `attach_canvas`), decoded graphics
+    // updates are uploaded straight to a WebGL2 texture and drawn on the
+    // GPU — no per-region copy out to an `ImageData`/`BitmapFrame`. `None`
+    // preserves the legacy `draw_cb` path.
+    painter: Option<painter::GlPainter>,
 }
 
 #[wasm_bindgen]
@@ -137,11 +144,44 @@ impl FastPathProcessor {
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
             remote_fx_check_required: true,
+            painter: None,
+        }
+    }
+
+    /// Attach a DOM `<canvas>` for GPU painting. Once attached, graphics
+    /// updates in `process` are uploaded straight to a WebGL2 texture and
+    /// drawn, bypassing the `draw_cb` bitmap path entirely. The canvas must
+    /// not already have a 2D context (a canvas can only hold one context
+    /// type). The painter is sized to the current image resolution; call
+    /// `resize` afterward if the server later reports a new resolution.
+    #[wasm_bindgen(js_name = attachCanvas)]
+    pub fn attach_canvas(&mut self, canvas: web_sys::HtmlCanvasElement) -> Result<(), JsValue> {
+        let painter = painter::GlPainter::new(
+            canvas,
+            self.image.width() as u32,
+            self.image.height() as u32,
+        )
+        .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
+        self.painter = Some(painter);
+        Ok(())
+    }
+
+    /// Clear the attached canvas to opaque black (session reset). No-op when
+    /// no canvas is attached (the legacy 2D path clears on the JS side).
+    #[wasm_bindgen(js_name = clearCanvas)]
+    pub fn clear_canvas(&self) {
+        if let Some(painter) = self.painter.as_ref() {
+            painter.clear();
         }
     }
 
     pub fn resize(&mut self, width: u16, height: u16) -> Result<(), JsValue> {
         self.image = DecodedImage::new(PixelFormat::RgbA32, width, height);
+        if let Some(painter) = self.painter.as_mut() {
+            painter
+                .resize(width as u32, height as u32)
+                .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
+        }
         Ok(())
     }
 
@@ -156,6 +196,11 @@ impl FastPathProcessor {
     /// If `data` is `false` we hide the cursor (but remember its value), if `data` is `true` we restore
     /// the last cursor value; otherwise we set the cursor to a bitmap from `ImageData`.
     /// `update_pointer_cb: (data: ImageData | boolean, hotspot_x: number, hotspot_y: number) => void`
+    ///
+    /// Returns `true` if this call painted at least one graphics region — via
+    /// the attached WebGL painter or (legacy path) via `draw_cb`. Callers use
+    /// this to detect the first rendered frame without depending on `draw_cb`,
+    /// which is not invoked when a canvas is attached.
     pub fn process(
         &mut self,
         tdp_fast_path_frame: &[u8],
@@ -163,7 +208,7 @@ impl FastPathProcessor {
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
         update_pointer_cb: &js_sys::Function,
-    ) -> Result<(), JsValue> {
+    ) -> Result<bool, JsValue> {
         self.check_remote_fx(tdp_fast_path_frame)?;
 
         let (rdp_responses, client_updates) = {
@@ -209,13 +254,52 @@ impl FastPathProcessor {
             outputs
         };
 
+        // Set once a dirty rect is uploaded to the GPU painter this call, so
+        // we issue a single fullscreen-quad `draw` afterward instead of one
+        // per region. Unused on the legacy `draw_cb` path.
+        let mut painted = false;
+
         for output in outputs {
             match output {
                 ActiveStageOutput::GraphicsUpdate(updated_region) => {
-                    // Apply the updated region to the canvas.
-                    let (image_location, image_data) =
-                        extract_partial_image(&self.image, updated_region);
-                    self.apply_image_to_canvas(image_data, image_location, cb_context, draw_cb)?;
+                    if let Some(painter) = self.painter.as_ref() {
+                        // Zero-copy GPU paint: upload the dirty rect straight
+                        // out of the decoded framebuffer (no `ImageData`
+                        // round-trip). Source and destination rects are the
+                        // same — the texture mirrors the full desktop image.
+                        let left = updated_region.left as u32;
+                        let top = updated_region.top as u32;
+                        let w = updated_region.width() as u32;
+                        let h = updated_region.height() as u32;
+                        painter
+                            .upload_rect(
+                                self.image.data(),
+                                self.image.width() as u32,
+                                left,
+                                top,
+                                left,
+                                top,
+                                w,
+                                h,
+                            )
+                            .map_err(|e| JsValue::from_str(&format!("{e:?}")))?;
+                        painted = true;
+                    } else {
+                        // FIXME: Remove this obviously, but just wanted to be 100% sure
+                        // that webgl was wired up.
+                        panic!("Should not use this path for live sessions");
+                        //// Legacy path: copy the region out to JS as a
+                        //// `BitmapFrame` and let the caller paint it.
+                        //let (image_location, image_data) =
+                        //    extract_partial_image(&self.image, updated_region);
+                        //self.apply_image_to_canvas(
+                        //    image_data,
+                        //    image_location,
+                        //    cb_context,
+                        //    draw_cb,
+                        //)?;
+                        //painted = true;
+                    }
                 }
                 ActiveStageOutput::ResponseFrame(frame) => {
                     // Send the response frame back to the server.
@@ -255,7 +339,14 @@ impl FastPathProcessor {
             }
         }
 
-        Ok(())
+        // Composite all of this call's uploaded rects in a single quad pass.
+        if painted {
+            if let Some(painter) = self.painter.as_ref() {
+                painter.draw();
+            }
+        }
+
+        Ok(painted)
     }
 
     /// check_remote_fx check if each fast path frame is RemoteFX frame, if we find bitmap frame
