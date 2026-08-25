@@ -41,7 +41,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -281,7 +280,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
-	c.tlsConfig = CopyAndConfigureTLS(c.legacyLogger, c.cfg.AccessPoint, c.cfg.TLSConfig)
+	c.tlsConfig = CopyAndConfigureTLSForCluster(c.legacyLogger, c.cfg.AccessPoint, clustername.GetClusterName(), c.cfg.TLSConfig)
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort()
@@ -768,61 +767,24 @@ func (c *ConnectionsHandler) deleteConnAuth(conn net.Conn) {
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
 func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, config *tls.Config) *tls.Config {
-	tlsConfig := config.Clone()
-	if log == nil {
-		log = logrus.StandardLogger()
-	}
-
-	// Require clients to present a certificate
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-
-	// Configure function that will be used to fetch the CA that signed the
-	// client's certificate to verify the chain presented. If the client does not
-	// pass in the cluster name, this functions pulls back all CA to try and
-	// match the certificate presented against any CA.
-	tlsConfig.GetConfigForClient = newGetConfigForClientFn(log, client, tlsConfig)
-
-	return tlsConfig
+	return CopyAndConfigureTLSForCluster(log, client, "", config)
 }
 
 // CopyAndConfigureTLSForCluster is like [CopyAndConfigureTLS] but accepts the local cluster name.
 // Prefer this variant in new code.
 func CopyAndConfigureTLSForCluster(log logrus.FieldLogger, client authclient.AccessCache, clusterName string, config *tls.Config) *tls.Config {
-	_ = clusterName
-	return CopyAndConfigureTLS(log, client, config)
-}
-
-func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-
-		// Try and extract the name of the cluster that signed the client's certificate.
-		if info.ServerName != "" {
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
-				}
-			}
-		}
-
-		// Fetch list of CAs that could have signed this certificate. If clusterName
-		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
-		if err != nil {
-			// If this request fails, return nil and fallback to the default ClientCAs.
-
-			log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
-			return nil, nil
-		}
-
-		// Don't modify the server's *tls.Config, create one per connection because
-		// the requests could be coming from different clusters.
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
+	tlsConfig := config.Clone()
+	if log == nil {
+		log = logrus.StandardLogger()
 	}
+
+	// Require clients to present a certificate.
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	// Configure function that will be used to fetch the CAs that signed the client's certificate.
+	tlsConfig.GetConfigForClient = authclient.WithClusterCAs(tlsConfig, client, clusterName, log)
+
+	return tlsConfig
 }
 
 // leafCertFromConn returns the leaf certificate from the connection.
