@@ -870,6 +870,48 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
+				"tpm": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"description": {
+									Computed:      true,
+									Description:   "A human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: \"build-server-100\"",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_certificate_serial": {
+									Computed:      true,
+									Description:   "The serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_public_hash": {
+									Computed:      true,
+									Description:   "The SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:      true,
+							Description:   "A list of Rules, the presented delegated identity must match one allow rule to permit joining.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						},
+						"ekcert_allowed_cas": {
+							Computed:      true,
+							Description:   "A list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "Configuration specific to the \"tpm\" join method.",
+					Optional:    true,
+				},
 				"usage_mode": {
 					Description: "The usage mode of the token. Can be \"single_use\" or \"unlimited\". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.",
 					Required:    true,
@@ -3285,6 +3327,131 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																}
 															}
 															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["tpm"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Tpm = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Tpm = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TPM{}
+									obj := obj.Tpm
+									{
+										a, ok := tf.Attrs["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TPM_Rule, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TPM_Rule
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TPM_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["description"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm.allow.description"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.allow.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Description = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["ek_public_hash"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm.allow.ek_public_hash"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.allow.ek_public_hash", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.EkPublicHash = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["ek_certificate_serial"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm.allow.ek_certificate_serial"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.allow.ek_certificate_serial", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.EkCertificateSerial = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ekcert_allowed_cas"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.EkcertAllowedCas = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.EkcertAllowedCas[k] = t
 														}
 													}
 												}
@@ -7726,6 +7893,249 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 									v.Unknown = false
 								}
 								tf.Attrs["gitlab"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["tpm"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["tpm"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Tpm == nil {
+									v.Null = true
+								} else {
+									v.Null = false
+									obj := obj.Tpm
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["allow"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm.allow"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+												}
+												{
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Allow) != len(c.Elems) {
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
+													}
+													for k, a := range obj.Allow {
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															v.Null = false
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["description"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm.allow.description"})
+																} else {
+																	v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		if tf.Attrs["description"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.tpm.allow.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.tpm.allow.description", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.allow.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																	}
+
+																	v.Null = false
+																	v.Value = string(obj.Description)
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
+																	tf.Attrs["description"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["ek_public_hash"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm.allow.ek_public_hash"})
+																} else {
+																	v, ok := tf.Attrs["ek_public_hash"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		if tf.Attrs["ek_public_hash"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.tpm.allow.ek_public_hash", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.tpm.allow.ek_public_hash", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.allow.ek_public_hash", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																	}
+
+																	v.Null = false
+																	v.Value = string(obj.EkPublicHash)
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
+																	tf.Attrs["ek_public_hash"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["ek_certificate_serial"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm.allow.ek_certificate_serial"})
+																} else {
+																	v, ok := tf.Attrs["ek_certificate_serial"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		if tf.Attrs["ek_certificate_serial"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.tpm.allow.ek_certificate_serial", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.tpm.allow.ek_certificate_serial", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.allow.ek_certificate_serial", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																	}
+
+																	v.Null = false
+																	v.Value = string(obj.EkCertificateSerial)
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
+																	tf.Attrs["ek_certificate_serial"] = v
+																}
+															}
+														}
+														if !preserveUnknown {
+															v.Unknown = false
+														}
+														c.Elems[k] = v
+													}
+												}
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
+												tf.Attrs["allow"] = c
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["ekcert_allowed_cas"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["ekcert_allowed_cas"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EkcertAllowedCas)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EkcertAllowedCas))
+													}
+												}
+												{
+													t := o.ElemType
+													if len(obj.EkcertAllowedCas) != len(c.Elems) {
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.EkcertAllowedCas))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
+													}
+													for k, a := range obj.EkcertAllowedCas {
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"ScopedToken.spec.tpm.ekcert_allowed_cas", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.tpm.ekcert_allowed_cas", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+														}
+
+														v.Null = false
+														v.Value = string(a)
+														if !preserveUnknown {
+															v.Unknown = false
+														}
+														c.Elems[k] = v
+													}
+												}
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
+												tf.Attrs["ekcert_allowed_cas"] = c
+											}
+										}
+									}
+								}
+								if !preserveUnknown {
+									v.Unknown = false
+								}
+								tf.Attrs["tpm"] = v
 							}
 						}
 					}

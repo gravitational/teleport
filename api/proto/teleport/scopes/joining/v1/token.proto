@@ -114,6 +114,9 @@ message ScopedTokenSpec {
 
   // Configuration specific to the "gitlab" join method.
   GitLab gitlab = 18;
+
+  // Configuration specific to the "tpm" join method.
+  TPM tpm = 19;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -843,4 +846,41 @@ message GitLab {
     // Can be internal, private, or public.
     string project_visibility = 16;
   }
+}
+
+// Configuration specific to TPM tokens.
+message TPM {
+  // A rule for TPM joining tokens, of which one must match for a join attempt
+  // to be allowed.
+  message Rule {
+    // A human-readable description of the rule. It has no bearing on whether or
+    // not a TPM is allowed to join, but can be used to associate a rule with a
+    // specific host (e.g the asset tag of the server in which the TPM resides).
+    // Example: "build-server-100"
+    string description = 1;
+
+    // The SHA256 hash of the EKPub marshaled in PKIX format and encoded in
+    // hexadecimal. This value will also be checked when a TPM has submitted an
+    // EKCert, and the public key in the EKCert will be used for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string ek_public_hash = 2;
+
+    // The serial number of the EKCert in hexadecimal with colon separated
+    // nibbles. This value will not be checked when a TPM does not have an
+    // EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string ek_certificate_serial = 3;
+  }
+
+  // A list of Rules, the presented delegated identity must match one allow rule
+  // to permit joining.
+  repeated Rule allow = 1;
+
+  // A list of CA certificates that will be used to validate TPM EKCerts.
+  // When specified, joining TPMs must present an EKCert signed by one of the
+  // specified CAs. TPMs that do not present an EKCert will be not permitted to
+  // join.
+  // When unspecified, TPMs will be allowed to join with either an EKCert or an
+  // EKPubHash.
+  repeated string ekcert_allowed_cas = 2;
 }
