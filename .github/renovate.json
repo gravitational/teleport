@@ -14,7 +14,8 @@
   ],
   "labels": [
     "dependencies",
-    "go"
+    "go",
+    "no-test-plan"
   ],
   "ignorePaths": [
     "**/node_modules/**",
