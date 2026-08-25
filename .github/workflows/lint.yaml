@@ -416,7 +416,9 @@ jobs:
   lint-cli:
     name: CLI Reference Docs
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_cli == 'true' }}
+    # CLI help output can change via files outside the has_cli filter (e.g. constants interpolated
+    # into usage strings), so always run in the merge queue to keep stale docs off protected branches.
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && (needs.changes.outputs.has_cli == 'true' || github.event_name == 'merge_group') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
