@@ -1,4 +1,4 @@
-import { ComponentType, lazy, useCallback, useState } from 'react';
+import { ComponentType, lazy, useCallback, useEffect, useState } from 'react';
 import { type FallbackProps } from 'react-error-boundary';
 import { useTheme } from 'styled-components';
 
@@ -15,6 +15,7 @@ import {
 import { getErrorMessage } from 'shared/utils/error';
 
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
+import { FetchError, reportClientError } from 'e-teleport/services/clienterror';
 import CloudService from 'e-teleport/services/cloud';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { useNoMinWidth } from 'teleport/Main';
@@ -52,6 +53,36 @@ function CloudLoading() {
   );
 }
 
+function CloudErrorFallback({
+  error,
+  resetErrorBoundary,
+  onRetry,
+}: FallbackProps & {
+  onRetry: () => void;
+}) {
+  // Fires once per caught error, reporting it back to this cluster's proxy
+  useEffect(() => {
+    const errorSource = error instanceof FetchError ? 'network' : 'render';
+    reportClientError('cloud-panel', errorSource, getErrorMessage(error));
+  }, [error]);
+
+  return (
+    <Box p={4}>
+      <Danger
+        primaryAction={{
+          content: 'Retry',
+          onClick: () => {
+            onRetry();
+            resetErrorBoundary();
+          },
+        }}
+      >
+        {getErrorMessage(error)}
+      </Danger>
+    </Box>
+  );
+}
+
 export function Cloud() {
   useNoMinWidth();
   const theme = useTheme();
@@ -67,26 +98,19 @@ export function Cloud() {
   const CloudUI = currentCloudUI;
 
   const cloudError = useCallback(
-    ({ error, resetErrorBoundary }: FallbackProps) => (
-      <Box p={4}>
-        <Danger
-          primaryAction={{
-            content: 'Retry',
-            onClick: () => {
-              // Replace the module-level instance before triggering a re-render
-              // so the fresh lazy is used on the next render and on any
-              // subsequent remounts (avoiding the cached rejection).
-              currentCloudUI = lazy<ComponentType<CloudUIProps>>(() =>
-                loadCloud(APP_FILE)
-              );
-              setRetryCount(c => c + 1);
-              resetErrorBoundary();
-            },
-          }}
-        >
-          {getErrorMessage(error)}
-        </Danger>
-      </Box>
+    (props: FallbackProps) => (
+      <CloudErrorFallback
+        {...props}
+        onRetry={() => {
+          // Replace the module-level instance before triggering a re-render
+          // so the fresh lazy is used on the next render and on any
+          // subsequent remounts
+          currentCloudUI = lazy<ComponentType<CloudUIProps>>(() =>
+            loadCloud(APP_FILE)
+          );
+          setRetryCount(c => c + 1);
+        }}
+      />
     ),
     []
   );

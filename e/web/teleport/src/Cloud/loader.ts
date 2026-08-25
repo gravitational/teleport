@@ -6,6 +6,8 @@ import * as reactRouter from 'react-router';
 import * as jsxRuntime from 'react/jsx-runtime';
 import * as styledComponents from 'styled-components';
 
+import { FetchError } from 'e-teleport/services/clienterror';
+
 import type { CloudUIProps } from './Cloud';
 
 const ASSETS_PREFIX = '/v1/enterprise/cloud/assets';
@@ -57,7 +59,7 @@ export function loadCloud(url: string) {
     script.onload = () => {
       if (!window.Cloud?.Cloud) {
         reject(
-          new Error(
+          new FetchError(
             `Failed to initialize Cloud: global export not found after loading ${src}`
           )
         );
@@ -69,7 +71,7 @@ export function loadCloud(url: string) {
       // script tag errors give us a bare DOM Event with no status or message —
       // the browser intentionally withholds that info. Use the URL so at least
       // the developer knows which asset failed; the Network tab has the rest.
-      reject(new Error(`Failed to load Cloud assets: ${src}`));
+      reject(new FetchError(`Failed to load Cloud assets: ${src}`));
     };
 
     document.body.appendChild(script);

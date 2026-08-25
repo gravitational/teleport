@@ -242,6 +242,7 @@ const cfg = {
     enrollPairingDeny: '/v1/enterprise/devices/enroll_pairing/deny',
 
     surveyPath: '/v1/enterprise/cloud/survey',
+    logClientErrorPath: '/v1/enterprise/log',
 
     accessMonitoring: {
       schema: '/v1/webapi/sites/:clusterId/audit/schema',
