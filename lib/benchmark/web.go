@@ -329,8 +329,6 @@ func (s *webSession) getToken() string {
 type WebSessionBenchmark struct {
 	// Command to execute on the host.
 	Command []string
-	// Max number of sessions to have open at once.
-	Max int
 	// Duration of the test used to determine if renewing web sessions
 	// is necessary.
 	Duration time.Duration
@@ -344,17 +342,21 @@ func (s *WebSessionBenchmark) ConfigOverride(ctx context.Context, tc *client.Tel
 		return trace.Wrap(err)
 	}
 
+	if len(servers) == 0 {
+		return trace.NotFound("no servers found")
+	}
+
 	s.servers = servers
 
-	if s.Max == 0 {
-		s.Max = len(servers)
+	if cfg.Jobs <= 0 {
+		cfg.Jobs = len(servers)
 	}
 
 	// alter the minimum window such that the test will run
 	// for as long as is required to spawn all the sessions plus
 	// an additional minute.
 	interval := time.Duration(1 / float64(cfg.Rate) * float64(time.Second))
-	window := interval*time.Duration(s.Max) + (time.Minute)
+	window := interval*time.Duration(cfg.Jobs) + (time.Minute)
 	if cfg.MinimumWindow < window {
 		cfg.MinimumWindow = window
 	}
@@ -364,9 +366,6 @@ func (s *WebSessionBenchmark) ConfigOverride(ctx context.Context, tc *client.Tel
 
 // BenchBuilder returns a WorkloadFunc for the given benchmark suite.
 func (s *WebSessionBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
-	if s.Max < 0 {
-		return nil, trace.BadParameter("max number of sessions cannot be negative, got: %d", s.Max)
-	}
 	// The benchmark runner may override stderr to be [io.Discard] which
 	// results in the login prompt being sent into the void and the user
 	// staring at a blank terminal. Temporarily override stderr to allow
@@ -398,19 +397,9 @@ func (s *WebSessionBenchmark) BenchBuilder(ctx context.Context, tc *client.Telep
 		next int
 	)
 
-	sem := make(chan struct{}, s.Max)
-
 	// Open a ssh session to the next host if the maximum
 	// number of connections has not already been reached.
 	return func(ctx context.Context) error {
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			return nil
-		}
-
-		defer func() { <-sem }()
-
 		mu.Lock()
 		current := next
 		next = (next + 1) % len(s.servers)
