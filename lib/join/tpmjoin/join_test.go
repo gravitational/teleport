@@ -28,12 +28,15 @@ import (
 	"time"
 
 	"github.com/google/go-attestation/attest"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -42,6 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -378,6 +384,354 @@ func TestJoinTPM(t *testing.T) {
 		})
 	}
 
+}
+
+// TestJoinTPMScoped duplicates most of the test cases for unscoped TPM joining,
+// but for scoped joining.
+func TestJoinTPMScoped(t *testing.T) {
+	ctx := t.Context()
+
+	testModules := modulestest.OSSModules()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			Modules:        testModules,
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+
+	adminClient, err := server.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	// Create a scoped role, bot, and role assignment. Unfortunately we can't
+	// borrow join.CreateScopedBot() from this package, so the resource
+	// templates are duplicated here.
+	_, err = server.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testbot",
+			}.Build(),
+			Scope: "/test",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/test"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
+		Bot: machineidv1.Bot_builder{
+			Metadata: headerv1.Metadata_builder{
+				Name: "testbot",
+			}.Build(),
+			Kind:  types.KindBot,
+			Scope: "/test",
+			Spec:  &machineidv1.BotSpec{},
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	resp, err := server.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/test",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
+						Scope: "/test",
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the cache to propagate the assignment.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := server.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
+		}.Build())
+		assert.NoError(ct, err)
+	}, time.Second*10, 100*time.Millisecond)
+
+	nopClient, err := server.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	goodTPMKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	goodTPMPub, err := x509.MarshalPKIXPublicKey(goodTPMKey.Public())
+	require.NoError(t, err)
+	goodTPMPubHash := tpm.HashEKPub(goodTPMPub)
+
+	badTPMKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	fakeTPMValidator := newFakeTPMValidator()
+	server.Auth().SetTPMValidator(fakeTPMValidator.validate)
+
+	goodTPMCA, err := newFakeTPMCA()
+	require.NoError(t, err)
+	badTPMCA, err := newFakeTPMCA()
+	require.NoError(t, err)
+
+	tpmCert1, tpmCertSerial1, err := goodTPMCA.issueTPMCert(goodTPMKey.Public())
+	require.NoError(t, err)
+	tpmCert2, _, err := goodTPMCA.issueTPMCert(goodTPMKey.Public())
+	require.NoError(t, err)
+
+	allowRulesNotMatched := func(t require.TestingT, err error, i ...any) {
+		require.ErrorContains(t, err, "validated tpm attributes did not match any allow rules")
+		require.True(t, trace.IsAccessDenied(err))
+	}
+
+	for _, tc := range []struct {
+		desc           string
+		tokenSpec      *joiningv1.TPM
+		tpmKey         crypto.Signer
+		tpmCert        []byte
+		badTPMSolution bool
+		oss            bool
+		// bypassAdmissionValidation injects the token directly into
+		// the backend, bypassing the admission validation. This allows
+		// testing that old non-conformant tokens still work for
+		// backward compatibility.
+		bypassAdmissionValidation bool
+		assertError               require.ErrorAssertionFunc
+		expectJoinAttrs           verifiedAttrs
+	}{
+		{
+			desc: "success, ekpub",
+			tokenSpec: joiningv1.TPM_builder{
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash: goodTPMPubHash,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:      goodTPMKey,
+			assertError: require.NoError,
+			expectJoinAttrs: verifiedAttrs{
+				ekPubHash: goodTPMPubHash,
+			},
+		},
+		{
+			desc: "success, both ek cert serial and ek pub hash match",
+			tokenSpec: joiningv1.TPM_builder{
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash:        goodTPMPubHash,
+						EkCertificateSerial: tpmCertSerial1,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:      goodTPMKey,
+			tpmCert:     tpmCert1,
+			assertError: require.NoError,
+			expectJoinAttrs: verifiedAttrs{
+				ekPubHash:    goodTPMPubHash,
+				ekCertSerial: tpmCertSerial1,
+			},
+		},
+		{
+			desc: "success, ek cert verified",
+			tokenSpec: joiningv1.TPM_builder{
+				EkcertAllowedCas: []string{string(goodTPMCA.caCertPEM)},
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkCertificateSerial: tpmCertSerial1,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:      goodTPMKey,
+			tpmCert:     tpmCert1,
+			assertError: require.NoError,
+			expectJoinAttrs: verifiedAttrs{
+				ekPubHash:      goodTPMPubHash,
+				ekCertSerial:   tpmCertSerial1,
+				ekCertVerified: true,
+			},
+		},
+		{
+			desc: "success, ek cert verified and ek pub hash match",
+			tokenSpec: joiningv1.TPM_builder{
+				EkcertAllowedCas: []string{string(goodTPMCA.caCertPEM)},
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash:        goodTPMPubHash,
+						EkCertificateSerial: tpmCertSerial1,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:      goodTPMKey,
+			tpmCert:     tpmCert1,
+			assertError: require.NoError,
+			expectJoinAttrs: verifiedAttrs{
+				ekPubHash:      goodTPMPubHash,
+				ekCertSerial:   tpmCertSerial1,
+				ekCertVerified: true,
+			},
+		},
+		{
+			desc: "failure, mismatched ekpub",
+			tokenSpec: joiningv1.TPM_builder{
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash: goodTPMPubHash,
+					}.Build(),
+				},
+			}.Build(),
+			// TPM key does not match pubkey hash in token.
+			tpmKey:      badTPMKey,
+			assertError: allowRulesNotMatched,
+		},
+		{
+			desc: "failure, mismatched ekcert serial",
+			tokenSpec: joiningv1.TPM_builder{
+				// A CA is required for a serial-only allow rule to be admitted;
+				// see lib/services/local validateTPMToken.
+				EkcertAllowedCas: []string{string(goodTPMCA.caCertPEM)},
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkCertificateSerial: tpmCertSerial1,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey: goodTPMKey,
+			// TPM cert is verified, but its serial does not match the rule.
+			tpmCert:     tpmCert2,
+			assertError: allowRulesNotMatched,
+		},
+		{
+			desc: "failure, ek cert not verified",
+			tokenSpec: joiningv1.TPM_builder{
+				// Token configures trust for a CA that did not sign the TPM cert.
+				EkcertAllowedCas: []string{string(badTPMCA.caCertPEM)},
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkCertificateSerial: tpmCertSerial1,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:  goodTPMKey,
+			tpmCert: tpmCert1,
+			assertError: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.ErrorAs(t, err, (new(*trace.AccessDeniedError)))
+				require.ErrorContains(t, err, "certificate signed by unknown authority")
+			},
+		},
+		{
+			desc: "failure, solution mismatch",
+			tokenSpec: joiningv1.TPM_builder{
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash: goodTPMPubHash,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey:         goodTPMKey,
+			badTPMSolution: true,
+			assertError: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.ErrorAs(t, err, (new(*trace.AccessDeniedError)))
+				require.ErrorContains(t, err, "invalid credential activation solution")
+			},
+		},
+		{
+			desc: "failure, oss",
+			tokenSpec: joiningv1.TPM_builder{
+				Allow: []*joiningv1.TPM_Rule{
+					joiningv1.TPM_Rule_builder{
+						EkPublicHash: goodTPMPubHash,
+					}.Build(),
+				},
+			}.Build(),
+			tpmKey: goodTPMKey,
+			oss:    true,
+			assertError: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.ErrorAs(t, err, (new(*trace.AccessDeniedError)))
+				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			if !tc.oss {
+				testModules.TestBuildType = modules.BuildEnterprise
+			} else {
+				testModules.TestBuildType = modules.BuildOSS
+			}
+
+			token := joiningv1.ScopedToken_builder{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					// We can't overwrite scoped tokens, so use a uuid name.
+					Name: uuid.NewString(),
+				}.Build(),
+				Scope: "/test",
+				Spec: joiningv1.ScopedTokenSpec_builder{
+					UsageMode: joining.TokenUsageModeBot,
+					Bot: scopes.QualifiedName{
+						Scope: "/test",
+						Name:  "testbot",
+					}.String(),
+					JoinMethod: string(types.JoinMethodTPM),
+					Roles:      []string{types.RoleBot.String()},
+					Tpm:        tc.tokenSpec,
+				}.Build(),
+			}.Build()
+
+			_, err := server.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+				Token: token,
+			}.Build())
+			require.NoError(t, err)
+
+			fakeTPM, err := newFakeTPM(tc.tpmKey, tc.tpmCert)
+			require.NoError(t, err)
+			fakeTPM.badSolution = tc.badTPMSolution
+
+			result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+				Token: scopes.QualifiedName{
+					Scope: token.GetScope(),
+					Name:  token.GetMetadata().GetName(),
+				}.String(),
+				ID: state.IdentityID{
+					Role: types.RoleBot,
+				},
+				AuthClient: nopClient,
+				AttestTPM:  fakeTPM.attest,
+			})
+			tc.assertError(t, err)
+			if err != nil {
+				return
+			}
+
+			botCert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+			require.NoError(t, err)
+
+			id, err := tlsca.FromSubject(botCert.Subject, botCert.NotAfter)
+			require.NoError(t, err)
+			tpmAttrs := id.JoinAttributes.GetTpm()
+			require.NotNil(t, tpmAttrs)
+
+			gotAttrs := verifiedAttrs{
+				ekPubHash:      tpmAttrs.GetEkPubHash(),
+				ekCertSerial:   tpmAttrs.GetEkCertSerial(),
+				ekCertVerified: tpmAttrs.GetEkCertVerified(),
+			}
+			assert.Equal(t, tc.expectJoinAttrs, gotAttrs)
+		})
+	}
 }
 
 // fakeTPM is a minimal faked TPM that will return attestation parameters for a

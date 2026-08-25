@@ -33,6 +33,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -1340,6 +1341,115 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "the gitlab join method requires allow rules with at least one of ['sub', 'project_path', 'namespace_path', 'ci_config_ref_uri'] to ensure security.",
 		},
 		{
+			name: "valid tpm token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					Allow: []*joiningv1.TPM_Rule{
+						joiningv1.TPM_Rule_builder{
+							Description:         "example rule",
+							EkPublicHash:        "abc123",
+							EkCertificateSerial: "aa:bb:cc",
+						}.Build(),
+						joiningv1.TPM_Rule_builder{
+							Description:         "another example rule",
+							EkPublicHash:        "foo",
+							EkCertificateSerial: "11:22:33",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "tpm token with no tpm config",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+			},
+			expectedStrongErr: ".spec.tpm field is required for this join method",
+			expectedWeakErr:   ".spec.tpm field is required for this join method",
+		},
+		{
+			name: "tpm token with no rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					Allow: []*joiningv1.TPM_Rule{},
+				}.Build())
+			},
+			expectedStrongErr: "at least one rule must be set",
+			expectedWeakErr:   "at least one rule must be set",
+		},
+		{
+			name: "tpm token with invalid rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					Allow: []*joiningv1.TPM_Rule{
+						joiningv1.TPM_Rule_builder{
+							Description: "invalid rule",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "at least one of ['ek_public_hash', 'ek_certificate_serial'] must be set",
+			expectedWeakErr:   "at least one of ['ek_public_hash', 'ek_certificate_serial'] must be set",
+		},
+		{
+			name: "tpm token with serial missing required hash",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					Allow: []*joiningv1.TPM_Rule{
+						joiningv1.TPM_Rule_builder{
+							Description:         "example rule",
+							EkCertificateSerial: "aa:bb:cc",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "ek_certificate_serial requires ek_public_hash",
+			expectedWeakErr:   "ek_certificate_serial requires ek_public_hash",
+		},
+		{
+			name: "tpm token with serial and certs is allowed",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					EkcertAllowedCas: []string{fixtures.TLSCACertPEM},
+					Allow: []*joiningv1.TPM_Rule{
+						joiningv1.TPM_Rule_builder{
+							Description:         "example rule",
+							EkCertificateSerial: "aa:bb:cc",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "tpm token with invalid ekcert pem",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
+
+				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					EkcertAllowedCas: []string{"-----BEGIN INVALID-----\ninvalid\n-----END INVALID-----"},
+					Allow: []*joiningv1.TPM_Rule{
+						joiningv1.TPM_Rule_builder{
+							Description:         "example rule",
+							EkPublicHash:        "abc123",
+							EkCertificateSerial: "aa:bb:cc",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "no pem block found",
+			expectedWeakErr:   "no pem block found",
+		},
+		{
 			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetBot("/aa/bb::foo")
@@ -1535,6 +1645,68 @@ func TestScopedTokenGithubRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, &githubConfig, token.GetGithub())
+}
+
+func TestScopedTokenTPMRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// jointest is weirdly circular so instead we'll just build everything here
+	// instead of implementing an otherwise unused reverse conversion layer (?)
+	desiredTPMConfig := &types.ProvisionTokenSpecV2TPM{
+		EKCertAllowedCAs: []string{"foo", "bar"},
+		Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+			{
+				Description:         "rule 1",
+				EKPublicHash:        "hash 1",
+				EKCertificateSerial: "serial 1",
+			},
+			{
+				Description:         "rule 2",
+				EKPublicHash:        "hash 2",
+				EKCertificateSerial: "serial 2",
+			},
+		},
+	}
+
+	scopedTPMConfig := joiningv1.TPM_builder{
+		EkcertAllowedCas: []string{"foo", "bar"},
+		Allow: []*joiningv1.TPM_Rule{
+			joiningv1.TPM_Rule_builder{
+				Description:         "rule 1",
+				EkPublicHash:        "hash 1",
+				EkCertificateSerial: "serial 1",
+			}.Build(),
+			joiningv1.TPM_Rule_builder{
+				Description:         "rule 2",
+				EkPublicHash:        "hash 2",
+				EkCertificateSerial: "serial 2",
+			}.Build(),
+		},
+	}.Build()
+
+	token := joiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: "testtoken",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:         []string{types.RoleNode.String()},
+			AssignedScope: "/aa/bb",
+			JoinMethod:    string(types.JoinMethodTPM),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+			Tpm:           scopedTPMConfig,
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
+			Secret: "secret",
+		}.Build(),
+	}.Build()
+
+	pt, err := joining.NewToken(token)
+	require.NoError(t, err)
+
+	require.Equal(t, desiredTPMConfig, pt.GetTPM())
 }
 
 func TestNewTokenGetBot(t *testing.T) {

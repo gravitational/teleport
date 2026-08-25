@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -49,11 +48,6 @@ func (s *Server) handleTPMJoin(
 	clientInit *messages.ClientInit,
 	provisionToken provision.Token,
 ) (messages.Response, error) {
-	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("TPM joining only supports types.ProvisionTokenV2, got %T", provisionToken)
-	}
-
 	// Receive the TPMInit message from the client.
 	tpmInit, err := messages.RecvRequest[*messages.TPMInit](stream)
 	if err != nil {
@@ -78,7 +72,7 @@ func (s *Server) handleTPMJoin(
 	}
 
 	validatedEK, err := tpmjoin.CheckTPMRequest(stream.Context(), s.cfg.Modules, tpmjoin.CheckTPMRequestParams{
-		Token:        ptv2,
+		Token:        provisionToken,
 		TPMValidator: s.cfg.AuthService.GetTPMValidator(),
 		EKCert:       tpmInit.EKCert,
 		EKKey:        tpmInit.EKKey,

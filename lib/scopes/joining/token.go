@@ -19,9 +19,11 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/pem"
 	"net/url"
 	"slices"
 	"strings"
@@ -415,6 +417,71 @@ func validateGitLab(spec *joiningv1.GitLab, tokenUsageMode TokenUsageMode) error
 	return nil
 }
 
+// validateTPM validates the TPM-specific scoped token configuration. Note that
+// checks from ProvisionTokenSpecV2TPM.validate() are replicated here.
+func validateTPM(spec *joiningv1.TPM) error {
+	if spec == nil {
+		return trace.BadParameter("tpm: the .spec.tpm field is required for this join method")
+	}
+
+	for i, caData := range spec.GetEkcertAllowedCas() {
+		p, _ := pem.Decode([]byte(caData))
+		if p == nil {
+			return trace.BadParameter(
+				"ekcert_allowed_cas[%d]: no pem block found",
+				i,
+			)
+		}
+		if p.Type != "CERTIFICATE" {
+			return trace.BadParameter(
+				"ekcert_allowed_cas[%d]: pem block is not 'CERTIFICATE' type",
+				i,
+			)
+		}
+		if _, err := x509.ParseCertificate(p.Bytes); err != nil {
+			return trace.Wrap(
+				err,
+				"ekcert_allowed_cas[%d]: parsing certificate",
+				i,
+			)
+		}
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter(
+			"allow: at least one rule must be set",
+		)
+	}
+
+	hasCAs := len(spec.GetEkcertAllowedCas()) > 0
+	for i, allowRule := range spec.GetAllow() {
+		if len(allowRule.GetEkPublicHash()) == 0 && len(allowRule.GetEkCertificateSerial()) == 0 {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['ek_public_hash', 'ek_certificate_serial'] must be set",
+				i,
+			)
+		}
+
+		// This is ported from services/local/provisioning.go's
+		// validateTPMToken() which was deliberately separate from the overall
+		// CheckAndSetDefaults() -> validate() path so as to not affect existing
+		// tokens. There are no existing scoped TPM tokens, so we can safely
+		// inline it here.
+		//
+		// This check doesn't apply if CAs are present: per the source impl,
+		// serials are not trustworthy when certificates are verified against a
+		// configured CA, so they're optional if CAs are also set.
+		hasSerialWithoutHash := allowRule.GetEkCertificateSerial() != "" && allowRule.GetEkPublicHash() == ""
+		if !hasCAs && hasSerialWithoutHash {
+			return trace.BadParameter(
+				"allow[%d]: ek_certificate_serial requires ek_public_hash or "+
+					"ekcert_allowed_cas to be set so that the EK certificate "+
+					"can be verified", i)
+		}
+	}
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -446,6 +513,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		}
 	case types.JoinMethodGitLab:
 		return trace.Wrap(validateGitLab(token.GetSpec().GetGitlab(), TokenUsageMode(token.GetSpec().GetUsageMode())), "gitlab join method")
+	case types.JoinMethodTPM:
+		return trace.Wrap(validateTPM(token.GetSpec().GetTpm()), "tpm join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1138,6 +1207,26 @@ func (t *Token) GetGitLab() *types.ProvisionTokenSpecV2GitLab {
 		Domain:     spec.GetDomain(),
 		StaticJWKS: spec.GetStaticJwks(),
 		Allow:      allow,
+	}
+}
+
+// GetTPM returns the TPM configuration for this token. Returns an empty but
+// not nil value if TPM was not configured.
+func (t *Token) GetTPM() *types.ProvisionTokenSpecV2TPM {
+	spec := t.scoped.GetSpec().GetTpm()
+
+	allow := make([]*types.ProvisionTokenSpecV2TPM_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2TPM_Rule{
+			Description:         rule.GetDescription(),
+			EKPublicHash:        rule.GetEkPublicHash(),
+			EKCertificateSerial: rule.GetEkCertificateSerial(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2TPM{
+		Allow:            allow,
+		EKCertAllowedCAs: spec.GetEkcertAllowedCas(),
 	}
 }
 

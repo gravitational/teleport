@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -35,7 +36,7 @@ type TPMValidator func(ctx context.Context, params tpm.ValidateParams) (*tpm.Val
 // CheckTPMRequestParams holds all parameters for CheckTPMRequest.
 type CheckTPMRequestParams struct {
 	// Token is the provision token used to validate the request.
-	Token *types.ProvisionTokenV2
+	Token provision.Token
 	// TPMValidator is a function that will be called to validate the presented TPM.
 	TPMValidator TPMValidator
 
@@ -79,20 +80,22 @@ func CheckTPMRequest(ctx context.Context, m modules.Modules, params CheckTPMRequ
 		return nil, trace.AccessDenied("validating TPM: %v", err)
 	}
 
-	if err := checkTPMAllowRules(validatedEK, params.Token.Spec.TPM.Allow); err != nil {
+	if err := checkTPMAllowRules(validatedEK, params.Token.GetTPM().Allow); err != nil {
 		return validatedEK, trace.Wrap(err)
 	}
 
 	return validatedEK, nil
 }
 
-func buildCertPool(token *types.ProvisionTokenV2) (*x509.CertPool, error) {
-	if len(token.Spec.TPM.EKCertAllowedCAs) == 0 {
+func buildCertPool(token provision.Token) (*x509.CertPool, error) {
+	cfg := token.GetTPM()
+
+	if len(cfg.EKCertAllowedCAs) == 0 {
 		// Certs are not validated if no CAs were configured.
 		return nil, nil
 	}
 	certPool := x509.NewCertPool()
-	for i, ca := range token.Spec.TPM.EKCertAllowedCAs {
+	for i, ca := range cfg.EKCertAllowedCAs {
 		if ok := certPool.AppendCertsFromPEM([]byte(ca)); !ok {
 			return nil, trace.BadParameter(
 				"ekcert_allowed_cas[%d] has an invalid or malformed PEM", i,
