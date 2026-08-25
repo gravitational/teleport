@@ -663,6 +663,14 @@ func (s *CallbackStream) Done() <-chan struct{} {
 	return s.stream.Done()
 }
 
+// Error returns the terminal stream error when the wrapped stream exposes it.
+func (s *CallbackStream) Error() error {
+	if stream, ok := s.stream.(interface{ Error() error }); ok {
+		return stream.Error()
+	}
+	return nil
+}
+
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
 func (s *CallbackStream) Status() <-chan apievents.StreamStatus {
@@ -731,6 +739,14 @@ type ReportingStream struct {
 	apievents.Stream
 	sessionID session.ID
 	eventsC   chan UploadEvent
+}
+
+// Error returns the terminal stream error when the wrapped stream exposes it.
+func (s *ReportingStream) Error() error {
+	if stream, ok := s.Stream.(interface{ Error() error }); ok {
+		return stream.Error()
+	}
+	return nil
 }
 
 // Complete closes the stream and marks it finalized

@@ -25,6 +25,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -205,4 +206,28 @@ func TestCleanupEmptyUpload(t *testing.T) {
 
 	require.NoDirExists(t, handler.uploadRootPath(*upload))
 	require.NoDirExists(t, handler.uploadRootPath(*emptyUpload))
+}
+
+func TestAbortUploadRemovesUploadFromListings(t *testing.T) {
+	ctx := t.Context()
+	handler, err := NewHandler(Config{
+		Directory: t.TempDir(),
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	upload, err := handler.CreateUpload(ctx, session.NewID())
+	require.NoError(t, err)
+	require.NoError(t, handler.ReserveUploadPart(ctx, *upload, 1))
+	_, err = handler.UploadPart(ctx, *upload, 1, bytes.NewReader([]byte("partial recording")))
+	require.NoError(t, err)
+
+	require.NoError(t, handler.AbortUpload(ctx, *upload))
+	require.NoDirExists(t, handler.uploadRootPath(*upload))
+
+	_, err = handler.ListParts(ctx, *upload)
+	require.True(t, trace.IsNotFound(err), "expected an aborted upload to be unavailable, got %v", err)
+	uploads, err := handler.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Empty(t, uploads)
 }
