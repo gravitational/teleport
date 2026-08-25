@@ -3,4 +3,4 @@
 RELCLI_IMAGE_REGION: us-west-2
 RELCLI_IMAGE_PULL_ROLE_ARN: arn:aws:iam::146628656107:role/image-pull-gha
 RELCLI_VERSION: prod-0f171e7c17c6-20250715T174704
-RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-ff07dc7358c3-20251118T160404
+RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-6745053e4313-20260821T224417
