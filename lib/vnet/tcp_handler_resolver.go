@@ -31,6 +31,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// resolveFQDNTimeout bounds calls to ResolveFQDN. Unlike ReissueAppCert,
+// ResolveFQDN is a pure lookup that never triggers an interactive SSO login
+// or MFA ceremony, so it must not share the much longer SSO callback timeout
+// used for cert reissuance - a hung resolve should fail fast instead of
+// blocking a TCP connection attempt for minutes.
+const resolveFQDNTimeout = 30 * time.Second
+
 // tcpHandlerResolver resolves fully-qualified domain names to a tcpHandlerSpec
 // that defines the CIDR range to assign an IP to that handler from, and a
 // handler for future TCP connections to that IP address.
@@ -62,7 +69,9 @@ func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
 //
 // If fqdn does not match anything it must return errNoTCPHandler.
 func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string) (*tcpHandlerSpec, error) {
-	resp, err := r.cfg.clt.ResolveFQDN(ctx, fqdn)
+	resolveCtx, cancel := context.WithTimeout(ctx, resolveFQDNTimeout)
+	defer cancel()
+	resp, err := r.cfg.clt.ResolveFQDN(resolveCtx, fqdn)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +240,9 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 
 	// Handling an incoming TCP connection but we're not sure what this
 	// address should point to yet, query again in case an app was added.
-	resp, err := h.cfg.clt.ResolveFQDN(ctx, h.cfg.fqdn)
+	resolveCtx, cancel := context.WithTimeout(ctx, resolveFQDNTimeout)
+	defer cancel()
+	resp, err := h.cfg.clt.ResolveFQDN(resolveCtx, h.cfg.fqdn)
 	if err != nil {
 		return trace.Wrap(err, "resolving target in undecidedHandler")
 	}

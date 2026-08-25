@@ -38,6 +38,7 @@ func newUnixClientApplicationServiceClient(_ context.Context, socketPath string)
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithKeepaliveParams(clientApplicationServiceKeepaliveParams),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating user process gRPC client")

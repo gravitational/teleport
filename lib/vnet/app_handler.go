@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -147,6 +148,8 @@ func (i *appCertIssuer) CheckCert(cert *x509.Certificate) error {
 }
 
 func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaults.SSOCallbackTimeout)
+	defer cancel()
 	cert, err, _ := i.group.Do("", func() (any, error) {
 		return i.appProvider.ReissueAppCert(ctx, i.appInfo, i.targetPort)
 	})

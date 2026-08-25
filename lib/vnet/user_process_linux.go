@@ -71,6 +71,8 @@ func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 			rootOnlyUnixSocketStreamInterceptor,
 			interceptors.GRPCServerStreamErrorInterceptor,
 		),
+		grpc.KeepaliveParams(clientApplicationServiceServerKeepaliveParams),
+		grpc.KeepaliveEnforcementPolicy(clientApplicationServiceEnforcementPolicy),
 	)
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 

@@ -35,6 +35,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 
+	"github.com/gravitational/teleport/api/defaults"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
@@ -165,7 +166,10 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		for {
 			select {
 			case <-tick:
-				if err := clt.Ping(ctx); err != nil {
+				pingCtx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+				err := clt.Ping(pingCtx)
+				cancel()
+				if err != nil {
 					return trace.Wrap(err, "failed to ping client application, it may have exited, shutting down")
 				}
 			case <-ctx.Done():

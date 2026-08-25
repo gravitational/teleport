@@ -22,16 +22,41 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
+
+// clientApplicationServiceKeepaliveParams configures gRPC keepalive for the
+// client side of the loopback IPC connection between the VNet admin process
+// and the client application.
+var clientApplicationServiceKeepaliveParams = keepalive.ClientParameters{
+	Time:                30 * time.Second,
+	Timeout:             10 * time.Second,
+	PermitWithoutStream: true,
+}
+
+// clientApplicationServiceServerKeepaliveParams is the server-side
+// counterpart of [clientApplicationServiceKeepaliveParams].
+var clientApplicationServiceServerKeepaliveParams = keepalive.ServerParameters{
+	Time:    30 * time.Second,
+	Timeout: 10 * time.Second,
+}
+
+// clientApplicationServiceEnforcementPolicy is the server-side keepalive
+// enforcement policy for the loopback IPC connection.
+var clientApplicationServiceEnforcementPolicy = keepalive.EnforcementPolicy{
+	MinTime:             10 * time.Second,
+	PermitWithoutStream: true,
+}
 
 // clientApplicationServiceClient is a gRPC client for the client application
 // service. This client is used in the VNet admin process to make requests to
@@ -52,6 +77,7 @@ func newClientApplicationServiceClient(ctx context.Context, creds *credentials, 
 		grpc.WithTransportCredentials(grpccredentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithKeepaliveParams(clientApplicationServiceKeepaliveParams),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating user process gRPC client")
@@ -288,6 +314,48 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 		DatabaseKey: dbKey,
 	}.Build())
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
+// callWithBoundedAbandon runs fn on a bounded pool of goroutines and returns
+// when fn completes or ctx is done, whichever comes first. When ctx is done
+// first the fn goroutine is abandoned (left running until fn returns on its
+// own) rather than cancelled, because the underlying crypto.Signer.Sign has
+// no context. The semaphore bounds how many abandoned goroutines can pile up
+// if a signer stalls, so a stalled embedded signer degrades to fast failures
+// instead of unbounded goroutine growth as forwarder slots churn.
+//
+// Important: this only abandons the result of fn; it does not cancel fn, which
+// keeps running until it returns on its own.
+func callWithBoundedAbandon(ctx context.Context, sem chan struct{}, fn func() ([]byte, error)) ([]byte, error) {
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	// Buffered channels so the goroutine below can always send its result and
+	// exit even if this function has already returned via ctx.Done, avoiding a
+	// goroutine leak.
+	resultC := make(chan []byte, 1)
+	errC := make(chan error, 1)
+	go func() {
+		defer func() { <-sem }()
+		sig, err := fn()
+		if err != nil {
+			errC <- err
+			return
+		}
+		resultC <- sig
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case err := <-errC:
+		return nil, trace.Wrap(err)
+	case sig := <-resultC:
+		return sig, nil
+	}
 }
 
 // newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a

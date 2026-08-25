@@ -58,6 +58,7 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 		ipv6Disabled:       ipv6Disabled,
 		dnsIPv6:            dnsIPv6,
 		tcpHandlerResolver: tcpHandlerResolver,
+		clock:              clock,
 	}, nil
 }
 

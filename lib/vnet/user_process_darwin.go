@@ -64,6 +64,8 @@ func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.KeepaliveParams(clientApplicationServiceServerKeepaliveParams),
+		grpc.KeepaliveEnforcementPolicy(clientApplicationServiceEnforcementPolicy),
 	)
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 
