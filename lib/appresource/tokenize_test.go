@@ -29,6 +29,15 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// rawTokens returns the raw form of each token.
+func rawTokens(tokens []Token) []string {
+	raws := make([]string, len(tokens))
+	for i, tok := range tokens {
+		raws[i] = tok.Raw
+	}
+	return raws
+}
+
 // TestTokenize pins the tokenizer's accept and reject cases, including
 // the opaque encoded separator and the decode-for-validation view.
 func TestTokenize(t *testing.T) {
@@ -411,7 +420,7 @@ func TestTokenize(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, rawTokens(got))
 		})
 	}
 }
@@ -533,33 +542,33 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 			return
 		}
 		for _, tok := range tokens {
-			content := decode(tok)
+			content := decode(tok.Raw)
 			valid := utf8.ValidString(content)
-			require.True(t, valid, "accepted token %q decodes to invalid UTF-8", tok)
+			require.True(t, valid, "accepted token %q decodes to invalid UTF-8", tok.Raw)
 			normal := norm.NFKC.IsNormalString(content)
-			require.True(t, normal, "accepted token %q is not NFKC-stable; a fold bypass slipped through", tok)
+			require.True(t, normal, "accepted token %q is not NFKC-stable; a fold bypass slipped through", tok.Raw)
 			for _, part := range strings.Split(content, "/") {
 				if part == "" {
 					continue
 				}
 				r, _ := utf8.DecodeRuneInString(part)
-				require.False(t, unicode.IsMark(r), "accepted token %q has a part starting with the combining mark %q", tok, string(r))
-				require.False(t, strings.HasPrefix(part, " "), "accepted token %q has a part starting with a space", tok)
-				require.False(t, strings.HasSuffix(part, " "), "accepted token %q has a part ending with a space", tok)
+				require.False(t, unicode.IsMark(r), "accepted token %q has a part starting with the combining mark %q", tok.Raw, string(r))
+				require.False(t, strings.HasPrefix(part, " "), "accepted token %q has a part starting with a space", tok.Raw)
+				require.False(t, strings.HasSuffix(part, " "), "accepted token %q has a part ending with a space", tok.Raw)
 				dotSpaces := strings.Trim(part, ". ") == "" && strings.Contains(part, ".")
-				require.False(t, dotSpaces, "accepted token %q has a part of only dots and spaces", tok)
+				require.False(t, dotSpaces, "accepted token %q has a part of only dots and spaces", tok.Raw)
 				tail := part[len(strings.TrimRight(part, ". ")):]
-				require.NotContains(t, tail, ".", "accepted token %q has a part ending with dots and spaces", tok)
+				require.NotContains(t, tail, ".", "accepted token %q has a part ending with dots and spaces", tok.Raw)
 			}
 		}
 		// An accepted token contains no raw non-ASCII bytes.
 		for _, tok := range tokens {
-			for i := range len(tok) {
-				require.Less(t, tok[i], byte(0x80), "accepted token %q has a raw non-ASCII byte", tok)
+			for i := range len(tok.Raw) {
+				require.Less(t, tok.Raw[i], byte(0x80), "accepted token %q has a raw non-ASCII byte", tok.Raw)
 			}
 		}
 		// Rejoining path segments roundtrips cleanly.
-		require.Equal(t, path, "/"+strings.Join(tokens, "/"))
+		require.Equal(t, path, "/"+strings.Join(rawTokens(tokens), "/"))
 		// An accepted path is its own escaped form.
 		u, err := url.ParseRequestURI(path)
 		require.NoError(t, err, "accepted path does not parse: %q", path)

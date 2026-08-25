@@ -89,10 +89,13 @@ func TestTokenizePropertyPreservesStructure(t *testing.T) {
 		path := wirePathGen().Draw(t, "path")
 		tokens, err := Tokenize(path)
 		require.NoError(t, err)
-		require.Equal(t, path, "/"+strings.Join(tokens, "/"))
+		require.Equal(t, path, "/"+strings.Join(rawTokens(tokens), "/"))
 		require.Len(t, tokens, strings.Count(path, "/"))
 		for _, tok := range tokens {
-			require.NotContains(t, tok, "/")
+			require.NotContains(t, tok.Raw, "/")
+			want, err := url.PathUnescape(tok.Raw)
+			require.NoError(t, err)
+			require.Equal(t, want, tok.Decoded)
 		}
 	})
 }
@@ -108,7 +111,7 @@ func TestTokenizePropertyIgnoresHexCase(t *testing.T) {
 		require.NoError(t, err)
 		flippedTokens, err := Tokenize(flipped)
 		require.NoError(t, err, "hex case flip changed the verdict: %q", flipped)
-		require.Equal(t, flipped, "/"+strings.Join(flippedTokens, "/"))
+		require.Equal(t, flipped, "/"+strings.Join(rawTokens(flippedTokens), "/"))
 		require.Len(t, flippedTokens, len(tokens))
 	})
 }
