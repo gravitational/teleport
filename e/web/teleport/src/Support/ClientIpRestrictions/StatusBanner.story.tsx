@@ -2,7 +2,8 @@ import Box from 'design/Box';
 import Flex from 'design/Flex';
 import { H3 } from 'design/Text';
 
-import { CirUiState, StatusBanner } from './StatusBanner';
+import { StatusBanner } from './StatusBanner';
+import { CirUiState } from './utils';
 
 export default {
   title: 'TeleportE/ClientIpRestrictions/StatusBanner',

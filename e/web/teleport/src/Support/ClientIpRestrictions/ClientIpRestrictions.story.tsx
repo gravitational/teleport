@@ -1,159 +1,205 @@
 import { StoryObj } from '@storybook/react-vite';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'design/CollapsibleInfoSection';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import {
+  ToastNotificationProvider,
+  ToastNotifications,
+} from 'shared/components/ToastNotification';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import {
+  ClientIpRestriction,
+  SaveClientIpRestrictionRequest,
+} from 'e-teleport/services/clientiprestrictions';
 import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { Access } from 'teleport/services/user';
 
 import { ClientIpRestrictions as ClientIpRestrictionsComponent } from './ClientIpRestrictions';
 
-type Access = { list: boolean; edit: boolean; create: boolean };
+const fullAccess: Access = {
+  list: true,
+  read: true,
+  edit: true,
+  create: true,
+  remove: true,
+};
+
+type StoryParams = {
+  resource?: Partial<ClientIpRestriction>;
+  access?: Access;
+  hangFetch?: boolean;
+  failFetch?: boolean;
+  failSave?: boolean;
+};
+
+const baseResource: ClientIpRestriction = {
+  cidrs: ['10.0.0.0/8', '192.168.0.0/16'],
+  mode: 'draft',
+  status: 'draft',
+  revision: 'rev-1',
+};
 
 export default {
   title: 'TeleportE/ClientIpRestrictions',
   component: ClientIpRestrictionsComponent,
-  args: {
-    clusterId: 'cluster-123',
-    allowList: ['10.0.0.0/8', '192.168.0.0/16'],
-    access: { list: true, edit: true, create: true },
-    hangFetch: false,
-    failFetch: false,
-    failSave: false,
-  },
-  argTypes: {
-    allowList: { control: 'object', description: 'Initial server state' },
-    access: { control: 'object', description: 'Access flags' },
-    hangFetch: { control: 'boolean', description: 'Simulate loading' },
-    failFetch: { control: 'boolean', description: 'Simulate fetch error' },
-    failSave: { control: 'boolean', description: 'Simulate save error' },
-    clusterId: { control: 'text' },
-  },
   decorators: [
     (Story, storyCtx) => {
-      const ctx = createTeleportContextE() as any;
+      const p: StoryParams = storyCtx.parameters ?? {};
+      const ctx = createTeleportContextE();
 
-      const hangFetch: boolean = storyCtx.parameters.hangFetch ?? false;
+      const [queryClient] = useState(
+        () =>
+          new QueryClient({
+            defaultOptions: {
+              queries: { refetchOnWindowFocus: false, retry: false },
+            },
+          })
+      );
 
-      const initialAllowList: string[] = storyCtx.parameters.allowList ?? [
-        '10.0.0.0/8',
-        '192.168.0.0/16',
-      ];
-
-      const access: Access = storyCtx.parameters.access ?? {
-        list: true,
-        edit: true,
-        create: true,
-      };
-
-      const failFetch: boolean = storyCtx.parameters.failFetch ?? false;
-      const failSave: boolean = storyCtx.parameters.failSave ?? false;
-
-      let ret = [...initialAllowList];
-
+      const access = p.access ?? fullAccess;
       ctx.storeUser.geClientIpRestrictionAccess = () => access;
 
-      ctx.clientIpRestrictionsService = {
-        async fetchClientIpRestrictions(): Promise<string[]> {
-          if (hangFetch) {
-            return new Promise<string[]>(() => {});
-          }
+      let current: ClientIpRestriction = { ...baseResource, ...p.resource };
+      let settleToActive = false;
 
-          if (failFetch) {
-            const err: any = new Error('Failed to load allowlist');
-            err.statusText = 'Failed to load allowlist';
-            throw err;
+      ctx.clientIpRestrictionsService = {
+        ...ctx.clientIpRestrictionsService,
+        async fetchClientIpRestriction(): Promise<ClientIpRestriction> {
+          if (p.hangFetch) {
+            return new Promise<ClientIpRestriction>(() => {});
+          }
+          if (p.failFetch) {
+            throw new Error('Failed to load allowlist');
           }
           await new Promise(r => setTimeout(r, 150));
-          return [...ret];
+          // Simulate the controller advancing pending -> active between polls.
+          if (settleToActive && current.status === 'pending') {
+            current = { ...current, status: 'active' };
+            settleToActive = false;
+          }
+          return { ...current };
         },
-        async saveClientIpRestrictions(
+        async saveClientIpRestriction(
           _clusterId: string,
-          list: string[]
-        ): Promise<void> {
-          if (failSave) {
-            const err: any = new Error('Failed to save allowlist');
-            err.statusText = 'Failed to save allowlist';
-            throw err;
+          req: SaveClientIpRestrictionRequest
+        ): Promise<ClientIpRestriction> {
+          if (p.failSave) {
+            throw new Error('Failed to save allowlist');
           }
           await new Promise(r => setTimeout(r, 150));
-          ret = [...list];
+          const status = req.mode === 'draft' ? 'draft' : 'pending';
+          current = {
+            cidrs: req.cidrs,
+            mode: req.mode ?? '',
+            expires: req.expires,
+            status,
+            revision: `rev-${Math.floor(Math.random() * 1e6)}`,
+          };
+          settleToActive = true;
+          return { ...current };
         },
       };
 
       return (
-        <MemoryRouter>
-          <ContextProvider ctx={ctx}>
-            <InfoGuidePanelProvider>
-              <ContentMinWidth>
-                <CollapsibleInfoSectionComponent
-                  openLabel="Devs Instructions"
-                  mb="3"
-                >
-                  <Info kind="info">
-                    You can toggle the Edit/Save button and try saving changes.
-                    Different stories change permissions and simulate fetch/save
-                    failures without MSW.
-                  </Info>
-                </CollapsibleInfoSectionComponent>
-                <Story />
-              </ContentMinWidth>
-            </InfoGuidePanelProvider>
-          </ContextProvider>
-        </MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <ContextProvider ctx={ctx}>
+              <ToastNotificationProvider>
+                <InfoGuidePanelProvider>
+                  <ContentMinWidth>
+                    <CollapsibleInfoSectionComponent
+                      openLabel="Devs Instructions"
+                      mb="3"
+                    >
+                      <Info kind="info">
+                        Stories seed different server states. Actions call a
+                        mock service that mimics the real write/derive behavior,
+                        so you can drive the panel through its transitions.
+                      </Info>
+                    </CollapsibleInfoSectionComponent>
+                    <Story />
+                  </ContentMinWidth>
+                </InfoGuidePanelProvider>
+                <ToastNotifications />
+              </ToastNotificationProvider>
+            </ContextProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
       );
     },
   ],
 };
 
-export const LoadingList = {
-  parameters: {
-    hangFetch: true,
-    access: { list: true, edit: true, create: true },
-  },
+const story = (parameters: StoryParams): StoryObj => ({
+  parameters,
   render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+});
 
-export const EditableWithData = {
-  parameters: {
-    allowList: ['216.239.32.0/19', '8.8.8.0/24', '8.8.4.0/24'],
-    access: { list: true, edit: true, create: true },
-  },
-  render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+const inMin = (minutes: number) =>
+  new Date(Date.now() + minutes * 60 * 1000).toISOString();
 
-export const EmptyList = {
-  parameters: {
-    allowList: [],
-    access: { list: true, edit: true, create: true },
-  },
-  render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+export const Draft = story({ resource: { status: 'draft', mode: 'draft' } });
 
-export const ReadOnly = {
-  parameters: {
-    allowList: ['203.0.113.0/24'],
-    access: { list: true, edit: false, create: false },
-  },
-  render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+export const Pending = story({
+  resource: { status: 'pending', mode: 'enforced' },
+});
 
-export const ListError = {
-  parameters: {
-    failFetch: true,
-    access: { list: true, edit: true, create: true },
-  },
-  render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+export const Active = story({
+  resource: { status: 'active', mode: 'enforced' },
+});
 
-export const SaveError = {
-  parameters: {
-    allowList: ['10.10.0.0/16'],
-    failSave: true,
-    access: { list: true, edit: true, create: true },
+export const TestRunApplying = story({
+  resource: { status: 'pending', mode: 'enforced', expires: inMin(30) },
+});
+
+export const TestRunActive = story({
+  resource: { status: 'active', mode: 'enforced', expires: inMin(30) },
+});
+
+// The deadline passed, but the rules stay programmed until Cloud removes them.
+export const TestRunEnding = story({
+  resource: { status: 'active', mode: 'enforced', expires: inMin(-1) },
+});
+
+export const Expired = story({
+  resource: { status: 'expired', mode: 'enforced', expires: inMin(-60) },
+});
+
+// A cancel or deactivate whose teardown has not been reported yet.
+export const ReturningToDraft = story({
+  resource: { status: 'pending', mode: 'draft' },
+});
+
+// A tenant before anything is configured, nil revision and all.
+export const NotConfigured = story({
+  resource: {
+    status: '',
+    mode: '',
+    cidrs: [],
+    revision: '00000000-0000-0000-0000-000000000000',
   },
-  render: () => <ClientIpRestrictionsComponent clusterId="cluster-123" />,
-} satisfies StoryObj<typeof ClientIpRestrictionsComponent>;
+});
+
+export const Unknown = story({
+  resource: { status: 'unknown', mode: 'enforced', cidrs: ['10.0.0.0/8'] },
+});
+
+export const Loading = story({ hangFetch: true });
+
+export const FetchError = story({ failFetch: true });
+
+export const SaveError = story({
+  resource: { status: 'draft', mode: 'draft' },
+  failSave: true,
+});
+
+export const ReadOnly = story({
+  resource: { status: 'active', mode: 'enforced' },
+  access: { ...fullAccess, edit: false, create: false },
+});

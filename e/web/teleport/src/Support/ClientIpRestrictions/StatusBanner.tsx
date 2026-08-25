@@ -15,21 +15,7 @@ import { StatusKind } from 'design/Status';
 import { getVariantColors } from 'design/Status/statusColors';
 import { P2 } from 'design/Text';
 
-/**
- * The states the panel can be in. Every one of them has a banner, so the set
- * lives here, with the copy that gives each its meaning.
- */
-export type CirUiState =
-  | 'notConfigured'
-  | 'draft'
-  | 'pending'
-  | 'returningToDraft'
-  | 'testRunApplying'
-  | 'testRunActive'
-  | 'testRunEnding'
-  | 'expired'
-  | 'active'
-  | 'unknown';
+import { CirUiState } from './utils';
 
 type BannerConfig = {
   kind: StatusKind;

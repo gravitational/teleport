@@ -13,6 +13,7 @@ import {
   pollIntervalFor,
   POLL_INTERVAL_SETTLING_MS,
   POLL_INTERVAL_STABLE_MS,
+  STALE_REVISION_MESSAGE,
   testRunPayload,
   writeErrorMessage,
   writeRevision,
@@ -89,15 +90,35 @@ export function useClientIpRestriction(clusterId: string, now?: number) {
     req: SaveClientIpRestrictionRequest,
     message: string,
     opts: { quietError?: boolean } = {}
-  ) =>
-    save
+  ) => {
+    // An empty revision would upsert unguarded, so if a poll returned
+    // a CIR after editing began, conflict instead of overwriting it.
+    if (req.revision === '' && revision !== '') {
+      toast.add({
+        severity: 'error',
+        content: {
+          title: 'Failed to update the IP allowlist',
+          description: STALE_REVISION_MESSAGE,
+        },
+      });
+      return Promise.resolve(false);
+    }
+    return save
       .mutateAsync({ req, message, quietError: opts.quietError })
       .then(() => true)
       .catch(() => false);
+  };
 
   const actions = {
-    apply: (cidrs: string[] = currentCidrs, message = 'Enforcement started') =>
-      write(enforcePayload(cidrs, revision), message),
+    // apply and saveDraft take the revision the edited list was based on, so a
+    // save from an editor opened before a background poll conflicts (412) instead
+    // of silently replacing what someone else wrote meanwhile. The other actions
+    // act on the latest polled resource, so the latest revision is the right one.
+    apply: (
+      cidrs: string[] = currentCidrs,
+      message = 'Enforcement started',
+      baseRevision: string | undefined = cir?.revision
+    ) => write(enforcePayload(cidrs, writeRevision(baseRevision)), message),
     startTestRun: (
       cidrs: string[] = currentCidrs,
       message = 'Test run started'
@@ -112,8 +133,11 @@ export function useClientIpRestriction(clusterId: string, now?: number) {
       write(draftPayload(currentCidrs, revision), message, {
         quietError: true,
       }),
-    saveDraft: (cidrs: string[] = currentCidrs, message = 'Draft saved') =>
-      write(draftPayload(cidrs, revision), message),
+    saveDraft: (
+      cidrs: string[] = currentCidrs,
+      message = 'Draft saved',
+      baseRevision: string | undefined = cir?.revision
+    ) => write(draftPayload(cidrs, writeRevision(baseRevision)), message),
   };
 
   return {
