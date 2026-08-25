@@ -85,7 +85,7 @@ func GenerateConfig(al *accesslist.AccessList, members []*accesslist.AccessListM
 		}
 	}
 
-	cfgBlocks := []string{"# Terraform config for creating an Access List.\n"}
+	cfgBlocks := []string{"# Terraform config for an Access List.\n"}
 	if providerBlock != nil {
 		cfgBlocks = append(cfgBlocks, tfgen.ProviderBlock(providerBlock.TeleportVersion, providerBlock.ProxyAddr))
 	}
@@ -168,9 +168,9 @@ func GenerateConfigWithPresetBuilder(params ConfigParams) (string, error) {
 	var configDescription string
 	switch params.PresetType {
 	case preset.ShortTermPresetType:
-		configDescription = "# Terraform config for creating an Access List with just-in-time (JIT) access.\n# Members must submit an access request for temporary access to Teleport resources,\n# subject to approval by the owners.\n"
+		configDescription = "# Terraform config for an Access List with just-in-time (JIT) access.\n# Members must submit an access request for temporary access to Teleport resources,\n# subject to approval by the owners.\n"
 	case preset.LongTermPresetType:
-		configDescription = "# Terraform config for creating an Access List that grants members direct\n# access to Teleport resources defined in the associated roles.\n"
+		configDescription = "# Terraform config for an Access List that grants members direct\n# access to Teleport resources defined in the associated roles.\n"
 	}
 
 	cfgBlocks := []string{configDescription}
@@ -203,7 +203,7 @@ func makeAccessRoleCfgs(reqAccessRoles []AccessRole, builtRoles *preset.RolesBui
 			tfGenOpts = append(tfGenOpts, tfgen.WithResourceBlockComment(comment))
 		}
 
-		role, err := tfgen.Generate(builtAccessRole, tfGenOpts...)
+		role, err := tfgen.Generate(builtAccessRole, append(tfGenOpts, tfgen.WithOmitField("metadata.revision"))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -226,6 +226,7 @@ func makeSupportingRoleCfgs(requestedPreset preset.PresetType, builtRoles *prese
 
 	requesterRoleCfg, err := tfgen.Generate(builtRoles.RequesterRole,
 		tfgen.WithResourceBlockComment(requesterComment),
+		tfgen.WithOmitField("metadata.revision"),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -234,6 +235,7 @@ func makeSupportingRoleCfgs(requestedPreset preset.PresetType, builtRoles *prese
 
 	reviewerRoleCfg, err := tfgen.Generate(builtRoles.ReviewerRole,
 		tfgen.WithResourceBlockComment("A role that allows reviewing access requests (assigned to owners)."),
+		tfgen.WithOmitField("metadata.revision"),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,7 +254,17 @@ func makeAccessListMemberCfgs(members []*accesslist.AccessListMember, terraformA
 			tfgen.WithResourceType("teleport_access_list_member"),
 			tfgen.WithResourceName(fmt.Sprintf("acl-member-%s", tfgen.UniqueSanitizedResourceName(memberProto.GetHeader().GetMetadata().GetName()))),
 			tfgen.WithDependsOn(fmt.Sprintf("%s.%s", terraformAccessListType, terraformAccessListName)),
+			// These fields are excluded from the Terraform provider's member schema
+			// (see integrations/terraform/protoc-gen-terraform-accesslist.yaml), so
+			// emitting them produce errors. The member identity
+			// comes from header.metadata.name.
+			tfgen.WithOmitField("header.metadata.id"),
+			tfgen.WithOmitField("header.metadata.revision"),
+			tfgen.WithOmitField("spec.added_by"),
 			tfgen.WithOmitField("spec.ineligible_status"),
+			tfgen.WithOmitField("spec.joined"),
+			tfgen.WithOmitField("spec.name"),
+			tfgen.WithOmitField("status"),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -276,8 +288,14 @@ func makeAccessListCfg(al *accesslist.AccessList) (cfg string, terraformName str
 		tfgen.WrapHeaderResource(accessListProto),
 		tfgen.WithResourceType(terraformAccessListType),
 		tfgen.WithResourceName(terraformName),
+		// These fields are excluded from the Terraform provider's access list schema
+		// (see integrations/terraform/protoc-gen-terraform-accesslist.yaml), so
+		// emitting them produces errors.
+		tfgen.WithOmitField("header.metadata.id"),
+		tfgen.WithOmitField("header.metadata.revision"),
 		tfgen.WithOmitField("spec.owners.ineligible_status"),
 		tfgen.WithOmitField("spec.audit"),
+		tfgen.WithOmitField("status"),
 	)
 	if err != nil {
 		return "", "", trace.Wrap(err)
