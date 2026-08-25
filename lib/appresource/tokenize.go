@@ -52,11 +52,26 @@ const maxPathLength = 8 << 10 // 8 KiB
 // path ends.
 const legalPathPunct = "-._~!$&'()*+,=:@/%"
 
-// Tokenize validates an HTTP request path and splits it on a real
-// "/" into the encoded segments a role's path rules match against, so
-// an encoded slash stays inside one segment. Pass
-// [net/url.URL.EscapedPath], the encoded path sent to the upstream
-// app, not the already-decoded [net/url.URL.Path].
+// Token is one segment of a request path. Raw is the segment as sent to the
+// upstream app. Decoded is Raw with every escape decoded, including the
+// encoded slash (%2F), so "My%20Project" becomes "My Project" and "a%2Fb"
+// becomes "a/b".
+type Token struct {
+	Raw     string
+	Decoded string
+}
+
+// hasEncodedSlash returns true when the token contains the encoded slash
+// (%2F), in either hex case. A raw "/" can never be inside a segment, so any
+// "/" in Decoded is a decoded %2F.
+func (t Token) hasEncodedSlash() bool {
+	return strings.Contains(t.Decoded, "/")
+}
+
+// Tokenize validates an HTTP request path and splits it on a real "/" into
+// the tokens a role's path rules match against, so an encoded slash stays
+// inside one segment. Pass [net/url.URL.EscapedPath], the encoded path sent
+// to the upstream app, not the already-decoded [net/url.URL.Path].
 //
 // Tokenize accepts a path that starts with "/", stays under 8 KiB,
 // and holds only the path characters RFC 3986 allows, except for ";".
@@ -66,7 +81,7 @@ const legalPathPunct = "-._~!$&'()*+,=:@/%"
 // upstream app could read as a different path than the one a role
 // matched, such as "/a/../b" or "/files/secret." on a server that
 // trims a trailing dot.
-func Tokenize(path string) ([]string, error) {
+func Tokenize(path string) ([]Token, error) {
 	if len(path) > maxPathLength {
 		return nil, trace.BadParameter("path length %d exceeds the %d byte limit", len(path), maxPathLength)
 	}
@@ -79,7 +94,12 @@ func Tokenize(path string) ([]string, error) {
 	if err := validateDecoded(path); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return strings.Split(path[1:], "/"), nil
+	segments := strings.Split(path[1:], "/")
+	tokens := make([]Token, len(segments))
+	for i, seg := range segments {
+		tokens[i] = Token{Raw: seg, Decoded: decode(seg)}
+	}
+	return tokens, nil
 }
 
 // validateRawBytes rejects any byte that cannot appear in a URL path
@@ -140,16 +160,7 @@ func validateDecoded(path string) error {
 		return trace.BadParameter("path %q is not valid UTF-8 once decoded", clip(path))
 	}
 	for seg := range strings.SplitSeq(decoded[1:], "/") {
-		if err := rejectDotSegment(seg); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := rejectLeadingMark(seg); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := rejectEdgeSpace(seg); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := rejectTrailingDot(seg); err != nil {
+		if err := rejectAmbiguousSegment(seg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -187,6 +198,24 @@ func decode(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+// rejectAmbiguousSegment rejects a decoded segment an upstream app may
+// normalize into a different segment, for example ".." or "files.".
+func rejectAmbiguousSegment(seg string) error {
+	if err := rejectDotSegment(seg); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := rejectLeadingMark(seg); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := rejectEdgeSpace(seg); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := rejectTrailingDot(seg); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // rejectDotSegment rejects a segment made of only dots and spaces
