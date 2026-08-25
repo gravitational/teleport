@@ -31,7 +31,10 @@ import { AbortError, isAbortError } from 'shared/utils/error';
 import type { State as ClustersState } from 'teleterm/mainProcess/clusterStore';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { TshdClient } from 'teleterm/services/tshd';
-import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
+import {
+  getGatewayTargetUriKind,
+  normalizeTargetSubresourceName,
+} from 'teleterm/services/tshd/gateway';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import * as uri from 'teleterm/ui/uri';
@@ -427,7 +430,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
           return gateway;
         }
         case 'app': {
-          if (gateway.targetSubresourceName === targetSubresourceName) {
+          if (
+            normalizeTargetSubresourceName(gateway.targetSubresourceName) ===
+            normalizeTargetSubresourceName(targetSubresourceName)
+          ) {
             return gateway;
           }
           break;

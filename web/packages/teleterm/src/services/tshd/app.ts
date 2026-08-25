@@ -110,7 +110,7 @@ export function isMcp(app: App): boolean {
   return app.endpointUri.startsWith('mcp+');
 }
 
-function isLLM(app: App): boolean {
+export function isLLM(app: App): boolean {
   return app.endpointUri.startsWith('llm://');
 }
 

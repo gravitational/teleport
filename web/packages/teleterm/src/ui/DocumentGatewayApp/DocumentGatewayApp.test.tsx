@@ -23,6 +23,7 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  makeApp,
   makeAppGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
@@ -167,4 +168,118 @@ describe('reconnecting when the gateway fails to be created', () => {
       })
     );
   });
+});
+
+describe('LLM inference endpoint gateway', () => {
+  const anthropicBaseUrl = 'export ANTHROPIC_BASE_URL=http://localhost:1337';
+  const openaiBaseUrl = 'export OPENAI_BASE_URL=http://localhost:1337/v1';
+  const bedrockBeta = 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1';
+  const bedrockMantle = 'export CLAUDE_CODE_USE_MANTLE=1';
+  const bedrockMantleBaseUrl =
+    'export ANTHROPIC_BEDROCK_MANTLE_BASE_URL=http://localhost:1337';
+  const codexCommand = 'codex -c openai_base_url=http://localhost:1337/v1';
+  const codexBedrockCommand =
+    'codex -c model_providers.amazon-bedrock.base_url=http://localhost:1337 ' +
+    '-c model_providers.amazon-bedrock.auth.command=cat ' +
+    '-c model_provider=amazon-bedrock';
+
+  type TestCase = {
+    name: string;
+    format: string;
+    provider: string;
+    expectedTitle: string;
+    expected: string[];
+    notExpected: string[];
+  };
+
+  const tests: TestCase[] = [
+    {
+      name: 'anthropic',
+      format: 'anthropic',
+      provider: 'anthropic',
+      expectedTitle: 'Anthropic Inference Endpoint Connection',
+      expected: [anthropicBaseUrl, 'claude'],
+      notExpected: [openaiBaseUrl, bedrockBeta, bedrockMantle],
+    },
+    {
+      name: 'anthropic on bedrock',
+      format: 'anthropic',
+      provider: 'bedrock',
+      expectedTitle: 'Anthropic Inference Endpoint Connection',
+      expected: [
+        anthropicBaseUrl,
+        bedrockBeta,
+        bedrockMantle,
+        bedrockMantleBaseUrl,
+        'claude',
+      ],
+      notExpected: [openaiBaseUrl],
+    },
+    {
+      name: 'openai',
+      format: 'openai',
+      provider: 'openai',
+      expectedTitle: 'OpenAI Inference Endpoint Connection',
+      expected: [openaiBaseUrl, codexCommand],
+      notExpected: [anthropicBaseUrl, codexBedrockCommand],
+    },
+    {
+      name: 'openai on bedrock',
+      format: 'openai',
+      provider: 'bedrock',
+      expectedTitle: 'OpenAI Inference Endpoint Connection',
+      expected: [codexBedrockCommand],
+      notExpected: [openaiBaseUrl, codexCommand],
+    },
+  ];
+
+  test.each(tests)(
+    'shows $name client instructions for the running proxy',
+    async ({ format, provider, expectedTitle, expected, notExpected }) => {
+      const appContext = new MockAppContext();
+      const cluster = makeRootCluster();
+      const gateway = makeAppGateway({
+        protocol: 'LLM',
+        targetSubresourceName: undefined,
+      });
+      const doc: docs.DocumentGateway = {
+        uri: '/docs/1',
+        kind: 'doc.gateway',
+        targetName: gateway.targetName,
+        targetUri: gateway.targetUri as AppUri,
+        targetUser: gateway.targetUser,
+        targetSubresourceName: undefined,
+        gatewayUri: gateway.uri,
+        origin: 'resource_table',
+        title: '',
+        status: '',
+      };
+      appContext.addRootClusterWithDoc(cluster, doc);
+
+      jest
+        .spyOn(appContext.tshd, 'createGateway')
+        .mockReturnValueOnce(new MockedUnaryCall(gateway));
+      jest.spyOn(appContext.tshd, 'getApp').mockReturnValue(
+        new MockedUnaryCall({
+          app: makeApp({ llmFormat: format, llmProvider: provider }),
+        })
+      );
+
+      render(
+        <MockAppContextProvider appContext={appContext}>
+          <MockWorkspaceContextProvider>
+            <DocumentGatewayApp visible doc={doc} />
+          </MockWorkspaceContextProvider>
+        </MockAppContextProvider>
+      );
+
+      expect(await screen.findByText(expectedTitle)).toBeInTheDocument();
+      for (const text of expected) {
+        expect(document.body).toHaveTextContent(text);
+      }
+      for (const text of notExpected) {
+        expect(document.body).not.toHaveTextContent(text);
+      }
+    }
+  );
 });

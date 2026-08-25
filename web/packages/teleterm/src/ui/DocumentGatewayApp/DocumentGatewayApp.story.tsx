@@ -34,7 +34,15 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import * as types from 'teleterm/ui/services/workspacesService';
 
 type StoryProps = {
-  appType: 'web' | 'tcp' | 'tcp-multi-port' | 'mcp';
+  appType:
+    | 'web'
+    | 'tcp'
+    | 'tcp-multi-port'
+    | 'mcp'
+    | 'llm-anthropic'
+    | 'llm-anthropic-bedrock'
+    | 'llm-openai'
+    | 'llm-openai-bedrock';
   online: boolean;
   changeLocalPort: 'succeed' | 'throw-error';
   changeTargetPort: 'succeed' | 'throw-error';
@@ -48,7 +56,16 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     appType: {
       control: { type: 'radio' },
-      options: ['web', 'tcp', 'tcp-multi-port', 'mcp'],
+      options: [
+        'web',
+        'tcp',
+        'tcp-multi-port',
+        'mcp',
+        'llm-anthropic',
+        'llm-anthropic-bedrock',
+        'llm-openai',
+        'llm-openai-bedrock',
+      ],
     },
     changeLocalPort: {
       if: { arg: 'online' },
@@ -96,6 +113,24 @@ export function Story(props: StoryProps) {
   if (props.appType === 'mcp') {
     gateway.protocol = 'MCP';
   }
+
+  let llmDetails: { llmFormat: string; llmProvider: string } | undefined;
+  if (props.appType === 'llm-anthropic') {
+    gateway.protocol = 'LLM';
+    llmDetails = { llmFormat: 'anthropic', llmProvider: 'anthropic' };
+  }
+  if (props.appType === 'llm-anthropic-bedrock') {
+    gateway.protocol = 'LLM';
+    llmDetails = { llmFormat: 'anthropic', llmProvider: 'bedrock' };
+  }
+  if (props.appType === 'llm-openai') {
+    gateway.protocol = 'LLM';
+    llmDetails = { llmFormat: 'openai', llmProvider: 'openai' };
+  }
+  if (props.appType === 'llm-openai-bedrock') {
+    gateway.protocol = 'LLM';
+    llmDetails = { llmFormat: 'openai', llmProvider: 'bedrock' };
+  }
   const documentGateway: types.DocumentGateway = {
     kind: 'doc.gateway',
     targetUri: '/clusters/bar/apps/quux',
@@ -113,6 +148,10 @@ export function Story(props: StoryProps) {
   }
   if (props.appType === 'tcp-multi-port') {
     documentGateway.targetSubresourceName = '4242';
+  }
+  if (llmDetails) {
+    documentGateway.llmFormat = llmDetails.llmFormat;
+    documentGateway.llmProvider = llmDetails.llmProvider;
   }
 
   const infinitePromise = usePromiseRejectedOnUnmount();

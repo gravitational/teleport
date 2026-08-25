@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getCliCommandArgs, getCliCommandEnv } from './gateway';
+import {
+  getCliCommandArgs,
+  getCliCommandEnv,
+  normalizeTargetSubresourceName,
+} from './gateway';
 import { GatewayCLICommand } from './types';
 
 describe('getCliCommandArgs', () => {
@@ -37,6 +41,21 @@ describe('getCliCommandEnv', () => {
 
     expect(env.foo).toBe('bar');
     expect(env.baz).toBe('quux');
+  });
+});
+
+describe('normalizeTargetSubresourceName', () => {
+  test.each([
+    { name: 'unset stays undefined', value: undefined, expected: undefined },
+    { name: 'empty string becomes undefined', value: '', expected: undefined },
+    { name: 'a target port passes through', value: '4242', expected: '4242' },
+    {
+      name: 'a database name passes through',
+      value: 'postgres',
+      expected: 'postgres',
+    },
+  ])('$name', ({ value, expected }) => {
+    expect(normalizeTargetSubresourceName(value)).toBe(expected);
   });
 });
 

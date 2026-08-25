@@ -27,6 +27,18 @@ import {
 import { GatewayCLICommand } from './types';
 
 /**
+ * normalizeTargetSubresourceName coerces an empty string to undefined so that
+ * gateway documents, connection-tracker entries, and daemon responses agree on
+ * "unset". Without this, single-port apps (including LLM and TLS/TCP) can fail
+ * to reuse an existing gateway when one side still has "".
+ */
+export function normalizeTargetSubresourceName(
+  value: string | undefined
+): string | undefined {
+  return value === '' ? undefined : value;
+}
+
+/**
  * getCliCommandArgs returns a Node.js-compatible array with args.
  *
  * In Go, os.exec.Cmd.Args includes argv0 as the first element. Node expects the args array to

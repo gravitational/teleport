@@ -143,6 +143,8 @@ export class DocumentsService {
       gatewayUri,
       origin,
       targetProtocol,
+      llmFormat,
+      llmProvider,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -159,6 +161,8 @@ export class DocumentsService {
       origin,
       status: '',
       targetProtocol,
+      llmFormat,
+      llmProvider,
     };
     doc.title = getDocumentGatewayTitle(doc);
     return doc;
