@@ -22,12 +22,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync"
-	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -41,72 +39,57 @@ func TestMain(m *testing.M) {
 func Test_RunOnInterval(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
 
-	taskCh := make(chan struct{}, 3)
-	log := logtest.NewLogger()
-	clock := clockwork.NewFakeClock()
-	cfg := RunOnIntervalConfig{
-		Name:  "test",
-		Clock: clock,
-		Log:   log,
-		F: func(ctx context.Context) error {
-			taskCh <- struct{}{}
-			return nil
-		},
-		RetryLimit: 3,
-		Interval:   time.Minute * 10,
-	}
+		start := time.Now()
+		callTimes := make(chan time.Time)
+		interval := time.Minute * 10
+		cfg := RunOnIntervalConfig{
+			Name: "test",
+			Log:  logtest.NewLogger(),
+			F: func(ctx context.Context) error {
+				callTimes <- time.Now()
+				return nil
+			},
+			RetryLimit: 3,
+			Interval:   interval,
+		}
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		assert.NoError(t, RunOnInterval(ctx, cfg))
-	}()
+		done := make(chan error, 1)
+		go func() {
+			done <- RunOnInterval(ctx, cfg)
+		}()
 
-	// Wait for three iterations to have been completed.
-	for range 3 {
-		<-taskCh
-		clock.Advance(time.Minute * 11)
-	}
+		assert.Equal(t, start, <-callTimes, "first run should happen immediately")
+		assert.Equal(t, start.Add(interval), <-callTimes, "second run should happen 10 minutes after first run")
+		assert.Equal(t, start.Add(2*interval), <-callTimes, "third run should happen 20 minutes after the first run")
 
-	// Cancel the ctx and make sure RunOnInterval returns
-	cancel()
-	wg.Wait()
+		cancel()
+		assert.NoError(t, <-done)
+	})
 }
 
 func Test_RunOnInterval_failureExit(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	synctest.Test(t, func(t *testing.T) {
+		callCount := 0
+		testErr := fmt.Errorf("test error")
+		cfg := RunOnIntervalConfig{
+			Name: "test",
+			Log:  logtest.NewLogger(),
+			F: func(ctx context.Context) error {
+				callCount++
+				return testErr
+			},
+			RetryLimit:           2,
+			Interval:             time.Second,
+			ExitOnRetryExhausted: true,
+		}
 
-	callCount := atomic.Int64{}
-
-	log := logtest.NewLogger()
-	testErr := fmt.Errorf("test error")
-	cfg := RunOnIntervalConfig{
-		Name:  "test",
-		Clock: clockwork.NewRealClock(),
-		Log:   log,
-		F: func(ctx context.Context) error {
-			callCount.Add(1)
-			return testErr
-		},
-		RetryLimit:           2,
-		Interval:             time.Second,
-		ExitOnRetryExhausted: true,
-	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		assert.ErrorIs(t, RunOnInterval(ctx, cfg), testErr)
-	}()
-
-	wg.Wait()
-	assert.Equal(t, int64(2), callCount.Load())
+		assert.ErrorIs(t, RunOnInterval(t.Context(), cfg), testErr)
+		assert.Equal(t, 2, callCount)
+	})
 }

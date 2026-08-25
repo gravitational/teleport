@@ -24,7 +24,7 @@ import (
 	"net"
 	"sync"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/ssh/agent"
@@ -110,70 +110,67 @@ func (m *mockHostDialerTracker) count() (open int, closed int) {
 
 func TestCyclingHostDialClient(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	tracker := &mockHostDialerTracker{}
-	cycler := &cyclingHostDialClient{
-		max:          5,
-		hostDialerFn: tracker.New,
-	}
 
-	var conns []net.Conn
-	for range 10 {
-		conn, _, err := cycler.DialHost(ctx, "", "", nil)
-		assert.NoError(t, err)
-		conns = append(conns, conn)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		tracker := &mockHostDialerTracker{}
+		cycler := &cyclingHostDialClient{
+			max:          5,
+			hostDialerFn: tracker.New,
+		}
 
-	openDialers, closedDialers := tracker.count()
-	assert.Equal(t, 2, openDialers)
-	assert.Equal(t, 0, closedDialers)
+		var conns []net.Conn
+		for range 10 {
+			conn, _, err := cycler.DialHost(t.Context(), "", "", nil)
+			assert.NoError(t, err)
+			conns = append(conns, conn)
+		}
 
-	// Close the first connection, it should not close any dialer.
-	_ = conns[0].Close()
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		openDialers, closedDialers := tracker.count()
+		assert.Equal(t, 2, openDialers)
+		assert.Equal(t, 0, closedDialers)
+
+		// Close the first connection, it should not close any dialer.
+		_ = conns[0].Close()
+		synctest.Wait()
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 2, openDialers)
 		assert.Equal(t, 0, closedDialers)
-	}, time.Second, 100*time.Millisecond)
 
-	// Close the next 4 connections, it should close the first dialer.
-	for i := 1; i < 5; i++ {
-		_ = conns[i].Close()
-	}
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Close the next 4 connections, it should close the first dialer.
+		for i := 1; i < 5; i++ {
+			_ = conns[i].Close()
+		}
+		synctest.Wait()
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 1, openDialers)
 		assert.Equal(t, 1, closedDialers)
-	}, time.Second, 100*time.Millisecond)
 
-	// Close the next 5 connections, it should close the second dialer.
-	for i := 5; i < 10; i++ {
-		_ = conns[i].Close()
-	}
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Close the next 5 connections, it should close the second dialer.
+		for i := 5; i < 10; i++ {
+			_ = conns[i].Close()
+		}
+		synctest.Wait()
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 0, openDialers)
 		assert.Equal(t, 2, closedDialers)
-	}, time.Second, 100*time.Millisecond)
 
-	// Now we want to validate a weirder case, let's create 4 connections,
-	// close them and then create a fifth.
-	for range 4 {
-		conn, _, err := cycler.DialHost(ctx, "", "", nil)
+		// Now we want to validate a weirder case, let's create 4 connections,
+		// close them and then create a fifth.
+		for range 4 {
+			conn, _, err := cycler.DialHost(t.Context(), "", "", nil)
+			assert.NoError(t, err)
+			_ = conn.Close()
+		}
+		conn, _, err := cycler.DialHost(t.Context(), "", "", nil)
 		assert.NoError(t, err)
-		_ = conn.Close()
-	}
-	conn, _, err := cycler.DialHost(ctx, "", "", nil)
-	assert.NoError(t, err)
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		synctest.Wait()
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 1, openDialers)
 		assert.Equal(t, 2, closedDialers)
-	}, time.Second, 100*time.Millisecond)
-	_ = conn.Close()
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		_ = conn.Close()
+		synctest.Wait()
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 0, openDialers)
 		assert.Equal(t, 3, closedDialers)
-	}, time.Second, 100*time.Millisecond)
+	})
 }
