@@ -221,7 +221,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetUsageMode("invalid")
 			},
-			expectedStrongErr: "scoped token mode is not supported",
+			expectedStrongErr: "spec.usage_mode: \"invalid\" is not one of [bot, single_use, unlimited]",
 		},
 		{
 			name: "invalid labels key",
