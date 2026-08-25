@@ -94,6 +94,8 @@ func testShortTerm(t *testing.T, sut *common.SUT) {
 	adminClient := sut.CreateWebClientForUser(t, "admin")
 	endpoint := adminClient.Endpoint("enterprise", "accesslistpreset")
 
+	aclWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
+
 	bobClient := sut.CreateWebClientForUser(t, "bob")
 	resources := common.MustListUnifedResources(t, bobClient, common.WithSearchAsRole())
 	require.Empty(t, resources.Items, "bob should have no searchable resources initially")
@@ -147,6 +149,13 @@ func testShortTerm(t *testing.T, sut *common.SUT) {
 	})
 
 	t.Run("update access list to add prod environment", func(t *testing.T) {
+
+		// Wait for ineligibility reconciliation to complete before proceeding with the update.
+		// This ensures the correct revision is used and prevents reconciliation from occurring
+		// during the upgrade, which could lead to a revision mismatch.
+		rev := waitForAccessListEligibilityReconciler(t, aclWatcher, resp.AccessList.GetName()).GetRevision()
+		resp.AccessList.SetRevision(rev)
+
 		req := ui.AccessListWithPresetRequest{
 			PresetType: "short-term",
 			AccessList: resp.AccessList,
@@ -163,7 +172,7 @@ func testShortTerm(t *testing.T, sut *common.SUT) {
 			},
 		}
 
-		endpoint := adminClient.Endpoint("enterprise", "accesslistpreset", req.AccessList.GetName())
+		endpoint := adminClient.Endpoint("enterprise", "accesslistpreset", resp.AccessList.GetName())
 		resp, err = common.Roundtrip[ui.AccessListWithPresetResponse](ctx, adminClient, http.MethodPut, endpoint, req)
 		require.NoError(t, err)
 		got := libslice.Map(resp.AccessRoles, func(t *types.RoleV6) string { return t.Metadata.Name })
@@ -187,6 +196,26 @@ func testShortTerm(t *testing.T, sut *common.SUT) {
 		require.ElementsMatch(t, resp.RolesToBeDeleted, []string{"prod-acl-preset-dev-jit-access"})
 	})
 	mustDeleteAccessListAndRoles(t, sut, resp)
+}
+
+// waitForAccessListEligibilityReconciler waits until the named access list's user
+// owners have a non-empty IneligibleStatus, and returns that observed
+// resource.
+// IneligibleStatusReconciler asynchronously sets the owners/members ineligibility status
+// that bumps up the access list revision.
+func waitForAccessListEligibilityReconciler(t *testing.T, watcher types.Watcher, name string) *accesslist.AccessList {
+	t.Helper()
+	return common.WaitForPutEvent(t, watcher, func(al *accesslist.AccessList) bool {
+		if al.GetName() != name {
+			return false
+		}
+		for _, owner := range al.Spec.Owners {
+			if owner.IsMembershipKindUser() && owner.IneligibleStatus == "" {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func mustDeleteAccessListAndRoles(t *testing.T, sut *common.SUT, resp ui.AccessListWithPresetResponse) {
