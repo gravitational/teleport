@@ -1,4 +1,4 @@
-# Terraform config for creating an Access List that grants members direct
+# Terraform config for an Access List that grants members direct
 # access to Teleport resources defined in the associated roles.
 
 resource "teleport_access_list" "acl-test-access-list" {

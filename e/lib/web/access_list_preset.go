@@ -2,24 +2,21 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/accesslists/preset"
+	"github.com/gravitational/teleport/lib/accesslists/terraform"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -239,203 +236,46 @@ func (p *Plugin) generateAccessListTerraformConfig(_ http.ResponseWriter, r *htt
 		}
 	}
 
-	accessRoles := make([]types.Role, 0, len(req.AccessRoles))
+	accessRoles := make([]terraform.AccessRole, 0, len(req.AccessRoles))
 	for _, roleReq := range req.AccessRoles {
 		if roleReq.Role == nil {
 			return nil, trace.BadParameter("access role is nil")
 		}
-		accessRoles = append(accessRoles, roleReq.Role)
+		accessRole := terraform.AccessRole{
+			Role:         roleReq.Role,
+			BlockComment: roleReq.BlockComment,
+		}
+		accessRoles = append(accessRoles, accessRole)
 	}
 
-	reqPreset := preset.PresetType(req.PresetType)
-	presetBuilder, err := preset.NewPresetAccessListRolesBuilderForTerraform(preset.AccessListRolesBuilderConfig{
-		PresetName:     req.AccessListID,
-		AccessListSpec: newAccessList,
-		PresetType:     reqPreset,
-		AccessRoles:    accessRoles,
+	var members []*accesslist.AccessListMember
+	if req.AccessList != nil {
+		members = make([]*accesslist.AccessListMember, 0, len(req.AccessList.Members))
+		for _, reqMember := range req.AccessList.Members {
+			reqMember.AccessList = req.AccessListID
+			member, err := accesslist.NewAccessListMember(header.Metadata{Name: reqMember.Name}, reqMember)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			members = append(members, member)
+		}
+
+	}
+
+	tfConfig, err := terraform.GenerateConfigWithPresetBuilder(terraform.ConfigParams{
+		PresetType:   preset.PresetType(req.PresetType),
+		AccessListID: req.AccessListID,
+		AccessList:   newAccessList,
+		AccessRoles:  accessRoles,
+		Members:      members,
+		ProviderBlock: &terraform.ProviderBlock{
+			TeleportVersion: teleport.SemVer().Major,
+			ProxyAddr:       p.h.PublicProxyAddr(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	builtRoles, err := presetBuilder.BuildRoles()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var roleCfgs []string
-	roleCfgs, err = makeAccessRoleCfgs(req, builtRoles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(roleCfgs) > 0 {
-		supportingRoleCfgs, err := makeSupportingRoleCfgs(reqPreset, builtRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roleCfgs = append(roleCfgs, supportingRoleCfgs...)
-	}
-
-	var accessListCfg string
-	terraformAccessListName := ""
-	terraformAccessListType := "teleport_access_list"
-
-	if req.AccessList != nil {
-		// Only pass builtRoles when access roles were provided, so
-		// the access list doesn't reference roles absent from the config.
-		var rolesForAccessList *preset.RolesBuildResult
-		if len(req.AccessRoles) > 0 {
-			rolesForAccessList = builtRoles
-		}
-		builtAl, err := presetBuilder.BuildAccessList(rolesForAccessList)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		terraformAccessListName = fmt.Sprintf("acl-%s", tfgen.SanitizeResourceName(builtAl.AccessList.GetName()))
-		accessList := conv.ToProto(builtAl.AccessList)
-		accessListCfgBytes, err := tfgen.Generate(
-			tfgen.WrapHeaderResource(accessList),
-			tfgen.WithResourceType(terraformAccessListType),
-			tfgen.WithResourceName(terraformAccessListName),
-			tfgen.WithOmitField("spec.owners.ineligible_status"),
-			tfgen.WithOmitField("spec.audit"),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		accessListCfg = string(accessListCfgBytes)
-	}
-
-	var accessListMembersCfgs []string
-	if req.AccessList != nil && len(req.AccessList.Members) > 0 {
-		accessListMembersCfgs, err = makeAccessListMemberCfgs(req, terraformAccessListType, terraformAccessListName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	var configDescription string
-	switch reqPreset {
-	case preset.ShortTermPresetType:
-		configDescription = "# Terraform config for creating an Access List with just-in-time (JIT) access.\n# Members must submit an access request for temporary access to Teleport resources,\n# subject to approval by the owners.\n"
-	case preset.LongTermPresetType:
-		configDescription = "# Terraform config for creating an Access List that grants members direct\n# access to Teleport resources defined in the associated roles.\n"
-	}
-
-	cfgBlocks := []string{
-		configDescription,
-		providerBlock(teleport.SemVer().Major, p.h.PublicProxyAddr()),
-	}
-	cfgBlocks = append(cfgBlocks, roleCfgs...)
-	if accessListCfg != "" {
-		cfgBlocks = append(cfgBlocks, accessListCfg)
-	}
-	cfgBlocks = append(cfgBlocks, accessListMembersCfgs...)
-
-	return ui.GenerateAccessListTerraformConfigResponse{Terraform: strings.Join(cfgBlocks, "\n")}, nil
-}
-
-func makeAccessRoleCfgs(req ui.GenerateAccessListTerraformConfigRequest, builtRoles *preset.RolesBuildResult) ([]string, error) {
-	findRoleComment := func(builtRoleName string) string {
-		for _, roleReq := range req.AccessRoles {
-			if roleReq.BlockComment != "" && strings.HasPrefix(builtRoleName, roleReq.Role.Metadata.Name) {
-				return roleReq.BlockComment
-			}
-		}
-		return ""
-	}
-
-	var roleCfgs []string
-	for _, builtAccessRole := range builtRoles.AccessRoles {
-		var tfGenOpts []tfgen.GenerateOpt
-		if comment := findRoleComment(builtAccessRole.GetName()); comment != "" {
-			tfGenOpts = append(tfGenOpts, tfgen.WithResourceBlockComment(comment))
-		}
-
-		role, err := tfgen.Generate(builtAccessRole, tfGenOpts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		roleCfgs = append(roleCfgs, string(role))
-	}
-	return roleCfgs, nil
-}
-
-func makeSupportingRoleCfgs(requestedPreset preset.PresetType, builtRoles *preset.RolesBuildResult) ([]string, error) {
-	requesterComment := ""
-	switch requestedPreset {
-	case preset.ShortTermPresetType:
-		requesterComment = "A role that requires requesting access to resources (assigned to members)."
-	case preset.LongTermPresetType:
-		requesterComment = "A role that requires requesting access to resources. Can optionally assign to any users outside of this access list."
-	}
-
-	var roleCfgs []string
-
-	requesterRoleCfg, err := tfgen.Generate(builtRoles.RequesterRole,
-		tfgen.WithResourceBlockComment(requesterComment),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleCfgs = append(roleCfgs, string(requesterRoleCfg))
-
-	reviewerRoleCfg, err := tfgen.Generate(builtRoles.ReviewerRole,
-		tfgen.WithResourceBlockComment("A role that allows reviewing access requests (assigned to owners)."),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleCfgs = append(roleCfgs, string(reviewerRoleCfg))
-
-	return roleCfgs, nil
-}
-
-func makeAccessListMemberCfgs(req ui.GenerateAccessListTerraformConfigRequest, terraformAccessListType, terraformAccessListName string) ([]string, error) {
-	members := make([]*accesslist.AccessListMember, 0, len(req.AccessList.Members))
-	for _, reqMember := range req.AccessList.Members {
-		reqMember.AccessList = req.AccessListID
-		member, err := accesslist.NewAccessListMember(header.Metadata{Name: reqMember.Name}, reqMember)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		members = append(members, member)
-	}
-
-	membersProto := conv.ToMembersProto(members)
-	var memberCfgs []string
-	for _, memberProto := range membersProto {
-		memberCfg, err := tfgen.Generate(
-			tfgen.WrapHeaderResource(memberProto),
-			tfgen.WithResourceType("teleport_access_list_member"),
-			tfgen.WithResourceName(fmt.Sprintf("acl-member-%s", tfgen.UniqueSanitizedResourceName(memberProto.GetHeader().GetMetadata().GetName()))),
-			tfgen.WithDependsOn(fmt.Sprintf("%s.%s", terraformAccessListType, terraformAccessListName)),
-			tfgen.WithOmitField("spec.ineligible_status"),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		memberCfgs = append(memberCfgs, string(memberCfg))
-	}
-
-	return memberCfgs, nil
-}
-
-func providerBlock(majorVersion int64, proxyAddr string) string {
-	return fmt.Sprintf(`terraform {
-  required_providers {
-    teleport = {
-      source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> %d.0"
-    }
-  }
-}
-
-provider "teleport" {
-  addr = %q
-}
-`, majorVersion, proxyAddr)
+	return ui.GenerateAccessListTerraformConfigResponse{Terraform: tfConfig}, nil
 }

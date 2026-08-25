@@ -1,4 +1,4 @@
-# Terraform config for creating an Access List that grants members direct
+# Terraform config for an Access List that grants members direct
 # access to Teleport resources defined in the associated roles.
 
 terraform {
@@ -153,7 +153,6 @@ resource "teleport_access_list_member" "acl-member-llama_836e2c96" {
 
   spec = {
     access_list     = "test-access-list"
-    name            = "llama"
     membership_kind = "1"
   }
 }
@@ -171,7 +170,6 @@ resource "teleport_access_list_member" "acl-member-alpaca_fe256c33" {
 
   spec = {
     access_list     = "test-access-list"
-    name            = "alpaca"
     reason          = "some reason"
     membership_kind = "1"
   }

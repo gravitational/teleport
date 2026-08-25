@@ -18,6 +18,7 @@ package terraform
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +34,8 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 		Kind:    types.KindRole,
 		Version: types.V7,
 		Metadata: types.Metadata{
-			Name: "accessRole1",
+			Name:     "accessRole1",
+			Revision: "should-be-omitted",
 		},
 	}
 
@@ -41,12 +43,13 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 		Kind:    types.KindRole,
 		Version: types.V7,
 		Metadata: types.Metadata{
-			Name: "accessRole2",
+			Name:     "accessRole2",
+			Revision: "should-be-omitted",
 		},
 	}
 
 	accessList, err := accesslist.NewAccessList(
-		header.Metadata{Name: "test-access-list"},
+		header.Metadata{Name: "test-access-list", Revision: "should-be-omitted"},
 		accesslist.Spec{
 			Title:  "Test Access List",
 			Owners: []accesslist.Owner{{Name: "llama", Description: "some description"}},
@@ -150,7 +153,7 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 
 func TestGenerateTerraformConfig(t *testing.T) {
 	accessList, err := accesslist.NewAccessList(
-		header.Metadata{Name: "plain-access-list"},
+		header.Metadata{Name: "plain-access-list", Revision: "should-be-omitted"},
 		accesslist.Spec{
 			Title:       "Plain Access List",
 			Description: "some description",
@@ -209,12 +212,15 @@ func TestGenerateTerraformConfig(t *testing.T) {
 
 func makeUserMember(t *testing.T, alName string, name string, reason string) *accesslist.AccessListMember {
 	member, err := accesslist.NewAccessListMember(
-		header.Metadata{Name: name},
+		header.Metadata{Name: name, Revision: "should-be-omitted"},
 		accesslist.AccessListMemberSpec{
 			AccessList:     alName,
-			Name:           name,
 			Reason:         reason,
 			MembershipKind: accesslist.MembershipKindUser,
+			// Following fields should not be generated.
+			Name:    "should-be-omitted",
+			Joined:  time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+			AddedBy: "should-be-omitted",
 		},
 	)
 	require.NoError(t, err)

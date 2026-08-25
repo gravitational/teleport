@@ -1,4 +1,4 @@
-# Terraform config for creating an Access List.
+# Terraform config for an Access List.
 
 resource "teleport_access_list" "acl-plain-access-list" {
   header = {
