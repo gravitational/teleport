@@ -151,6 +151,19 @@ integration '<Var name="my-integration"/>' has been created
 
 ### Validate the integration
 
+To validate the integration without modifying any AWS resources, run:
+
+```code
+$ tctl integrations test <Var name="my-integration"/>
+```
+
+This command calls AWS STS `GetCallerIdentity` using the OIDC token exchange, confirming that AWS trusts Teleport's identity provider and can assume the configured IAM role.
+
+If the integration is working, the command returns the AWS account ID and assumed role ARN, and you can skip ahead to [Next steps](#next-steps).
+
+If `tctl integrations test` fails, use the following steps to narrow down where
+the problem is.
+
 First, confirm the integration resource was created:
 
 ```code
@@ -200,14 +213,6 @@ A successful response returns a JSON document:
 
 If this endpoint is not reachable or does not return valid JSON, AWS will not be
 able to validate tokens issued by Teleport and the integration will not work.
-
-<Admonition type="tip">
-Starting in a future Teleport release, the `tctl integrations test` command
-will provide end-to-end validation of the AWS OIDC trust relationship. It
-calls AWS STS `GetCallerIdentity` using the OIDC token exchange, confirming
-that AWS trusts Teleport's identity provider and can assume the configured IAM
-role. A successful result returns the AWS account ID and assumed role ARN.
-</Admonition>
 
 After the set up is complete, you can now use the "Enroll New Resource" flow in Teleport Web UI, or other integration dependent features.
 
