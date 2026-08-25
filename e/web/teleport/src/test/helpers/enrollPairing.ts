@@ -69,3 +69,31 @@ export const getCurrentEnrollPairingError = (
   http.get(cfg.api.enrollPairing, () => {
     return HttpResponse.json({ error: { message: error }, fields }, { status });
   });
+
+export const approveEnrollPairingSuccess = () =>
+  http.post(cfg.api.enrollPairingApprove, () => {
+    return HttpResponse.json({ message: 'ok' });
+  });
+
+export const approveEnrollPairingError = (
+  status: number,
+  error: string | null = null,
+  fields: JsonObject = {}
+) =>
+  http.post(cfg.api.enrollPairingApprove, () => {
+    return HttpResponse.json({ error: { message: error }, fields }, { status });
+  });
+
+export const denyEnrollPairingSuccess = () =>
+  http.post(cfg.api.enrollPairingDeny, () => {
+    return HttpResponse.json({ message: 'ok' });
+  });
+
+export const denyEnrollPairingError = (
+  status: number,
+  error: string | null = null,
+  fields: JsonObject = {}
+) =>
+  http.post(cfg.api.enrollPairingDeny, () => {
+    return HttpResponse.json({ error: { message: error }, fields }, { status });
+  });

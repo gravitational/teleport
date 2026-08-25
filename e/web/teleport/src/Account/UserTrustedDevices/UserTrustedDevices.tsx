@@ -114,7 +114,17 @@ export const UserTrustedDevices = () => {
       </Row>
       <div ref={setTrigger} />
       {isMobileDeviceEnrollmentOpen && (
-        <EnrollMobileDeviceWizard close={closeMobileDeviceEnrollment} />
+        <EnrollMobileDeviceWizard
+          close={() => {
+            closeMobileDeviceEnrollment();
+            // Refetching on close covers the typical flow where the user finishes enrolling on the
+            // phone and then dismisses the wizard. This way they can see the freshly enrolled
+            // device in the list.
+            // TODO(ravicious): Detect that the device was enrolled and refresh the list before the
+            // wizard even gets closed. https://github.com/gravitational/core/issues/197
+            fetch({ clear: true });
+          }}
+        />
       )}
     </MultiRowBox>
   );

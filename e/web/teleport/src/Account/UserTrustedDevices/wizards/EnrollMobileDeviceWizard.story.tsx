@@ -2,9 +2,11 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 
 import { TeleportProviderBasicE } from 'e-teleport/mocks/providers';
 import {
+  approveEnrollPairingSuccess,
   createEnrollPairingError,
   createEnrollPairingForever,
   createEnrollPairingSuccess,
+  denyEnrollPairingSuccess,
   getCurrentEnrollPairingError,
   getCurrentEnrollPairingSuccess,
 } from 'e-teleport/test/helpers/enrollPairing';
@@ -60,6 +62,19 @@ export const QrCodeStepPollError: Story = {
   },
 };
 
+export const QrCodeStepExpired: Story = {
+  beforeEach({ msw }) {
+    msw.use(
+      createEnrollPairingSuccess({
+        state: 'awaiting_device',
+        token: 'pairing-token',
+        qrCode: dummyQrCode,
+      }),
+      getCurrentEnrollPairingError(404, 'enroll pairing not found')
+    );
+  },
+};
+
 export const WaitingForApprovalStep: Story = {
   beforeEach({ msw }) {
     msw.use(
@@ -68,7 +83,50 @@ export const WaitingForApprovalStep: Story = {
       createEnrollPairingSuccess({
         state: 'awaiting_approval',
         token: 'pairing-token',
+      }),
+      getCurrentEnrollPairingSuccess({
+        state: 'awaiting_approval',
+        token: 'pairing-token',
+        device: {
+          osType: 'iOS',
+          serialNumber: 'CXXXXXXXXX01',
+          osVersion: '26.3.1',
+        },
+      }),
+      approveEnrollPairingSuccess(),
+      denyEnrollPairingSuccess()
+    );
+  },
+};
+
+export const WaitingForApprovalStepApproved: Story = {
+  beforeEach({ msw }) {
+    msw.use(
+      createEnrollPairingSuccess({
+        state: 'awaiting_approval',
+        token: 'pairing-token',
+      }),
+      getCurrentEnrollPairingSuccess({
+        state: 'approved',
+        token: 'pairing-token',
+        device: {
+          osType: 'iOS',
+          serialNumber: 'CXXXXXXXXX01',
+          osVersion: '26.3.1',
+        },
       })
+    );
+  },
+};
+
+export const WaitingForApprovalStepExpired: Story = {
+  beforeEach({ msw }) {
+    msw.use(
+      createEnrollPairingSuccess({
+        state: 'awaiting_approval',
+        token: 'pairing-token',
+      }),
+      getCurrentEnrollPairingError(404, 'enroll pairing not found')
     );
   },
 };

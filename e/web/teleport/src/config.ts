@@ -238,6 +238,8 @@ const cfg = {
     deviceByUser:
       '/v1/enterprise/user/devices?limit=:limit?&startKey=:startKey?',
     enrollPairing: '/v1/enterprise/devices/enroll_pairing',
+    enrollPairingApprove: '/v1/enterprise/devices/enroll_pairing/approve',
+    enrollPairingDeny: '/v1/enterprise/devices/enroll_pairing/deny',
 
     surveyPath: '/v1/enterprise/cloud/survey',
 
@@ -342,6 +344,14 @@ const cfg = {
 
   getEnrollPairingUrl() {
     return cfg.api.enrollPairing;
+  },
+
+  getEnrollPairingApproveUrl() {
+    return cfg.api.enrollPairingApprove;
+  },
+
+  getEnrollPairingDenyUrl() {
+    return cfg.api.enrollPairingDeny;
   },
 
   getUsageSummarySummaryRoute(clusterId: string) {
