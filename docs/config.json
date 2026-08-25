@@ -2746,17 +2746,17 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/mcp-access/sse/",
-      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/sse/",
-      "permanent": true
-    },
-    {
       "source": "/enroll-resources/mcp-access/stdio/",
       "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/stdio/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/mcp-access/streamable-http/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/streamable-http/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/enrolling-mcp-servers/sse/",
       "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/streamable-http/",
       "permanent": true
     },

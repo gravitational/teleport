@@ -60,7 +60,20 @@ app_service:
 ...
 ```
 
-Now restart the Application Service and skip to Step 2.
+After saving the configuration file, restart Teleport to apply the change.
+
+If your host uses systemd, run:
+
+```code
+$ sudo systemctl restart teleport
+```
+
+If your host doesn't use systemd, restart the Teleport process using the same
+method you used to start it initially.
+
+The MCP demo server will not appear in `tctl apps ls` until the service restarts.
+
+Skip to Step 2.
 
 ### Create a new service
 
