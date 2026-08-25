@@ -13,12 +13,12 @@ spec:
   join_method: gcp
   gcp:
     allow:
-      # The GCP project ID(s) that VMs can join from.
+      # The GCP project ID(s) allowed to join.
       - project_ids: ["example-project-id"]
         # (Optional) The locations that VMs can join from. Note: both regions and
-        # zones are accepted.
+        # zones are accepted. Only supported for GCP VMs.
         locations: ["us-west1", "us-west2-a"]
-        # (Optional) The email addresses of service accounts that VMs can join
-        # with.
-        service_accounts: ["example@example.com"]
+        # (Optional) The email addresses of service accounts allowed to join.
+        service_accounts: ["example-service-account@example-project-id.iam.gserviceaccount.com"]
 ```
+

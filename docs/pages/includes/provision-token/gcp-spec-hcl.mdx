@@ -17,9 +17,13 @@ resource "teleport_provision_token" "gcp-token" {
     gcp = {
       allow = [
         {
+          // The GCP project ID(s) allowed to join.
           project_ids      = ["example-project-id"]
+          // (Optional) The locations that VMs can join from. Note: both regions and
+          // zones are accepted. Only supported for GCP VMs.
           locations        = ["us-west1", "us-west2-a"]
-          service_accounts = ["example@example.com"]
+          // (Optional) The email addresses of service accounts allowed to join.
+          service_accounts = ["example-service-account@example-project-id.iam.gserviceaccount.com"]
         },
       ]
     }

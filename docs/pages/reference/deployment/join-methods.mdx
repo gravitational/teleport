@@ -391,10 +391,13 @@ The `env0` join method requires Teleport v18.4.0 or later.
 ### GCP service account: `gcp`
 
 The GCP join method is available to any Teleport process running on a GCP VM.
-The VM must have a
-[service account](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances)
-assigned to it (the default service account is fine). No IAM roles are required
-on the Teleport process joining the cluster.
+The VM must have a [service
+account](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances)
+assigned to it. No IAM roles are required
+on the Teleport process joining the cluster. The default service account is only supported for GCP VMs.
+
+For managed container and serverless platforms (e.g. GKE or Cloud Run), a
+user-managed service account must be attached to the workload.
 
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
