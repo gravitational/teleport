@@ -36,8 +36,6 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
-import '@testing-library/jest-dom';
-import 'jest-styled-components';
 
 import { darkTheme, resolveTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -78,9 +76,7 @@ function render(
  updates / timeouts to finish.
  */
 function tick() {
-  return new Promise<void>(res =>
-    jest.requireActual('timers').setImmediate(res)
-  );
+  return new Promise<void>(res => setTimeout(res, 0));
 }
 
 screen.debug = () => {

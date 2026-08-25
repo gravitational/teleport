@@ -20,6 +20,7 @@ import { act, renderHook } from '@testing-library/react';
 import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
+import { describe, expect, it, vi } from 'vitest';
 
 import { EventRange } from 'teleport/components/EventRangePicker';
 
@@ -792,7 +793,7 @@ describe('useRecordingsListState', () => {
 
   it('does not update URL for default empty search params', () => {
     const history = createMemoryHistory();
-    const replaceSpy = jest.spyOn(history, 'replace');
+    const replaceSpy = vi.spyOn(history, 'replace');
 
     function wrapper({ children }: PropsWithChildren) {
       return <Router history={history}>{children}</Router>;

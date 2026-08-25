@@ -18,15 +18,9 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  enableMswServer,
-  render,
-  screen,
-  server,
-  testQueryClient,
-  userEvent,
-} from 'design/utils/testing';
+import { render, screen, server, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -48,8 +42,6 @@ import {
 import type { RecordingsListState } from './state';
 import { Density, ViewMode } from './ViewSwitcher';
 
-enableMswServer();
-
 beforeEach(() => {
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -66,9 +58,6 @@ beforeEach(() => {
       ]);
     })
   );
-});
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 const defaultState: RecordingsListState = {
@@ -90,10 +79,10 @@ const defaultState: RecordingsListState = {
 };
 
 const mockHandlers = {
-  onFilterChange: jest.fn(),
-  onPageChange: jest.fn(),
-  onSearchChange: jest.fn(),
-  onSortChange: jest.fn(),
+  onFilterChange: vi.fn(),
+  onPageChange: vi.fn(),
+  onSearchChange: vi.fn(),
+  onSortChange: vi.fn(),
 };
 
 const listRecordingsUrl = generatePath(cfg.api.clusterEventsRecordingsPath, {

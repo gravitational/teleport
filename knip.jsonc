@@ -34,19 +34,21 @@
         "vite/**/*.{ts,mts,mjs}",
         "jest/**/*.{ts,js}",
         "storybook.ts",
-        "**/*.test.{ts,tsx,js,jsx}"
+        "**/*.{test,vitest}.{ts,tsx,js,jsx}"
       ],
       // These are loaded by name through the SWC plugin config in vite/react.mjs.
       "ignoreDependencies": [
         "@gravitational/swc-plugin-jsx-marker",
         "@gravitational/swc-plugin-styled-components",
-        "@swc/core"
+        "@swc/core",
+        // Named as a string by `environment` in vitest/config.mts, which Vitest resolves at run time.
+        "happy-dom"
       ]
     },
     "web/packages/design": {
       "entry": [
         "src/**/*.story.{ts,tsx,js,jsx}",
-        "src/**/*.test.{ts,tsx,js,jsx}"
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}"
       ],
       "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}", "@types/*.d.ts"],
       "paths": {
@@ -57,7 +59,7 @@
       "ignore": ["src/**/*.type-test.tsx"]
     },
     "web/packages/shared": {
-      "entry": ["**/*.story.{ts,tsx,js,jsx}", "**/*.test.{ts,tsx,js,jsx}"],
+      "entry": ["**/*.story.{ts,tsx,js,jsx}", "**/*.{test,vitest}.{ts,tsx,js,jsx}"],
       "project": ["**/*.{ts,tsx,js,jsx,mts,mjs}", "!libs/ironrdp/pkg/**"],
       "paths": {
         "design/*": ["../design/src/*"],
@@ -77,7 +79,7 @@
         "babel.config.js",
         "index.html",
         "src/**/*.story.{ts,tsx,js,jsx}",
-        "src/**/*.test.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
         "src/services/audit/gen-event-reference/index.ts"
       ],
       "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}"],
@@ -113,7 +115,7 @@
         "src/sharedProcess/sharedProcess.ts",
         "src/agentCleanupDaemon/agentCleanupDaemon.js",
         "src/**/*.story.{ts,tsx,js,jsx}",
-        "src/**/*.test.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
         "src/**/*Process.mjs"
       ],
       "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}", "csp.ts"],
@@ -139,7 +141,7 @@
         "babel.config.js",
         "index.html",
         "src/**/*.story.{ts,tsx,js,jsx}",
-        "src/**/*.test.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
         "src/SessionRecordings/summary/generate-mitre-lookup.ts"
       ],
       "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}"],

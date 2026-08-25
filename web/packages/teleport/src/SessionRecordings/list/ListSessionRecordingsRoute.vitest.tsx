@@ -18,14 +18,13 @@
 
 import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
+import { vi, test, expect, beforeEach } from 'vitest';
 
 import {
   createDeferredResponse,
-  enableMswServer,
   render,
   screen,
   server,
-  testQueryClient,
   userEvent,
   waitFor,
 } from 'design/utils/testing';
@@ -36,8 +35,6 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { ListSessionRecordingsRoute } from './ListSessionRecordingsRoute';
 import { getThumbnail, MOCK_EVENTS, MOCK_THUMBNAIL } from './mock';
-
-enableMswServer();
 
 beforeEach(() => {
   server.use(
@@ -55,9 +52,6 @@ beforeEach(() => {
       ]);
     })
   );
-});
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 const listRecordingsUrl = generatePath(cfg.api.clusterEventsRecordingsPath, {
@@ -98,7 +92,7 @@ test('displays loading indicator while fetching data', async () => {
 });
 
 test('displays error message when request fails', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const errorMessage = 'Failed to fetch recordings';
 
@@ -123,7 +117,7 @@ test('displays error message when request fails', async () => {
 });
 
 test('retries the request on retry button click', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const errorMessage = 'Failed to fetch recordings';
 
@@ -169,7 +163,7 @@ test('retries the request on retry button click', async () => {
 });
 
 test('displays an error message on connection failure', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     http.get(listRecordingsUrl, () => {
