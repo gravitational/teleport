@@ -17,7 +17,7 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
+import { isAbsolute, relative, resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
@@ -146,6 +146,12 @@ export function createViteConfig(
       config.server.fs.allow.push(designSystemPath);
     }
 
+    const virtualStoreDirectory = resolveVirtualStoreDir(rootDirectory);
+
+    if (virtualStoreDirectory) {
+      config.server.fs.allow.push(virtualStoreDirectory);
+    }
+
     if (process.env.VITE_ANALYZE_BUNDLE) {
       config.plugins.push(visualizer());
     }
@@ -269,6 +275,36 @@ export function createViteConfig(
 
     return config;
   });
+}
+
+function resolveVirtualStoreDir(rootDirectory: string) {
+  const modulesDirectory = resolve(rootDirectory, 'node_modules');
+  const manifestPath = resolve(modulesDirectory, '.modules.yaml');
+
+  if (!existsSync(manifestPath)) {
+    return;
+  }
+
+  let virtualStoreDir: unknown;
+
+  try {
+    ({ virtualStoreDir } = JSON.parse(readFileSync(manifestPath, 'utf-8')));
+  } catch {
+    return;
+  }
+
+  if (typeof virtualStoreDir !== 'string') {
+    return;
+  }
+
+  const absolutePath = resolve(modulesDirectory, virtualStoreDir);
+  const relativePath = relative(rootDirectory, absolutePath);
+
+  if (!relativePath.startsWith('..') && !isAbsolute(relativePath)) {
+    return;
+  }
+
+  return absolutePath;
 }
 
 function resolveAllowedHosts(target: string) {
