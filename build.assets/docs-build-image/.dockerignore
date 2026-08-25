@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!docs-content
+!docs-content/**
+docs-content/**/e
+docs-content/**/e/**

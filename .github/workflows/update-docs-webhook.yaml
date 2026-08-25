@@ -1,26 +1,256 @@
 name: Update docs webhook
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/update-docs-webhook.yaml'
+      - 'build.assets/docs-build-image/**'
+      # For Go version
+      - 'build.assets/versions.mk'
+    branches:
+      - master
   push:
     paths:
       - 'docs/**'
+      - 'examples/**'
+      - 'skills/**'
       # docs/pages/changelog.mdx includes the main changelog, so redeploy the
       # docs site to reflect any updates to this file.
       - 'CHANGELOG.md'
+      - 'build.assets/docs-build-image/**'
+      - 'build.assets/versions.mk'
+      - '.github/workflows/update-docs-webhook.yaml'
     branches:
       - master
       - branch/v*
+  # Workflow Dispatch is useful in two cases:
+  # 1. Manually triggering a redeploy of the docs site, e.g. after a failed deploy.
+  # 2. Manually trigger a test run on a feature branch to verify docker image build,
+  #    however, this won't trigger actual deployment.
   workflow_dispatch:
 
 permissions:
+  contents: read
   id-token: write
 
+concurrency:
+  group: docs-build-image-production
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: teleport-docs-build-image
+  DOCS_CONTENT_SPARSE_CHECKOUT: |
+    /docs/
+    /examples/
+    /skills/
+    /CHANGELOG.md
+    !/e/
+  # The docs site is the source of truth for which Teleport versions are
+  # published and which branch each version is built from.
+  DOCS_WEBSITE_CONFIG_URL: https://raw.githubusercontent.com/gravitational/docs-website/main/config.json
+
 jobs:
-  update-webhook:
-    name: Update docs webhook
+  build-image:
+    name: Build docs image
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_protected && 'update-docs' || '' }} 
+    steps:
+      - parallel:
+        - name: Get runtime values from kvstore
+          id: kvstore
+          continue-on-error: true
+          uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.2
+          with:
+            cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+            cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+            # DOCS_BUILD_IMAGE_ECR_IAM_ROLE should be dedicated to pushing this
+            # image from gravitational/core to the teleport-docs-build-image repo.
+            values: |
+              DOCS_BUILD_IMAGE_ECR_IAM_ROLE,variable
+
+        - name: Checkout workflow repository
+          uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          with:
+            sparse-checkout-cone-mode: false
+            sparse-checkout: |
+              /build.assets/docs-build-image/
+              /build.assets/versions.mk
+              !/e/
+
+        - name: Fetch docs versions
+          id: docs-versions
+          uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+          with:
+            script: |
+              const response = await fetch(process.env.DOCS_WEBSITE_CONFIG_URL);
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to fetch ${process.env.DOCS_WEBSITE_CONFIG_URL}: ${response.status}`
+                );
+              }
+
+              const config = await response.json();
+              const versions = config.versions
+                .filter(({ deprecated }) => !deprecated)
+                .map(({ name, branch }) => ({ name, branch }));
+
+              // The checkout steps below index into this array explicitly, so the
+              // docs site must publish at least 3 non-deprecated versions.
+              if (versions.length < 3) {
+                throw new Error(
+                  `Expected 3 active docs versions, got ${JSON.stringify(versions)} ` +
+                  `(from ${JSON.stringify(config.versions)})`
+                );
+              }
+
+              core.info(JSON.stringify(versions, null, 2));
+              core.setOutput('versions', versions);
+              // Space-separated names, for the shell steps that iterate over them.
+              core.setOutput('names', versions.map(({ name }) => name).join(' '));
+
+      - parallel:
+          - name: Check out ${{ fromJSON(steps.docs-versions.outputs.versions)[0].name }} docs content
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            with:
+              ref: ${{ fromJSON(steps.docs-versions.outputs.versions)[0].branch }}
+              path: docs-sources/${{ fromJSON(steps.docs-versions.outputs.versions)[0].name }}
+              sparse-checkout-cone-mode: false
+              sparse-checkout: ${{ env.DOCS_CONTENT_SPARSE_CHECKOUT }}
+
+          - name: Check out ${{ fromJSON(steps.docs-versions.outputs.versions)[1].name }} docs content
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            with:
+              ref: ${{ fromJSON(steps.docs-versions.outputs.versions)[1].branch }}
+              path: docs-sources/${{ fromJSON(steps.docs-versions.outputs.versions)[1].name }}
+              sparse-checkout-cone-mode: false
+              sparse-checkout: ${{ env.DOCS_CONTENT_SPARSE_CHECKOUT }}
+
+          - name: Check out ${{ fromJSON(steps.docs-versions.outputs.versions)[2].name }} docs content
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            with:
+              ref: ${{ fromJSON(steps.docs-versions.outputs.versions)[2].branch }}
+              path: docs-sources/${{ fromJSON(steps.docs-versions.outputs.versions)[2].name }}
+              sparse-checkout-cone-mode: false
+              sparse-checkout: ${{ env.DOCS_CONTENT_SPARSE_CHECKOUT }}
+
+          - name: Set up Docker Buildx
+            uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Prepare docs image context
+        shell: bash
+        env:
+          DOCS_VERSION_NAMES: ${{ steps.docs-versions.outputs.names }}
+        run: |
+          set -euo pipefail
+
+          docker_context="build.assets/docs-build-image"
+          read -r -a versions <<<"${DOCS_VERSION_NAMES}"
+
+          # Only copy the files docs-website needs into the Docker context.
+          # The source checkouts are already sparse, and this whitelist keeps the
+          # image payload explicit as the content contract changes over time.
+          content_paths=(
+            "docs"
+            "examples"
+            "skills"
+            "CHANGELOG.md"
+          )
+
+          rm -rf "${docker_context}/docs-content"
+          for version in "${versions[@]}"; do
+            source_dir="docs-sources/${version}"
+            target_dir="${docker_context}/docs-content/${version}"
+            mkdir -p "${target_dir}"
+
+            for content_path in "${content_paths[@]}"; do
+              source_path="${source_dir}/${content_path}"
+              target_path="${target_dir}/${content_path}"
+
+              if [[ -e "${source_path}" ]]; then
+                mkdir -p "$(dirname "${target_path}")"
+                cp -a "${source_path}" "${target_path}"
+              fi
+            done
+          done
+
+      - name: Validate docs content layout
+        shell: bash
+        env:
+          DOCS_VERSION_NAMES: ${{ steps.docs-versions.outputs.names }}
+        run: |
+          set -euo pipefail
+
+          if find docs-sources build.assets/docs-build-image/docs-content -type d -name e -prune -print -quit | grep -q .; then
+            echo "The docs image source/context unexpectedly contains an e directory." >&2
+            exit 1
+          fi
+
+          for version in ${DOCS_VERSION_NAMES}; do
+            test -d "build.assets/docs-build-image/docs-content/${version}/docs"
+            test -d "build.assets/docs-build-image/docs-content/${version}/examples"
+          done
+
+          find build.assets/docs-build-image/docs-content \
+            -maxdepth 3 \
+            \( -name docs -o -name examples -o -name skills -o -name CHANGELOG.md \) \
+            | sort
+
+      - name: Read build tool versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          go_version="$(awk '/^GOLANG_VERSION[[:space:]]*\?=/{ print $3; exit }' build.assets/versions.mk)"
+          echo "go-version=${go_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure AWS credentials
+        if: github.ref_protected
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          role-to-assume: ${{ env.DOCS_BUILD_IMAGE_ECR_IAM_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        if: github.ref_protected
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        with:
+          # In dev runs, the ECR step does not run so we fall back to the repository name in the env.
+          images: '${{ steps.ecr-login.outputs.registry && format(''{0}/{1}'', steps.ecr-login.outputs.registry, env.ECR_REPOSITORY) || env.ECR_REPOSITORY }}'
+          flavor: |
+            latest=true
+          tags: |
+            type=sha,enable=true,prefix=sha-
+            
+      - name: ${{ github.ref_protected && 'Build and publish' || 'Test' }} docs image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: build.assets/docs-build-image
+          # Amplify only supports linux/amd64 for now, so we only build that platform.
+          platforms: linux/amd64
+          build-args: |
+            GOLANG_VERSION=${{ steps.versions.outputs.go-version }}
+            BUILD_METADATA_REF=${{ github.ref_name }}
+            BUILD_METADATA_REPO=${{ github.repository }}
+            BUILD_METADATA_RUN_ID=${{ github.run_id }}
+            BUILD_METADATA_SHA=${{ github.sha }}
+            BUILD_METADATA_WORKFLOW_SHA=${{ github.workflow_sha }}
+            BUILD_METADATA_WORKFLOW=${{ github.workflow }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ github.ref_protected }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  trigger-webhook:
+    name: Call deployment webhook
+    runs-on: ubuntu-slim
+    if: github.ref_protected
     environment: update-docs
-    strategy:
-      fail-fast: false
+    needs:
+      - build-image
     steps:
       - name: Get runtime values from kvstore
         id: kvstore
@@ -31,9 +261,25 @@ jobs:
           values: |
             AMPLIFY_DOCS_DEPLOY_HOOK,secret
       - name: Call deployment webhook
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           WEBHOOK_URL: ${{ env.AMPLIFY_DOCS_DEPLOY_HOOK }}
-        run: |
-          if curl -X POST --silent --fail --show-error "$WEBHOOK_URL" > /dev/null; then
-            echo "Triggered successfully"
-          fi
+        with:
+          script: |
+            const webhookUrl = process.env.WEBHOOK_URL;
+            if (!webhookUrl) {
+              throw new Error(
+                'AMPLIFY_DOCS_DEPLOY_HOOK is not set; make sure that the workflow ' +
+                'is running on a supported branch. This is expected to fail for ' +
+                'non-release branches.'
+              );
+            }
+
+            const response = await fetch(webhookUrl, { method: 'POST' });
+            if (!response.ok) {
+              throw new Error(
+                `Webhook returned ${response.status} ${response.statusText}: ${await response.text()}`
+              );
+            }
+
+            core.info('Triggered successfully');
