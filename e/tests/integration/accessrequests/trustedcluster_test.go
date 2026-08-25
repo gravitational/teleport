@@ -1,7 +1,6 @@
 package accessrequests
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"maps"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -49,41 +47,75 @@ func withRoleMapping(rootRole string, leafRoles ...string) trustedClusterOption 
 	}
 }
 
-func mustCreateTrustedCluster(ctx context.Context, t *testing.T, rootCluster, leafCluster *common.SUT, options ...trustedClusterOption) {
+type remoteClusterPredicate func(types.RemoteCluster) bool
+
+func withRemoteClusterName(name string) remoteClusterPredicate {
+	return func(tc types.RemoteCluster) bool {
+		return tc.GetName() == name
+	}
+}
+
+func withRemoteClusterLabel(key, value string) remoteClusterPredicate {
+	return func(rc types.RemoteCluster) bool {
+		if label, ok := rc.GetLabel(key); ok {
+			return label == value
+		}
+		return false
+	}
+}
+
+func waitForRemoteCluster(t *testing.T, watcher types.Watcher, predicates ...remoteClusterPredicate) types.RemoteCluster {
+	var result types.RemoteCluster
+	common.WaitForPutEvent(t, watcher, func(rc types.RemoteCluster) bool {
+		for _, predicate := range predicates {
+			if !predicate(rc) {
+				return false
+			}
+		}
+		result = rc
+		return true
+	})
+	return result
+}
+
+func mustCreateTrustedCluster(t *testing.T, rootCluster, leafCluster *common.SUT, options ...trustedClusterOption) {
 	var tcOptions trustedClusterOptions
 	for _, optionFn := range options {
 		optionFn(&tcOptions)
 	}
 
+	watcher := rootCluster.NewResourceWatcher(t, types.KindRemoteCluster)
+	defer watcher.Close()
+
 	rootAuth := rootCluster.Teleport.Process.GetAuthServer()
 	token, err := types.NewProvisionToken(uuid.NewString(), []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
 	require.NoError(t, err)
-	require.NoError(t, rootAuth.UpsertToken(ctx, token))
+	require.NoError(t, rootAuth.UpsertToken(t.Context(), token))
 
 	trustedCluster := rootCluster.Teleport.AsTrustedCluster(
 		token.GetName(),
 		tcOptions.roleMap,
 	)
 
+	// Create the leaf-node side of the trusted cluster relationship
 	leafAuth := leafCluster.Teleport.Process.GetAuthServer()
-	_, err = leafAuth.CreateTrustedCluster(ctx, trustedCluster)
+	_, err = leafAuth.CreateTrustedCluster(t.Context(), trustedCluster)
 	require.NoError(t, err, "Creating trusted cluster %q", trustedCluster.GetName())
 
+	// Wait for the trusted cluster relationship to come up on the
+	// root cluster side
 	leafClusterName := leafCluster.Teleport.Secrets.SiteName
+	rc := waitForRemoteCluster(t, watcher, withRemoteClusterName(leafClusterName))
 
-	var rc types.RemoteCluster
-	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
-			rc, err = rootAuth.GetRemoteCluster(ctx, leafClusterName)
-			assert.NoError(c, err)
-		},
-		5*time.Second, 250*time.Millisecond,
-		"Looking up remote cluster")
-	require.NotNil(t, rc)
-
+	// Return early if we don't need to modify the root cluster record
 	if len(tcOptions.labels) == 0 {
 		return
 	}
+
+	// Apply labels to the remote cluster record on the root cluster side,
+	// loading a copy of the remote cluster to avoid racing with the cache.
+	rc, err = rootAuth.GetRemoteCluster(t.Context(), rc.GetName())
+	require.NoError(t, err)
 
 	rcMeta := rc.GetMetadata()
 	if rcMeta.Labels == nil {
@@ -92,8 +124,16 @@ func mustCreateTrustedCluster(ctx context.Context, t *testing.T, rootCluster, le
 	maps.Copy(rcMeta.Labels, tcOptions.labels)
 	rc.SetMetadata(rcMeta)
 
-	_, err = rootAuth.UpdateRemoteCluster(ctx, rc)
+	_, err = rootAuth.UpdateRemoteCluster(t.Context(), rc)
 	require.NoError(t, err)
+
+	// Wait for the trusted cluster relationship update to be reflected in
+	// the cache
+	var withLabels []remoteClusterPredicate
+	for k, v := range tcOptions.labels {
+		withLabels = append(withLabels, withRemoteClusterLabel(k, v))
+	}
+	waitForRemoteCluster(t, watcher, withLabels...)
 }
 
 type responseBodyAssertion func(require.TestingT, []byte)
@@ -124,6 +164,12 @@ func requireResources(expectedResourceIDs ...eui.ResourceID) responseBodyAsserti
 		resourceIDs := slices.Map(resources.Items, toResourceID)
 		require.ElementsMatch(t, expectedResourceIDs, resourceIDs)
 	}
+}
+
+func requireEmptyRoleNames(t require.TestingT, body []byte) {
+	var roles []string
+	require.NoError(t, json.Unmarshal(body, &roles))
+	require.Empty(t, roles, "role names should be empty")
 }
 
 func requireRoleNames(expected ...string) responseBodyAssertion {
@@ -169,7 +215,6 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 		// Add some root-cluster users with various roles
 		common.WithUser(t, "root-admin", "editor", "leaf-cluster-access"),
 	)
-	rootAuth := rootCluster.GetClusterClientForUser(t, "root-admin")
 
 	// Set up a leaf cluster for the root cluster to delegate requests to
 	leafCluster := common.InitSUT(t,
@@ -202,7 +247,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 	mustCreateNode(ctx, t, leafAuth.AuthClient, "not-an-ai", "root.example.com")
 
 	// Create trusted cluster relationship between the two
-	mustCreateTrustedCluster(ctx, t, rootCluster, leafCluster,
+	mustCreateTrustedCluster(t, rootCluster, leafCluster,
 		withLabel("department", "ai-farm"),
 		withRoleMapping("leaf-cluster-access", "visitor"),
 
@@ -215,8 +260,22 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 		withRoleMapping("unstable-ai-access", "leaf-access-unstable-ai"),
 
 		// mapping for a role that only has a search_as role on the leaf-cluster end
-		withRoleMapping("unstable-ai-browser", "leaf-browse-unstable-ai"),
-	)
+		withRoleMapping("unstable-ai-browser", "leaf-browse-unstable-ai"))
+
+	// We need to know that the remote cluster record has made it to the root
+	// cluster's proxy, otherwise the test won't work. There isn't an obvious
+	// path from this test to the proxy's access point or cache, so we can't
+	// wait on an event the same way we do for resources in auth, so we fall
+	// back to polling for it.
+	rootAdmin := rootCluster.CreateWebClientForUser(t, "root-admin")
+	endPoint := rootAdmin.Endpoint("v1", "webapi", "sites", "leaf", "resources")
+	common.RequireEventually(t,
+		func(collect *common.CollectT) {
+			status, _, err := rootAdmin.DoRequest(http.MethodGet, endPoint, nil)
+			require.NoError(collect, err)
+			require.Equal(collect, http.StatusOK, status, "Leaf cluster must be available via root")
+		},
+		250*time.Millisecond)
 
 	stableAIs := []eui.ResourceID{
 		{Kind: types.KindNode, Name: "hex", ClusterName: "leaf"},
@@ -229,22 +288,6 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 	}
 
 	allAIs := append(stableAIs, unstableAIs...)
-
-	// Wait for the trusted cluster to come up
-	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
-			leafClient, err := rootAuth.ConnectToCluster(ctx, "leaf")
-			if !assert.NoError(c, err, "connecting to remote cluster") {
-				return
-			}
-			defer leafClient.Close()
-
-			_, err = leafClient.Ping(ctx)
-			if !assert.NoError(c, err, "pinging remote cluster") {
-				return
-			}
-		},
-		5*time.Second, 250*time.Millisecond, "Waiting for trusted cluster to come up")
 
 	// Now, the actual tests:
 
@@ -323,6 +366,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 				userRoles:          []string{"leaf-cluster-access", "stable-ai-requester"},
 				resources:          []eui.ResourceID{},
 				expectedHTTPStatus: http.StatusOK,
+				expectedBody:       requireEmptyRoleNames,
 			},
 			{
 				name:               "No remote cluster access",
@@ -351,7 +395,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 				userRoles:          []string{"leaf-cluster-access", "editor"},
 				resources:          allAIs,
 				expectedHTTPStatus: http.StatusOK,
-				expectedBody:       requireRoleNames(),
+				expectedBody:       requireEmptyRoleNames,
 			},
 			{
 				// A request from a user with a root-cluster search_as roleset that
@@ -360,7 +404,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 				userRoles:          []string{"leaf-cluster-access", "unstable-ai-browser", "requester"},
 				resources:          unstableAIs,
 				expectedHTTPStatus: http.StatusOK,
-				expectedBody:       requireRoleNames(),
+				expectedBody:       requireEmptyRoleNames,
 			},
 			{
 				// A request for resources that cannot be accessed via the supplied roles
@@ -368,7 +412,7 @@ func TestRemoteResourceAccessRequests(t *testing.T) {
 				userRoles:          []string{"leaf-cluster-access", "unstable-ai-browser", "requester"},
 				resources:          allAIs,
 				expectedHTTPStatus: http.StatusOK,
-				expectedBody:       requireRoleNames(),
+				expectedBody:       requireEmptyRoleNames,
 			},
 		}
 
