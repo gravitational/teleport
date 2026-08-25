@@ -89,6 +89,26 @@ test.each([
   });
 });
 
+test("mouse middle click pastes text when 'terminal.middleClick: paste' is configured", async () => {
+  const appContext = new MockAppContext();
+  const user = userEvent.setup();
+  appContext.configService.set('terminal.middleClick', 'paste');
+
+  render(<ConfiguredTerminal appContext={appContext} />);
+
+  await user.keyboard('some-command');
+
+  await navigator.clipboard.writeText(' --flag=test');
+  await user.pointer({
+    keys: '[MouseMiddle]',
+    target: await getTerminalElement(),
+  });
+
+  await waitFor(() => {
+    expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
+  });
+});
+
 test("mouse right click opens context menu when 'terminal.rightClick: menu' is configured", async () => {
   const appContext = new MockAppContext();
   const user = userEvent.setup();
