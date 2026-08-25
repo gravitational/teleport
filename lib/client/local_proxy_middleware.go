@@ -508,13 +508,7 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Cert
 		return tls.Certificate{}, trace.ConvertSystemError(err)
 	}
 
-	keyPem, err := keys.MarshalPrivateKey(signer)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	caCert, err := tls.X509KeyPair(certPem, keyPem)
-	return caCert, trace.Wrap(err)
+	return keys.TLSCertificateForSigner(signer, certPem)
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
