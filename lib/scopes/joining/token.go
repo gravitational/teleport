@@ -548,10 +548,13 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err)
 	}
 
-	switch TokenUsageMode(spec.GetUsageMode()) {
-	case TokenUsageModeSingle, TokenUsageModeUnlimited, TokenUsageModeBot:
-	default:
-		return trace.BadParameter("scoped token mode is not supported")
+	var allowedUsageModes = []string{
+		string(TokenUsageModeBot),
+		string(TokenUsageModeSingle),
+		string(TokenUsageModeUnlimited),
+	}
+	if !slices.Contains(allowedUsageModes, spec.GetUsageMode()) {
+		return trace.BadParameter("spec.usage_mode: %q is not one of [%s]", spec.GetUsageMode(), strings.Join(allowedUsageModes, ", "))
 	}
 
 	if len(spec.Roles) == 0 {
