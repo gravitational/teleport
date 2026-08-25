@@ -280,6 +280,7 @@ jobs:
             -pkcs11engine /usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so \\
             -pkcs11module "$PKCS11_MODULE_PATH" \\
             -pkcs11cert "pkcs11:token=$PKCS11_LABEL" \\
+            -ts http://timestamp.digicert.com \\
             -in "\$UNSIGNED_FILE" \\
             -out "\$SIGNED_FILE" \\
             -verbose
