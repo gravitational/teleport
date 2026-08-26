@@ -135,7 +135,7 @@ func TestRunValidatedMFAChallengeSync_UsesLatestDesiredState(t *testing.T) {
 				trace.ConnectionProblem(nil, "replication failed"),
 			}
 			leafMFAClient.beforeReply = func(req *mfav2.ReplicateValidatedMFAChallengeRequest) {
-				if req.GetName() == stale.GetMetadata().GetName() {
+				if req.GetValidatedChallenge().GetMetadata().GetName() == stale.GetMetadata().GetName() {
 					<-releaseStaleAttempt
 				}
 			}
@@ -468,7 +468,11 @@ func assertReplicatedChallenges(
 
 	wantReqs := make([]*mfav2.ReplicateValidatedMFAChallengeRequest, 0, len(challenges))
 	for _, challenge := range challenges {
-		wantReqs = append(wantReqs, replicateValidatedMFAChallengeRequest(challenge))
+		req := mfav2.ReplicateValidatedMFAChallengeRequest_builder{
+			ValidatedChallenge: challenge,
+		}.Build()
+
+		wantReqs = append(wantReqs, req)
 	}
 
 	require.Empty(
@@ -476,19 +480,6 @@ func assertReplicatedChallenges(
 		cmp.Diff(client.Requests(), wantReqs, protocmp.Transform()),
 		"replicated challenges mismatch (-got +want)",
 	)
-}
-
-func replicateValidatedMFAChallengeRequest(
-	chal *mfav2.ValidatedMFAChallenge,
-) *mfav2.ReplicateValidatedMFAChallengeRequest {
-	return mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chal.GetMetadata().GetName(),
-		Payload:       chal.GetSpec().GetPayload(),
-		SourceCluster: chal.GetSpec().GetSourceCluster(),
-		TargetCluster: chal.GetSpec().GetTargetCluster(),
-		Username:      chal.GetSpec().GetUsername(),
-		MfaDevice:     chal.GetSpec().GetMfaDevice(),
-	}.Build()
 }
 
 func newValidatedMFAChallenge(name string) *mfav2.ValidatedMFAChallenge {
@@ -605,10 +596,11 @@ func (m *mockMFAServiceClient) ReplicateValidatedMFAChallenge(
 
 	// Determine if we should return an error for this request based on the challenge name.
 	var err error
-	if errs := m.errByName[req.GetName()]; len(errs) > 0 {
+	chalName := req.GetValidatedChallenge().GetMetadata().GetName()
+	if errs := m.errByName[chalName]; len(errs) > 0 {
 		err = errs[0]
 
-		m.errByName[req.GetName()] = errs[1:]
+		m.errByName[chalName] = errs[1:]
 	}
 
 	beforeReply := m.beforeReply

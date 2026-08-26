@@ -26,17 +26,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	mfav2impl "github.com/gravitational/teleport/lib/auth/mfa/mfav2"
+	"github.com/gravitational/teleport/lib/auth/mfa/mfav2"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -51,7 +52,7 @@ const (
 	username      = "test-user"
 )
 
-var payload = mfav2.SessionIdentifyingPayload_builder{
+var payload = mfav2pb.SessionIdentifyingPayload_builder{
 	SshSessionId: []byte("test-session-id"),
 }.Build()
 
@@ -60,15 +61,15 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 
 	for _, tc := range []struct {
 		name    string
-		payload *mfav2.SessionIdentifyingPayload
+		payload *mfav2pb.SessionIdentifyingPayload
 	}{
 		{
 			name:    "With a SSH session ID",
-			payload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
+			payload: mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
 		},
 		{
 			name:    "With a TLS session ID",
-			payload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
+			payload: mfav2pb.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -77,7 +78,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	}
 }
 
-func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.SessionIdentifyingPayload) {
+func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2pb.SessionIdentifyingPayload) {
 	t.Helper()
 
 	authServer, service, emitter, user := setupAuthServer(t, nil)
@@ -89,14 +90,14 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 		ctx,
 		authServer.Auth(),
 		"webauthn-device",
-		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		clientpb.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		nil,
 	)
 	require.NoError(t, err)
 
 	challengeResp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload: payload,
 		}.Build(),
 	)
@@ -116,7 +117,7 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 	require.Equal(t, user.GetName(), createEvent.GetUser())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, createEvent.FlowType)
 
-	challenge := &proto.MFAAuthenticateChallenge{
+	challenge := &clientpb.MFAAuthenticateChallenge{
 		WebauthnChallenge: webauthnpb.CredentialAssertionV2ToV1(challengeResp.GetMfaChallenge().GetWebauthnChallenge()),
 	}
 
@@ -125,8 +126,8 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Name:     challengeResp.GetMfaChallenge().GetName(),
 				Webauthn: webauthnpb.CredentialAssertionResponseV1ToV2(mfaResp.GetWebauthn()),
 			}.Build(),
@@ -156,18 +157,18 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 	)
 	require.NoError(t, err)
 
-	wantedChallenge := mfav2.ValidatedMFAChallenge_builder{
+	wantedChallenge := mfav2pb.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		}.Build(),
-		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+		Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
-			MfaDevice: mfav2.MFADevice_builder{
+			MfaDevice: mfav2pb.MFADevice_builder{
 				Id: device.MFA.Id,
 			}.Build(),
 		}.Build(),
@@ -211,7 +212,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 
 	challengeResp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload:              payload,
 			SsoClientRedirectUrl: "https://sso/redirect",
 			ProxyAddressForSso:   "proxy.example.com",
@@ -239,10 +240,10 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Name: challengeResp.GetMfaChallenge().GetName(),
-				Sso: mfav2.SSOChallengeResponse_builder{
+				Sso: mfav2pb.SSOChallengeResponse_builder{
 					RequestId: challengeResp.GetMfaChallenge().GetSsoChallenge().GetRequestId(),
 				}.Build(),
 			}.Build(),
@@ -269,18 +270,18 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	wantedChallenge := mfav2.ValidatedMFAChallenge_builder{
+	wantedChallenge := mfav2pb.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		}.Build(),
-		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+		Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
-			MfaDevice: mfav2.MFADevice_builder{
+			MfaDevice: mfav2pb.MFADevice_builder{
 				Id: deviceID,
 			}.Build(),
 		}.Build(),
@@ -307,7 +308,7 @@ func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 
 	_, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload: payload,
 		}.Build(),
 	)
@@ -324,18 +325,18 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name          string
-		req           *mfav2.CreateSessionChallengeRequest
+		req           *mfav2pb.CreateSessionChallengeRequest
 		expectedError error
 	}{
 		{
 			name:          "missing payload",
-			req:           mfav2.CreateSessionChallengeRequest_builder{Payload: nil}.Build(),
+			req:           mfav2pb.CreateSessionChallengeRequest_builder{Payload: nil}.Build(),
 			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
 		},
 		{
 			name: "empty ssh_session_id",
-			req: mfav2.CreateSessionChallengeRequest_builder{
-				Payload: mfav2.SessionIdentifyingPayload_builder{
+			req: mfav2pb.CreateSessionChallengeRequest_builder{
+				Payload: mfav2pb.SessionIdentifyingPayload_builder{
 					SshSessionId: []byte{},
 				}.Build(),
 			}.Build(),
@@ -343,8 +344,8 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "empty tls_session_id",
-			req: mfav2.CreateSessionChallengeRequest_builder{
-				Payload: mfav2.SessionIdentifyingPayload_builder{
+			req: mfav2pb.CreateSessionChallengeRequest_builder{
+				Payload: mfav2pb.SessionIdentifyingPayload_builder{
 					TlsSessionId: []byte{},
 				}.Build(),
 			}.Build(),
@@ -352,7 +353,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
-			req: mfav2.CreateSessionChallengeRequest_builder{
+			req: mfav2pb.CreateSessionChallengeRequest_builder{
 				Payload:              payload,
 				SsoClientRedirectUrl: "", // missing
 				ProxyAddressForSso:   "proxy.example.com",
@@ -361,7 +362,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "SSO challenge missing ProxyAddressForSso",
-			req: mfav2.CreateSessionChallengeRequest_builder{
+			req: mfav2pb.CreateSessionChallengeRequest_builder{
 				Payload:              payload,
 				SsoClientRedirectUrl: "https://client/redirect",
 				ProxyAddressForSso:   "", // missing
@@ -386,7 +387,7 @@ func TestCreateSessionChallenge_TargetClusterDoesNotExist(t *testing.T) {
 
 	resp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload:       payload,
 			TargetCluster: "non-existent-cluster",
 		}.Build(),
@@ -405,7 +406,7 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 
 	_, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload: payload,
 		}.Build(),
 	)
@@ -423,8 +424,8 @@ func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 
 	_, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Webauthn: nil, // minimal, not relevant for this test
 			}.Build(),
 		}.Build(),
@@ -442,20 +443,20 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name          string
-		req           *mfav2.ValidateSessionChallengeRequest
+		req           *mfav2pb.ValidateSessionChallengeRequest
 		expectedError string
 	}{
 		{
 			name: "missing MfaResponse",
-			req: mfav2.ValidateSessionChallengeRequest_builder{
+			req: mfav2pb.ValidateSessionChallengeRequest_builder{
 				MfaResponse: nil,
 			}.Build(),
 			expectedError: "nil ValidateSessionChallengeRequest.mfa_response",
 		},
 		{
 			name: "missing Response",
-			req: mfav2.ValidateSessionChallengeRequest_builder{
-				MfaResponse: mfav2.AuthenticateResponse_builder{
+			req: mfav2pb.ValidateSessionChallengeRequest_builder{
+				MfaResponse: mfav2pb.AuthenticateResponse_builder{
 					Name: chalName,
 				}.Build(),
 			}.Build(),
@@ -463,8 +464,8 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "missing Name",
-			req: mfav2.ValidateSessionChallengeRequest_builder{
-				MfaResponse: mfav2.AuthenticateResponse_builder{
+			req: mfav2pb.ValidateSessionChallengeRequest_builder{
+				MfaResponse: mfav2pb.AuthenticateResponse_builder{
 					Name:     "",
 					Webauthn: webauthnpb.CredentialAssertionResponseV1ToV2(&webauthnpb.CredentialAssertionResponse{}), // minimal, not relevant for this test
 				}.Build(),
@@ -473,8 +474,8 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "missing Webauthn response",
-			req: mfav2.ValidateSessionChallengeRequest_builder{
-				MfaResponse: mfav2.AuthenticateResponse_builder{
+			req: mfav2pb.ValidateSessionChallengeRequest_builder{
+				MfaResponse: mfav2pb.AuthenticateResponse_builder{
 					Name:     chalName,
 					Webauthn: nil,
 				}.Build(),
@@ -483,8 +484,8 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "missing SSO response",
-			req: mfav2.ValidateSessionChallengeRequest_builder{
-				MfaResponse: mfav2.AuthenticateResponse_builder{
+			req: mfav2pb.ValidateSessionChallengeRequest_builder{
+				MfaResponse: mfav2pb.AuthenticateResponse_builder{
 					Name: chalName,
 					Sso:  nil,
 				}.Build(),
@@ -513,14 +514,14 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 		ctx,
 		authServer.Auth(),
 		"webauthn-device",
-		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		clientpb.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		nil,
 	)
 	require.NoError(t, err)
 
 	challengeResp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload: payload,
 		}.Build(),
 	)
@@ -530,8 +531,8 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Name: challengeResp.GetMfaChallenge().GetName(),
 				Webauthn: webauthnpb.CredentialAssertionResponseV1ToV2(&webauthnpb.CredentialAssertionResponse{
 					Type: "invalid",
@@ -579,7 +580,7 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 
 	challengeResp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload:              payload,
 			SsoClientRedirectUrl: "https://sso/redirect",
 			ProxyAddressForSso:   "proxy.example.com",
@@ -593,10 +594,10 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Name: challengeResp.GetMfaChallenge().GetName(),
-				Sso: mfav2.SSOChallengeResponse_builder{
+				Sso: mfav2pb.SSOChallengeResponse_builder{
 					RequestId: "invalid-request-id-to-fail-validation",
 				}.Build(),
 			}.Build(),
@@ -624,7 +625,7 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 
 	mfaService := &mockMFAService{createValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
 
-	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
+	service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
@@ -641,14 +642,14 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 		ctx,
 		authServer.Auth(),
 		"webauthn-device",
-		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		clientpb.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		nil,
 	)
 	require.NoError(t, err)
 
 	challengeResp, err := service.CreateSessionChallenge(
 		ctx,
-		mfav2.CreateSessionChallengeRequest_builder{
+		mfav2pb.CreateSessionChallengeRequest_builder{
 			Payload: payload,
 		}.Build(),
 	)
@@ -656,7 +657,7 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
-	challenge := &proto.MFAAuthenticateChallenge{
+	challenge := &clientpb.MFAAuthenticateChallenge{
 		WebauthnChallenge: webauthnpb.CredentialAssertionV2ToV1(challengeResp.GetMfaChallenge().GetWebauthnChallenge()),
 	}
 
@@ -665,8 +666,8 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
-		mfav2.ValidateSessionChallengeRequest_builder{
-			MfaResponse: mfav2.AuthenticateResponse_builder{
+		mfav2pb.ValidateSessionChallengeRequest_builder{
+			MfaResponse: mfav2pb.AuthenticateResponse_builder{
 				Name:     challengeResp.GetMfaChallenge().GetName(),
 				Webauthn: webauthnpb.CredentialAssertionResponseV1ToV2(mfaResp.GetWebauthn()),
 			}.Build(),
@@ -693,51 +694,51 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 
 	authServer, _, _, user := setupAuthServer(t, nil)
 
-	challenges := []*mfav2.ValidatedMFAChallenge{
-		mfav2.ValidatedMFAChallenge_builder{
+	challenges := []*mfav2pb.ValidatedMFAChallenge{
+		mfav2pb.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-1",
 			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
-				MfaDevice: mfav2.MFADevice_builder{
+				MfaDevice: mfav2pb.MFADevice_builder{
 					Id: deviceID,
 				}.Build(),
 			}.Build(),
 		}.Build(),
-		mfav2.ValidatedMFAChallenge_builder{
+		mfav2pb.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-2",
 			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
-				MfaDevice: mfav2.MFADevice_builder{
+				MfaDevice: mfav2pb.MFADevice_builder{
 					Id: deviceID,
 				}.Build(),
 			}.Build(),
 		}.Build(),
-		mfav2.ValidatedMFAChallenge_builder{
+		mfav2pb.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-3",
 			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
-				MfaDevice: mfav2.MFADevice_builder{
+				MfaDevice: mfav2pb.MFADevice_builder{
 					Id: deviceID,
 				}.Build(),
 			}.Build(),
@@ -747,7 +748,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 	mfaService := &mockMFAService{
 		listValidatedMFAChallenges: challenges,
 	}
-	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
+	service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
@@ -761,14 +762,14 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 
 	resp, err := service.ListValidatedMFAChallenges(
 		ctx,
-		mfav2.ListValidatedMFAChallengesRequest_builder{
+		mfav2pb.ListValidatedMFAChallengesRequest_builder{
 			PageSize: 3,
 		}.Build(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	wantResp := mfav2.ListValidatedMFAChallengesResponse_builder{
+	wantResp := mfav2pb.ListValidatedMFAChallengesResponse_builder{
 		ValidatedChallenges: challenges,
 	}.Build()
 
@@ -789,7 +790,7 @@ func TestListValidatedMFAChallenges_NonLocalProxyDenied(t *testing.T) {
 	// Use a context with a non-server role.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
-	resp, err := service.ListValidatedMFAChallenges(ctx, mfav2.ListValidatedMFAChallengesRequest_builder{
+	resp, err := service.ListValidatedMFAChallenges(ctx, mfav2pb.ListValidatedMFAChallengesRequest_builder{
 		PageSize: 1,
 	}.Build())
 	require.Error(t, err)
@@ -806,19 +807,19 @@ func TestListValidatedMFAChallenges_InvalidRequest(t *testing.T) {
 
 	for _, tc := range []struct {
 		name          string
-		req           *mfav2.ListValidatedMFAChallengesRequest
+		req           *mfav2pb.ListValidatedMFAChallengesRequest
 		expectedError error
 	}{
 		{
 			name: "zero page_size",
-			req: mfav2.ListValidatedMFAChallengesRequest_builder{
+			req: mfav2pb.ListValidatedMFAChallengesRequest_builder{
 				PageSize: 0,
 			}.Build(),
 			expectedError: trace.BadParameter("param ListValidatedMFAChallengesRequest.page_size must be a positive integer"),
 		},
 		{
 			name: "negative page_size",
-			req: mfav2.ListValidatedMFAChallengesRequest_builder{
+			req: mfav2pb.ListValidatedMFAChallengesRequest_builder{
 				PageSize: -9000,
 			}.Build(),
 			expectedError: trace.BadParameter("param ListValidatedMFAChallengesRequest.page_size must be a positive integer"),
@@ -838,19 +839,19 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 
 	authServer, _, _, user := setupAuthServer(t, nil)
 
-	challenges := []*mfav2.ValidatedMFAChallenge{
-		mfav2.ValidatedMFAChallenge_builder{
+	challenges := []*mfav2pb.ValidatedMFAChallenge{
+		mfav2pb.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "challenge-for-target-cluster",
 			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
-				MfaDevice: mfav2.MFADevice_builder{
+				MfaDevice: mfav2pb.MFADevice_builder{
 					Id: deviceID,
 				}.Build(),
 			}.Build(),
@@ -860,7 +861,7 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 	mfaService := &mockMFAService{
 		listValidatedMFAChallenges: challenges,
 	}
-	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
+	service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
@@ -873,9 +874,9 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
 	tc := targetCluster
-	req := mfav2.ListValidatedMFAChallengesRequest_builder{
+	req := mfav2pb.ListValidatedMFAChallengesRequest_builder{
 		PageSize: 10,
-		Filter: mfav2.ListValidatedMFAChallengesFilter_builder{
+		Filter: mfav2pb.ListValidatedMFAChallengesFilter_builder{
 			TargetCluster: &tc,
 		}.Build(),
 	}.Build()
@@ -897,31 +898,35 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
-	gotResp, err := service.ReplicateValidatedMFAChallenge(ctx, mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      user.GetName(),
-		MfaDevice: mfav2.MFADevice_builder{
-			Id: deviceID,
-		}.Build(),
-	}.Build())
+	dev := mfav2pb.MFADevice_builder{
+		Id: deviceID,
+	}.Build()
+
+	req := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      user.GetName(),
+			MfaDevice:     dev,
+		}),
+	}.Build()
+	gotResp, err := service.ReplicateValidatedMFAChallenge(ctx, req)
 	require.NoError(t, err)
 
-	wantedResp := mfav2.ReplicateValidatedMFAChallengeResponse_builder{
-		ReplicatedChallenge: mfav2.ValidatedMFAChallenge_builder{
+	wantedResp := mfav2pb.ReplicateValidatedMFAChallengeResponse_builder{
+		ReplicatedChallenge: mfav2pb.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: chalName,
 			}.Build(),
-			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
 				Username:      user.GetName(),
-				MfaDevice: mfav2.MFADevice_builder{
+				MfaDevice: mfav2pb.MFADevice_builder{
 					Id: deviceID,
 				}.Build(),
 			}.Build(),
@@ -947,13 +952,15 @@ func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
 	// Use a context with a non-server role.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
-	resp, err := service.ReplicateValidatedMFAChallenge(ctx, mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      username,
-	}.Build())
+	req := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      username,
+		}),
+	}.Build()
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, req)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("identity is not a remote builtin role, cannot be a remote proxy"))
 	require.Nil(t, resp)
@@ -964,7 +971,7 @@ func TestReplicateValidatedMFAChallenge_RemoteBuiltinWrongRoleDenied(t *testing.
 
 	authServer, _, _, _ := setupAuthServer(t, nil)
 
-	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
+	service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			identity := authz.RemoteBuiltinRole{
 				Role:        types.RoleNode,
@@ -986,13 +993,15 @@ func TestReplicateValidatedMFAChallenge_RemoteBuiltinWrongRoleDenied(t *testing.
 	})
 	require.NoError(t, err)
 
-	resp, err := service.ReplicateValidatedMFAChallenge(t.Context(), mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      username,
-	}.Build())
+	req := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      username,
+		}),
+	}.Build()
+	resp, err := service.ReplicateValidatedMFAChallenge(t.Context(), req)
 	require.Error(t, err)
 	require.ErrorIs(
 		t,
@@ -1010,13 +1019,15 @@ func TestReplicateValidatedMFAChallenge_RemoteProxyWrongClusterDenied(t *testing
 	// Use a context with a remote proxy identity, but for a different source cluster than the one in the request.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, "different-source-cluster").I)
 
-	resp, err := service.ReplicateValidatedMFAChallenge(ctx, mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      username,
-	}.Build())
+	req := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      username,
+		}),
+	}.Build()
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, req)
 	require.Error(t, err)
 	require.ErrorIs(
 		t,
@@ -1037,16 +1048,20 @@ func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
-	resp, err := service.ReplicateValidatedMFAChallenge(ctx, mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: "different-cluster",
-		Username:      username,
-		MfaDevice: mfav2.MFADevice_builder{
-			Id: deviceID,
-		}.Build(),
-	}.Build())
+	dev := mfav2pb.MFADevice_builder{
+		Id: deviceID,
+	}.Build()
+
+	req := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: "different-cluster",
+			Username:      username,
+			MfaDevice:     dev,
+		}),
+	}.Build()
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, req)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter(`target cluster "different-cluster" does not match current cluster "test-cluster"`))
 	require.Nil(t, resp)
@@ -1059,73 +1074,85 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
-	baseReq := mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
-		Username:      username,
-		MfaDevice:     mfav2.MFADevice_builder{Id: deviceID}.Build(),
-	}
+	dev := mfav2pb.MFADevice_builder{
+		Id: deviceID,
+	}.Build()
+
+	baseReq := mfav2pb.ReplicateValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+			Username:      username,
+			MfaDevice:     dev,
+		}),
+	}.Build()
 
 	for _, testCase := range []struct {
 		name          string
-		req           *mfav2.ReplicateValidatedMFAChallengeRequest
+		req           *mfav2pb.ReplicateValidatedMFAChallengeRequest
 		expectedError error
 	}{
 		{
+			name:          "missing ValidatedChallenge",
+			req:           &mfav2pb.ReplicateValidatedMFAChallengeRequest{},
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest.validated_challenge"),
+		},
+		{
 			name: "missing Name",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.Name = ""
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetMetadata().SetName("")
+				return req
 			}(),
-			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name"),
+			expectedError: trace.BadParameter("name must be set"),
 		},
 		{
 			name: "missing Payload",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.Payload = nil
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetPayload(nil)
+				return req
 			}(),
-			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
+			expectedError: trace.BadParameter("payload must be set"),
 		},
 		{
 			name: "missing SourceCluster",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.SourceCluster = ""
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetSourceCluster("")
+				return req
 			}(),
-			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster"),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest.validated_challenge.spec.source_cluster"),
 		},
 		{
 			name: "missing TargetCluster",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.TargetCluster = ""
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetTargetCluster("")
+				return req
 			}(),
-			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
+			expectedError: trace.BadParameter(`target cluster "" does not match current cluster "test-cluster"`),
 		},
 		{
 			name: "missing Username",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.Username = ""
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetUsername("")
+				return req
 			}(),
-			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username"),
+			expectedError: trace.BadParameter("username must be set"),
 		},
 		{
 			name: "empty SshSessionId in Payload",
-			req: func() *mfav2.ReplicateValidatedMFAChallengeRequest {
-				req := baseReq
-				req.Payload = mfav2.SessionIdentifyingPayload_builder{
-					SshSessionId: []byte{},
-				}.Build()
-				return req.Build()
+			req: func() *mfav2pb.ReplicateValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.ReplicateValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetPayload(
+					mfav2pb.SessionIdentifyingPayload_builder{
+						SshSessionId: []byte{},
+					}.Build(),
+				)
+				return req
 			}(),
 			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
@@ -1143,15 +1170,15 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 	for _, tc := range []struct {
 		name    string
-		payload *mfav2.SessionIdentifyingPayload
+		payload *mfav2pb.SessionIdentifyingPayload
 	}{
 		{
 			name:    "With a SSH session ID",
-			payload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
+			payload: mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte("ssh-session-id")}.Build(),
 		},
 		{
 			name:    "With a TLS session ID",
-			payload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
+			payload: mfav2pb.SessionIdentifyingPayload_builder{TlsSessionId: []byte("tls-session-id")}.Build(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1173,18 +1200,18 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 			// Start a goroutine to create the ValidatedMFAChallenge, to simulate the expected real-world sequence of
 			// events where the challenge is created before it is verified, but not necessarily immediately before.
 			group.Go(func() error {
-				chal := mfav2.ValidatedMFAChallenge_builder{
+				chal := mfav2pb.ValidatedMFAChallenge_builder{
 					Kind:    types.KindValidatedMFAChallenge,
 					Version: types.V1,
 					Metadata: headerv1.Metadata_builder{
 						Name: chalName,
 					}.Build(),
-					Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+					Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 						Payload:       tc.payload,
 						SourceCluster: sourceCluster,
 						TargetCluster: targetCluster,
 						Username:      user.GetName(),
-						MfaDevice: mfav2.MFADevice_builder{
+						MfaDevice: mfav2pb.MFADevice_builder{
 							Id: deviceID,
 						}.Build(),
 					}.Build(),
@@ -1200,15 +1227,14 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 			// Start a goroutine to verify the ValidatedMFAChallenge, which will wait until the challenge is created by
 			// the first goroutine.
 			group.Go(func() error {
-				resp, err := service.VerifyValidatedMFAChallenge(
-					ctx,
-					mfav2.VerifyValidatedMFAChallengeRequest_builder{
-						Username:      user.GetName(),
-						Name:          chalName,
+				req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+					ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
 						Payload:       tc.payload,
 						SourceCluster: sourceCluster,
-					}.Build(),
-				)
+						Username:      user.GetName(),
+					}),
+				}.Build()
+				resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -1236,39 +1262,39 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 
 	for _, tc := range []struct {
 		name        string
-		chalPayload *mfav2.SessionIdentifyingPayload
-		reqPayload  *mfav2.SessionIdentifyingPayload
+		chalPayload *mfav2pb.SessionIdentifyingPayload
+		reqPayload  *mfav2pb.SessionIdentifyingPayload
 	}{
 		{
 			name:        "SSH session ID mismatch",
-			chalPayload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
-			reqPayload:  mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("different-ssh-id")}.Build(),
+			chalPayload: mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
+			reqPayload:  mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte("different-ssh-id")}.Build(),
 		},
 		{
 			name:        "TLS session ID mismatch",
-			chalPayload: mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("stored-tls-id")}.Build(),
-			reqPayload:  mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("different-tls-id")}.Build(),
+			chalPayload: mfav2pb.SessionIdentifyingPayload_builder{TlsSessionId: []byte("stored-tls-id")}.Build(),
+			reqPayload:  mfav2pb.SessionIdentifyingPayload_builder{TlsSessionId: []byte("different-tls-id")}.Build(),
 		},
 		{
 			name:        "Cross type session ID mismatch",
-			chalPayload: mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
-			reqPayload:  mfav2.SessionIdentifyingPayload_builder{TlsSessionId: []byte("req-tls-id")}.Build(),
+			chalPayload: mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte("stored-ssh-id")}.Build(),
+			reqPayload:  mfav2pb.SessionIdentifyingPayload_builder{TlsSessionId: []byte("req-tls-id")}.Build(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			authServer, service, _, user := setupAuthServer(t, nil)
 			ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-			chal := mfav2.ValidatedMFAChallenge_builder{
+			chal := mfav2pb.ValidatedMFAChallenge_builder{
 				Kind:     types.KindValidatedMFAChallenge,
 				Version:  types.V1,
 				Metadata: headerv1.Metadata_builder{Name: chalName}.Build(),
-				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+				Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 					Payload:       tc.chalPayload,
 					SourceCluster: sourceCluster,
 					TargetCluster: targetCluster,
 					Username:      user.GetName(),
-					MfaDevice: mfav2.MFADevice_builder{
+					MfaDevice: mfav2pb.MFADevice_builder{
 						Id: deviceID,
 					}.Build(),
 				}.Build(),
@@ -1277,15 +1303,14 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 			_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 			require.NoError(t, err)
 
-			resp, err := service.VerifyValidatedMFAChallenge(
-				ctx,
-				mfav2.VerifyValidatedMFAChallengeRequest_builder{
-					Username:      user.GetName(),
-					Name:          chalName,
+			req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+				ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
 					Payload:       tc.reqPayload,
 					SourceCluster: sourceCluster,
-				}.Build(),
-			)
+					Username:      user.GetName(),
+				}),
+			}.Build()
+			resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
 			require.ErrorIs(t, err, trace.AccessDenied("request payload does not match validated challenge payload"))
 			require.Nil(t, resp)
 		})
@@ -1299,18 +1324,18 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-	chal := mfav2.ValidatedMFAChallenge_builder{
+	chal := mfav2pb.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name: chalName,
 		}.Build(),
-		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+		Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
 			Username:      user.GetName(),
-			MfaDevice: mfav2.MFADevice_builder{
+			MfaDevice: mfav2pb.MFADevice_builder{
 				Id: deviceID,
 			}.Build(),
 		}.Build(),
@@ -1318,12 +1343,14 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 	require.NoError(t, err)
 
-	resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
-		Username:      user.GetName(),
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: "this-is-a-different-cluster",
-	}.Build())
+	req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: "this-is-a-different-cluster",
+			Username:      user.GetName(),
+		}),
+	}.Build()
+	resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorContains(t, err, "request source cluster does not match validated challenge source cluster")
@@ -1338,12 +1365,14 @@ func TestVerifyValidatedMFAChallenge_NonServerDenied(t *testing.T) {
 	// Use a context with a non-server role.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
-	resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
-		Username:      user.GetName(),
-		Name:          chalName,
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-	}.Build())
+	req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			Username:      user.GetName(),
+		}),
+	}.Build()
+	resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorContains(t, err, "only server identities can verify validated MFA challenge")
@@ -1357,49 +1386,60 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
+	baseReq := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge(chalName, mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			Username:      username,
+		}),
+	}.Build()
+
 	for _, tc := range []struct {
 		name          string
-		req           *mfav2.VerifyValidatedMFAChallengeRequest
+		req           *mfav2pb.VerifyValidatedMFAChallengeRequest
 		expectedError error
 	}{
 		{
+			name:          "Missing validated challenge",
+			req:           &mfav2pb.VerifyValidatedMFAChallengeRequest{},
+			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge"),
+		},
+		{
 			name: "Missing user",
-			req: mfav2.VerifyValidatedMFAChallengeRequest_builder{
-				Username:      "",
-				Name:          chalName,
-				Payload:       payload,
-				SourceCluster: sourceCluster,
-			}.Build(),
-			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username"),
+			req: func() *mfav2pb.VerifyValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.VerifyValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetUsername("")
+				return req
+			}(),
+			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge.spec.username"),
 		},
 		{
 			name: "Missing name",
-			req: mfav2.VerifyValidatedMFAChallengeRequest_builder{
-				Username:      username,
-				Name:          "",
-				Payload:       payload,
-				SourceCluster: sourceCluster,
-			}.Build(),
-			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name"),
+			req: func() *mfav2pb.VerifyValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.VerifyValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetMetadata().SetName("")
+				return req
+			}(),
+			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge.metadata.name"),
 		},
 		{
 			name: "Missing payload",
-			req: mfav2.VerifyValidatedMFAChallengeRequest_builder{
-				Username:      username,
-				Name:          chalName,
-				Payload:       nil,
-				SourceCluster: sourceCluster,
-			}.Build(),
+			req: func() *mfav2pb.VerifyValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.VerifyValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetPayload(nil)
+				return req
+			}(),
 			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
 		},
 		{
 			name: "Empty SshSessionId",
-			req: mfav2.VerifyValidatedMFAChallengeRequest_builder{
-				Username:      username,
-				Name:          chalName,
-				Payload:       mfav2.SessionIdentifyingPayload_builder{SshSessionId: []byte{}}.Build(),
-				SourceCluster: sourceCluster,
-			}.Build(),
+			req: func() *mfav2pb.VerifyValidatedMFAChallengeRequest {
+				req := proto.Clone(baseReq).(*mfav2pb.VerifyValidatedMFAChallengeRequest)
+				req.GetValidatedChallenge().GetSpec().SetPayload(
+					mfav2pb.SessionIdentifyingPayload_builder{SshSessionId: []byte{}}.Build(),
+				)
+				return req
+			}(),
 			expectedError: trace.BadParameter("ssh_session_id must not be empty"),
 		},
 	} {
@@ -1424,17 +1464,19 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 	defer cancel()
 
 	// No challenge stored for this name or the challenge was not created within the context's timeout.
-	resp, err := service.VerifyValidatedMFAChallenge(ctx, mfav2.VerifyValidatedMFAChallengeRequest_builder{
-		Username:      user.GetName(),
-		Name:          "non-existent-challenge",
-		Payload:       payload,
-		SourceCluster: sourceCluster,
-	}.Build())
+	req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
+		ValidatedChallenge: newValidatedMFAChallenge("non-existent-challenge", mfav2pb.ValidatedMFAChallengeSpec_builder{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			Username:      user.GetName(),
+		}),
+	}.Build()
+	resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
 	require.True(t, trace.IsLimitExceeded(err))
 	require.Nil(t, resp)
 }
 
-func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav2impl.Service, *eventstest.MockRecorderEmitter, types.User) {
+func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav2.Service, *eventstest.MockRecorderEmitter, types.User) {
 	t.Helper()
 
 	emitter := &eventstest.MockRecorderEmitter{}
@@ -1471,7 +1513,7 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
 	require.NoError(t, err)
 
-	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
+	service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
@@ -1492,4 +1534,13 @@ type mockAccessChecker struct {
 
 func (f mockAccessChecker) HasRole(role string) bool {
 	return f.roles[role]
+}
+
+func newValidatedMFAChallenge(name string, spec mfav2pb.ValidatedMFAChallengeSpec_builder) *mfav2pb.ValidatedMFAChallenge {
+	return mfav2pb.ValidatedMFAChallenge_builder{
+		Kind:     types.KindValidatedMFAChallenge,
+		Version:  types.V1,
+		Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+		Spec:     spec.Build(),
+	}.Build()
 }

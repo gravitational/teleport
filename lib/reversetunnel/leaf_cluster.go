@@ -1198,12 +1198,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 		if _, err := s.leafClient.MFAServiceClientV2().ReplicateValidatedMFAChallenge(
 			rpcCtx,
 			mfav2.ReplicateValidatedMFAChallengeRequest_builder{
-				Name:          challenge.GetMetadata().GetName(),
-				Payload:       challenge.GetSpec().GetPayload(),
-				SourceCluster: challenge.GetSpec().GetSourceCluster(),
-				TargetCluster: challenge.GetSpec().GetTargetCluster(),
-				Username:      challenge.GetSpec().GetUsername(),
-				MfaDevice:     challenge.GetSpec().GetMfaDevice(),
+				ValidatedChallenge: challenge,
 			}.Build(),
 		); err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(

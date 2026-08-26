@@ -630,25 +630,12 @@ func (b0 ListValidatedMFAChallengesResponse_builder) Build() *ListValidatedMFACh
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 type ReplicateValidatedMFAChallengeRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-	// challenge.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
-	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	// Name of the source cluster where the validated challenge originated. Required in order to match the validated
-	// challenge to the correct session.
-	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// Name of the target cluster where the SSH session is being established. Required in order to match the validated
-	// challenge to the correct session.
-	TargetCluster string `protobuf:"bytes,4,opt,name=target_cluster,json=targetCluster,proto3" json:"target_cluster,omitempty"`
-	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-	// login name) and must correspond to a user in the cluster specified by source_cluster.
-	Username string `protobuf:"bytes,5,opt,name=username,proto3" json:"username,omitempty"`
-	// MFA device that satisfied the challenge in source_cluster. Must match the mfa_device of the validated challenge
-	// being replicated so that mfa_device locks are enforced in the target cluster.
-	MfaDevice     *MFADevice `protobuf:"bytes,6,opt,name=mfa_device,json=mfaDevice,proto3" json:"mfa_device,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The validated MFA challenge resource to replicate from spec.source_cluster to this cluster. Required; see
+	// ValidatedMFAChallenge for the required fields. The server rejects the request if spec.target_cluster does not
+	// match the local cluster or if the caller does not originate from spec.source_cluster.
+	ValidatedChallenge *ValidatedMFAChallenge `protobuf:"bytes,7,opt,name=validated_challenge,json=validatedChallenge,proto3" json:"validated_challenge,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ReplicateValidatedMFAChallengeRequest) Reset() {
@@ -676,126 +663,42 @@ func (x *ReplicateValidatedMFAChallengeRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-func (x *ReplicateValidatedMFAChallengeRequest) GetName() string {
+func (x *ReplicateValidatedMFAChallengeRequest) GetValidatedChallenge() *ValidatedMFAChallenge {
 	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) GetPayload() *SessionIdentifyingPayload {
-	if x != nil {
-		return x.Payload
+		return x.ValidatedChallenge
 	}
 	return nil
 }
 
-func (x *ReplicateValidatedMFAChallengeRequest) GetSourceCluster() string {
-	if x != nil {
-		return x.SourceCluster
-	}
-	return ""
+func (x *ReplicateValidatedMFAChallengeRequest) SetValidatedChallenge(v *ValidatedMFAChallenge) {
+	x.ValidatedChallenge = v
 }
 
-func (x *ReplicateValidatedMFAChallengeRequest) GetTargetCluster() string {
-	if x != nil {
-		return x.TargetCluster
-	}
-	return ""
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) GetMfaDevice() *MFADevice {
-	if x != nil {
-		return x.MfaDevice
-	}
-	return nil
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetName(v string) {
-	x.Name = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetPayload(v *SessionIdentifyingPayload) {
-	x.Payload = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetSourceCluster(v string) {
-	x.SourceCluster = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetTargetCluster(v string) {
-	x.TargetCluster = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetUsername(v string) {
-	x.Username = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) SetMfaDevice(v *MFADevice) {
-	x.MfaDevice = v
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) HasPayload() bool {
+func (x *ReplicateValidatedMFAChallengeRequest) HasValidatedChallenge() bool {
 	if x == nil {
 		return false
 	}
-	return x.Payload != nil
+	return x.ValidatedChallenge != nil
 }
 
-func (x *ReplicateValidatedMFAChallengeRequest) HasMfaDevice() bool {
-	if x == nil {
-		return false
-	}
-	return x.MfaDevice != nil
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) ClearPayload() {
-	x.Payload = nil
-}
-
-func (x *ReplicateValidatedMFAChallengeRequest) ClearMfaDevice() {
-	x.MfaDevice = nil
+func (x *ReplicateValidatedMFAChallengeRequest) ClearValidatedChallenge() {
+	x.ValidatedChallenge = nil
 }
 
 type ReplicateValidatedMFAChallengeRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-	// challenge.
-	Name string
-	// Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
-	Payload *SessionIdentifyingPayload
-	// Name of the source cluster where the validated challenge originated. Required in order to match the validated
-	// challenge to the correct session.
-	SourceCluster string
-	// Name of the target cluster where the SSH session is being established. Required in order to match the validated
-	// challenge to the correct session.
-	TargetCluster string
-	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-	// login name) and must correspond to a user in the cluster specified by source_cluster.
-	Username string
-	// MFA device that satisfied the challenge in source_cluster. Must match the mfa_device of the validated challenge
-	// being replicated so that mfa_device locks are enforced in the target cluster.
-	MfaDevice *MFADevice
+	// The validated MFA challenge resource to replicate from spec.source_cluster to this cluster. Required; see
+	// ValidatedMFAChallenge for the required fields. The server rejects the request if spec.target_cluster does not
+	// match the local cluster or if the caller does not originate from spec.source_cluster.
+	ValidatedChallenge *ValidatedMFAChallenge
 }
 
 func (b0 ReplicateValidatedMFAChallengeRequest_builder) Build() *ReplicateValidatedMFAChallengeRequest {
 	m0 := &ReplicateValidatedMFAChallengeRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Name = b.Name
-	x.Payload = b.Payload
-	x.SourceCluster = b.SourceCluster
-	x.TargetCluster = b.TargetCluster
-	x.Username = b.Username
-	x.MfaDevice = b.MfaDevice
+	x.ValidatedChallenge = b.ValidatedChallenge
 	return m0
 }
 
@@ -873,22 +776,12 @@ func (b0 ReplicateValidatedMFAChallengeResponse_builder) Build() *ReplicateValid
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
 type VerifyValidatedMFAChallengeRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-	// challenge.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Value that uniquely identifies the user's session. The client MUST independently compute this value from session
-	// state. The server will verify it matches the payload supplied in CreateSessionChallengeRequest to ensure the
-	// challenge is tied to the correct session.
-	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	// Name of the cluster where the validated challenge originated.
-	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-	// login name) and must correspond to a user in the cluster specified by source_cluster. The client MUST determine this
-	// value by authenticating the Teleport user before calling this method. The server will verify that it matches the
-	// Teleport user associated with the validated challenge to ensure the challenge is tied to the correct user.
-	Username      string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The validated MFA challenge resource to verify. Required. The supplied fields are validated against the stored
+	// challenge; at minimum, metadata.name, spec.username, and spec.payload must be present. The server looks up the
+	// stored challenge by metadata.name and rejects the request if the supplied fields do not match the stored values.
+	ValidatedChallenge *ValidatedMFAChallenge `protobuf:"bytes,5,opt,name=validated_challenge,json=validatedChallenge,proto3" json:"validated_challenge,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *VerifyValidatedMFAChallengeRequest) Reset() {
@@ -916,88 +809,42 @@ func (x *VerifyValidatedMFAChallengeRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-func (x *VerifyValidatedMFAChallengeRequest) GetName() string {
+func (x *VerifyValidatedMFAChallengeRequest) GetValidatedChallenge() *ValidatedMFAChallenge {
 	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) GetPayload() *SessionIdentifyingPayload {
-	if x != nil {
-		return x.Payload
+		return x.ValidatedChallenge
 	}
 	return nil
 }
 
-func (x *VerifyValidatedMFAChallengeRequest) GetSourceCluster() string {
-	if x != nil {
-		return x.SourceCluster
-	}
-	return ""
+func (x *VerifyValidatedMFAChallengeRequest) SetValidatedChallenge(v *ValidatedMFAChallenge) {
+	x.ValidatedChallenge = v
 }
 
-func (x *VerifyValidatedMFAChallengeRequest) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) SetName(v string) {
-	x.Name = v
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) SetPayload(v *SessionIdentifyingPayload) {
-	x.Payload = v
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) SetSourceCluster(v string) {
-	x.SourceCluster = v
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) SetUsername(v string) {
-	x.Username = v
-}
-
-func (x *VerifyValidatedMFAChallengeRequest) HasPayload() bool {
+func (x *VerifyValidatedMFAChallengeRequest) HasValidatedChallenge() bool {
 	if x == nil {
 		return false
 	}
-	return x.Payload != nil
+	return x.ValidatedChallenge != nil
 }
 
-func (x *VerifyValidatedMFAChallengeRequest) ClearPayload() {
-	x.Payload = nil
+func (x *VerifyValidatedMFAChallengeRequest) ClearValidatedChallenge() {
+	x.ValidatedChallenge = nil
 }
 
 type VerifyValidatedMFAChallengeRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-	// challenge.
-	Name string
-	// Value that uniquely identifies the user's session. The client MUST independently compute this value from session
-	// state. The server will verify it matches the payload supplied in CreateSessionChallengeRequest to ensure the
-	// challenge is tied to the correct session.
-	Payload *SessionIdentifyingPayload
-	// Name of the cluster where the validated challenge originated.
-	SourceCluster string
-	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-	// login name) and must correspond to a user in the cluster specified by source_cluster. The client MUST determine this
-	// value by authenticating the Teleport user before calling this method. The server will verify that it matches the
-	// Teleport user associated with the validated challenge to ensure the challenge is tied to the correct user.
-	Username string
+	// The validated MFA challenge resource to verify. Required. The supplied fields are validated against the stored
+	// challenge; at minimum, metadata.name, spec.username, and spec.payload must be present. The server looks up the
+	// stored challenge by metadata.name and rejects the request if the supplied fields do not match the stored values.
+	ValidatedChallenge *ValidatedMFAChallenge
 }
 
 func (b0 VerifyValidatedMFAChallengeRequest_builder) Build() *VerifyValidatedMFAChallengeRequest {
 	m0 := &VerifyValidatedMFAChallengeRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Name = b.Name
-	x.Payload = b.Payload
-	x.SourceCluster = b.SourceCluster
-	x.Username = b.Username
+	x.ValidatedChallenge = b.ValidatedChallenge
 	return m0
 }
 
@@ -1233,22 +1080,14 @@ const file_teleport_mfa_v2_service_proto_rawDesc = "" +
 	"\x06filter\x18\x03 \x01(\v21.teleport.mfa.v2.ListValidatedMFAChallengesFilterR\x06filter\"\xa7\x01\n" +
 	"\"ListValidatedMFAChallengesResponse\x12Y\n" +
 	"\x14validated_challenges\x18\x01 \x03(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x13validatedChallenges\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xa6\x02\n" +
-	"%ReplicateValidatedMFAChallengeRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
-	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
-	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12%\n" +
-	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x05 \x01(\tR\busername\x129\n" +
-	"\n" +
-	"mfa_device\x18\x06 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\tmfaDevice\"\x83\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcb\x01\n" +
+	"%ReplicateValidatedMFAChallengeRequest\x12W\n" +
+	"\x13validated_challenge\x18\a \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x12validatedChallengeJ\x04\b\x01\x10\aR\x04nameR\apayloadR\x0esource_clusterR\x0etarget_clusterR\busernameR\n" +
+	"mfa_device\"\x83\x01\n" +
 	"&ReplicateValidatedMFAChallengeResponse\x12Y\n" +
-	"\x14replicated_challenge\x18\x01 \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x13replicatedChallenge\"\xc1\x01\n" +
-	"\"VerifyValidatedMFAChallengeRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
-	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
-	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"`\n" +
+	"\x14replicated_challenge\x18\x01 \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x13replicatedChallenge\"\xac\x01\n" +
+	"\"VerifyValidatedMFAChallengeRequest\x12W\n" +
+	"\x13validated_challenge\x18\x05 \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeR\x12validatedChallengeJ\x04\b\x01\x10\x05R\x04nameR\apayloadR\x0esource_clusterR\busername\"`\n" +
 	"#VerifyValidatedMFAChallengeResponse\x129\n" +
 	"\n" +
 	"mfa_device\x18\x01 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\tmfaDevice\"{\n" +
@@ -1293,29 +1132,28 @@ var file_teleport_mfa_v2_service_proto_depIdxs = []int32{
 	15, // 2: teleport.mfa.v2.ValidateSessionChallengeRequest.mfa_response:type_name -> teleport.mfa.v2.AuthenticateResponse
 	4,  // 3: teleport.mfa.v2.ListValidatedMFAChallengesRequest.filter:type_name -> teleport.mfa.v2.ListValidatedMFAChallengesFilter
 	16, // 4: teleport.mfa.v2.ListValidatedMFAChallengesResponse.validated_challenges:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
-	13, // 5: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	17, // 6: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.mfa_device:type_name -> teleport.mfa.v2.MFADevice
-	16, // 7: teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse.replicated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
-	13, // 8: teleport.mfa.v2.VerifyValidatedMFAChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	17, // 9: teleport.mfa.v2.VerifyValidatedMFAChallengeResponse.mfa_device:type_name -> teleport.mfa.v2.MFADevice
-	18, // 10: teleport.mfa.v2.CompleteBrowserMFAChallengeRequest.browser_mfa_response:type_name -> teleport.mfa.v2.BrowserMFAResponse
-	0,  // 11: teleport.mfa.v2.MFAService.CreateSessionChallenge:input_type -> teleport.mfa.v2.CreateSessionChallengeRequest
-	2,  // 12: teleport.mfa.v2.MFAService.ValidateSessionChallenge:input_type -> teleport.mfa.v2.ValidateSessionChallengeRequest
-	5,  // 13: teleport.mfa.v2.MFAService.ListValidatedMFAChallenges:input_type -> teleport.mfa.v2.ListValidatedMFAChallengesRequest
-	7,  // 14: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
-	9,  // 15: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
-	11, // 16: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:input_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeRequest
-	1,  // 17: teleport.mfa.v2.MFAService.CreateSessionChallenge:output_type -> teleport.mfa.v2.CreateSessionChallengeResponse
-	3,  // 18: teleport.mfa.v2.MFAService.ValidateSessionChallenge:output_type -> teleport.mfa.v2.ValidateSessionChallengeResponse
-	6,  // 19: teleport.mfa.v2.MFAService.ListValidatedMFAChallenges:output_type -> teleport.mfa.v2.ListValidatedMFAChallengesResponse
-	8,  // 20: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
-	10, // 21: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
-	12, // 22: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:output_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeResponse
-	17, // [17:23] is the sub-list for method output_type
-	11, // [11:17] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	16, // 5: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.validated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
+	16, // 6: teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse.replicated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
+	16, // 7: teleport.mfa.v2.VerifyValidatedMFAChallengeRequest.validated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
+	17, // 8: teleport.mfa.v2.VerifyValidatedMFAChallengeResponse.mfa_device:type_name -> teleport.mfa.v2.MFADevice
+	18, // 9: teleport.mfa.v2.CompleteBrowserMFAChallengeRequest.browser_mfa_response:type_name -> teleport.mfa.v2.BrowserMFAResponse
+	0,  // 10: teleport.mfa.v2.MFAService.CreateSessionChallenge:input_type -> teleport.mfa.v2.CreateSessionChallengeRequest
+	2,  // 11: teleport.mfa.v2.MFAService.ValidateSessionChallenge:input_type -> teleport.mfa.v2.ValidateSessionChallengeRequest
+	5,  // 12: teleport.mfa.v2.MFAService.ListValidatedMFAChallenges:input_type -> teleport.mfa.v2.ListValidatedMFAChallengesRequest
+	7,  // 13: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
+	9,  // 14: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
+	11, // 15: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:input_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeRequest
+	1,  // 16: teleport.mfa.v2.MFAService.CreateSessionChallenge:output_type -> teleport.mfa.v2.CreateSessionChallengeResponse
+	3,  // 17: teleport.mfa.v2.MFAService.ValidateSessionChallenge:output_type -> teleport.mfa.v2.ValidateSessionChallengeResponse
+	6,  // 18: teleport.mfa.v2.MFAService.ListValidatedMFAChallenges:output_type -> teleport.mfa.v2.ListValidatedMFAChallengesResponse
+	8,  // 19: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
+	10, // 20: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
+	12, // 21: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:output_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeResponse
+	16, // [16:22] is the sub-list for method output_type
+	10, // [10:16] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_mfa_v2_service_proto_init() }

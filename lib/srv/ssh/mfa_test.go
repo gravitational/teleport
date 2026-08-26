@@ -259,10 +259,10 @@ func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
 		return nil, m.err
 	}
 
-	if m.expectedChallengeName != "" && req.GetName() != m.expectedChallengeName {
+	if m.expectedChallengeName != "" && req.GetValidatedChallenge().GetMetadata().GetName() != m.expectedChallengeName {
 		return nil, trace.Errorf(
 			"unexpected challenge name: got %q, want %q",
-			req.GetName(),
+			req.GetValidatedChallenge().GetMetadata().GetName(),
 			m.expectedChallengeName,
 		)
 	}

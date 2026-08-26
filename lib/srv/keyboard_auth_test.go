@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -139,11 +140,12 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.
 		mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
 	)
 	require.NoError(t, err)
-	require.Same(t, inPerms, outPerms)
+	assert.Same(t, inPerms, outPerms)
 	require.NotNil(t, mfaVerifier.lastReq)
-	require.Equal(t, "root-cluster", mfaVerifier.lastReq.GetSourceCluster())
-	require.Equal(t, id.Username, mfaVerifier.lastReq.GetUsername())
-	require.Equal(t, metadata.sessionID, mfaVerifier.lastReq.GetPayload().GetSshSessionId())
+	lastChal := mfaVerifier.lastReq.GetValidatedChallenge()
+	assert.Equal(t, "root-cluster", lastChal.GetSpec().GetSourceCluster())
+	assert.Equal(t, id.Username, lastChal.GetSpec().GetUsername())
+	assert.Equal(t, metadata.sessionID, lastChal.GetSpec().GetPayload().GetSshSessionId())
 }
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_EmptySessionID(t *testing.T) {

@@ -37,7 +37,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session. When creating the resource via
+// ReplicateValidatedMFAChallenge, the following fields are required: spec.payload, spec.source_cluster,
+// spec.target_cluster, spec.username, and spec.mfa_device.id.
 type ValidatedMFAChallenge struct {
 	state               protoimpl.MessageState     `protogen:"opaque.v1"`
 	xxx_hidden_Kind     string                     `protobuf:"bytes,1,opt,name=kind,proto3"`
