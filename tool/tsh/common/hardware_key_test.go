@@ -310,8 +310,7 @@ func TestHardwareKeySSH(t *testing.T) {
 func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
 	t.Helper()
 
-	ctx := context.Background()
-	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+	openSSHCA, err := authServer.GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.OpenSSHCA,
 		DomainName: clusterName,
 	}, false)
@@ -320,14 +319,19 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	caCheckers, err := sshutils.GetCheckers(openSSHCA)
 	require.NoError(t, err)
 
-	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	key, err := cryptosuites.GenerateKey(
+		t.Context(),
+		cryptosuites.GetCurrentSuiteFromAuthPreference(authServer),
+		cryptosuites.HostSSH,
+	)
 	require.NoError(t, err)
+
 	sshPub, err := ssh.NewPublicKey(key.Public())
 	require.NoError(t, err)
 
 	nodeUUID := uuid.New().String()
 	hostCertBytes, err := authServer.GenerateHostCert(
-		ctx,
+		t.Context(),
 		ssh.MarshalAuthorizedKey(sshPub),
 		"",
 		"",
@@ -348,6 +352,24 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	// start SSH server
 	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
 
+	watcher, err := authServer.NewWatcher(t.Context(), types.Watch{
+		Name: "node-create watcher",
+		Kinds: []types.WatchKind{
+			{Kind: types.KindNode},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { watcher.Close() })
+
+	select {
+	case <-time.After(time.Second * 30):
+		t.Fatal("Timeout waiting for watcher init")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-watcher.Done():
+		t.Fatal(watcher.Error())
+	}
+
 	// create node resource
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
@@ -361,35 +383,29 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 			Hostname: nodeHostname,
 		},
 	}
-	_, err = authServer.UpsertNode(ctx, node)
+	_, err = authServer.UpsertNode(t.Context(), node)
 	require.NoError(t, err)
 
-	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	t.Cleanup(cancel)
-	w, err := authServer.NewWatcher(timedCtx, types.Watch{
-		Name: "node-create watcher",
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindNode,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	for nodeCreated := false; !nodeCreated; {
+	// Wait for the node to show up.
+	timeout := time.After(15 * time.Second)
+	for {
 		select {
-		case e := <-w.Events():
-			if e.Type == types.OpPut {
-				nodeCreated = true
+		case <-timeout:
+			t.Fatal("timed out waiting for agentless node")
+		case <-watcher.Done():
+			t.Fatalf("watcher error: %v", watcher.Error())
+		case event, ok := <-watcher.Events():
+			if !ok {
+				t.Fatal("watcher closed")
 			}
-		case <-w.Done():
-			t.Fatal("Did not receive node create event")
+			if event.Type != types.OpPut {
+				continue
+			}
+			if event.Resource.GetKind() == node.GetKind() && event.Resource.GetMetadata().Name == node.GetName() {
+				return node
+			}
 		}
 	}
-	require.NoError(t, w.Close())
-
-	return node
 }
 
 // startSSHServer starts a SSH server that roughly mimics an unregistered

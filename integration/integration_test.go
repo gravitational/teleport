@@ -6889,9 +6889,6 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	case <-time.After(time.Second * 30):
 		t.Fatalf("Timeout waiting for event.")
 	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
 		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		t.Fatal(watcher.Error())
@@ -9430,6 +9427,26 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	// start SSH server
 	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
 
+	watcher, err := authServer.NewWatcher(
+		t.Context(),
+		types.Watch{
+			Name: "node-create watcher",
+			Kinds: []types.WatchKind{
+				{Kind: types.KindNode},
+			},
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { watcher.Close() })
+
+	select {
+	case <-time.After(time.Second * 30):
+		t.Fatal("Timeout waiting for watcher init")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-watcher.Done():
+		t.Fatal(watcher.Error())
+	}
+
 	// create node resource
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
@@ -9446,31 +9463,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	_, err = authServer.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	t.Cleanup(cancel)
-	w, err := authServer.NewWatcher(timedCtx, types.Watch{
-		Name: "node-create watcher",
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindNode,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	for nodeCreated := false; !nodeCreated; {
-		select {
-		case e := <-w.Events():
-			if e.Type == types.OpPut {
-				nodeCreated = true
-			}
-		case <-w.Done():
-			t.Fatal("Did not receive node create event")
-		}
-	}
-	require.NoError(t, w.Close())
-
+	WaitForResource(t, watcher, node.GetKind(), node.GetName())
 	return node
 }
 
