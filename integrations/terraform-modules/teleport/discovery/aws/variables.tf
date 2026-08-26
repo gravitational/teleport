@@ -215,7 +215,11 @@ variable "teleport_provision_token_use_name_prefix" {
 }
 
 variable "discovery_service_iam_credential_source" {
-  description = "Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration."
+  description = <<EOF
+Configure the AWS credential source for Teleport Discovery Service instances.
+The default uses AWS OIDC integration.
+Set use_oidc_integration to false and omit trust_role to use the ambient AWS credentials that are already available to your Discovery Service(s).
+EOF
   type = object({
     use_oidc_integration = optional(bool, true)
     trust_role = optional(object({
@@ -234,7 +238,12 @@ variable "discovery_service_iam_credential_source" {
       var.discovery_service_iam_credential_source.use_oidc_integration
       && var.discovery_service_iam_credential_source.trust_role != null
     )
-    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID, but not both."
+    error_message = "The discovery service AWS IAM credential source cannot use both an OIDC integration and a trusted IAM role."
+  }
+
+  validation {
+    condition     = try(var.discovery_service_iam_credential_source.trust_role.role_arn != "", true)
+    error_message = "The discovery service AWS IAM credential source trust_role.role_arn must not be empty when trust_role is configured."
   }
 }
 
