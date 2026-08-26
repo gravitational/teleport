@@ -53,6 +53,24 @@ type networkIpv6DataT struct {
 	_       [2]byte
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	networkMapCurrsock               = "currsock"
+	networkMapIpv4Events             = "ipv4_events"
+	networkMapIpv6Events             = "ipv6_events"
+	networkMapLostCounter            = "lost_counter"
+	networkMapLostDoorbell           = "lost_doorbell"
+	networkMapMonitoredSessionids    = "monitored_sessionids"
+	networkProgKprobeTcpV4Connect    = "kprobe__tcp_v4_connect"
+	networkProgKprobeTcpV6Connect    = "kprobe__tcp_v6_connect"
+	networkProgKretprobeTcpV4Connect = "kretprobe__tcp_v4_connect"
+	networkProgKretprobeTcpV6Connect = "kretprobe__tcp_v6_connect"
+	networkVarUnusedIpv4DataT        = "unused_ipv4_data_t"
+	networkVarUnusedIpv6DataT        = "unused_ipv6_data_t"
+)
+
 // loadNetwork returns the embedded CollectionSpec for network.
 func loadNetwork() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_NetworkBytes)
@@ -73,7 +91,7 @@ func loadNetwork() (*ebpf.CollectionSpec, error) {
 //	*networkMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func loadNetworkObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func loadNetworkObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := loadNetwork()
 	if err != nil {
 		return err
