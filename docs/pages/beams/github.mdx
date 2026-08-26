@@ -1,0 +1,135 @@
+---
+title: Protect Agentic GitHub Access with Teleport Beams
+description: Provides an illustration of using Teleport Beams to enable secure agentic access to code stored on GitHub.
+sidebar_label: GitHub
+tags:
+  - how-to
+  - ai
+page_type: how-to
+---
+
+Teleport Beams allow you to grant AI agents access to your GitHub repositories
+with restricted permissions that prevent their nondeterministic access patterns
+from unintentional changes.
+
+In this guide, you will set up Teleport RBAC to enable an AI agent to securely
+access a GitHub repository.
+
+## How it works
+
+Teleport Beams are micro VM sandboxes for running agentic workloads, hosted on
+the Teleport Cloud infrastructure. When a user creates a beam, the Teleport Auth
+Service creates a **delegation session** that contains the user and their
+Teleport roles.
+
+An instance of the `tbot` daemon on the beam receives the ID of the delegation
+session and queries the Auth Service to issue a fresh Teleport identity to
+services that run on the beam. As a result, any agentic workloads running
+on the beam delegate the originating user's Teleport permissions.
+
+With Teleport RBAC, you can limit the permissions that agentic workloads have to
+access your GitHub repositories. You can configure your GitHub organization to
+use a Teleport certificate authority for authenticating users via SSH. Teleport
+then issues SSH certificates to users and proxies `git` commands to enforce
+RBAC. Users who create a beam can run AI agents on the beam to access
+repositories that belong to Teleport-protected GitHub organizations, as long as
+the users have permissions to access those organizations as well. 
+
+## Prerequisites
+
+- A Teleport Beams account. [Start your free trial](https://www.beams.run/).
+- A GitHub organization enrolled with Teleport. This guide assumes that you have
+  followed [Proxy Git Commands with Teleport for
+  GitHub](../enroll-resources/application-access/cloud-apis/github-integration.mdx).
+  While you may use a demo organization to follow this guide, it is up to you to
+  configure access controls for users in the organization. Once a user
+  authenticates to GitHub via Teleport as a particular GitHub user, they have
+  all of the permissions you assigned to them in GitHub.
+- A role that can access your GitHub organization. You will have created this
+  while setting up Teleport GitHub support. Teleport access controls for GitHub
+  encompass an entire organization, so this will be the same role you will need
+  to assign to your AI agent later in this guide.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Configure Teleport RBAC
+
+You can enable an AI agent to access a Teleport-protected GitHub organization on
+a Teleport beam by configuring a user with access to:
+- create and access a beam
+- access your GitHub organization
+
+By following the Prerequisites of this guide, you will have already created a
+role that can access your GitHub organization. The preset `beam-user` role
+allows a user to create beams. 
+
+1. Create a user with both roles, assigning <Var name="github-access" /> to the
+   role you created when enrolling your GitHub organization with Teleport and
+   <Var name="github-user" /> to the name of your new user:
+
+   ```code
+   $ tctl users add \
+     --roles=<Var name="github-access" />,beam-user <Var name="github-user" />
+   ```
+
+1. Follow the instructions in your terminal to activate your user.
+
+## Step 2/3. Prepare your beam
+
+Create a beam and start an SSH session with it:
+
+1. Authenticate to Teleport as the <Var name="github-user" /> user you created
+   in the last step and enter your credentials:
+
+   ```code
+   $ tsh login \
+     --proxy=<Var name="example.beams.sh" /> \
+     --user=<Var name="github-user" />
+   ```
+
+1. Create a beam and access it:
+
+   ```code
+   $ tsh beams add
+   ```
+
+This command starts an SSH session with the new beam.
+
+Stay in the beam shell session for the next step.
+
+## Step 3/3. Prompt your agent
+
+Prompt your agent to access your GitHub organization.
+
+1. Start your LLM CLI. A beam initializes with `claude` and `codex`
+   preinstalled.
+
+1. Enter the following prompt, assigning <Var name="repo-url" />
+   to a repository URL within your protected organization:
+
+   ```text
+   Clone <Var name="repo-url" /> and summarize the last five merged PRs.
+   ```
+
+1. Open the Teleport Web UI at <Var name="example.beams.sh" /> and navigate to
+   **Audit** on the left sidebar.
+
+You should see an audit event similar to the following:
+
+{/* cSpell:ignore TGIT */}
+
+```json
+{
+  "code": "TGIT001I",
+  "event": "git.command",
+  "time": "2026-08-11T14:32:07.000Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "user": "github-user",
+  "service": "git-upload-pack",
+  "path": "<my-github-org>/<repo>"
+}
+```
+
+The `git.command` event type indicates the GitHub user responsible for a `git`
+command as well as the low-level protocol operation the user executed. In this
+case, we can see that the user invoked a read operation on the `git` server,
+`git-upload-pack`.

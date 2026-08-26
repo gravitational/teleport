@@ -1,6 +1,6 @@
 ---
-title: Beams Database Demo
-sidebar_label: Database Demo
+title: Protect Databases with Teleport Beams
+sidebar_label: Databases
 description: Provides an example of giving an AI agent restricted access to a Teleport-protected database via Beams.
 tags:
  - how-to
@@ -337,4 +337,20 @@ one example agent summary:
 
   To complete the update, you'd need a database user with write privileges to be added to the Teleport database
   configuration.
+```
+
+You can also inspect a record of the PostgreSQL sessions your agent opened
+against your protected database. In the Teleport Web UI, navigate to **Audit >
+Session Recordings**. Along with your agent session, you will also be able to
+play recordings of sessions your agent initiated with your database, similar to
+the following:
+
+```text
+Session started to database "local-postgres" at Wed Aug  5 17:56 UTC
+
+postgres=> UPDATE users SET ssn = '999-99-9999' WHERE name = 'alice';
+ERROR: permission denied for table users (SQLSTATE 42501)
+
+Session ended at Wed Aug  5 17:56 UTC
+disconnected
 ```
