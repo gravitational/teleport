@@ -35,6 +35,13 @@ other Linux distributions, you can install Teleport manually.)
 When discovering GCP compute instances, Teleport makes use of GCP invite tokens for
 authenticating joining SSH Service instances.
 
+First, discover your project ID and the zones where your instances run:
+
+```code
+$ gcloud config get-value project
+$ gcloud compute instances list --format="table(name,zone,status,serviceAccounts.email)"
+```
+
 Create a file called `token.yaml`:
 
 ```yaml
@@ -55,13 +62,26 @@ spec:
   gcp:
     allow:
       # The GCP project ID(s) that VMs can join from.
-      - project_ids: []
+      - project_ids: ["my-project-id"]
         # (Optional) The locations that VMs can join from. Note: both regions and
         # zones are accepted.
-        locations: []
+        locations: ["us-central1-a", "us-east1-b"]
         # (Optional) The email addresses of service accounts that VMs can join
         # with.
-        service_accounts: []
+        service_accounts: ["my-sa@my-project-id.iam.gserviceaccount.com"]
+```
+
+To discover the values needed for this token configuration, run:
+
+```code
+# Get your project ID
+$ gcloud config get-value project
+
+# List zones where your instances run
+$ gcloud compute instances list --format="value(zone)" | sort -u
+
+# List service accounts attached to your instances
+$ gcloud compute instances list --format="value(serviceAccounts[0].email)" | sort -u
 ```
 
 Add your instance's project ID(s) to the `project_ids` field.
@@ -173,6 +193,17 @@ at least one entry under `serviceAccounts`:
 $ gcloud compute instances describe --format="yaml(name,serviceAccounts)" <Var name="instance_name" description="Instance name" />
 ```
 
+To check all instances in your project at once for service account attachment, run:
+
+```code
+$ gcloud compute instances list \
+  --format="table(name,zone,serviceAccounts[0].email:label=SERVICE_ACCOUNT)" \
+  --filter="labels.env=prod"
+```
+
+Instances without a service account will show an empty `SERVICE_ACCOUNT` column
+and cannot be discovered by Teleport.
+
 ### Enable guest attributes on instances
 
 Guest attributes (a subset of custom metadata used for infrequently updated data)
@@ -180,18 +211,78 @@ must be enabled on instances to be discovered so Teleport can access their SSH
 host keys. Enable guest attributes by setting `enable-guest-attributes` to
 `TRUE` in the instance's metadata.
 
+You can enable guest attributes for a single instance:
+
 ```code
 $ gcloud compute instances add-metadata <Var name="instance_name" description="Instance name" /> \
 --metadata=enable-guest-attributes=True
 ```
 
+To enable guest attributes project-wide so all current and future instances
+inherit the setting:
+
+```code
+$ gcloud compute project-info add-metadata \
+--metadata=enable-guest-attributes=True
+```
+
+To enable guest attributes in batch for all instances matching a label filter:
+
+```code
+$ for INSTANCE in $(gcloud compute instances list --filter="labels.env=prod" --format="value(name,zone)" | tr '\t' ','); do
+  NAME=$(echo $INSTANCE | cut -d',' -f1)
+  ZONE=$(echo $INSTANCE | cut -d',' -f2)
+  gcloud compute instances add-metadata $NAME --zone=$ZONE --metadata=enable-guest-attributes=True
+done
+```
+
+<Checkpoint>
+Verify that guest attributes are enabled on your target instances.
+
+Check an individual instance:
+
+```code
+$ gcloud compute instances describe <Var name="instance_name" /> \
+  --format="value(metadata.items[enable-guest-attributes])"
+```
+
+The output should be `True`.
+
+Check the project-wide setting (if you applied it project-wide):
+
+```code
+$ gcloud compute project-info describe \
+  --format="value(commonInstanceMetadata.items[enable-guest-attributes])"
+```
+
+</Checkpoint>
+
+### Populate host keys in guest attributes
+
 If guest attributes are enabled during instance creation, the guest attributes
 will automatically be populated with the instance's host keys. If guest
-attributes were enabled after the instance was created, you can manually add
-the host keys to the guest attributes below:
+attributes were enabled after the instance was created, you must manually add
+the host keys to the guest attributes.
+
+This is a one-time operation per instance. Once host keys are written to guest
+attributes, they persist across reboots. If you enabled guest attributes
+project-wide before creating instances, new instances will automatically
+populate their host keys and no manual action is needed.
 
 <Tabs>
-<TabItem label="Startup script">
+<TabItem label="Batch (all instances)">
+  Use the following script to populate host keys on all instances matching a
+  label filter. Run this from a machine with `gcloud` access:
+
+  ```code
+  $ for INSTANCE in $(gcloud compute instances list --filter="labels.env=prod" --format="value(name,zone)" | tr '\t' ','); do
+    NAME=$(echo $INSTANCE | cut -d',' -f1)
+    ZONE=$(echo $INSTANCE | cut -d',' -f2)
+    gcloud compute ssh $NAME --zone=$ZONE --command='for file in /etc/ssh/ssh_host_*_key.pub; do KEY_TYPE=$(awk '\''{print $1}'\'' $file); KEY=$(awk '\''{print $2}'\'' $file); curl -sX PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"; done'
+  done
+  ```
+</TabItem>
+<TabItem label="Startup script (single instance)">
   Create a file named `add-host-keys.sh` and copy the following into it:
   ```sh
   #!/usr/bin/env bash
@@ -206,15 +297,27 @@ the host keys to the guest attributes below:
   $ gcloud compute instances add-metadata <Var name="instance_name" description="Instance name" /> \
   --metadata-from-file=startup-script="add-host-keys.sh"
   ```
+
+  The startup script runs on each boot. After the host keys have been
+  populated, you can remove it or leave it in place (it is idempotent).
 </TabItem>
-<TabItem label="SSH">
+<TabItem label="SSH (single instance)">
   Run the following command to add the host keys over SSH:
   ```code
   $ gcloud compute ssh <Var name="instance_name" description="Instance name" /> \
-  --command='for file in /etc/ssh/ssh_host_*_key.pub; do KEY_TYPE=$(awk '\''{print $1}'\'' $file); KEY=$(awk '\''{print $2}'\''  $file); curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"; done'
+  --command='for file in /etc/ssh/ssh_host_*_key.pub; do KEY_TYPE=$(awk '\''{print $1}'\'' $file); KEY=$(awk '\''{print $2}'\'' $file); curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"; done'
   ```
 </TabItem>
 </Tabs>
+
+Verify that host keys are populated in guest attributes:
+
+```code
+$ gcloud compute instances get-guest-attributes <Var name="instance_name" /> \
+  --query-path="hostkeys/"
+```
+
+The output should list one or more entries (e.g., `ssh-rsa`, `ecdsa-sha2-nistp256`, `ssh-ed25519`).
 
 ## Step 4/5. Install the Teleport Discovery Service
 
@@ -290,17 +393,31 @@ Static configuration while simpler at first, has less flexibility because enroll
     gcp:
       - types: ["gce"]
         # The IDs of GCP projects that VMs can join from.
-        project_ids: []
+        project_ids: ["my-project-id"]
         # (Optional) The locations that VMs can join from. Note: both regions and
         # zones are accepted.
-        locations: []
+        locations: ["us-central1-a", "us-east1-b"]
         # (Optional) The email addresses of service accounts that VMs can join
         # with.
-        service_accounts: []
+        service_accounts: ["my-sa@my-project-id.iam.gserviceaccount.com"]
         # (Optional) Labels that joining VMs must have.
         labels:
           "env": "prod" # Match virtual machines where label:env=prod
   ```
+
+  To discover the values needed for the matcher configuration, run:
+
+  ```code
+  # Get your project ID
+  $ gcloud config get-value project
+
+  # List zones where your target instances run
+  $ gcloud compute instances list --filter="labels.env=prod" --format="value(zone)" | sort -u
+
+  # List service accounts attached to target instances
+  $ gcloud compute instances list --filter="labels.env=prod" --format="value(serviceAccounts[0].email)" | sort -u
+  ```
+
   Adjust the keys under `spec.gcp` to match your GCP environment,
   specifically the project IDs, locations, service accounts and labels you want to associate with the Discovery Service.
 
@@ -327,13 +444,13 @@ Static configuration while simpler at first, has less flexibility because enroll
     gcp:
       - types: ["gce"]
         # The IDs of GCP projects that VMs can join from.
-        project_ids: []
+        project_ids: ["my-project-id"]
         # (Optional) The locations that VMs can join from. Note: both regions and
         # zones are accepted.
-        locations: []
+        locations: ["us-central1-a", "us-east1-b"]
         # (Optional) The email addresses of service accounts that VMs can join
         # with.
-        service_accounts: []
+        service_accounts: ["my-sa@my-project-id.iam.gserviceaccount.com"]
         # (Optional) Labels that joining VMs must have.
         labels:
           "env": "prod" # Match virtual machines where label:env=prod
@@ -355,6 +472,44 @@ The easiest way to ensure that is to run the Discovery Service on a GCP
 instance and assign the service account to that instance. Refer to
 [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 for details on alternate methods.
+
+### Start and verify the Discovery Service
+
+Start the Discovery Service:
+
+```code
+$ sudo systemctl start teleport
+```
+
+<Checkpoint>
+Verify that the Discovery Service is running and discovering instances.
+
+Check the service status:
+
+```code
+$ sudo systemctl status teleport
+```
+
+After a few moments, verify that discovered nodes appear in the cluster:
+
+```code
+$ tctl get nodes --format=json | jq '.[].metadata.name'
+```
+
+If no nodes appear after a few minutes, check the Discovery Service logs for
+errors:
+
+```code
+$ sudo journalctl -u teleport --grep "discovery\|gcp" --since "5 minutes ago" --no-pager
+```
+
+Common issues:
+- Missing guest attributes: the instance host keys have not been written.
+- No service account on target instance: the instance cannot authenticate via
+  the GCP join method.
+- Permission denied: the Discovery Service service account is missing required
+  IAM permissions.
+</Checkpoint>
 
 ## Auto-discovery labels
 
