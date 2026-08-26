@@ -100,3 +100,10 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           make --no-print-directory -C build.assets "${TARGET}" PUSH=1 ARCH="${ARCH}"
+
+      # The test variant layers on the buildbox built above, so it needs to be in the same job instead
+      # of a new entry in the matrix.
+      - name: Build and push test buildbox image
+        if: steps.day-filter.outputs.run == 'true' && matrix.target == 'buildbox' && matrix.hostarch == 'amd64'
+        run: |
+          make --no-print-directory -C build.assets buildbox-test PUSH=1 ARCH=amd64

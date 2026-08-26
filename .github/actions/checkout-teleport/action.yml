@@ -11,7 +11,7 @@ description: Checkout a Teleport or Teleport+Enterprise repository
 inputs:
   oss-teleport-repo:
     description: "The name of the OSS teleport repo to checkout"
-    default: "gravitational/teleport"
+    default: "gravitational/core"
 
   oss-teleport-ref:
     description: "Git SHA, tag or branch of the revision of OSS Teleport to build"
