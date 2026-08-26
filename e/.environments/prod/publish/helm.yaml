@@ -1,4 +1,4 @@
 ---
 HELM_REPO_DOMAIN_NAME: charts.releases.teleport.dev
-HELM_PUBLISHING_SYNC_AWS_ROLE: arn:aws:iam::146628656107:role/helm-repo-hosting-teleport.e-gha-role
+HELM_PUBLISHING_SYNC_AWS_ROLE: arn:aws:iam::146628656107:role/helm-repo-hosting-core-gha-role
 HELM_REPO_BUCKET: helm.releases.teleport.dev

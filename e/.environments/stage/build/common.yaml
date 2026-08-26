@@ -1,5 +1,5 @@
 ---
-ARTIFACT_UPLOAD_AWS_ROLE: arn:aws:iam::603330915152:role/tf-build-artifacts-upload-gha-stage-teleport.e
+ARTIFACT_UPLOAD_AWS_ROLE: arn:aws:iam::603330915152:role/tf-build-artifacts-upload-gha-stage-core
 ECR_READ_ONLY_ROLE: arn:aws:iam::603330915152:role/tf-teleport-build-read-only-role-gha
 # TODO stop using this for plugins smoke tests
 OCI_ECR_AWS_ROLE: arn:aws:iam::603330915152:role/teleport-oci-tag-build-gha

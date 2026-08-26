@@ -1,4 +1,4 @@
 ---
-TERRAFORM_PUBLISHING_SYNC_AWS_ROLE: arn:aws:iam::146628656107:role/terraform-registry-teleport-e-gha-role-prod
+TERRAFORM_PUBLISHING_SYNC_AWS_ROLE: arn:aws:iam::146628656107:role/terraform-registry-core-gha-role-prod
 TERRAFORM_REGISTRY_BUCKET: tp-146628656107-us-west-2-terraform-registry-store-prod
 TERRAFORM_REGISTRY_URL: https://terraform.releases.teleport.dev/
