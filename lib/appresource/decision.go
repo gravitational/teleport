@@ -20,8 +20,45 @@ package appresource
 
 import "encoding/json"
 
-// Hint explains a near-miss on one [Rule], where its path and method matched but its
-// Where did not. It contains the rule's DenyCodeHint and DenyReasonHint.
+// Result is the outcome of evaluating one "where" clause or one
+// app_resources_expressions entry.
+type Result struct {
+	// Value is the boolean the clause or expression evaluated to.
+	Value bool
+	// AuditRecord is the audit outcome of the evaluation.
+	AuditRecord AuditRecord
+}
+
+// AuditRecord contains the allow code, allow reason, and deny hints of one
+// evaluation. A final [Result] contains either the allow fields or deny
+// hints, never both.
+type AuditRecord struct {
+	AllowCode   string
+	AllowReason string
+	DenyHints   []Hint
+}
+
+// Hint explains a near-miss. Rules are allow-only, so a deny is never stated
+// directly and a denied request alone has only the code
+// "teleport_request_not_allowed".
+//
+// A sugared rule encodes its hint in the "deny_code_hint" and
+// "deny_reason_hint" fields. The hint is recorded when path and method
+// match but the where clause does not.
+//
+// A desugared expression appends a hint to a denied evaluation result for
+// every deny_hint(code, reason, expr) call whose expr is false. A denied
+// request collects hints from every such rule, for example:
+//
+//	app_resources:
+//	  - paths: [/api/v4/project/{p}]
+//	    where: contains(user.traits["projects"], vars.p)
+//	    deny_code_hint: not_in_projects
+//	app_resources_expressions:
+//	  - deny_hint("needs_dev", "Dev role required.", contains(user.roles, "dev"))
+//
+// For a user with neither the trait nor the dev role, /api/v4/project/acme
+// is denied with both hints, /health with only the "needs_dev" hint.
 type Hint struct {
 	Code   string `json:"code"`
 	Reason string `json:"reason,omitempty"`
@@ -44,8 +81,8 @@ const (
 	DenyInvalidRequest DenyKind = "teleport_invalid_request"
 )
 
-// Decision is the aggregated result of evaluating one request against the
-// app_resources rules on the caller's roles.
+// Decision is the aggregated [Result] of evaluating one request against the
+// app_resources and app_resources_expressions rules on the caller's roles.
 type Decision struct {
 	// Allowed is true if any rule matched.
 	Allowed bool

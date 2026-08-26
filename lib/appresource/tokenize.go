@@ -86,7 +86,7 @@ func Tokenize(path string) ([]Token, error) {
 		return nil, trace.BadParameter("path length %d exceeds the %d byte limit", len(path), maxPathLength)
 	}
 	if !strings.HasPrefix(path, "/") {
-		return nil, trace.BadParameter("path %q must start with /", clip(path))
+		return nil, trace.BadParameter("path %q must start with /", elide(path))
 	}
 	if err := validateRawBytes(path); err != nil {
 		return nil, trace.Wrap(err)
@@ -108,21 +108,21 @@ func Tokenize(path string) ([]Token, error) {
 func validateRawBytes(path string) error {
 	for i := 0; i < len(path); i++ {
 		if !isLegalPathByte(path[i]) {
-			return trace.BadParameter("path %q contains an illegal URL byte %q", clip(path), path[i:i+1])
+			return trace.BadParameter("path %q contains an illegal URL byte %q", elide(path), path[i:i+1])
 		}
 		if path[i] != '%' {
 			continue
 		}
 		if i+2 >= len(path) {
-			return trace.BadParameter("path %q has a truncated percent-escape", clip(path))
+			return trace.BadParameter("path %q has a truncated percent-escape", elide(path))
 		}
 		v, err := strconv.ParseUint(path[i+1:i+3], 16, 8)
 		if err != nil {
-			return trace.BadParameter("path %q has a malformed percent-escape %q", clip(path), path[i:i+3])
+			return trace.BadParameter("path %q has a malformed percent-escape %q", elide(path), path[i:i+3])
 		}
 		if !isAllowedEscape(byte(v)) {
 			const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F, the encoded space %%20, and non-ASCII content escapes are allowed"
-			return trace.BadParameter(msg, clip(path), path[i:i+3])
+			return trace.BadParameter(msg, elide(path), path[i:i+3])
 		}
 		i += 2
 	}
@@ -154,10 +154,10 @@ func validateDecoded(path string) error {
 	decoded := decode(path)
 	if strings.Contains(decoded, "//") {
 		const msg = "path %q has consecutive slashes once the encoded separator %%2F is decoded"
-		return trace.BadParameter(msg, clip(path))
+		return trace.BadParameter(msg, elide(path))
 	}
 	if !utf8.ValidString(decoded) {
-		return trace.BadParameter("path %q is not valid UTF-8 once decoded", clip(path))
+		return trace.BadParameter("path %q is not valid UTF-8 once decoded", elide(path))
 	}
 	for seg := range strings.SplitSeq(decoded[1:], "/") {
 		if err := rejectAmbiguousSegment(seg); err != nil {
@@ -165,12 +165,12 @@ func validateDecoded(path string) error {
 		}
 	}
 	if !norm.NFKC.IsNormalString(decoded) {
-		return trace.BadParameter("path %q is not NFKC-normalized", clip(path))
+		return trace.BadParameter("path %q is not NFKC-normalized", elide(path))
 	}
 	for _, r := range decoded {
 		if !isGraphicRune(r) {
 			const msg = "path %q contains the disallowed character %q; only letters, marks, numbers, punctuation, symbols, and the encoded space %%20 are allowed"
-			return trace.BadParameter(msg, clip(path), string(r))
+			return trace.BadParameter(msg, elide(path), string(r))
 		}
 	}
 	return nil
@@ -225,7 +225,7 @@ func rejectAmbiguousSegment(seg string) error {
 func rejectDotSegment(seg string) error {
 	if strings.Trim(seg, ". ") == "" && strings.Contains(seg, ".") {
 		const msg = `segment %q is only dots and spaces; an upstream could resolve it as "." or ".."`
-		return trace.BadParameter(msg, clip(seg))
+		return trace.BadParameter(msg, elide(seg))
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func rejectLeadingMark(seg string) error {
 	// Some composing characters are not marks, so both checks are needed.
 	if unicode.IsMark(r) || !norm.NFKC.PropertiesString(seg).BoundaryBefore() {
 		const msg = "segment %q starts with %q, which composes onto the character before it; it must follow a base character"
-		return trace.BadParameter(msg, clip(seg), string(r))
+		return trace.BadParameter(msg, elide(seg), string(r))
 	}
 	return nil
 }
@@ -253,7 +253,7 @@ func rejectLeadingMark(seg string) error {
 func rejectEdgeSpace(seg string) error {
 	if strings.HasPrefix(seg, " ") || strings.HasSuffix(seg, " ") {
 		const msg = "segment %q starts or ends with a space; a space must be between other characters"
-		return trace.BadParameter(msg, clip(seg))
+		return trace.BadParameter(msg, elide(seg))
 	}
 	return nil
 }
@@ -267,7 +267,7 @@ func rejectTrailingDot(seg string) error {
 	trimmed := strings.TrimRight(seg, ". ")
 	if strings.Contains(seg[len(trimmed):], ".") {
 		const msg = "segment %q ends with dots and spaces; an upstream could trim it to %q"
-		return trace.BadParameter(msg, clip(seg), clip(trimmed))
+		return trace.BadParameter(msg, elide(seg), elide(trimmed))
 	}
 	return nil
 }
@@ -285,12 +285,12 @@ func isGraphicRune(r rune) bool {
 		unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
-// clip shortens s for use in an error message. A rejected path can be
-// kilobytes long, and the message survives into logs and audit events.
-func clip(s string) string {
+// elide truncates s to 256 bytes, cutting on a rune boundary, and
+// appends "..." to a truncated result.
+func elide(s string) string {
 	const limit = 256
 	if len(s) <= limit {
 		return s
 	}
-	return s[:limit] + "..."
+	return clamp(s, limit) + "..."
 }
