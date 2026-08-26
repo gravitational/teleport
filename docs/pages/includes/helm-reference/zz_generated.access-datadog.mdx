@@ -145,6 +145,30 @@ containing the Datadog Application key. The secret name is set via `datadog.appl
 Access Request notifications. The recipient can be a Datadog user email or
 a team handle.
 
+Leaving this empty and setting `datadog.roleToRecipients` instead scopes
+incidents to the mapped roles: Access Requests for any other role create no
+incident, unless they match an Access Monitoring Rule or carry the
+`teleport.dev/notify-services` annotation.
+
+### `datadog.roleToRecipients`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`datadog.roleToRecipients` maps a requested Teleport role name to
+the recipients notified for it. Each recipient can be a Datadog user email
+or a team handle. The `*` key acts as the fallback for roles that have no
+entry, and is equivalent to `datadog.fallbackRecipient`.
+
+For example:
+```yaml
+datadog:
+  roleToRecipients:
+    "prod-admin": ["sre-oncall", "security@example.com"]
+    "*": ["admin@example.com"]
+```
+
 ### `datadog.severity`
 
 | Type | Default |

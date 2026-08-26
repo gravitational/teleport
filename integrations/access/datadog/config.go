@@ -125,11 +125,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log.Severity == "" {
 		c.Log.Severity = "info"
 	}
-	if len(c.Recipients) == 0 {
-		return trace.BadParameter("missing required value role_to_recipients.")
-	} else if len(c.Recipients[types.Wildcard]) == 0 {
-		return trace.BadParameter("missing required value role_to_recipients[%v].", types.Wildcard)
-	}
+	// role_to_recipients is optional, and a catch-all entry in it is not
+	// required. Recipients can also come from Access Monitoring Rules or from
+	// the notify-services annotation on the requesting role, and a deployment
+	// may deliberately scope incidents to a subset of roles. This matches the
+	// Opsgenie and PagerDuty plugins, which impose no recipient requirement.
 	c.PluginType = types.PluginTypeDatadog
 	return nil
 }

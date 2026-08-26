@@ -857,9 +857,10 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	if c.ApiEndpoint == "" {
 		return trace.BadParameter("api_endpoint must be set")
 	}
-	if c.FallbackRecipient == "" {
-		return trace.BadParameter("fallback_recipient must be set")
-	}
+	// fallback_recipient is optional. When it is empty, only Access Requests
+	// routed by an Access Monitoring Rule or by the notify-services annotation
+	// on the requesting role create an incident, which lets an operator scope
+	// incidents to a subset of requests.
 	return nil
 }
 

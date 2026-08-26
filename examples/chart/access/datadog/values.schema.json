@@ -371,6 +371,27 @@
                         "datadog-team-handle"
                     ]
                 },
+                "roleToRecipients": {
+                    "$id": "#/properties/datadog/properties/roleToRecipients",
+                    "type": "object",
+                    "default": {},
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "examples": [
+                        {
+                            "*": [
+                                "admin@example.com"
+                            ],
+                            "prod-admin": [
+                                "sre-oncall"
+                            ]
+                        }
+                    ]
+                },
                 "severity": {
                     "$id": "#/properties/datadog/properties/severity",
                     "type": "string",

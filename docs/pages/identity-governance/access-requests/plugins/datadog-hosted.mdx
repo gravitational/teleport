@@ -181,6 +181,38 @@ plugin will add these to the list of users to notify.
 
 </details>
 
+<details>
+<summary>Scoping which Access Requests create an incident</summary>
+
+By default every Access Request creates an incident, because the fallback
+recipient matches all of them. To limit incidents to a subset of requests, leave
+the fallback recipient empty and route the requests you care about explicitly,
+either with an [Access Monitoring
+Rule](../notification-routing-rules.mdx) or with the
+`teleport.dev/notify-services` annotation on the requesting role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: editor-requester
+spec:
+  allow:
+    request:
+      annotations:
+        teleport.dev/notify-services:
+        - teleport-access
+      roles: ['editor']
+```
+
+The annotation holds Datadog team handles or user emails, and it is
+authoritative for the requests it covers: only the annotated recipients are
+notified, and suggested reviewers are not. Requests that match no Access
+Monitoring Rule, carry no annotation, and have no recipient configured for their
+role create no incident.
+
+</details>
+
 ## Step 5/6. Test your Datadog Incident Management plugin
 
 ### Create an Access Request

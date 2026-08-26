@@ -22,7 +22,12 @@ data:
     severity = "{{ .Values.datadog.severity }}"
 
     [role_to_recipients]
-    "*" = ["{{ .Values.datadog.fallbackRecipient }}"]
+    {{- with .Values.datadog.fallbackRecipient }}
+    "*" = [{{ . | quote }}]
+    {{- end }}
+    {{- range $role, $recipients := .Values.datadog.roleToRecipients }}
+    {{ $role | quote }} = {{ toJson $recipients }}
+    {{- end }}
 
     [log]
     output = "{{ .Values.log.output }}"
