@@ -116,7 +116,7 @@ func exportSession(cf *CLIConf) error {
 	}
 
 	switch format {
-	case teleport.JSON, teleport.YAML, teleport.Text:
+	case teleport.JSON, teleport.YAML, teleport.Text, "json-data":
 	default:
 		// this should be unreachable since kingpin validates the format flag
 		return trace.BadParameter("Invalid format %s", format)
@@ -143,7 +143,9 @@ func exportSession(cf *CLIConf) error {
 	var exporter sessionExporter
 	switch format {
 	case teleport.JSON:
-		exporter = jsonSessionExporter{}
+		exporter = jsonSessionExporter{false}
+	case "json-data":
+		exporter = jsonSessionExporter{true}
 	case teleport.YAML:
 		exporter = yamlSessionExporter{}
 	case teleport.Text:
@@ -180,6 +182,27 @@ func exportSession(cf *CLIConf) error {
 	}
 }
 
+type sessionPrintWithData struct {
+	*apievents.SessionPrint        // embedded; all existing JSON tags honored
+	Data                    string `json:"data"` // new JSON field
+}
+
+func (jsonSessionExporter) writeSessionPrintWithData(sp *apievents.SessionPrint) error {
+	view := sessionPrintWithData{
+		SessionPrint: sp,
+		Data:         string(sp.Data),
+	}
+
+	b, err := json.MarshalIndent(view, "    ", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	os.Stdout.Write([]byte("    "))
+	_, err = os.Stdout.Write(bytes.TrimSpace(b))
+	return trace.Wrap(err)
+}
+
 type sessionExporter interface {
 	WriteStart() error
 	WriteEnd() error
@@ -187,7 +210,9 @@ type sessionExporter interface {
 	WriteEvent(evt apievents.AuditEvent) error
 }
 
-type jsonSessionExporter struct{}
+type jsonSessionExporter struct {
+	includeData bool
+}
 
 func (jsonSessionExporter) WriteStart() error {
 	_, err := fmt.Println("[")
@@ -204,7 +229,21 @@ func (jsonSessionExporter) WriteSeparator() error {
 	return err
 }
 
-func (jsonSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
+func (e jsonSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
+	// If we’re not in json-data mode, just do the old behavior
+	if !e.includeData {
+		return e.writePlainJSON(evt)
+	}
+
+	switch v := evt.(type) {
+	case *apievents.SessionPrint:
+		return e.writeSessionPrintWithData(v)
+	default:
+		return e.writePlainJSON(evt)
+	}
+}
+
+func (jsonSessionExporter) writePlainJSON(evt apievents.AuditEvent) error {
 	b, err := json.MarshalIndent(evt, "    ", "    ")
 	if err != nil {
 		return trace.Wrap(err)
