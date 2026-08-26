@@ -18,11 +18,15 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -41,7 +45,7 @@ func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[type
 			types.KindNode,
 			types.Server.DeepCopy,
 			map[nodeIndex]func(types.Server) string{
-				nodeNameIndex: types.Server.GetName,
+				nodeNameIndex: services.GetCursorForNode,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			return p.GetNodes(ctx, defaults.Namespace)
@@ -71,7 +75,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		node, err := c.Config.Presence.GetNode(ctx, namespace, name)
+		node, err := c.Config.Presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 		return node, trace.Wrap(err)
 	}
 
@@ -81,6 +85,27 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	}
 
 	return n.DeepCopy(), nil
+}
+
+// GetSSHServer returns the specified scoped or unscoped node.
+func (c *Cache) GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSSHServer")
+	defer span.End()
+
+	getter := genericGetter[types.Server, nodeIndex]{
+		cache:      c,
+		collection: c.collections.nodes,
+		index:      nodeNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (types.Server, error) {
+			return c.Config.Presence.GetSSHServer(ctx, req)
+		},
+	}
+
+	out, err := getter.get(ctx, scopes.MakeResourceCursor(req.GetScope(), req.GetName()))
+	if out == nil {
+		return nil, trace.Wrap(err)
+	}
+	return out.DeepCopy(), trace.Wrap(err)
 }
 
 type getNodesCacheKey struct {
@@ -113,6 +138,61 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 
 	return out, nil
 
+}
+
+// ListSSHServers returns a page of registered nodes.
+func (c *Cache) ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListNodes")
+	defer span.End()
+
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	lister := genericLister[types.Server, nodeIndex]{
+		cache:      c,
+		collection: c.collections.nodes,
+		index:      nodeNameIndex,
+		upstreamList: func(ctx context.Context, _ int, _ string) ([]types.Server, string, error) {
+			return c.Config.Presence.ListSSHServers(ctx, req)
+		},
+		nextToken: services.GetCursorForNode,
+		filter: func(server types.Server) bool {
+			return scopes.MatchScope(scopeFilter, server.GetScope())
+		},
+	}
+	return lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+}
+
+// RangeSSHServers returns a sequence of nodes filtered by the given
+// [*presencev1.ListSSHServersRequest].
+func (c *Cache) RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	ctx, span := c.Tracer.Start(ctx, "cache/RangeSSHServers")
+	defer span.End()
+
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.Server](trace.Wrap(err))
+	}
+
+	lister := genericLister[types.Server, nodeIndex]{
+		cache:      c,
+		collection: c.collections.nodes,
+		index:      nodeNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+			return c.Config.Presence.ListSSHServers(ctx, presencev1.ListSSHServersRequest_builder{
+				PageSize:    int32(pageSize),
+				PageToken:   pageToken,
+				ScopeFilter: scopeFilter,
+			}.Build())
+		},
+		filter: func(server types.Server) bool {
+			return scopes.MatchScope(scopeFilter, server.GetScope())
+		},
+		nextToken: services.GetCursorForNode,
+	}
+
+	return lister.Range(ctx, req.GetPageToken(), "")
 }
 
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer

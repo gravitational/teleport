@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    resources.teleport.dev/scoped: "false"
+    resources.teleport.dev/scoped: "true"
   name: teleportopensshserversv2.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -25,6 +25,10 @@ spec:
       jsonPath: .spec.addr
       name: Address
       type: string
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
     - description: The age of this resource
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -46,6 +50,14 @@ spec:
             type: string
           metadata:
             type: object
+          scope:
+            description: The advertized scope of the server which can not change once
+              assigned.
+            type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: OpenSSHServer resource definition v2 from Teleport
             properties:
@@ -270,6 +282,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

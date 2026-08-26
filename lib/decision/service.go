@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,8 +37,8 @@ import (
 
 // NodeGetter is a service that gets a node.
 type NodeGetter interface {
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 }
 
 // ClusterNetworkingConfigGetter is a service that gets the cluster networking configuration.
@@ -163,7 +163,9 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Errorf("session joining is not yet supported by the decision service")
 	}
 
-	target, err := s.cfg.AccessPoint.GetNode(ctx, apidefaults.Namespace, req.Node.Name)
+	target, err := s.cfg.AccessPoint.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name: req.GetNode().GetName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

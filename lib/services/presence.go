@@ -46,6 +46,14 @@ type ProxyGetter interface {
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	// ListSSHServers returns a page of registered nodes with the ability to apply
+	// scope filters.
+	ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error)
+
+	// RangeSSHServers returns a sequence of nodes filtered by the given
+	// scope filter.
+	RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error]
 }
 
 // DatabaseServersGetter is a service that gets database servers.
@@ -75,17 +83,17 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns a scoped or unscoped node by name.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
 	// NodesGetter gets nodes
 	NodesGetter
 
-	// DeleteAllNodes deletes all nodes in a namespace.
+	// DeleteAllNodes deletes all scoped and unscoped nodes.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
-	// DeleteNode deletes node in a namespace
-	DeleteNode(ctx context.Context, namespace, name string) error
+	// DeleteNode removes a specific scoped or unscoped node.
+	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
 
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.

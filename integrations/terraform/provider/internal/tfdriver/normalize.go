@@ -95,7 +95,8 @@ func CheckAndSetDefaults[T any]() ResourceNormalizer[T] {
 	}
 }
 
-// ForceKind sets a Teleport resource kind on create and update.
+// ForceKind sets a Teleport resource kind on create and update using the
+// resource's SetKind method.
 func ForceKind[T any](kind string) ResourceNormalizer[T] {
 	return ResourceNormalizerFuncs[T]{
 		Create: func(_ context.Context, resource *T) error {
@@ -106,7 +107,7 @@ func ForceKind[T any](kind string) ResourceNormalizer[T] {
 			setter.SetKind(kind)
 			return nil
 		},
-		Update: func(ctx context.Context, resource *T) error {
+		Update: func(_ context.Context, resource *T) error {
 			setter, ok := any(resource).(interface{ SetKind(string) })
 			if !ok {
 				return trace.BadParameter("%T does not implement SetKind", resource)
@@ -114,5 +115,19 @@ func ForceKind[T any](kind string) ResourceNormalizer[T] {
 			setter.SetKind(kind)
 			return nil
 		},
+	}
+}
+
+// ForceKindFunc sets a Teleport resource kind on create and update using a
+// caller-supplied setter.
+func ForceKindFunc[T any](setKind func(*T)) ResourceNormalizer[T] {
+	setKindFunc := func(_ context.Context, resource *T) error {
+		setKind(resource)
+		return nil
+	}
+
+	return ResourceNormalizerFuncs[T]{
+		Create: setKindFunc,
+		Update: setKindFunc,
 	}
 }

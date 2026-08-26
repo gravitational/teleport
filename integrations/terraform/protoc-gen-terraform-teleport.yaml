@@ -215,6 +215,7 @@ exclude_fields:
     # Server
     - "ServerSpecV2.CmdLabels"
     - "ServerSpecV2.component_features"
+    - "ServerV2.Metadata.Revision" # Teleport regenerates it on every write, so Terraform can not plan it
 
     # SessionRecordingConfig
     - "SessionRecordingConfigV2.Metadata.Name" # It's a singleton resource
@@ -517,6 +518,8 @@ plan_modifiers:
     AppV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     KubernetesClusterV3.scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    ServerV2.scope:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"

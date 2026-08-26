@@ -1303,7 +1303,9 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.NewKey(nodesPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(nodesPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, nodesPrefix)),
 	}
 }
 
@@ -1314,6 +1316,25 @@ type nodeParser struct {
 func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		scopedNodeParserKey := backend.NewKey(scopedPrefix, nodesPrefix)
+		if event.Item.Key.HasPrefix(scopedNodeParserKey) {
+			components := event.Item.Key.TrimPrefix(scopedNodeParserKey).Components()
+			if len(components) != 2 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from node server key %q", event.Item.Key.String())
+			}
+			return &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: components[1],
+				},
+				Scope: scope,
+			}, nil
+		}
 		name := event.Item.Key.TrimPrefix(backend.NewKey(nodesPrefix, apidefaults.Namespace)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
