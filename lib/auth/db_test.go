@@ -45,6 +45,7 @@ import (
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tlscatest"
+	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func Test_getSnowflakeJWTParams(t *testing.T) {
@@ -295,6 +296,15 @@ func TestDBCertSigning(t *testing.T) {
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		},
 		{
+			name:           "DB service request for SQL Server PKINIT databases is signed by active db client and trusts db client CAs",
+			extensions:     clientpb.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			crlDomain:      "example.com",
+			wantCertSigner: activeDBClientCACert,
+			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
+			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			wantCDP:        []string{"ldap:///CN=local.me,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint"},
+		},
+		{
 			name:           "tctl request for SQL Server databases is signed by new db CA and trusts db client CAs",
 			requester:      clientpb.DatabaseCertRequest_TCTL,
 			extensions:     clientpb.DatabaseCertRequest_WINDOWS_SMARTCARD,
@@ -381,6 +391,21 @@ func TestDBCertSigning(t *testing.T) {
 				if pubKeyHash != "" {
 					tt.wantOverrideDetails = &clientpb.CAOverrideCertificateDetails{
 						PublicKeyHash: pubKeyHash,
+					}
+					// Re-calculate the CDP using the override certificate.
+					if len(tt.wantCDP) > 0 {
+						overrideCert, err := tlsutils.ParseCertificatePEM(wantCertSigner)
+						require.NoError(t, err)
+
+						const includeSKID = true // Override CDPs always include the SKID.
+						cdp, err := winpki.CRLDistributionPoint(
+							tt.crlDomain,
+							types.DatabaseClientCA,
+							&tlsca.CertAuthority{Cert: overrideCert},
+							includeSKID)
+						require.NoError(t, err)
+
+						tt.wantCDP = []string{cdp}
 					}
 				}
 				runTest(t, &tt)

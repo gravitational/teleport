@@ -187,12 +187,14 @@ func (a *Server) generateDatabaseCert(
 
 	var trustChain [][]byte
 	var caOverrideDetails *proto.CAOverrideCertificateDetails
+	overrideActive := false
 	if caOverrideResolver != nil {
 		overrideResult, err := caOverrideResolver.CalculateOverride(subca.Certificate{PEM: caCert})
 		if err != nil {
 			return nil, trace.Wrap(err, "calculate CA override")
 		}
 		caCert = overrideResult.CACertificate.PEM
+		overrideActive = overrideResult.OverrideActive
 		caOverrideDetails = overrideResult.ToClientOverrideDetailsProto()
 		trustChain = overrideResult.CAChain.ToPEMs()
 	}
@@ -220,7 +222,7 @@ func (a *Server) generateDatabaseCert(
 		// necessary in order to support clusters with multiple issuing certs (HSMs).
 		// If there's only 1 active key we don't include SKID in CDP for backward compatibility.
 		if req.CRLDomain != "" {
-			includeSKID := len(ca.GetActiveKeys().TLS) > 1
+			includeSKID := len(ca.GetActiveKeys().TLS) > 1 || overrideActive
 			cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
 			if err != nil {
 				return nil, trace.Wrap(err)
