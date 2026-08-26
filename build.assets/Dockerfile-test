@@ -1,0 +1,23 @@
+# This is a test-variant of the buildbox for CI
+# It's based on the release buildbox, plus:
+# - zstd (fast cache save/restore in GitHub Actions)
+# - playwright browser dependencies (to avoid installing them on every run)
+# - mold (for faster linking)
+ARG BUILDBOX=ghcr.io/gravitational/teleport-buildbox:teleport19
+
+FROM ${BUILDBOX}
+
+# No default: the buildbox-test make target derives it from pnpm-lock.yaml so the baked
+# browser dependencies always match the playwright version the e2e suite resolves.
+ARG PLAYWRIGHT_VERSION
+
+RUN test -n "${PLAYWRIGHT_VERSION}" || { echo "PLAYWRIGHT_VERSION build arg is required" >&2; exit 1; } && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends zstd && \
+    npx -y playwright@${PLAYWRIGHT_VERSION} install-deps chromium firefox webkit && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /tmp/mold.tar.gz https://github.com/rui314/mold/releases/download/v2.42.0/mold-2.42.0-x86_64-linux.tar.gz && \
+    echo "f5ed2f6e31d1ada4f07fe766fe0de7a73104d1c5cdc59086fcecc16a43720b6d  /tmp/mold.tar.gz" | sha256sum -c - && \
+    tar -xzf /tmp/mold.tar.gz -C /usr/local --strip-components=1 && \
+    rm /tmp/mold.tar.gz

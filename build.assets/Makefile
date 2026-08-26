@@ -316,6 +316,26 @@ buildbox-node:
 	$(call LOG_GROUP_END)
 
 #
+# Builds a Docker buildbox for test runs. The playwright version comes from the workspace
+# lockfile so the baked browser dependencies always match what the e2e suite resolves.
+# Depends on buildbox so the layer builds on the freshly built base rather than whatever
+# the registry currently holds.
+#
+.PHONY: buildbox-test
+buildbox-test: PLAYWRIGHT_VERSION = $(shell sed -n "s/^ *'@playwright\/test@\([0-9][0-9.]*\)'.*/\1/p" ../pnpm-lock.yaml | head -1)
+buildbox-test: buildbox
+	$(call LOG_GROUP_START)
+	@test -n "$(PLAYWRIGHT_VERSION)" || { echo "unable to determine the playwright version from pnpm-lock.yaml" >&2; exit 1; }
+	docker buildx build \
+		--build-arg BUILDBOX=$(BUILDBOX) \
+		--build-arg PLAYWRIGHT_VERSION=$(PLAYWRIGHT_VERSION) \
+		--cache-to type=inline \
+		--cache-from $(BUILDBOX_TEST) \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_TEST) -f Dockerfile-test .
+	$(call LOG_GROUP_END)
+
+#
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY: teleterm
