@@ -57,6 +57,11 @@ beforeEach(() => {
         roles: [],
         startKey: '',
       });
+    }),
+    // Typing an access list title schedules a debounced terraform config request that can fire after the test
+    // that typed it has finished, so it is handled here rather than per test.
+    http.post(ecfg.getAccessListWithPresetUrl({ action: 'terraform' }), () => {
+      return HttpResponse.json({ terraform: '' });
     })
   );
 });
@@ -153,7 +158,7 @@ describe('upsell links', () => {
 
     const user = userEvent.setup();
 
-    renderWithRoleAccess(allAccessAcl.roles);
+    const { unmount } = renderWithRoleAccess(allAccessAcl.roles);
     await screen.findByText(/Select a guide/i);
 
     expect(screen.getByRole('button', { name: /start guide/i })).toBeEnabled();
@@ -170,6 +175,9 @@ describe('upsell links', () => {
     expect(
       await screen.findByText(/define access to resources/i)
     ).toBeInTheDocument();
+
+    // Unmount before the debounced terraform request can resolve into a mounted tree outside act().
+    unmount();
   });
 
   test('only custom button is enabled with no role access', async () => {

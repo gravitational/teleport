@@ -3,42 +3,67 @@ run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/unit-tests-ui.yaml'
-      - 'web/**'
-      - 'gen/proto/js/**'
-      - 'gen/proto/ts/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'tsconfig.json'
-      - 'tsconfig.node.json'
-      - 'jest.config.js'
-      - 'vitest.config.mts'
   merge_group:
-    paths:
-      - '.github/workflows/unit-tests-ui.yaml'
-      - 'web/**'
-      - 'gen/proto/js/**'
-      - 'gen/proto/ts/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'tsconfig.json'
-      - 'tsconfig.node.json'
-      - 'jest.config.js'
-      - 'vitest.config.mts'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test:
-    name: Test UI
+  changes:
+    name: Check for relevant changes
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    outputs:
+      oss: ${{ steps.changes.outputs.oss }}
+      ent: ${{ steps.changes.outputs.ent }}
+
+    steps:
+      - name: Checkout
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          predicate-quantifier: some-with-excludes
+          filters: |
+            shared: &shared
+              - '.github/workflows/unit-tests-ui.yaml'
+              - 'web/**'
+              - 'gen/proto/js/**'
+              - 'gen/proto/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.pnpmfile.cjs'
+              - 'tsconfig*.json'
+              - 'babel.config.js'
+              - 'jest.config.js'
+              - 'vitest.config.mts'
+              # The ironrdp WASM module is built before the tests run.
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+            oss:
+              - *shared
+              - '!e/**'
+            ent:
+              - *shared
+              - 'e/web/**'
+
+  test:
+    name: Test UI (suites)
+    needs: changes
+    if: ${{ needs.changes.outputs.oss == 'true' || needs.changes.outputs.ent == 'true' }}
+    runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
     permissions:
       contents: read
     container:
@@ -47,7 +72,7 @@ jobs:
       # for the original impetus for adding --init.
       options: --init
     steps:
-      - name: Checkout OSS Teleport
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Print Node version
@@ -61,5 +86,29 @@ jobs:
       - name: Build WASM
         run: pnpm build-wasm
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run OSS tests
+        if: ${{ needs.changes.outputs.oss == 'true' }}
+        run: pnpm test web/ --maxWorkers=60% --testTimeout=10000
+        background: true
+
+      - name: Run enterprise tests
+        run: pnpm test e/web/ --maxWorkers=40% --testTimeout=10000
+        background: true
+
+      - name: Wait for test runs
+        wait-all:
+
+  # We have to have a separate job with the required status check name as we want to fail the check
+  # if the paths-filter job fails.
+  test-passed:
+    name: Test UI
+    needs: [changes, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Check job results
+        if: ${{ needs.changes.result != 'success' || contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "::error::Changes detection or the UI test suites did not succeed"
+          exit 1
