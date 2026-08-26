@@ -198,7 +198,7 @@ resource "aws_iam_policy" "teleport_organization_join_validation" {
 ################################################################################
 
 resource "aws_iam_role_policy_attachment" "teleport_discovery_service" {
-  count = local.create && local.single_account_deployment ? 1 : 0
+  count = local.create_discovery_service_iam_role && local.single_account_deployment ? 1 : 0
 
   policy_arn = one(aws_iam_policy.teleport_discovery_service[*].arn)
   # we already know the role name, but use expression reference to establish
@@ -207,7 +207,7 @@ resource "aws_iam_role_policy_attachment" "teleport_discovery_service" {
 }
 
 resource "aws_iam_role_policy_attachment" "teleport_organization_account_enumeration" {
-  count = local.create && local.organization_discovery_with_integration ? 1 : 0
+  count = local.create_discovery_service_iam_role && local.organization_discovery_with_integration ? 1 : 0
 
   policy_arn = one(aws_iam_policy.teleport_organization_account_enumeration[*].arn)
   # we already know the role name, but use expression reference to establish
@@ -216,7 +216,7 @@ resource "aws_iam_role_policy_attachment" "teleport_organization_account_enumera
 }
 
 resource "aws_iam_role_policy_attachment" "teleport_organization_join_validation" {
-  count = local.create && local.organization_discovery_with_integration ? 1 : 0
+  count = local.create_discovery_service_iam_role && local.organization_discovery_with_integration ? 1 : 0
 
   policy_arn = one(aws_iam_policy.teleport_organization_join_validation[*].arn)
   # we already know the role name, but use expression reference to establish

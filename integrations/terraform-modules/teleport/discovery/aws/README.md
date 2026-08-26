@@ -56,6 +56,20 @@ module "aws_discovery" {
 }
 ```
 
+### Use ambient AWS credentials
+
+To use AWS credentials already available to the Discovery Service, disable the OIDC integration and leave `trust_role` unset:
+
+```hcl
+discovery_service_iam_credential_source = {
+  use_oidc_integration = false
+  trust_role           = null
+}
+```
+
+In this mode, the module does not configure an integration or assumed role in the Teleport discovery configuration.
+The ambient AWS identity must have the permissions required to discover the configured resources; for example, you can attach the module's policy to an IAM role defined outside the module.
+
 ### `aws_matchers` fields
 
 | Field | Type | Default | Description |
@@ -140,7 +154,7 @@ No modules.
 | aws\_organization\_iam\_policies | AWS IAM policy customizations for organization-wide discovery to be created in AWS management account. | ```object({ account_enumeration = optional(object({ name = optional(string, "teleport-organization-account-enumeration") use_name_prefix = optional(bool, true) document = optional(string, "") }), {}) join_validation = optional(object({ name = optional(string, "teleport-organization-join-validation") use_name_prefix = optional(bool, true) document = optional(string, "") }), {}) })``` | `{}` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_aws\_iam\_openid\_connect\_provider | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
-| discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool, true) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
+| discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. Set use\_oidc\_integration to false and omit trust\_role to use the ambient AWS credentials that are already available to your Discovery Service(s). | ```object({ use_oidc_integration = optional(bool, true) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
 | match\_aws\_regions | Deprecated legacy input. Use aws\_matchers instead. AWS regions to discover. The default matches all AWS regions. | `list(string)` | ```[ "*" ]``` | no |
 | match\_aws\_resource\_types | Deprecated legacy input. Use aws\_matchers instead. AWS resource types to match when discovering resources with Teleport. | `list(string)` | `[]` | no |
 | match\_aws\_tags | Deprecated legacy input. Use aws\_matchers instead. AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | ```{ "*": [ "*" ] }``` | no |

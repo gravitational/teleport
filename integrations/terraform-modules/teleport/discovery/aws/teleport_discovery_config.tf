@@ -125,13 +125,6 @@ resource "teleport_discovery_config" "aws" {
       error_message = "The Discovery Service running in a Teleport Cloud cluster must use OIDC integration credentials. Either set discovery_service_iam_credential_source.use_oidc_integration to true or set teleport_discovery_group_name to a discovery group that is not `cloud-discovery-group`."
     }
     precondition {
-      condition = !(
-        !var.discovery_service_iam_credential_source.use_oidc_integration
-        && try(var.discovery_service_iam_credential_source.trust_role.role_arn, "") == ""
-      ) || var.aws_organization_discovery != null
-      error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
-    }
-    precondition {
       condition = local.single_account_deployment || alltrue([
         for matcher in local.effective_aws_matchers : length(matcher.types) == 1 && matcher.types[0] == "ec2"
       ])

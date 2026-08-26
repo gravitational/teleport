@@ -19,9 +19,10 @@ locals {
   organization_deployment   = var.aws_organization_discovery != null
   single_account_deployment = !local.organization_deployment
 
+  ambient_credentials                        = !var.discovery_service_iam_credential_source.use_oidc_integration && var.discovery_service_iam_credential_source.trust_role == null
   organization_discovery_with_integration    = local.organization_deployment && var.discovery_service_iam_credential_source.use_oidc_integration
   organization_discovery_without_integration = local.organization_deployment && !var.discovery_service_iam_credential_source.use_oidc_integration
-  create_discovery_service_iam_role          = local.create && !local.organization_discovery_without_integration
+  create_discovery_service_iam_role          = local.create && !local.organization_discovery_without_integration && !local.ambient_credentials
   create_child_account_iam_role_template = (
     local.create
     && local.organization_deployment
