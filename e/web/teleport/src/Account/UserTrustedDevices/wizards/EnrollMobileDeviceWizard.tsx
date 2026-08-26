@@ -189,12 +189,12 @@ function QrCodeStep(props: EnrollMobileDeviceWizardStepProps) {
             </Box>
           )}
           <Subtitle1 textAlign="center">
-            Open the Camera app on your iPhone or iPad
+            Open the Teleport Verify app on your iPhone or iPad
             <br />
-            and scan the QR code to open Teleport&nbsp;Verify.
+            and scan the QR code.
           </Subtitle1>
           <P2 textAlign="center" mt={0}>
-            If you see &quot;No usable data found&quot; when scanning the code,
+            If you don&apos;t have the app on your device,
             <br />
             ask your administrator to{' '}
             {/* TODO(ravicious): Make sure this link stays up to date. PR with docs: https://github.com/gravitational/teleport/pull/64298 */}
@@ -203,8 +203,8 @@ function QrCodeStep(props: EnrollMobileDeviceWizardStepProps) {
               target="_blank"
             >
               set up Teleport Verify
-            </Link>{' '}
-            on your mobile device.
+            </Link>
+            .
           </P2>
         </Stack>
         {/* TODO(ravicious): Make sure this link stays up to date. PR with docs: https://github.com/gravitational/teleport/pull/64298 */}
