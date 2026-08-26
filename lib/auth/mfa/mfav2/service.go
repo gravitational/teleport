@@ -363,22 +363,27 @@ func (s *Service) ValidateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	var details *authz.MFAAuthData
-
 	// Validate the challenge response.
 	mfaResp := req.GetMfaResponse()
 	if mfaResp == nil {
 		return nil, trace.BadParameter("missing mfa_response")
 	}
 
-	if mfaResp.GetWebauthn() != nil {
+	var details *authz.MFAAuthData
+	switch {
+	case mfaResp.GetWebauthn() != nil:
 		details, err = s.validateWebauthnResponse(ctx, username, mfaResp)
-	} else if mfaResp.GetSso() != nil {
+		if err == nil && details.Payload == nil {
+			err = trace.BadParameter("MFA challenge is missing a session identifying payload")
+		}
+	case mfaResp.GetSso() != nil:
 		details, err = s.validateSSOResponse(ctx, username, mfaResp)
-	} else {
+		if err == nil && details.Payload == nil {
+			err = trace.BadParameter("MFA challenge is missing a session identifying payload")
+		}
+	default:
 		return nil, trace.BadParameter("unknown MFA response type")
 	}
-
 	if err != nil {
 		// Emit failure event before returning.
 		s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, nil, err)

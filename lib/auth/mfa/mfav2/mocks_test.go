@@ -39,7 +39,7 @@ import (
 type mockAuthServer struct {
 	*authtest.Server
 
-	// requestIDs stores valid request IDs.
+	// requestIDs stores valid request IDs and their corresponding SIPs.
 	requestIDs sync.Map
 }
 
@@ -68,7 +68,16 @@ func (m *mockAuthServer) BeginSSOMFAChallenge(
 	params mfatypes.BeginSSOMFAChallengeParams,
 ) (*proto.SSOChallenge, error) {
 	requestID := strconv.Itoa(int(time.Now().UnixNano()))
-	m.requestIDs.Store(requestID, struct{}{})
+
+	var payload *mfatypes.SessionIdentifyingPayload
+	if params.SIP != nil {
+		payload = &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: params.SIP.GetSshSessionId(),
+			TLSSessionID: params.SIP.GetTlsSessionId(),
+		}
+	}
+
+	m.requestIDs.Store(requestID, payload)
 
 	return &proto.SSOChallenge{
 		RequestId:   requestID,
@@ -85,7 +94,7 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	token string,
 	_ *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-	_, ok := m.requestIDs.Load(requestID)
+	raw, ok := m.requestIDs.Load(requestID)
 	if !ok {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge request ID %q", requestID)
 	}
@@ -109,11 +118,11 @@ func (m *mockAuthServer) VerifySSOMFASession(
 		return nil, trace.NotFound("SSO MFA device not found %q", requestID)
 	}
 
+	payload, _ := raw.(*mfatypes.SessionIdentifyingPayload)
+
 	return &authz.MFAAuthData{
-		Device: ssoDevice,
-		Payload: &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: []byte("test-session-id"),
-		},
+		Device:        ssoDevice,
+		Payload:       payload,
 		SourceCluster: "test-cluster",
 		TargetCluster: "test-cluster",
 	}, nil

@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
@@ -32,12 +33,14 @@ import (
 	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mfa/mfav2"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -189,24 +192,7 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2pb.S
 func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, emitter, user := setupAuthServer(
-		t,
-		[]*types.MFADevice{
-			{
-				Metadata: types.Metadata{
-					Name: "sso-device",
-				},
-				Id: deviceID,
-				Device: &types.MFADevice_Sso{
-					Sso: &types.SSOMFADevice{
-						DisplayName:   "test-display-name",
-						ConnectorId:   "test-device-connector-id",
-						ConnectorType: constants.SAML,
-					},
-				},
-			},
-		},
-	)
+	authServer, service, emitter, user := setupAuthServer(t, []*types.MFADevice{newSSOMFADevice()})
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -558,23 +544,7 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	t.Parallel()
 
-	_, service, emitter, user := setupAuthServer(
-		t,
-		[]*types.MFADevice{
-			{
-				Metadata: types.Metadata{
-					Name: "sso-device",
-				},
-				Device: &types.MFADevice_Sso{
-					Sso: &types.SSOMFADevice{
-						DisplayName:   "test-display-name",
-						ConnectorId:   "test-device-connector-id",
-						ConnectorType: constants.SAML,
-					},
-				},
-			},
-		},
-	)
+	_, service, emitter, user := setupAuthServer(t, []*types.MFADevice{newSSOMFADevice()})
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -687,6 +657,112 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 	require.False(t, e.Success)
 	require.Contains(t, e.Error, "MOCKED TEST ERROR FROM STORAGE LAYER")
+}
+
+func TestValidateSessionChallenge_ChallengeWithoutPayloadDenied(t *testing.T) {
+	t.Parallel()
+
+	ssoDevice := newSSOMFADevice()
+
+	for _, tc := range []struct {
+		name    string
+		devices []*types.MFADevice
+		solve   func(t *testing.T, authServer *mockAuthServer, user types.User, ctx context.Context) *mfav2pb.AuthenticateResponse
+	}{
+		{
+			name: "webauthn challenge",
+			solve: func(t *testing.T, authServer *mockAuthServer, user types.User, ctx context.Context) *mfav2pb.AuthenticateResponse {
+				device, err := authtest.RegisterTestDevice(
+					ctx,
+					authServer.Auth(),
+					"webauthn-device",
+					clientpb.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					nil,
+				)
+				require.NoError(t, err)
+
+				// The legacy CreateAuthenticateChallenge API doesn't set a SIP, so the session data later retrieved by
+				// ValidateSessionChallenge will have a nil SIP.
+				chal, err := authServer.Auth().CreateAuthenticateChallenge(
+					ctx,
+					&clientpb.CreateAuthenticateChallengeRequest{
+						ChallengeExtensions: &mfav1pb.ChallengeExtensions{
+							Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.NotNil(t, chal.GetWebauthnChallenge())
+
+				mfaResp, err := device.SolveAuthn(chal)
+				require.NoError(t, err)
+
+				return mfav2pb.AuthenticateResponse_builder{
+					Name:     chalName,
+					Webauthn: webauthnpb.CredentialAssertionResponseV1ToV2(mfaResp.GetWebauthn()),
+				}.Build()
+			},
+		},
+		{
+			name:    "sso challenge",
+			devices: []*types.MFADevice{ssoDevice},
+			solve: func(t *testing.T, authServer *mockAuthServer, user types.User, ctx context.Context) *mfav2pb.AuthenticateResponse {
+				// TODO(cthach): Use proto.AuthService/CreateAuthenticateChallenge once authtest supports SSO MFA devices (https://github.com/gravitational/teleport/issues/62271).
+				chal, err := authServer.BeginSSOMFAChallenge(
+					ctx,
+					mfatypes.BeginSSOMFAChallengeParams{
+						User:                 user.GetName(),
+						SSO:                  ssoDevice.GetSso(),
+						SSOClientRedirectURL: "https://sso/redirect",
+						Ext: &mfav1pb.ChallengeExtensions{
+							Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+						},
+						SIP: nil, // Simulate missing SIP.
+					},
+				)
+				require.NoError(t, err)
+
+				return mfav2pb.AuthenticateResponse_builder{
+					Name: chalName,
+					Sso: mfav2pb.SSOChallengeResponse_builder{
+						RequestId: chal.RequestId,
+					}.Build(),
+				}.Build()
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			authServer, service, emitter, user := setupAuthServer(t, tc.devices)
+
+			ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+			mfaResp := tc.solve(t, authServer, user, ctx)
+
+			validateResp, err := service.ValidateSessionChallenge(
+				ctx,
+				mfav2pb.ValidateSessionChallengeRequest_builder{
+					MfaResponse: mfaResp,
+				}.Build(),
+			)
+			require.True(t, trace.IsAccessDenied(err))
+			assert.ErrorContains(t, err, "MFA challenge is missing a session identifying payload")
+			assert.Nil(t, validateResp)
+
+			// Verify no ValidatedMFAChallenge was stored.
+			_, err = authServer.Auth().MFAService.GetValidatedMFAChallenge(ctx, targetCluster, chalName)
+			assert.True(t, trace.IsNotFound(err))
+
+			// Verify emitted failure event.
+			event := emitter.LastEvent()
+			assert.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
+			assert.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
+			e, ok := event.(*apievents.ValidateMFAAuthResponse)
+			require.True(t, ok)
+			assert.False(t, e.Success)
+		})
+	}
 }
 
 func TestListValidatedMFAChallenges_Success(t *testing.T) {
@@ -1524,6 +1600,22 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	require.NoError(t, err)
 
 	return authServer, service, emitter, user
+}
+
+func newSSOMFADevice() *types.MFADevice {
+	return &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "sso-device",
+		},
+		Id: deviceID,
+		Device: &types.MFADevice_Sso{
+			Sso: &types.SSOMFADevice{
+				DisplayName:   "test-display-name",
+				ConnectorId:   "test-device-connector-id",
+				ConnectorType: constants.SAML,
+			},
+		},
+	}
 }
 
 type mockAccessChecker struct {
