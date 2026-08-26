@@ -37,6 +37,23 @@ type commandInflightExecT struct {
 	Argv        uint64
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	commandMapExecveEvents                        = "execve_events"
+	commandMapInflightExec                        = "inflight_exec"
+	commandMapLostCounter                         = "lost_counter"
+	commandMapLostDoorbell                        = "lost_doorbell"
+	commandMapMonitoredSessionids                 = "monitored_sessionids"
+	commandProgBprmExecveExit                     = "bprm_execve_exit"
+	commandProgTracepointSyscallsSysEnterExecve   = "tracepoint__syscalls__sys_enter_execve"
+	commandProgTracepointSyscallsSysEnterExecveat = "tracepoint__syscalls__sys_enter_execveat"
+	commandProgTracepointSyscallsSysExitExecve    = "tracepoint__syscalls__sys_exit_execve"
+	commandProgTracepointSyscallsSysExitExecveat  = "tracepoint__syscalls__sys_exit_execveat"
+	commandVarUnused                              = "unused"
+)
+
 // loadCommand returns the embedded CollectionSpec for command.
 func loadCommand() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_CommandBytes)
@@ -57,7 +74,7 @@ func loadCommand() (*ebpf.CollectionSpec, error) {
 //	*commandMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func loadCommandObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func loadCommandObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := loadCommand()
 	if err != nil {
 		return err

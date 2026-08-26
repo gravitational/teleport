@@ -25,6 +25,20 @@ type diskDataT struct {
 	Flags          int32
 }
 
+// Names of all BPF objects in the ELF.
+//
+// Used for safe lookups in a Collection or CollectionSpec.
+const (
+	diskMapInflightOpen        = "inflight_open"
+	diskMapLostCounter         = "lost_counter"
+	diskMapLostDoorbell        = "lost_doorbell"
+	diskMapMonitoredSessionids = "monitored_sessionids"
+	diskMapOpenEvents          = "open_events"
+	diskProgDoFileOpenExit     = "do_file_open_exit"
+	diskProgSecurityFileOpen   = "security_file_open"
+	diskVarUnused              = "unused"
+)
+
 // loadDisk returns the embedded CollectionSpec for disk.
 func loadDisk() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_DiskBytes)
@@ -45,7 +59,7 @@ func loadDisk() (*ebpf.CollectionSpec, error) {
 //	*diskMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func loadDiskObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func loadDiskObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := loadDisk()
 	if err != nil {
 		return err
