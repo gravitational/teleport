@@ -261,3 +261,15 @@ variable "teleport_provision_token_use_name_prefix" {
   type        = bool
   nullable    = false
 }
+
+variable "teleport_version_override" {
+  default     = null
+  description = <<EOD
+teleport_version_override is intended for development and MUST NOT be used to control the Teleport version in a typical deployment.
+This module is designed to run a specific Teleport version.
+You will face compatibility issues trying to run a different Teleport version with it.
+If you want to run Teleport version `X.Y.Z`, you should adjust the module version to `X.Y.Z` instead.
+EOD
+  type        = string
+  nullable    = true
+}
