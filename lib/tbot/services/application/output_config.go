@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -63,9 +64,6 @@ func (o *OutputConfig) Init(ctx context.Context) error {
 }
 
 func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", OutputServiceType)
-	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -73,7 +71,23 @@ func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 		return trace.Wrap(err, "validating configured destination")
 	}
 	if o.AppName == "" {
-		return trace.BadParameter("app_name must not be empty")
+		return trace.BadParameter("app_name: must not be empty")
+	}
+	if scoped {
+		if o.DelegationSessionID != "" {
+			return trace.BadParameter("delegation_session_id: not supported with scopes")
+		}
+		if len(o.Roles) > 0 {
+			return trace.BadParameter("roles: not supported with scopes")
+		}
+		// Perform strong validation to ensure it's a valid scope format.
+		if err := scopes.StrongValidateQualifiedName(o.AppName); err != nil {
+			return trace.BadParameter("app_name: %v", err)
+		}
+	} else if scopes.MaybeSQN(o.AppName) {
+		// If not scoped, we perform a soft validation instead of a strong one.
+		// This is to fail on the intention of the user giving a scope, not in the correctness of the format.
+		return trace.BadParameter("app_name: can not be a scope-qualified name when not in scope mode")
 	}
 	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
 		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
