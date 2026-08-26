@@ -72,12 +72,12 @@ jobs:
         # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
         uses: actions/checkout@v6
       - name: Install test dependencies
-        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        working-directory: ./e/assets/systemd-unit-upgrader-tests/scripts
         run: |
           source run.sh
           install_dependencies
       - name: Run test
-        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        working-directory: ./e/assets/systemd-unit-upgrader-tests/scripts
         run: |
           source run.sh
           ${{ inputs.test-case }}
@@ -128,12 +128,12 @@ jobs:
         # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
         uses: actions/checkout@v6
       - name: Install test dependencies
-        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        working-directory: ./e/assets/systemd-unit-upgrader-tests/scripts
         run: |
           source run.sh
           install_dependencies
       - name: Run test
-        working-directory: ./assets/systemd-unit-upgrader-tests/scripts
+        working-directory: ./e/assets/systemd-unit-upgrader-tests/scripts
         run: |
           source run.sh
           ${{ inputs.test-case }}

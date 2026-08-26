@@ -136,7 +136,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
       - name: Assume env-loader secrets decryption AWS role
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
@@ -152,6 +152,7 @@ jobs:
           value-sets: |
             gpg-signing
             os-package-repos
+          environments-directory: e/.environments
       - name: Derive and set repo type-specific variables for APT
         if: inputs.repo-type == 'apt'
         env:
@@ -212,15 +213,15 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: "./tooling/os-package-repo-tool/go.mod"
-          cache-dependency-path: "./tooling/os-package-repo-tool/go.sum"
+          go-version-file: "./e/tooling/os-package-repo-tool/go.mod"
+          cache-dependency-path: "./e/tooling/os-package-repo-tool/go.sum"
           check-latest: true
       - name: Log installed Go version
         run: go version
       - name: Build tool
         run: |
           sudo apt install -y gcc
-          CGO_ENABLED=1 go build -C "./tooling/os-package-repo-tool/" -o "$(pwd)/$TOOL_BINARY_PATH" -race "./src/"
+          CGO_ENABLED=1 go build -C "./e/tooling/os-package-repo-tool/" -o "$(pwd)/$TOOL_BINARY_PATH" -race "./src/"
       - name: Install the required runtime dependencies
         run: |
           # Exit on error, and error on unset vars
@@ -441,13 +442,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
           value-sets: auto-updates
+          environments-directory: e/.environments
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
       - name: Derive and set Github environment-specific variables for production
@@ -507,7 +509,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        # Test cases defined in ./e/assets/systemd-unit-upgrader-tests/scripts/run.sh
         test-case:
           - "test_pre_install"
           - "test_teleport_basic"
@@ -531,7 +533,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Test cases defined in ./assets/systemd-unit-upgrader-tests/scripts/run.sh
+        # Test cases defined in ./e/assets/systemd-unit-upgrader-tests/scripts/run.sh
         test-case:
           - "test_pre_install"
           - "test_updater_basic"
