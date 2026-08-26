@@ -203,7 +203,7 @@ variable "database_types_for_default_iam_policy" {
   default     = []
   description = <<EOF
 Database types for which default IAM policy statements will be added to the ECS task role's inline policy.
-Currently, only `rds` is supported.
+Supported database types are `rds` and `rdsproxy`.
 Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs_task_role_inline_policy.
 EOF
   nullable    = false
@@ -212,9 +212,9 @@ EOF
   validation {
     condition = alltrue([
       for database_type in var.database_types_for_default_iam_policy
-      : database_type == "rds"
+      : contains(["rds", "rdsproxy"], database_type)
     ])
-    error_message = "Supported database types are: rds."
+    error_message = "Supported database types are: rds, rdsproxy."
   }
 }
 

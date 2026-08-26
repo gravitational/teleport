@@ -61,7 +61,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_security\_group | Whether to create a security group for the Teleport ECS tasks. | `bool` | `true` | no |
 | database\_service\_resources | Override the db\_service resource matchers. When null, a default matcher is used that matches databases in the same account, region, and VPC. | ```list(object({ labels = map(list(string)) aws = optional(object({ assume_role_arn = optional(string, "") external_id = optional(string, "") })) }))``` | `null` | no |
-| database\_types\_for\_default\_iam\_policy | Database types for which default IAM policy statements will be added to the ECS task role's inline policy. Currently, only `rds` is supported. Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs\_task\_role\_inline\_policy. | `list(string)` | `[]` | no |
+| database\_types\_for\_default\_iam\_policy | Database types for which default IAM policy statements will be added to the ECS task role's inline policy. Supported database types are `rds` and `rdsproxy`. Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs\_task\_role\_inline\_policy. | `list(string)` | `[]` | no |
 | ecs\_cluster\_name | Name of the ECS cluster. | `string` | `"teleport-db-services"` | no |
 | ecs\_cluster\_use\_name\_prefix | Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name. | `bool` | `true` | no |
 | ecs\_service\_name | Name of the ECS service. | `string` | `"teleport-db-service"` | no |
