@@ -470,15 +470,16 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkRemoteProxySourceCluster(*authCtx, req.GetSourceCluster()); err != nil {
+	chal := req.GetValidatedChallenge()
+	if chal == nil {
+		return nil, trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest.validated_challenge")
+	}
+
+	if err := checkRemoteProxySourceCluster(*authCtx, chal.GetSpec().GetSourceCluster()); err != nil {
 		return nil, trace.WrapWithMessage(
 			err,
 			"only remote proxy identities from the same source cluster can replicate validated MFA challenges",
 		)
-	}
-
-	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	currentCluster, err := s.cache.GetClusterName(ctx)
@@ -486,31 +487,18 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetTargetCluster() != currentCluster.GetClusterName() {
+	if chal.GetSpec().GetTargetCluster() != currentCluster.GetClusterName() {
 		return nil,
 			trace.BadParameter(
 				"target cluster %q does not match current cluster %q",
-				req.GetTargetCluster(),
+				chal.GetSpec().GetTargetCluster(),
 				currentCluster.GetClusterName(),
 			)
 	}
 
-	chal := mfav2.ValidatedMFAChallenge_builder{
-		Kind:    types.KindValidatedMFAChallenge,
-		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
-			Name: req.GetName(),
-		}.Build(),
-		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-			Payload:       req.GetPayload(),
-			SourceCluster: req.GetSourceCluster(),
-			TargetCluster: req.GetTargetCluster(),
-			Username:      req.GetUsername(),
-			MfaDevice:     req.GetMfaDevice(),
-		}.Build(),
-	}.Build()
-
-	created, err := s.storage.CreateValidatedMFAChallenge(ctx, req.GetTargetCluster(), chal)
+	// The challenge resource is persisted as-is. The storage layer validates the resource (kind, version, metadata,
+	// and spec fields) and resets its expiry.
+	created, err := s.storage.CreateValidatedMFAChallenge(ctx, chal.GetSpec().GetTargetCluster(), chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -533,7 +521,8 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
 	}
 
-	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
+	reqChal := req.GetValidatedChallenge()
+	if err := checkVerifyValidatedMFAChallengeRequest(reqChal); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -547,18 +536,18 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	// the case of trusted clusters, the validated challenge is created in the root cluster and then eventually
 	// replicated to the leaf cluster. Until the replication occurs, the validated challenge won't exist in the leaf
 	// cluster storage and therefore won't be found by this method.
-	chal, err := s.waitForValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), req.GetName())
+	chal, err := s.waitForValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), reqChal.GetMetadata().GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch {
-	case req.GetUsername() != chal.GetSpec().GetUsername():
+	case reqChal.GetSpec().GetUsername() != chal.GetSpec().GetUsername():
 		// Ensure the username in the request matches the username in the challenge to prevent replay attacks where an
 		// attacker could use a validated challenge for one user to authenticate as a different user.
 		return nil, trace.AccessDenied("request username does not match validated challenge username")
 
-	case req.GetSourceCluster() != chal.GetSpec().GetSourceCluster():
+	case reqChal.GetSpec().GetSourceCluster() != chal.GetSpec().GetSourceCluster():
 		// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided
 		// in the request to prevent replay attacks where an attacker could use a validated challenge created in one
 		// cluster to authenticate in a different cluster.
@@ -566,7 +555,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	}
 
 	// Ensure all payload fields in the request match the stored challenge to prevent cross-session replay.
-	if !proto.Equal(req.GetPayload(), chal.GetSpec().GetPayload()) {
+	if !proto.Equal(reqChal.GetSpec().GetPayload(), chal.GetSpec().GetPayload()) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
@@ -783,25 +772,6 @@ func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, err
 	return u2f, webauthn, nil
 }
 
-func checkReplicateValidatedMFAChallengeRequest(req *mfav2.ReplicateValidatedMFAChallengeRequest) error {
-	switch {
-	case req.GetName() == "":
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name")
-
-	case req.GetTargetCluster() == "":
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster")
-
-	case req.GetUsername() == "":
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username")
-	}
-
-	if err := checkPayload(req.GetPayload()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func checkListValidatedMFAChallengesRequest(req *mfav2.ListValidatedMFAChallengesRequest) error {
 	switch {
 	case req.GetPageSize() <= 0:
@@ -811,16 +781,19 @@ func checkListValidatedMFAChallengesRequest(req *mfav2.ListValidatedMFAChallenge
 	return nil
 }
 
-func checkVerifyValidatedMFAChallengeRequest(req *mfav2.VerifyValidatedMFAChallengeRequest) error {
+func checkVerifyValidatedMFAChallengeRequest(chal *mfav2.ValidatedMFAChallenge) error {
 	switch {
-	case req.GetUsername() == "":
-		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username")
+	case chal == nil:
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge")
 
-	case req.GetName() == "":
-		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
+	case chal.GetSpec().GetUsername() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge.spec.username")
+
+	case chal.GetMetadata().GetName() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest.validated_challenge.metadata.name")
 	}
 
-	if err := checkPayload(req.GetPayload()); err != nil {
+	if err := checkPayload(chal.GetSpec().GetPayload()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -895,7 +868,7 @@ func isLocalProxy(authContext authz.Context) bool {
 
 func checkRemoteProxySourceCluster(authContext authz.Context, sourceCluster string) error {
 	if sourceCluster == "" {
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest.validated_challenge.spec.source_cluster")
 	}
 
 	remoteRole, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole)

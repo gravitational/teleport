@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
@@ -111,12 +112,18 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) (*
 		}
 
 		req := mfav2pb.VerifyValidatedMFAChallengeRequest_builder{
-			Name: challengeName,
-			Payload: mfav2pb.SessionIdentifyingPayload_builder{
-				SshSessionId: pv.sessionID,
+			ValidatedChallenge: mfav2pb.ValidatedMFAChallenge_builder{
+				Metadata: headerv1.Metadata_builder{
+					Name: challengeName,
+				}.Build(),
+				Spec: mfav2pb.ValidatedMFAChallengeSpec_builder{
+					Payload: mfav2pb.SessionIdentifyingPayload_builder{
+						SshSessionId: pv.sessionID,
+					}.Build(),
+					SourceCluster: pv.sourceCluster,
+					Username:      pv.username,
+				}.Build(),
 			}.Build(),
-			SourceCluster: pv.sourceCluster,
-			Username:      pv.username,
 		}.Build()
 
 		verifyResp, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)

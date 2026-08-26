@@ -20,7 +20,9 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2";
 
-// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session. When creating the resource via
+// ReplicateValidatedMFAChallenge, the following fields are required: spec.payload, spec.source_cluster,
+// spec.target_cluster, spec.username, and spec.mfa_device.id.
 message ValidatedMFAChallenge {
   // Resource kind, always 'validated_mfa_challenge'.
   string kind = 1;

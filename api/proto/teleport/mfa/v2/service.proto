@@ -118,23 +118,16 @@ message ListValidatedMFAChallengesResponse {
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeRequest {
-  // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-  // challenge.
-  string name = 1;
-  // Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
-  SessionIdentifyingPayload payload = 2;
-  // Name of the source cluster where the validated challenge originated. Required in order to match the validated
-  // challenge to the correct session.
-  string source_cluster = 3;
-  // Name of the target cluster where the SSH session is being established. Required in order to match the validated
-  // challenge to the correct session.
-  string target_cluster = 4;
-  // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-  // login name) and must correspond to a user in the cluster specified by source_cluster.
-  string username = 5;
-  // MFA device that satisfied the challenge in source_cluster. Must match the mfa_device of the validated challenge
-  // being replicated so that mfa_device locks are enforced in the target cluster.
-  MFADevice mfa_device = 6;
+  // The individual fields that previously made up this request (name, payload, source_cluster, target_cluster,
+  // username, and mfa_device) were replaced by validated_challenge before this service was released. Their field
+  // numbers and names are reserved to prevent accidental reuse.
+  reserved 1 to 6;
+  reserved "name", "payload", "source_cluster", "target_cluster", "username", "mfa_device";
+
+  // The validated MFA challenge resource to replicate from spec.source_cluster to this cluster. Required; see
+  // ValidatedMFAChallenge for the required fields. The server rejects the request if spec.target_cluster does not
+  // match the local cluster or if the caller does not originate from spec.source_cluster.
+  ValidatedMFAChallenge validated_challenge = 7;
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
@@ -145,20 +138,16 @@ message ReplicateValidatedMFAChallengeResponse {
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
 message VerifyValidatedMFAChallengeRequest {
-  // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
-  // challenge.
-  string name = 1;
-  // Value that uniquely identifies the user's session. The client MUST independently compute this value from session
-  // state. The server will verify it matches the payload supplied in CreateSessionChallengeRequest to ensure the
-  // challenge is tied to the correct session.
-  SessionIdentifyingPayload payload = 2;
-  // Name of the cluster where the validated challenge originated.
-  string source_cluster = 3;
-  // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
-  // login name) and must correspond to a user in the cluster specified by source_cluster. The client MUST determine this
-  // value by authenticating the Teleport user before calling this method. The server will verify that it matches the
-  // Teleport user associated with the validated challenge to ensure the challenge is tied to the correct user.
-  string username = 4;
+  // The individual fields that previously made up this request (name, payload, source_cluster, and username) were
+  // replaced by validated_challenge before this service was released. Their field numbers and names are reserved to
+  // prevent accidental reuse.
+  reserved 1 to 4;
+  reserved "name", "payload", "source_cluster", "username";
+
+  // The validated MFA challenge resource to verify. Required. The supplied fields are validated against the stored
+  // challenge; at minimum, metadata.name, spec.username, and spec.payload must be present. The server looks up the
+  // stored challenge by metadata.name and rejects the request if the supplied fields do not match the stored values.
+  ValidatedMFAChallenge validated_challenge = 5;
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
