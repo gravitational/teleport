@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -15,6 +16,13 @@ import (
 )
 
 var errDeniedByNonAutoToken = errors.New("user lacks permissions to spend non auto-enroll token")
+
+// errInvalidDeviceEnrollToken is returned for every enrollment token failure
+// that must stay indistinguishable to the caller: a bad, expired or
+// already-spent token, and a token minted for a different user.
+var errInvalidDeviceEnrollToken = &trace.AccessDeniedError{
+	Message: "invalid device enrollment token",
+}
 
 type enrollCeremony struct {
 	logger           *slog.Logger
@@ -93,10 +101,22 @@ func (c *enrollCeremony) enrollDevice(
 	tokenData, err := c.storage.SpendDeviceEnrollToken(ctx, dev.GetId(), initReq.GetToken())
 	if err != nil {
 		// err swallowed/obscured on purpose.
-		return dev, trace.AccessDenied("invalid device enrollment token")
+		return dev, trace.Wrap(errInvalidDeviceEnrollToken)
 	}
 	if allowedByAutoEnroll && !tokenData.CreatedByAutoEnroll {
 		return dev, trace.Wrap(errDeniedByNonAutoToken)
+	}
+	// A token minted for a specific user, like the mobile enrollment from RFD
+	// 32e, can only be spent by that user. This stops a different authenticated
+	// caller from enrolling the device onto their own account with a token
+	// intercepted from the unauthenticated mobile flow. Admin issued tokens carry
+	// no user and stay spendable by whoever the ceremony authenticates.
+	if tokenData.User != "" && tokenData.User != user {
+		message := fmt.Sprintf("enrollment token user mismatch (want %s, got %s)", tokenData.User, user)
+		return dev, auditStatusError{
+			Err:         trace.Wrap(errInvalidDeviceEnrollToken),
+			UserMessage: message,
+		}
 	}
 
 	// Perform remaining init validation.

@@ -1549,7 +1549,14 @@ func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) err
 // to be allowed.
 // It returns the corresponding device, as long as queried successfully, and
 // either an error or the assigned [DeviceEnrollToken] in the device.
-func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
+//
+// user is the user the token is created for. It is recorded alongside the token
+// so that ceremonies with the caller authenticated through other means than a
+// user cert, like the mobile enrollment from RFD 32e, can recover the device
+// owner when the token is spent. See [S.SpendDeviceEnrollToken].
+//
+// user must not come from an untrusted input.
+func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.DeviceCollectedData, user string) (*devicepb.Device, error) {
 	if err := ValidateCollectedData(cd); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1596,7 +1603,7 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 
 	defaultExpire := time.Time{}
 	token, err := s.createDeviceEnrollToken(
-		ctx, targetDev.GetId(), defaultExpire, true /* createdByAutoEnroll */)
+		ctx, targetDev.GetId(), defaultExpire, true /* createdByAutoEnroll */, user)
 	if err != nil {
 		return targetDev, trace.Wrap(err)
 	}
@@ -1626,7 +1633,10 @@ func (s *S) CreateDeviceEnrollToken(
 		return nil, trace.Wrap(err)
 	}
 
-	return s.createDeviceEnrollToken(ctx, deviceID, expiresAt, false /* createdByAutoEnroll */)
+	// Admin-issued tokens carry no user. The owner is the authenticated caller
+	// who later spends the token in the enrollment ceremony.
+	return s.createDeviceEnrollToken(ctx, deviceID, expiresAt,
+		false /* createdByAutoEnroll */, "" /* user */)
 }
 
 func (s *S) createDeviceEnrollToken(
@@ -1634,6 +1644,7 @@ func (s *S) createDeviceEnrollToken(
 	deviceID string,
 	expiresAt time.Time,
 	createdByAutoEnroll bool,
+	user string,
 ) (*devicepb.DeviceEnrollToken, error) {
 	// Draw a few random bytes, base64 encode into a valid string and use the
 	// resulting string as the password.
@@ -1653,6 +1664,7 @@ func (s *S) createDeviceEnrollToken(
 	val, err := json.Marshal(&storedEnrollToken{
 		HashedToken:         tokenHashed,
 		CreatedByAutoEnroll: createdByAutoEnroll,
+		User:                user,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "marshal enrollment token")
@@ -1681,6 +1693,9 @@ func (s *S) createDeviceEnrollToken(
 // DeviceEnrollTokenData holds internal data about a spent DeviceEnrollToken.
 type DeviceEnrollTokenData struct {
 	CreatedByAutoEnroll bool
+	// User is the user the token was created for, empty for admin-issued tokens.
+	// See [S.CreateDeviceEnrollTokenUsingData].
+	User string
 }
 
 // SpendDeviceEnrollToken spends an existing enrollment token, allowing the
@@ -1720,6 +1735,7 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 
 	return &DeviceEnrollTokenData{
 		CreatedByAutoEnroll: stored.CreatedByAutoEnroll,
+		User:                stored.User,
 	}, nil
 }
 

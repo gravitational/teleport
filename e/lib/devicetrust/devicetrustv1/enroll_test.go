@@ -18,6 +18,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/entitlements"
@@ -637,6 +638,138 @@ func TestService_EnrollDevice(t *testing.T) {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestService_EnrollDevice_rejectsInterceptedAutoEnrollToken(t *testing.T) {
+	t.Parallel()
+
+	// Prepare an authorizer and a set of users with the following powers:
+	// - adminUser: logged in and has all necessary verbs
+	// - autoEnrollUser: logged in but has no device verbs
+	const adminUser = "llama"
+	const autoEnrollUser = "alpaca"
+	authorizer := newUserAwareAuthorizer(
+		withKnownUsers(adminUser, autoEnrollUser),
+		withAuthorizedUsers(adminUser),
+	)
+
+	emitter := &eventstest.MockRecorderEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithEmitter(emitter),
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: &types.DeviceTrust{
+				AutoEnroll: true,
+			},
+		}),
+	)
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama-auto",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Mint the token the way the auto-enroll path does, recording autoEnrollUser
+	// as the enrolling user, then pretend it was intercepted.
+	token, err := devices.CreateDeviceEnrollToken(
+		contextWithUser(ctx, autoEnrollUser),
+		devicepb.CreateDeviceEnrollTokenRequest_builder{
+			DeviceData: defaultCollectData(dev),
+		}.Build())
+	require.NoError(t, err)
+
+	// A different authenticated user, adminUser, spends the token.
+	sim := newMacOSSimulator(macOSBehavior{})
+	cleanup, err := sim.setup()
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	emitter.Reset()
+	stream, err := devices.EnrollDevice(contextWithUser(ctx, adminUser))
+	require.NoError(t, err)
+	req := sim.enrollRequest(dev, token.GetToken())
+	if err := stream.Send(req); err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("init: Send failed: %v", err)
+	}
+
+	_, err = stream.Recv()
+	require.ErrorIs(t, err, &trace.AccessDeniedError{Message: "invalid device enrollment token"})
+
+	gotEvents := emitter.Events()
+	if assertEvents(t, gotEvents, []wantEvent{
+		{
+			Type:     events.DeviceEnrollEvent,
+			Code:     events.DeviceEnrollCode,
+			WantFail: true,
+		},
+	}) {
+		event := gotEvents[0].(*apievents.DeviceEvent2)
+		wantMessage := fmt.Sprintf(
+			"enrollment token user mismatch (want %s, got %s)", autoEnrollUser, adminUser)
+		if got := event.Status.UserMessage; got != wantMessage {
+			t.Errorf("event.Status.UserMessage = %q, want %q", got, wantMessage)
+		}
+	}
+}
+
+func TestService_EnrollDevice_spendsAdminTokenAcrossUsers(t *testing.T) {
+	t.Parallel()
+
+	// Prepare an authorizer and a set of users with the following powers:
+	// - adminUser: logged in and has all necessary verbs
+	// - enrollUser: logged in and has all necessary verbs
+	const adminUser = "llama"
+	const enrollUser = "alpaca"
+	authorizer := newUserAwareAuthorizer(
+		withKnownUsers(adminUser, enrollUser),
+		withAuthorizedUsers(adminUser, enrollUser),
+	)
+
+	env := testenv.NewUsingT(t, testenv.WithAuthorizer(authorizer))
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama-admin",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Admin-issued tokens (with just DeviceId) record no user, so a caller other
+	// than the admin who minted the token can spend it. enrollUser completes the
+	// enrollment with a token minted by adminUser.
+	adminToken, err := devices.CreateDeviceEnrollToken(
+		contextWithUser(ctx, adminUser),
+		devicepb.CreateDeviceEnrollTokenRequest_builder{
+			DeviceId: dev.GetId(),
+		}.Build())
+	require.NoError(t, err)
+
+	sim := newMacOSSimulator(macOSBehavior{})
+	cleanup, err := sim.setup()
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	stream, err := devices.EnrollDevice(contextWithUser(ctx, enrollUser))
+	require.NoError(t, err)
+	req := sim.enrollRequest(dev, adminToken.GetToken())
+	if err := stream.Send(req); err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("init: Send failed: %v", err)
+	}
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	enrolled, err := sim.handleEnrollStream(resp, stream, true /* testBehavior */)
+	require.NoError(t, err)
+	if got := enrolled.GetOwner(); got != enrollUser {
+		t.Errorf("enrolled.Owner = %q, want %q", got, enrollUser)
 	}
 }
 

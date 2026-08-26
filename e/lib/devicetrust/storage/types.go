@@ -41,6 +41,9 @@ type devicesRef struct {
 type storedEnrollToken struct {
 	HashedToken         []byte `json:"hashed_token"`           // Required.
 	CreatedByAutoEnroll bool   `json:"created_by_auto_enroll"` // Optional.
+	// User is the user the token was created for, empty for admin-issued tokens.
+	// See [S.CreateDeviceEnrollTokenUsingData].
+	User string `json:"user,omitempty"` // Optional.
 }
 
 // collectedDataOrigin represents the origin of the collected data.

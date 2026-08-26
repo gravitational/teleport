@@ -645,7 +645,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 			return nil, trace.Wrap(err)
 		}
 
-		dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.GetDeviceData())
+		dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.GetDeviceData(), authCtx.User.GetName())
 		devMetadata = getDeviceMetadata(dev)
 		if err != nil {
 			// Record auto-enroll failures to audit, it can be hard to diagnose
@@ -834,7 +834,8 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 					Code: events.DeviceEnrollCode,
 				},
 				Status: apievents.Status{
-					Success: success,
+					Success:     success,
+					UserMessage: getUserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,

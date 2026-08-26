@@ -3443,7 +3443,8 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.cd)
+			const user = "llama"
+			got, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.cd, user)
 			if err != nil {
 				t.Fatalf("CreateDeviceEnrollTokenUsingData failed: %v", err)
 			}
@@ -3475,8 +3476,13 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 			// Spend the token to verify that it works.
 			if tokenData, err := s.SpendDeviceEnrollToken(ctx, got.GetId(), got.GetEnrollToken().GetToken()); err != nil {
 				t.Errorf("SpendDeviceEnrollToken failed: %v", err)
-			} else if !tokenData.CreatedByAutoEnroll {
-				t.Errorf("SpendDeviceEnrollToken returned tokenData=%#v, want tokenData.CreatedByAutoEnroll=true", tokenData)
+			} else {
+				if !tokenData.CreatedByAutoEnroll {
+					t.Errorf("SpendDeviceEnrollToken returned tokenData=%#v, want tokenData.CreatedByAutoEnroll=true", tokenData)
+				}
+				if tokenData.User != user {
+					t.Errorf("SpendDeviceEnrollToken returned tokenData.User=%q, want %q", tokenData.User, user)
+				}
 			}
 		})
 	}
@@ -3649,7 +3655,7 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.createCD())
+			_, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.createCD(), "llama")
 			require.Error(t, err, "CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil")
 			assert.True(t, test.assertErr(err), "CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
 			assert.ErrorContains(t, err, test.wantErr, "CreateDeviceEnrollTokenUsingData error mismatch")
@@ -3711,7 +3717,7 @@ func TestS_CreateDeviceEnrollTokenUsingData_DuplicateTagAndOSType(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	_, err = s.CreateDeviceEnrollTokenUsingData(ctx, collectedDataForDevice(device1))
+	_, err = s.CreateDeviceEnrollTokenUsingData(ctx, collectedDataForDevice(device1), "llama")
 	require.Error(t, err, "CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil")
 	assert.True(t, trace.IsBadParameter(err), "CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
 	assert.ErrorContains(t, err, "collected data matches more than one device, aborting", "CreateDeviceEnrollTokenUsingData error mismatch")
@@ -3914,6 +3920,8 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 				t.Fatalf("SpendDeviceEnrollmentToken failed: %v", err)
 			case tokenData.CreatedByAutoEnroll:
 				t.Errorf("SpendDeviceEnrollmentToken returned tokenData=%#v, want tokenData.CreatedByAutoEnroll=false", tokenData)
+			case tokenData.User != "":
+				t.Errorf("SpendDeviceEnrollmentToken returned tokenData.User=%q, want empty", tokenData.User)
 			}
 		})
 	}

@@ -2226,22 +2226,16 @@ func TestService_CreateDeviceEnrollToken_autoEnrollAudit(t *testing.T) {
 
 		// Assert audit events.
 		gotEvents := emitter.Events()
-		assertEvents(t, gotEvents, []wantEvent{
+		if !assertEvents(t, gotEvents, []wantEvent{
 			{
 				Type:     events.DeviceEnrollTokenCreateEvent,
 				Code:     events.DeviceEnrollTokenCreateCode,
 				WantFail: true,
 			},
-		})
-		// We rely on assertEvents to check the basics of the layout, so just don't
-		// panic here.
-		if len(gotEvents) == 0 {
+		}) {
 			return
 		}
-		event, ok := gotEvents[0].(*apievents.DeviceEvent2)
-		if !ok {
-			t.Fatalf("event = %T, want %T", event, &apievents.DeviceEvent2{})
-		}
+		event := gotEvents[0].(*apievents.DeviceEvent2)
 		if got, want := event.Status.UserMessage, "already enrolled"; !strings.Contains(got, want) {
 			t.Errorf("event.Status.UserMessage = %q, want %q", got, want)
 		}
@@ -2545,12 +2539,20 @@ type wantEvent struct {
 	WantFail   bool
 }
 
-func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
+// assertEvents returns true if all assertions passed.
+func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) bool {
 	t.Helper()
 
+	passed := true
+	errorf := func(format string, args ...any) {
+		t.Helper()
+		passed = false
+		t.Errorf(format, args...)
+	}
+
 	if len(got) != len(want) {
-		t.Errorf("Audit: found an unexpected number events: got %v, want %v", len(got), len(want))
-		return
+		errorf("Audit: found an unexpected number events: got %v, want %v", len(got), len(want))
+		return passed
 	}
 
 	for i, g := range got {
@@ -2559,38 +2561,39 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 		// Sanity check type/code.
 		switch {
 		case g.GetType() == "device":
-			t.Errorf("Audit: got[%v].Type = %v is the legacy, catch-all event type", i, g.GetType())
+			errorf("Audit: got[%v].Type = %v is the legacy, catch-all event type", i, g.GetType())
 		case !strings.HasPrefix(g.GetType(), "device."):
-			t.Errorf(`Audit: got[%v].Type = %v does not begin with "device.", it could be an event code instead`, i, g.GetType())
+			errorf(`Audit: got[%v].Type = %v does not begin with "device.", it could be an event code instead`, i, g.GetType())
 		}
 		if !strings.HasPrefix(g.GetCode(), "TV") {
-			t.Errorf(`Audit: got[%v].Code = %v does not begin with "TV", is it a device event?`, i, g.GetType())
+			errorf(`Audit: got[%v].Code = %v does not begin with "TV", is it a device event?`, i, g.GetType())
 		}
 
 		if g.GetType() != w.Type {
-			t.Errorf("Audit: event mismatch: got[%v].Type = %v, want %v", i, g.GetType(), w.Type)
+			errorf("Audit: event mismatch: got[%v].Type = %v, want %v", i, g.GetType(), w.Type)
 		}
 		if g.GetCode() != w.Code {
-			t.Errorf("Audit: event mismatch: got[%v].Code = %v, want %v", i, g.GetCode(), w.Code)
+			errorf("Audit: event mismatch: got[%v].Code = %v, want %v", i, g.GetCode(), w.Code)
 		}
 
 		devEvent, ok := g.(*apievents.DeviceEvent2)
 		switch {
 		case !ok:
-			t.Errorf("Audit: event mismatch: got[%v] is not a DeviceEvent: %T", i, devEvent)
+			errorf("Audit: event mismatch: got[%v] is not a DeviceEvent: %T", i, devEvent)
 		case devEvent.Success == w.WantFail:
-			t.Errorf("Audit: event mismatch: got[%v].Status.Success = %v, want %v", i, devEvent.Status.Success, !w.WantFail)
+			errorf("Audit: event mismatch: got[%v].Status.Success = %v, want %v", i, devEvent.Status.Success, !w.WantFail)
 		case gogoproto.Equal(&devEvent.UserMetadata, &apievents.UserMetadata{}):
-			t.Errorf("Audit: event mismatch: got[%v].User has no fields set", i)
+			errorf("Audit: event mismatch: got[%v].User has no fields set", i)
 		case !devEvent.Success:
 			// Abort here, failures can't always inform the device.
-			return
+			return passed
 		case devEvent.Device == nil:
-			t.Errorf("Audit: event mismatch: got[%v].Device=nil, want non-nil", i)
+			errorf("Audit: event mismatch: got[%v].Device=nil, want non-nil", i)
 		case devEvent.Device.DeviceId == "":
-			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId="", want non-empty`, i)
+			errorf(`Audit: event mismatch: got[%v].Device.DeviceId="", want non-empty`, i)
 		}
 	}
+	return passed
 }
 
 func TestService_deviceModeOff(t *testing.T) {
