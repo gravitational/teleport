@@ -50,6 +50,13 @@ will run:
 
 (!docs/pages/includes/provision-token/gcp-spec.mdx!)
 
+<Admonition type="warning" title="Security best practices for allow rules">
+Define allow rules as narrowly as possible. Avoid using wildcards for
+`project_ids`, `service_accounts`, or `locations` in production. Each allow rule
+should target a specific project, service account, and region combination to
+minimize the blast radius if a VM is compromised.
+</Admonition>
+
 Run the following command to create the token:
 
 ```code
@@ -74,11 +81,33 @@ Add the following Kubernetes resource manifest, replacing values as indicated:
 </TabItem>
 </Tabs>
 
+<Checkpoint>
+Verify the token was created:
+
+```code
+$ tctl tokens ls --format=text
+```
+
+You should see your `gcp-token` listed with join method `gcp`.
+</Checkpoint>
+
 ## Step 2/3. Install Teleport
 
 Install Teleport on your GCP Linux VM.
 
 (!docs/pages/includes/install-linux.mdx!)
+
+To discover the service account attached to your GCP VM (useful for verifying
+your token's allow rules), run the following on your workstation, replacing
+`INSTANCE_NAME` and `ZONE` with your VM's instance name and zone (both are
+visible in the GCP Console, or you can list them with `gcloud compute
+instances list`):
+
+```code
+$ gcloud compute instances describe INSTANCE_NAME \
+    --zone=ZONE \
+    --format="value(serviceAccounts.email)"
+```
 
 ## Step 3/3. Configure your services
 
@@ -112,3 +141,17 @@ process should be run directly on a GCP VM.
 
 1. Once you have started Teleport, confirm that your service is able to connect
    to and join your cluster.
+
+<Checkpoint>
+Verify the node has joined the cluster by running this on a machine with `tsh` access:
+
+```code
+$ tsh ls
+```
+
+You should see your GCP VM listed as a node. If the node does not appear, check the Teleport logs on the VM:
+
+```code
+$ sudo journalctl -u teleport --no-pager -n 50 | grep -i "join\|error\|token"
+```
+</Checkpoint>

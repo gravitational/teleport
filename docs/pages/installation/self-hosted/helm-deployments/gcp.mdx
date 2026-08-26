@@ -59,6 +59,23 @@ you'll need to configure a Google Cloud service account with permissions to use 
 
 ### Create an IAM role granting the `storage.buckets.create` permission
 
+<Tabs>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ gcloud iam roles create storage_bucket_creator_role \
+    --project=$(gcloud config get-value project) \
+    --title="Storage Bucket Creator" \
+    --description="Allows creation of storage buckets" \
+    --permissions=storage.buckets.create \
+    --stage=GA
+```
+
+</TabItem>
+<TabItem label="Console">
+
 Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
@@ -85,7 +102,27 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
    ![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
 
+</TabItem>
+</Tabs>
+
 ### Create an IAM role granting Cloud DNS permissions
+
+<Tabs>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ gcloud iam roles create dns_updater_role \
+    --project=$(gcloud config get-value project) \
+    --title="DNS Updater" \
+    --description="Allows updates to Cloud DNS records" \
+    --permissions=dns.resourceRecordSets.create,dns.resourceRecordSets.delete,dns.resourceRecordSets.list,dns.resourceRecordSets.update,dns.changes.create,dns.changes.get,dns.changes.list,dns.managedZones.list \
+    --stage=GA
+```
+
+</TabItem>
+<TabItem label="Console">
 
 Go to the "Roles" section of Google Cloud IAM & Admin.
 
@@ -120,6 +157,9 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
    ![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
 
+</TabItem>
+</Tabs>
+
 ### Create a service account for the Teleport Helm chart
 
 <Admonition type="note">
@@ -127,6 +167,42 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
  creation process and go to the ["Create the Kubernetes secret containing the JSON private key for the service account"](#create-the-kubernetes-secret-containing-the-json-private-key-for-the-service-account)
  section below.
 </Admonition>
+
+<Tabs>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ export GCP_PROJECT=$(gcloud config get-value project)
+
+# Create the service account
+$ gcloud iam service-accounts create teleport-helm \
+    --description="Service account for Teleport Helm chart" \
+    --display-name="Teleport Helm"
+
+$ export SA_EMAIL=teleport-helm@${GCP_PROJECT}.iam.gserviceaccount.com
+
+# Bind the required roles to the service account
+$ gcloud projects add-iam-policy-binding $GCP_PROJECT \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="projects/${GCP_PROJECT}/roles/storage_bucket_creator_role"
+
+$ gcloud projects add-iam-policy-binding $GCP_PROJECT \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="projects/${GCP_PROJECT}/roles/dns_updater_role"
+
+$ gcloud projects add-iam-policy-binding $GCP_PROJECT \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/datastore.owner"
+
+$ gcloud projects add-iam-policy-binding $GCP_PROJECT \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/storage.objectAdmin"
+```
+
+</TabItem>
+<TabItem label="Console">
 
 Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 
@@ -151,7 +227,28 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 
 4. Click the "continue" button to save these settings, then click the "create" button to create the service account.
 
+</TabItem>
+</Tabs>
+
 ### Generate an access key for the service account
+
+<Tabs>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ export GCP_PROJECT=$(gcloud config get-value project)
+$ export SA_EMAIL=teleport-helm@${GCP_PROJECT}.iam.gserviceaccount.com
+
+$ gcloud iam service-accounts keys create teleport-gcp-credentials.json \
+    --iam-account=$SA_EMAIL
+```
+
+The JSON private key will be saved to `teleport-gcp-credentials.json` in your current directory.
+
+</TabItem>
+<TabItem label="Console">
 
 Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 
@@ -167,6 +264,9 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
    as you will need it shortly.
 
    ![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
+
+</TabItem>
+</Tabs>
 
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
@@ -196,6 +296,34 @@ secret/teleport-gcp-credentials created
  The credentials file stored in any secret used must have the key name `gcp-credentials.json`.
 </Admonition>
 
+<Checkpoint>
+Verify the Kubernetes secret was created:
+
+```code
+$ kubectl --namespace teleport get secret teleport-gcp-credentials -o jsonpath='{.metadata.name}'
+```
+
+You should see `teleport-gcp-credentials` in the output.
+</Checkpoint>
+
+<Admonition type="warning" title="Delete the local key file once the Secret exists">
+The JSON key now lives inside your cluster as a Secret, and Kubernetes is
+where Teleport reads it from — the copy on your workstation (or wherever it
+was downloaded) is no longer needed. This key belongs to a service account
+holding `storage-bucket-creator-role`, `dns-updater-role`,
+`roles/datastore.owner`, and `roles/storage.objectAdmin`, so a leftover copy
+sitting in a home directory, backup, or accidentally committed to a repo
+gives an attacker write/delete access to your cluster state, session
+recordings, and DNS. Once the Checkpoint above confirms the Secret exists,
+delete the local file:
+
+```code
+$ rm teleport-gcp-credentials.json
+```
+
+(or the equivalent path if you used the Console download instead).
+</Admonition>
+
 ## Step 3/6. Install and configure cert-manager
 
 Reference the [cert-manager docs](https://cert-manager.io/docs/).
@@ -216,6 +344,16 @@ $ helm install cert-manager jetstack/cert-manager \
 --set global.leaderElection.namespace=cert-manager \
 --set installCRDs=true
 ```
+
+<Checkpoint>
+Verify cert-manager is running:
+
+```code
+$ kubectl --namespace cert-manager get pods
+```
+
+All cert-manager pods should show `Running` status with `1/1` ready.
+</Checkpoint>
 
 Once `cert-manager` is installed, you should create and add an `Issuer`.
 
@@ -290,6 +428,13 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
   and created a
   [Firestore Database](https://console.cloud.google.com/firestore/welcome)
   in your project before continuing.
+
+  You can enable the API and create the database from the CLI:
+
+  ```code
+  $ gcloud services enable firestore.googleapis.com --project=$(gcloud config get-value project)
+  $ gcloud firestore databases create --location=us-central1 --type=firestore-native --project=$(gcloud config get-value project)
+  ```
 </Admonition>
 
 Next, configure the `teleport-cluster` Helm chart to use the `gcp` mode. Create a
@@ -318,7 +463,6 @@ highAvailability:
 podSecurityPolicy:
   enabled: false
 ```
-
 </TabItem>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
@@ -355,6 +499,20 @@ $ helm install teleport teleport/teleport-cluster \
 <Admonition type="note">
   You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. We recommend using the fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
+
+<Checkpoint>
+Verify the Helm installation succeeded and pods are running:
+
+```code
+$ kubectl --namespace teleport get pods
+```
+
+You should see auth and proxy pods in `Running` state. If pods are in `CrashLoopBackOff` or `Error` state, check logs:
+
+```code
+$ kubectl --namespace teleport logs deploy/teleport-auth --tail=50
+```
+</Checkpoint>
 
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
@@ -395,6 +553,9 @@ You'll need to set up a DNS `A` record for `teleport.example.com`.
 
 Here's how to do this using Google Cloud DNS:
 
+<Tabs>
+<TabItem label="gcloud CLI (transaction)">
+
 ```code
 # Change these parameters if you altered them above
 $ NAMESPACE=teleport
@@ -410,6 +571,52 @@ $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30
 $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```
+
+</TabItem>
+<TabItem label="gcloud CLI (direct)">
+
+```code
+# Change these parameters if you altered them above
+$ NAMESPACE=teleport
+$ RELEASE_NAME=teleport
+
+$ MYIP=$(kubectl --namespace ${NAMESPACE?} get service/${RELEASE_NAME?} -o jsonpath='{.status.loadBalancer.ingress[*].ip}')
+$ MYZONE="myzone"
+$ MYDNS="teleport.example.com"
+
+# Create the A record for the cluster domain
+$ gcloud dns record-sets create "${MYDNS}." \
+    --zone="${MYZONE}" \
+    --type="A" \
+    --ttl="300" \
+    --rrdatas="${MYIP}"
+
+# Create the wildcard A record for application access
+$ gcloud dns record-sets create "*.${MYDNS}." \
+    --zone="${MYZONE}" \
+    --type="A" \
+    --ttl="300" \
+    --rrdatas="${MYIP}"
+```
+
+</TabItem>
+</Tabs>
+
+<Checkpoint>
+Verify DNS records were created and resolve correctly:
+
+```code
+$ gcloud dns record-sets list --zone="${MYZONE}" --filter="name=${MYDNS}."
+```
+
+You should see an A record pointing to your load balancer IP. You can also verify DNS resolution:
+
+```code
+$ dig +short ${MYDNS}
+```
+
+This should return the external IP of your load balancer.
+</Checkpoint>
 
 ## Step 6/6. Create a Teleport user
 
@@ -441,6 +648,16 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users c
 </Tabs>
 
 Load the user creation link to create a password and set up multi-factor authentication for the Teleport user via the web UI.
+
+<Checkpoint>
+Verify the cluster is fully operational:
+
+```code
+$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl status
+```
+
+You should see the cluster name, version, and CA pin displayed without errors.
+</Checkpoint>
 
 ### High Availability
 
@@ -510,4 +727,3 @@ Access](../../../zero-trust-access/authentication/authentication.mdx) section to
 users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../../reference/helm-reference/teleport-cluster.mdx) for more details on high availability.
-

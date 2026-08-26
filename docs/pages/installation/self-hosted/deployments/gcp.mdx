@@ -26,8 +26,10 @@ This guide will cover how to set up, configure and run Teleport on GCP.
 
 The following GCP Services are required to run Teleport in high availability mode:
 
-- [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
+- [Access: Service accounts](#access-service-accounts)
 - [Compute Engine: Health Checks](#compute-engine-health-checks)
+- [Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
+- [Network Services: Firewall Rules](#network-services-firewall-rules)
 - [Storage: Cloud Firestore](#storage-cloud-firestore)
 - [Storage: Google Cloud Storage](#storage-google-cloud-storage)
 - [Network Services: Load Balancing](#network-services-load-balancing)
@@ -59,78 +61,18 @@ Please replace them with values appropriate for your environment.
 | `Example_FIRESTORE_AUDIT_LOGS` | teleport-audit-logs | Name of the Firestore collection for Teleport audit logs |
 | `Example_BUCKET_NAME` | teleport-session-recordings | Name of the GCS bucket for session recording storage |
 
-### Compute Engine: VM Instances with Instance Groups
+To discover your current GCP project ID, run:
 
-We recommend using `n1-standard-2` instances in production. It's best to separate
-Teleport Proxy Service and Auth Service instances using instance groups for each.
-
-### Compute Engine: Health Checks
-
-GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
-this is helpful when adding new instances to an instance group.
-
-To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagnostics/troubleshooting.mdx) for more information.
-
-### Storage: Cloud Firestore
-
-The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
-updates to keep individual Auth Service instances in sync, and requires Firestore configured
-in native mode.
-
-To configure Teleport to store audit events in Firestore, add the following to
-the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
-
-```yaml
-teleport:
-  storage:
-    type: firestore
-    collection_name: Example_FIRESTORE_CLUSTER_STATE
-    project_id: Example_GCP_PROJECT
-    credentials_path: Example_GCP_CREDENTIALS
-    audit_events_uri: [ 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS' ]
+```code
+$ gcloud config get-value project
 ```
-
-<Admonition type="warning" title="Table Names">
-Be careful to ensure that `Example_FIRESTORE_CLUSTER_STATE` and `Example_FIRESTORE_AUDIT_LOGS`
-refer to *different* Firestore collections. The schema is different for each, and using the same
-collection for both types of data will result in errors.
-</Admonition>
-
-### Storage: Google Cloud Storage
-
-The Google Cloud Storage backend is used for Teleport session recordings.
-Teleport will try to create the bucket on startup if it doesn't already exist.
-If you prefer, you can create the bucket ahead of time. In this case, Teleport
-does not need permissions to create buckets.
-
-When creating the Bucket, we recommend setting it up as `Dual-region` with
-the `Standard` storage class. Provide access using a `Uniform` access control
-with a Google-managed key.
-
-When setting up `audit_sessions_uri` use the `gs://` prefix.
-
-```yaml
-storage:
-    ...
-    audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
-    ...
-```
-
-### Network Services: Load Balancing
-
-Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
-Teleport requires custom ports for SSH and Web Traffic.
-
-### Network Services: Cloud DNS
-
-Cloud DNS is used to set up the public URL of the Teleport Proxy.
 
 ### Access: Service accounts
 
 The Teleport Auth Service will need to read and write to Firestore and
-Google Cloud Storage. For this you will need a Service Account with the
-correct permissions.
+Google Cloud Storage, and your Compute Engine instances will need this
+service account attached to them. For this you will need a Service Account
+with the correct permissions, created before any other GCP resources below.
 
 If you want Teleport to be able to create its own GCS bucket, you'll need to
 create a role allowing the `storage.buckets.create` permission. You can skip
@@ -148,6 +90,8 @@ includedPermissions:
 # recordings if it doesn't already exist.
 - storage.buckets.create
 ```
+
+**Run on your workstation:**
 
 Create the role using this file:
 
@@ -203,12 +147,648 @@ $ gcloud projects add-iam-policy-binding Example_GCP_PROJECT \
     --role=roles/storage.objectAdmin
 ```
 
-**Download JSON Service Key**
+<Checkpoint>
+Verify the service account has the correct roles:
 
-The credentials for this service account should be exported in JSON format
-and provided to Teleport throughout the remainder of this guide.
+```code
+$ gcloud projects get-iam-policy Example_GCP_PROJECT \
+    --flatten="bindings[].members" \
+    --filter="bindings.members:serviceAccount:$SERVICE_ACCOUNT" \
+    --format="table(bindings.role)"
+```
+
+You should see the custom IAM role, `roles/datastore.owner`, and `roles/storage.objectAdmin` listed.
+</Checkpoint>
+
+**Credentials for the Auth Service**
+
+If your Auth Service runs on the GCE VM template created in the next section
+(with `$SERVICE_ACCOUNT` attached via `--service-account`), Teleport
+automatically picks up Application Default Credentials from the instance's
+attached identity — **you can skip downloading a JSON key entirely**, and omit
+`credentials_path` from the `storage` config shown later in this guide.
+
+<Admonition type="tip" title="When you do need a JSON key">
+Only follow the steps below if your Auth Service runs somewhere that can't
+have a GCP service account attached directly — for example on-prem, or on
+another cloud provider.
+</Admonition>
+
+<Tabs>
+<TabItem label="Console">
 
 ![GCP Service Key](../../../../img/gcp/gcp-service-key.png)
+
+</TabItem>
+<TabItem label="gcloud CLI">
+
+**Run on your workstation:**
+
+```code
+$ gcloud iam service-accounts keys create teleport-gcp-credentials.json \
+    --iam-account=$SERVICE_ACCOUNT
+```
+
+This downloads the key to your workstation, not to the Auth Service host.
+Securely copy it to each Auth Service instance — for example with
+`gcloud compute scp` — to the path you'll reference as `credentials_path`
+(`Example_GCP_CREDENTIALS`), then restrict its permissions on that host:
+
+```code
+$ gcloud compute scp teleport-gcp-credentials.json INSTANCE_NAME:/tmp/google.json --zone=ZONE
+$ gcloud compute ssh INSTANCE_NAME --zone=ZONE --command="sudo mkdir -p /var/lib/teleport && sudo mv /tmp/google.json /var/lib/teleport/google.json && sudo chown root:root /var/lib/teleport/google.json && sudo chmod 600 /var/lib/teleport/google.json"
+```
+
+Delete the local copy once it's been distributed to every Auth Service host.
+
+</TabItem>
+</Tabs>
+
+<Admonition type="warning" title="Use a separate, least-privileged identity for the Proxy Service">
+`$SERVICE_ACCOUNT` above (`teleport-auth-server`) holds `roles/datastore.owner`
+and `roles/storage.objectAdmin` — broad read/write/delete access to your
+cluster's backend state, audit log, and session recordings. The Proxy Service
+is internet-facing and doesn't need any of that access, so attach a separate
+service account to Proxy VMs instead of reusing the Auth identity. This limits
+the blast radius if a Proxy VM is ever compromised.
+
+```code
+$ gcloud iam service-accounts create teleport-proxy-server \
+    --description="Service account for Teleport Proxy Service" \
+    --display-name="Teleport Proxy Service" \
+    --format=yaml
+
+$ export PROXY_SERVICE_ACCOUNT=<email output from above command>
+```
+
+No project IAM roles need to be bound to this service account — the Proxy
+Service reaches the Auth Service over the network rather than accessing
+Firestore or Cloud Storage directly.
+</Admonition>
+
+### Compute Engine: Health Checks
+
+GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
+this is helpful when adding new instances to an instance group.
+
+To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
+see  [Admin Guide: Troubleshooting](../../../zero-trust-access/management/diagnostics/troubleshooting.mdx) for more information.
+
+**Run on your workstation:**
+
+```code
+$ gcloud compute health-checks create http teleport-auth-healthcheck \
+    --region=us-central1 \
+    --port=3000 \
+    --request-path=/readyz \
+    --check-interval=10s \
+    --timeout=5s \
+    --unhealthy-threshold=3 \
+    --healthy-threshold=2
+```
+
+<Admonition type="note" title="Why this health check is regional">
+The internal load balancer for the Auth Service (below) uses a regional
+`INTERNAL`-scheme backend service, which needs a health check in the same
+region — a global health check would require an extra
+`--global-health-checks` flag on the backend service instead, so creating it
+regional here is simpler and matches the region used throughout this guide.
+</Admonition>
+
+<Admonition type="warning" title="Target pools require a legacy HTTP health check">
+The Proxy load balancer later in this guide uses a target pool
+(`gcloud compute target-pools`), and target pools can only reference the
+older, deprecated `http-health-checks` resource type — not the modern
+`health-checks` resource created above. Create the Proxy health check with
+the legacy command instead:
+
+```code
+$ gcloud compute http-health-checks create teleport-proxy-healthcheck \
+    --port=3000 \
+    --request-path=/readyz \
+    --check-interval=10s \
+    --timeout=5s \
+    --unhealthy-threshold=3 \
+    --healthy-threshold=2
+```
+</Admonition>
+
+<Admonition type="note">
+Create a separate health check for each instance group. Auth and Proxy
+Service instances run on different hosts, so pointing a Proxy backend at the
+Auth health check (or vice versa) will cause health checks to fail even when
+the service is healthy.
+</Admonition>
+
+<Checkpoint>
+Verify the health checks were created:
+
+```code
+$ gcloud compute health-checks list --regions=us-central1 --format="value(name, type)"
+$ gcloud compute http-health-checks list --format="value(name, port)"
+```
+
+You should see `teleport-auth-healthcheck` in the first list and
+`teleport-proxy-healthcheck` in the second — they're different resource types.
+</Checkpoint>
+
+### Compute Engine: VM Instances with Instance Groups
+
+We recommend using `n1-standard-2` instances in production. It's best to separate
+Teleport Proxy Service and Auth Service instances using instance groups for each.
+
+<Admonition type="note" title="Distribute across zones for high availability">
+Creating a zonal instance group puts every replica in a single zone, which
+means a zone outage takes down the whole group. Use **regional** managed
+instance groups instead, spreading replicas across multiple zones in the
+region, so a single zone failure doesn't remove every Auth or Proxy replica.
+</Admonition>
+
+<Admonition type="warning" title="Provision Teleport in the instance template, not manually after boot">
+These instance templates boot a bare Ubuntu image. If you configure Teleport
+by hand on the first VMs and stop there, the template itself is still blank —
+so the next time the managed instance group repairs an unhealthy instance or
+resizes the group, it creates a fresh VM from the unmodified template with no
+Teleport installed. That silently drops your replica count and defeats the
+purpose of using instance groups for HA. Bake installation and configuration
+into a startup script (or a custom image) so every VM the group creates is
+already running Teleport.
+
+Save the following as `teleport-auth-startup.sh`. Note `diag_addr` — this is
+what makes the health check above actually see a live endpoint on port 3000;
+without it Teleport's diagnostics listener stays disabled and every health
+check fails even though Teleport itself is running fine.
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+curl https://goteleport.com/static/install.sh | bash -s -- (=teleport.version=)
+
+cat <<'EOF' > /etc/teleport.yaml
+version: v3
+teleport:
+  nodename: teleport-auth-server
+  data_dir: /var/lib/teleport
+  pid_file: /run/teleport.pid
+  diag_addr: 0.0.0.0:3000
+  log:
+    output: stderr
+    severity: DEBUG
+  storage:
+    type: firestore
+    collection_name: Example_FIRESTORE_CLUSTER_STATE
+    project_id: Example_GCP_PROJECT
+    audit_events_uri: 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT'
+    audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT'
+auth_service:
+  enabled: true
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+EOF
+
+systemctl enable teleport
+systemctl restart teleport
+```
+
+<Admonition type="warning" title="Don't embed static join tokens in instance metadata">
+An earlier version of this script set static `proxy:`/`node:` tokens under
+`auth_service.tokens`. Since `--metadata-from-file=startup-script=...`
+uploads this script verbatim into the instance template, anyone with read
+access to the template or a VM's metadata could recover those non-expiring
+tokens and enroll an unauthorized Teleport service — so this version omits
+them entirely.
+
+Instead, since the Proxy and Node instances already have dedicated GCP
+service accounts, use the **GCP join method** — the same approach covered in
+[Join Services with GCP](../agents/gcp.mdx), scoped by service account rather
+than a shared secret. We will create a dynamic join token for this on an Auth VM
+once the instances are provisioned.
+
+Reference `teleport-proxy-token` (not a static secret) in
+`teleport-proxy-startup.sh` below.
+</Admonition>
+
+<Admonition type="warning" title="Don't rely on built-in ACME with multiple Proxy replicas">
+The Proxy `teleport.yaml` sample in [GCP Quickstart](#2-install--configure-teleport)
+enables Teleport's built-in ACME support (`acme.enabled: true`), which is
+[only supported for a single Proxy replica](../../../reference/helm-reference/teleport-cluster.mdx).
+Behind the passthrough load balancer set up in this guide, the ACME HTTP-01
+challenge can land on a different Proxy than the one that requested it, and
+certificates aren't shared between replicas — so issuance and renewal become
+unreliable with 2+ replicas. Use a single certificate obtained once (for
+example via a one-off `certbot` DNS-01 run, or a purchased certificate) for
+`teleport.example.com`, store it in Secret Manager, and have every Proxy VM
+fetch it at boot instead of requesting its own:
+
+```code
+# Run once, from your workstation, after obtaining fullchain.pem and privkey.pem
+$ gcloud secrets create teleport-proxy-cert --data-file=fullchain.pem
+$ gcloud secrets create teleport-proxy-key --data-file=privkey.pem
+
+$ gcloud secrets add-iam-policy-binding teleport-proxy-cert \
+    --member="serviceAccount:$PROXY_SERVICE_ACCOUNT" \
+    --role="roles/secretmanager.secretAccessor"
+$ gcloud secrets add-iam-policy-binding teleport-proxy-key \
+    --member="serviceAccount:$PROXY_SERVICE_ACCOUNT" \
+    --role="roles/secretmanager.secretAccessor"
+```
+
+In `teleport-proxy-startup.sh`, fetch the secrets before starting Teleport,
+and replace `acme` with `https_keypairs` in the Proxy config:
+
+```bash
+# Install dependencies and Google Cloud CLI
+apt-get update
+apt-get install -y apt-transport-https ca-certificates gnupg curl
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+apt-get update && apt-get install -y google-cloud-cli
+
+# Retrieve certificates from Secret Manager
+mkdir -p /var/lib/teleport
+gcloud secrets versions access latest --secret=teleport-proxy-cert > /var/lib/teleport/fullchain.pem
+gcloud secrets versions access latest --secret=teleport-proxy-key > /var/lib/teleport/privkey.pem
+chmod 600 /var/lib/teleport/privkey.pem
+```
+
+```yaml
+proxy_service:
+  enabled: true
+  web_listen_addr: 0.0.0.0:443
+  public_addr: teleport.example.com:443
+  https_keypairs:
+    - key_file: /var/lib/teleport/privkey.pem
+      cert_file: /var/lib/teleport/fullchain.pem
+```
+
+Renew the certificate (out-of-band, before it expires) by updating the Secret
+Manager versions — new Proxy VMs pick up the latest version automatically on
+boot, but running instances need a rolling restart to reload it.
+</Admonition>
+
+Save an equivalent `teleport-proxy-startup.sh` using the Proxy `teleport.yaml`
+shown in [GCP Quickstart](#2-install--configure-teleport), with the same
+`diag_addr: 0.0.0.0:3000` line added, `acme` replaced with `https_keypairs` as
+shown above, and `auth_server` set to
+`$AUTH_LB_IP:3025` (the internal load balancer created below — do **not** use
+the placeholder `auth.example.com` from that sample as-is, since this guide
+never creates a DNS record or public endpoint for it). Replace the sample's
+`auth_token: (= presets.tokens.first =)` line with:
+
+```yaml
+join_params:
+  token_name: teleport-proxy-token
+  method: gcp
+```
+
+Since the storage
+config above omits `credentials_path`, it relies on the attached service
+account for Application Default Credentials — see the note on this in
+[Access: Service accounts](#access-service-accounts).
+</Admonition>
+
+**Run on your workstation:**
+
+```code
+$ gcloud compute instance-templates create teleport-auth-template \
+    --machine-type=n1-standard-2 \
+    --image-family=ubuntu-2204-lts \
+    --image-project=ubuntu-os-cloud \
+    --boot-disk-size=20GB \
+    --service-account=$SERVICE_ACCOUNT \
+    --scopes=cloud-platform \
+    --tags=teleport-auth \
+    --metadata-from-file=startup-script=teleport-auth-startup.sh
+
+$ gcloud compute instance-groups managed create teleport-auth-group \
+    --template=teleport-auth-template \
+    --size=2 \
+    --region=us-central1 \
+    --zones=us-central1-a,us-central1-b,us-central1-c
+```
+
+<Admonition type="warning" title="Give the Proxy Service a reachable Auth endpoint">
+The Proxy config later in this guide points `auth_server` at
+`auth.example.com:3025`, but nothing in this guide creates that DNS record,
+an Auth-facing load balancer, or a firewall rule allowing port 3025 traffic —
+so a freshly provisioned Proxy has no way to reach Auth and can't join.
+Set up an **internal** passthrough load balancer in front of the Auth group
+before creating the Proxy template:
+
+```code
+$ gcloud compute backend-services create teleport-auth-backend \
+    --region=us-central1 \
+    --load-balancing-scheme=INTERNAL \
+    --protocol=TCP \
+    --health-checks=teleport-auth-healthcheck \
+    --health-checks-region=us-central1
+
+$ gcloud compute backend-services add-backend teleport-auth-backend \
+    --region=us-central1 \
+    --instance-group=teleport-auth-group \
+    --instance-group-region=us-central1
+
+$ gcloud compute forwarding-rules create teleport-auth-internal-lb \
+    --region=us-central1 \
+    --load-balancing-scheme=INTERNAL \
+    --network=default \
+    --subnet=default \
+    --ports=3025 \
+    --backend-service=teleport-auth-backend
+
+$ export AUTH_LB_IP=$(gcloud compute forwarding-rules describe teleport-auth-internal-lb --region=us-central1 --format="value(IPAddress)")
+```
+
+This uses the `default` VPC network and subnet — substitute your own if
+you're not using GCP's default network. Use `$AUTH_LB_IP` (not
+`auth.example.com`) as the `auth_server` value in `teleport-proxy-startup.sh`.
+</Admonition>
+
+<Admonition type="note" title="Bootstrap the Proxy join token">
+Now that the Auth instances are created, create the dynamic join token directly on one of the new Auth VMs:
+
+```code
+$ gcloud compute ssh $(gcloud compute instances list --filter="tags.items=teleport-auth" --format="value(name)" | head -n1) \
+    --zone=us-central1-a \
+    --command="cat << 'EOF' > /tmp/proxy-token.yaml
+kind: token
+version: v2
+metadata:
+  name: teleport-proxy-token
+  expires: '2038-01-01T00:00:00Z'
+spec:
+  roles: [Proxy]
+  join_method: gcp
+  gcp:
+    allow:
+      - project_ids: ['Example_GCP_PROJECT']
+        service_accounts: ['teleport-proxy-server@Example_GCP_PROJECT.iam.gserviceaccount.com']
+EOF
+sudo tctl create -f /tmp/proxy-token.yaml && rm /tmp/proxy-token.yaml"
+```
+</Admonition>
+
+```code
+$ gcloud compute instance-templates create teleport-proxy-template \
+    --machine-type=n1-standard-2 \
+    --image-family=ubuntu-2204-lts \
+    --image-project=ubuntu-os-cloud \
+    --boot-disk-size=20GB \
+    --service-account=$PROXY_SERVICE_ACCOUNT \
+    --scopes=cloud-platform \
+    --tags=teleport-proxy \
+    --metadata-from-file=startup-script=teleport-proxy-startup.sh
+
+$ gcloud compute instance-groups managed create teleport-proxy-group \
+    --template=teleport-proxy-template \
+    --size=2 \
+    --region=us-central1 \
+    --zones=us-central1-a,us-central1-b,us-central1-c
+```
+
+### Network Services: Firewall Rules
+
+GCP denies all ingress traffic by default outside of a few built-in rules
+(SSH, RDP, ICMP on the `default` network). Without explicit firewall rules,
+GCP's health check probes can't reach your instances — leaving every backend
+`UNHEALTHY` — and client traffic to the Proxy is dropped entirely.
+
+**Run on your workstation:**
+
+```code
+# Allow GCP's health check probes to reach the diagnostics port on Auth and
+# Proxy instances (and the internal Auth load balancer). These are Google's
+# documented health-checker ranges.
+$ gcloud compute firewall-rules create teleport-allow-health-checks \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:3000 \
+    --source-ranges=130.211.0.0/22,35.191.0.0/16 \
+    --target-tags=teleport-auth,teleport-proxy
+
+# Allow client traffic to reach the Proxy on its public ports. Narrow
+# --source-ranges to your known client CIDRs where possible instead of
+# opening it to the internet. Port 3025 (the Auth Service's own port) is
+# deliberately not included here — Proxy instances don't listen on it, and
+# it shouldn't be reachable from the public internet.
+$ gcloud compute firewall-rules create teleport-allow-proxy-clients \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:443,tcp:3023,tcp:3024,tcp:3026,tcp:3036 \
+    --source-ranges=0.0.0.0/0 \
+    --target-tags=teleport-proxy
+
+# Allow Proxy instances to reach the Auth Service internally on 3025.
+# Scoped to traffic that originates from tagged Proxy instances only, not
+# the public internet.
+$ gcloud compute firewall-rules create teleport-allow-proxy-to-auth \
+    --direction=INGRESS \
+    --action=ALLOW \
+    --rules=tcp:3025 \
+    --source-tags=teleport-proxy \
+    --target-tags=teleport-auth
+```
+
+<Checkpoint>
+Verify the firewall rules were created:
+
+```code
+$ gcloud compute firewall-rules list --filter="name~teleport-allow" --format="table(name, sourceRanges.list(), allowed[].map().firewall_rule().list())"
+```
+
+You should see all three rules listed with the expected source ranges and ports.
+Once instances are running, confirm health checks are passing with
+`gcloud compute target-pools get-health teleport-proxy-pool --region=us-central1`
+(covered in [Network Services: Load Balancing](#network-services-load-balancing)).
+</Checkpoint>
+
+### Storage: Cloud Firestore
+
+The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
+updates to keep individual Auth Service instances in sync, and requires Firestore configured
+in native mode.
+
+**Run on your workstation to create a Firestore database in native mode:**
+
+```code
+$ gcloud firestore databases create \
+    --location=us-central1 \
+    --type=firestore-native \
+    --project=Example_GCP_PROJECT
+```
+
+To configure Teleport to store audit events in Firestore, add the following to
+the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
+
+```yaml
+teleport:
+  storage:
+    type: firestore
+    collection_name: Example_FIRESTORE_CLUSTER_STATE
+    project_id: Example_GCP_PROJECT
+    credentials_path: Example_GCP_CREDENTIALS
+    audit_events_uri: [ 'firestore://Example_FIRESTORE_AUDIT_LOGS?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS' ]
+```
+
+<Admonition type="tip">
+Omit `credentials_path` (and `credentialsPath` in the URIs) entirely if your
+Auth Service runs on a GCE VM with `$SERVICE_ACCOUNT` attached — Teleport will
+use Application Default Credentials automatically. See
+[Access: Service accounts](#access-service-accounts) for details.
+</Admonition>
+
+<Admonition type="warning" title="Table Names">
+Be careful to ensure that `Example_FIRESTORE_CLUSTER_STATE` and `Example_FIRESTORE_AUDIT_LOGS`
+refer to *different* Firestore collections. The schema is different for each, and using the same
+collection for both types of data will result in errors.
+</Admonition>
+
+<Checkpoint>
+Verify Firestore is available:
+
+```code
+$ gcloud firestore databases describe --project=Example_GCP_PROJECT --format="value(name, type)"
+```
+
+You should see a database name and the type `FIRESTORE_NATIVE`.
+</Checkpoint>
+
+### Storage: Google Cloud Storage
+
+The Google Cloud Storage backend is used for Teleport session recordings.
+Teleport will try to create the bucket on startup if it doesn't already exist.
+If you prefer, you can create the bucket ahead of time. In this case, Teleport
+does not need permissions to create buckets.
+
+**Run on your workstation to create the bucket:**
+
+```code
+$ gcloud storage buckets create gs://Example_BUCKET_NAME \
+    --project=Example_GCP_PROJECT \
+    --location=us-central1 \
+    --default-storage-class=Standard \
+    --uniform-bucket-level-access
+```
+
+When creating the Bucket, we recommend setting it up as `Dual-region` with
+the `Standard` storage class. Provide access using a `Uniform` access control
+with a Google-managed key.
+
+When setting up `audit_sessions_uri` use the `gs://` prefix.
+
+```yaml
+storage:
+    ...
+    audit_sessions_uri: 'gs://Example_BUCKET_NAME?projectID=Example_GCP_PROJECT&credentialsPath=Example_GCP_CREDENTIALS'
+    ...
+```
+
+<Checkpoint>
+Verify the bucket was created:
+
+```code
+$ gcloud storage buckets describe gs://Example_BUCKET_NAME --format="value(name, location)"
+```
+
+You should see your bucket name and its location.
+</Checkpoint>
+
+### Network Services: Load Balancing
+
+Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
+Teleport requires custom ports for SSH and Web Traffic.
+
+<Admonition type="warning" title="Use passthrough Network Load Balancing, not TCP Proxy Load Balancing">
+GCP's Target TCP Proxy load balancer (`gcloud compute target-tcp-proxies`) only
+forwards traffic on a small fixed set of ports (25, 43, 110, 143, 195, 443,
+465, 587, 700, 993, 995, 1883, and 5222) — it does not support Teleport's
+ports (443, 3023, 3024, 3026, 3036). Use a regional external passthrough
+**Network** Load Balancer instead, which supports any combination of ports.
+</Admonition>
+
+**Run on your workstation:**
+
+```code
+$ gcloud compute target-pools create teleport-proxy-pool \
+    --region=us-central1 \
+    --health-check=teleport-proxy-healthcheck
+
+$ gcloud compute instance-groups managed set-target-pools teleport-proxy-group \
+    --target-pools=teleport-proxy-pool \
+    --region=us-central1
+
+$ gcloud compute addresses create teleport-lb-ip \
+    --region=us-central1
+
+$ export LB_IP=$(gcloud compute addresses describe teleport-lb-ip --region=us-central1 --format="value(address)")
+
+$ gcloud compute forwarding-rules create teleport-forwarding-rule \
+    --region=us-central1 \
+    --address=$LB_IP \
+    --ip-protocol=TCP \
+    --ports=443,3023,3024,3026,3036 \
+    --target-pool=teleport-proxy-pool
+```
+
+<Admonition type="note">
+Port 3025 (the Auth Service's own port) is intentionally excluded here —
+Proxy instances don't serve it, and Proxy-to-Auth traffic goes over the
+internal load balancer set up in
+[Compute Engine: VM Instances with Instance Groups](#compute-engine-vm-instances-with-instance-groups)
+instead.
+</Admonition>
+
+<Admonition type="note">
+Reserving a static external IP address (`teleport-lb-ip` above) before creating
+the forwarding rule means your Teleport Proxy's public address won't change if
+you ever need to recreate the forwarding rule. If you're fine with an
+ephemeral address instead, you can omit the `addresses create` step and the
+`--address` flag.
+</Admonition>
+
+<Admonition type="tip">
+The `--ports` list above has six entries. GCP's five-port cap on forwarding
+rules applies only to *internal* passthrough load balancers — a target
+pool-based regional *external* passthrough Network Load Balancer (used here)
+supports any number of ports, so this is not a limit you need to work around.
+</Admonition>
+
+<Checkpoint>
+Verify the load balancer was created and its target pool has healthy members:
+
+```code
+$ gcloud compute forwarding-rules describe teleport-forwarding-rule --region=us-central1 --format="value(IPAddress)"
+$ gcloud compute target-pools get-health teleport-proxy-pool --region=us-central1
+```
+
+The first command should return the same IP as `$LB_IP`. The second should show `HEALTHY` for each Proxy instance — if an instance shows `UNHEALTHY`, confirm Teleport is running with `--diag-addr=0.0.0.0:3000` on that host.
+</Checkpoint>
+
+### Network Services: Cloud DNS
+
+Cloud DNS is used to set up the public URL of the Teleport Proxy.
+
+**Run on your workstation:**
+
+```code
+# Create a DNS managed zone (if you don't already have one)
+$ gcloud dns managed-zones create teleport-zone \
+    --dns-name="example.com." \
+    --description="DNS zone for Teleport"
+
+# Re-fetch the reserved load balancer IP if you're in a new shell session
+$ export LB_IP=$(gcloud compute addresses describe teleport-lb-ip --region=us-central1 --format="value(address)")
+
+# Create an A record pointing to the load balancer
+$ gcloud dns record-sets create teleport.example.com. \
+    --zone=teleport-zone \
+    --type=A \
+    --ttl=300 \
+    --rrdatas=$LB_IP
+```
 
 ## GCP Quickstart
 
@@ -216,6 +796,23 @@ and provided to Teleport throughout the remainder of this guide.
 
 We recommend starting by creating the resources. We highly recommend creating these using
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
+
+<Checkpoint>
+Verify all required GCP resources are ready before proceeding:
+
+```code
+# Verify Firestore database exists
+$ gcloud firestore databases describe --project=Example_GCP_PROJECT --format="value(type)"
+
+# Verify GCS bucket exists
+$ gcloud storage buckets describe gs://Example_BUCKET_NAME --format="value(name)"
+
+# Verify service account exists
+$ gcloud iam service-accounts describe $SERVICE_ACCOUNT --format="value(email)"
+```
+
+All three commands should return valid output without errors.
+</Checkpoint>
 
 ### 2. Install & Configure Teleport
 
@@ -312,8 +909,14 @@ version: v3
 teleport:
   auth_token: (= presets.tokens.first =)
   # We recommend using a TCP load balancer pointed to the auth servers when
-  # setting up in High Availability mode.
+  # setting up in High Availability mode. Replace auth.example.com with the
+  # address of that load balancer (if following the HA instance-group setup
+  # above, this is $AUTH_LB_IP from the internal load balancer) — this
+  # placeholder alone does not resolve to anything.
   auth_server: auth.example.com:3025
+  # Uncomment to enable the diagnostics endpoint the Proxy health check
+  # (Compute Engine: Health Checks) probes:
+  # diag_addr: 0.0.0.0:3000
 # enable proxy service, disable auth and ssh
 ssh_service:
   enabled: false
@@ -350,7 +953,27 @@ proxy_service:
   enabled: false
 ```
 
-**4. Add Users**
+**4. Start services and verify**
+
+**Run on each Teleport host:**
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+$ sudo systemctl status teleport
+```
+
+<Checkpoint>
+Verify the Teleport Auth Service is running and connected to its backend:
+
+```code
+$ sudo journalctl -u teleport --no-pager -n 20 | grep -i "started\|error\|firestore"
+```
+
+You should see log lines indicating the Auth Service has started and connected to Firestore without errors.
+</Checkpoint>
+
+**5. Add Users**
 
 Follow our [Local Users](../../../zero-trust-access/rbac-get-started/users.mdx) guide or integrate
 with [Google Workspace](../../../zero-trust-access/sso/integrate-idp/google-workspace.mdx) to

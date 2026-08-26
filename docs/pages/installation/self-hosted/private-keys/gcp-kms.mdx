@@ -54,6 +54,8 @@ Choose a supported
 [KMS location](https://cloud.google.com/kms/docs/locations)
 for the key ring which is geographically near to your Teleport Auth Service instances.
 
+**Run on your workstation:**
+
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
 [this guide](https://cloud.google.com/kms/docs/creating-asymmetric-keys#create_a_key_ring)
@@ -62,6 +64,22 @@ or run the following command if you have the `gcloud` CLI configured:
 ```code
 $ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name for your teleport-specific keyring"/>" --location <Var name="location" description="The GCP location for your Teleport keyring"/>
 ```
+
+To discover available KMS locations, run:
+
+```code
+$ gcloud kms locations list --format="value(locationId)"
+```
+
+<Checkpoint>
+Verify the key ring was created:
+
+```code
+$ gcloud kms keyrings describe "<Var name="teleport-keyring"/>" --location <Var name="location"/> --format="value(name)"
+```
+
+You should see the fully qualified key ring name in the output (e.g., `projects/my-project/locations/us-east1/keyRings/teleport-keyring`).
+</Checkpoint>
 
 ## Step 2/5. Create a GCP service account
 
@@ -82,6 +100,8 @@ includedPermissions:
 - cloudkms.cryptoKeyVersions.useToDecrypt
 - cloudkms.cryptoKeyVersions.viewPublicKey
 ```
+
+**Run on your workstation:**
 
 Create the role, assigning <Var name="GCP-Project-ID" /> to your Google Cloud project ID:
 
@@ -134,6 +154,18 @@ It should be considered highly privileged and access should be restricted as
 much as possible.
 </Admonition>
 
+<Checkpoint>
+Verify the IAM policy binding was applied:
+
+```code
+$ gcloud kms keyrings get-iam-policy <Var name="teleport-keyring"/> \
+    --location <Var name="location"/> \
+    --format="table(bindings.role, bindings.members)"
+```
+
+You should see your custom role bound to the `teleport-auth-server` service account.
+</Checkpoint>
+
 ## Step 3/5. Provide the service account credentials to the Auth Service
 
 The Teleport Auth Service will use Application Default Credentials to make
@@ -146,6 +178,29 @@ Supported environments include GCE VMs, GKE pods, and others.
 See the GCP docs for
 [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 to learn how to provide them for your preferred environment.
+
+<Admonition type="tip" title="Using a GCE VM">
+If your Teleport Auth Service runs on a GCE VM, you can attach the service account directly to the VM instance instead of using a JSON key file. Replace `INSTANCE_NAME` and `ZONE` with your VM's instance name and zone:
+
+```code
+$ gcloud compute instances stop INSTANCE_NAME --zone=ZONE
+
+$ gcloud compute instances set-service-account INSTANCE_NAME \
+    --service-account=$SERVICE_ACCOUNT \
+    --scopes=cloud-platform \
+    --zone=ZONE
+
+$ gcloud compute instances start INSTANCE_NAME --zone=ZONE
+```
+
+GCP requires an instance to be stopped before its service account or scopes
+can change — this command fails on a running VM. If you have multiple Auth
+Service instances for high availability, apply this one instance at a time
+rather than stopping them all at once, so the cluster keeps serving requests
+throughout.
+
+This is the recommended approach as it avoids managing key files.
+</Admonition>
 
 <details>
 <summary>Manually checking permissions</summary>
@@ -173,6 +228,24 @@ $ gcloud kms keys versions destroy --keyring "<Var name="teleport-keyring"/>" --
 
 </details>
 
+<Checkpoint>
+Before proceeding, verify that the service account can access the key ring from the Auth Service host:
+
+```code
+$ gcloud kms keys list --location <Var name="location"/> --keyring "<Var name="teleport-keyring"/>"
+```
+
+If this command fails with a permission error, review the IAM policy binding in Step 2.
+</Checkpoint>
+
+<Admonition type="note">
+Use `gcloud kms keys list` rather than `gcloud kms keyrings describe` for this
+check. `keyrings describe` requires the `cloudkms.keyRings.get` permission,
+which `teleport_kms_role` doesn't grant — the role only covers `cryptoKeys`
+and `cryptoKeyVersions` operations, so a `keyrings describe` here would fail
+even when the service account has exactly the access it needs.
+</Admonition>
+
 ## Step 4/5. Configure the Auth Service to use KMS keys
 
 CA key parameters are statically configured in the `teleport.yaml` configuration
@@ -186,30 +259,16 @@ in the GCP Console or by running:
 $ gcloud kms keyrings list --location <Var name="location"/>
 ```
 
-<details>
-<summary>Choosing a protection level</summary>
-
+<Admonition type="note" title="Choosing a protection level">
 Supported KMS protection levels are `SOFTWARE` and `HSM`.
-If you choose `SOFTWARE`, GCP KMS will perform all cryptographic operations in
-software (Teleport performs no cryptographic operations).
-If you choose `HSM`, GCP KMS will perform all cryptographic operations in a
-Hardware Security Module.
 
-Both protection levels are considered secure by Google and Teleport, you should
-evaluate your own organization's requirements and security policies when making
-your decision.
+- **SOFTWARE**: GCP KMS performs all cryptographic operations in software. This offers a higher quota (60k operations/minute project-wide at time of writing) and is suitable for most deployments.
+- **HSM**: GCP KMS performs all cryptographic operations in a Hardware Security Module. This has a lower quota (3k operations/minute for asymmetric keys) but provides hardware-backed key protection.
 
-One relevant difference is the usage quotas available to keys of each protection
-level.
-At the time of writing, software keys have a project-wide quota of 60k
-cryptographic operations per minute, while asymmetric HSM keys have a quota of
-3k operations per minute.
-See the [KMS docs](https://cloud.google.com/kms/quotas) for updated numbers.
-If your cluster will have many thousands of hosts or active users, the higher
-quota software keys have may help to avoid any potential throttling, especially
-during CA rotations where many new certificates must be signed.
+Both protection levels are considered secure by Google and Teleport. Evaluate your organization's requirements and security policies when making your decision. If your cluster has many thousands of hosts or active users, `SOFTWARE` keys may help avoid throttling, especially during CA rotations.
 
-</details>
+See the [KMS quotas documentation](https://cloud.google.com/kms/quotas) for current limits.
+</Admonition>
 
 Include the following `ca_key_params` configuration in the `auth_service` section.
 
@@ -231,19 +290,32 @@ KMS keys, read on to
 
 ## Step 5/5. Make sure everything is working
 
-After starting up your Auth Service with the `gcp_kms` configuration, you can
-confirm that Teleport has generated keys in your keyring in the GCP Console or
-by running:
+After starting up your Auth Service with the `gcp_kms` configuration, verify
+that Teleport has generated keys in your keyring.
+
+**Run on your workstation:**
 
 ```code
 $ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/>
 ```
 
-Try logging in to the cluster with a Teleport user to make sure that new
-certificates can be signed without error.
+You should see multiple keys created by Teleport (one per CA type).
 
-`tctl status` should also show `GCP KMS` as the `storage` method for all
-Certificate Authority keys.
+<Checkpoint>
+Verify Teleport is using GCP KMS for its CA keys:
+
+```code
+$ tctl status
+```
+
+The output should show `GCP KMS` as the storage method for all Certificate Authority keys. Also verify you can log in:
+
+```code
+$ tsh login --proxy=teleport.example.com
+```
+
+If login succeeds, certificates are being signed correctly using GCP KMS keys.
+</Checkpoint>
 
 ## Migrating an existing cluster
 
