@@ -41,7 +41,7 @@ var validMethods = []string{
 }
 
 // whereParser is the shared cached parser for where clauses.
-var whereParser = mustNewWhereParser()
+var whereParser = mustNewParser(whereSpec())
 
 // Request encodes the elements of the HTTP request a where clause is
 // evaluated against.
@@ -62,6 +62,9 @@ type Identity struct {
 type Env struct {
 	Request  Request
 	Identity Identity
+	// record is set by evaluateExpression for the duration of one evaluation.
+	// The audit wrappers write into it.
+	record *AuditRecord
 }
 
 // Where is a compiled where clause. Only CompileWhere returns a usable
@@ -85,6 +88,9 @@ func NewEnv(request Request, identity Identity) (Env, error) {
 
 // CompileWhere parses and type-checks a where clause.
 func CompileWhere(expr string) (*Where, error) {
+	if err := validateWhere(expr); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	expression, err := whereParser.Parse(expr)
 	if err != nil {
 		// The aggregate classifies the result as BadParameter for the
@@ -95,23 +101,14 @@ func CompileWhere(expr string) (*Where, error) {
 	return &Where{expression: expression}, nil
 }
 
-// Evaluate reports whether the where clause matches the environment. The
-// result is only meaningful when the error is nil.
-func (w *Where) Evaluate(env Env) (bool, error) {
-	if err := validateMethod(env.Request.Method); err != nil {
-		return false, trace.Wrap(err)
-	}
-	match, err := w.expression.Evaluate(env)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return match, nil
+// Evaluate matches the where clause against the environment and returns the
+// outcome in Result.Value.
+func (w *Where) Evaluate(env Env) (Result, error) {
+	return evaluateExpression(w.expression, env)
 }
 
 // validateMethod rejects a request method outside the canonical HTTP
-// method list. NewEnv runs it at the request boundary and Evaluate
-// repeats it, so an environment a caller assembled itself still cannot
-// authorize such a request.
+// method list.
 func validateMethod(method string) error {
 	if !slices.Contains(validMethods, method) {
 		return trace.BadParameter("unsupported HTTP method %q", method)
@@ -119,10 +116,20 @@ func validateMethod(method string) error {
 	return nil
 }
 
-// mustNewWhereParser builds the where clause parser and panics if the
-// parser spec is invalid or the expression cache cannot be built.
-func mustNewWhereParser() *typical.CachedParser[Env, bool] {
-	p, err := typical.NewCachedParser[Env, bool](typical.ParserSpec[Env]{
+// mustNewParser builds a parser from spec and panics if the spec is invalid.
+func mustNewParser(spec typical.ParserSpec[Env]) *typical.CachedParser[Env, bool] {
+	p, err := typical.NewCachedParser[Env, bool](spec)
+	if err != nil {
+		panic(trace.Wrap(err, "building an app resource parser (this is a bug)"))
+	}
+	return p
+}
+
+// whereSpec returns the parser spec of the where clause language.
+// expressionSpec extends it, so a binding or function added here reaches
+// both parsers.
+func whereSpec() typical.ParserSpec[Env] {
+	return typical.ParserSpec[Env]{
 		Variables: map[string]typical.Variable{
 			// true and false are bound because typical has no bool literal.
 			"true":  true,
@@ -168,9 +175,5 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 				return strings.Contains(s, substr), nil
 			}),
 		},
-	})
-	if err != nil {
-		panic(trace.Wrap(err, "building the where clause parser (this is a bug)"))
 	}
-	return p
 }

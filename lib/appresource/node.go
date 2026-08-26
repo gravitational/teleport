@@ -124,7 +124,7 @@ var captureNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // name, Capture returns an error node that Compile rejects.
 func Capture(name string, children ...Node) Node {
 	if !captureNameRE.MatchString(name) {
-		err := trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", clip(name))
+		err := trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", elide(name))
 		return &errNode{failedCall: fmt.Sprintf("capture(%q)", name), err: err}
 	}
 	return &captureNode{name: name, childNodes: slices.Clone(children)}
@@ -221,17 +221,17 @@ func validateSegment(seg string) error {
 		return trace.BadParameter("a literal segment cannot be empty; use Slash to match a trailing slash")
 	}
 	if strings.ContainsRune(seg, '%') {
-		return trace.BadParameter("literal segment %q contains %%; write the decoded content instead", clip(seg))
+		return trace.BadParameter("literal segment %q contains %%; write the decoded content instead", elide(seg))
 	}
 	if !utf8.ValidString(seg) || !norm.NFKC.IsNormalString(seg) {
-		return trace.BadParameter("literal segment %q is not NFKC-normalized UTF-8", clip(seg))
+		return trace.BadParameter("literal segment %q is not NFKC-normalized UTF-8", elide(seg))
 	}
 	for _, r := range seg {
 		if r < utf8.RuneSelf && !isLegalPathByte(byte(r)) && r != ' ' {
-			return trace.BadParameter("literal segment %q contains an illegal URL byte %q", clip(seg), string(r))
+			return trace.BadParameter("literal segment %q contains an illegal URL byte %q", elide(seg), string(r))
 		}
 		if !isGraphicRune(r) {
-			return trace.BadParameter("literal segment %q contains the disallowed character %q", clip(seg), string(r))
+			return trace.BadParameter("literal segment %q contains the disallowed character %q", elide(seg), string(r))
 		}
 	}
 	if err := rejectAmbiguousSegment(seg); err != nil {

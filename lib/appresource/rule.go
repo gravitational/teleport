@@ -29,9 +29,16 @@ import (
 // form.
 const maxWhereBytes = 1 << 10 // 1 KiB
 
+// maxExpressionBytes is the maximum length in bytes of one
+// app_resources_expressions entry, the desugared form.
+const maxExpressionBytes = 1 << 12 // 4 KiB
+
 // maxReasonBytes is the maximum length in bytes of an allow_reason or
 // deny_reason_hint.
 const maxReasonBytes = 1 << 10 // 1 KiB
+
+// maxHints is the maximum number of hints one evaluation can record.
+const maxHints = 16
 
 // maxAuditCodeBytes is the maximum length in bytes of an allow_code or
 // deny_code_hint.
@@ -101,6 +108,14 @@ func validateAuditCode(code string) error {
 	return nil
 }
 
+// validateReason rejects a reason over maxReasonBytes.
+func validateReason(reason string) error {
+	if len(reason) > maxReasonBytes {
+		return trace.BadParameter("reason is %d bytes, over the %d byte maximum", len(reason), maxReasonBytes)
+	}
+	return nil
+}
+
 // validate checks a rule's structural constraints, e.g. that AllowAll cannot be
 // combined with another field. Path pattern checks are left to compile time.
 func (r Rule) validate() error {
@@ -132,8 +147,8 @@ func (r Rule) validate() error {
 			return trace.Wrap(err, "invalid allow_code")
 		}
 	}
-	if len(r.AllowReason) > maxReasonBytes {
-		return trace.BadParameter("allow_reason is %d bytes, over the %d byte cap", len(r.AllowReason), maxReasonBytes)
+	if err := validateReason(r.AllowReason); err != nil {
+		return trace.Wrap(err, "invalid allow_reason")
 	}
 	if r.DenyReasonHint != "" && r.DenyCodeHint == "" {
 		return trace.BadParameter("deny_reason_hint set without deny_code_hint")
@@ -146,8 +161,8 @@ func (r Rule) validate() error {
 			return trace.BadParameter("deny_code_hint set without a where clause")
 		}
 	}
-	if len(r.DenyReasonHint) > maxReasonBytes {
-		return trace.BadParameter("deny_reason_hint is %d bytes, over the %d byte cap", len(r.DenyReasonHint), maxReasonBytes)
+	if err := validateReason(r.DenyReasonHint); err != nil {
+		return trace.Wrap(err, "invalid deny_reason_hint")
 	}
 	return nil
 }

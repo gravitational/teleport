@@ -213,6 +213,11 @@ func TestWhereByteCap(t *testing.T) {
 
 	err := Rule{Paths: []string{"/api/**"}, Where: atCap + " "}.validate()
 	require.ErrorContains(t, err, "over the")
+
+	_, err = CompileWhere(atCap)
+	require.NoError(t, err)
+	_, err = CompileWhere(atCap + " ")
+	require.ErrorContains(t, err, "over the")
 }
 
 func TestReasonByteCap(t *testing.T) {

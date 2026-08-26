@@ -86,7 +86,7 @@ func evaluateProp(t *rapid.T, expr string, env Env) bool {
 	if err != nil {
 		t.Fatalf("Evaluate(%q): %v", expr, err)
 	}
-	return got
+	return got.Value
 }
 
 // TestCompileReturnsValueOrError checks that CompileWhere never returns a
@@ -139,8 +139,8 @@ func TestUnsupportedMethodRejectedForAnyString(t *testing.T) {
 			return !slices.Contains(validMethods, s)
 		}).Draw(t, "method")
 		got, err := where.Evaluate(Env{Request: Request{Method: method}})
-		if err == nil || got {
-			t.Fatalf("Evaluate with method %q = %v, %v, want false and an error", method, got, err)
+		if err == nil || got.Value {
+			t.Fatalf("Evaluate with method %q = %v, %v, want false and an error", method, got.Value, err)
 		}
 	})
 }

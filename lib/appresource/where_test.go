@@ -38,7 +38,17 @@ func evaluate(t *testing.T, expr string, request Request, identity Identity) boo
 	env := Env{Request: request, Identity: identity}
 	got, err := where.Evaluate(env)
 	require.NoError(t, err)
-	return got
+	return got.Value
+}
+
+// TestWhereResult checks that a where clause's Result only ever sets
+// Value, because the "where" spec has no audit wrappers.
+func TestWhereResult(t *testing.T) {
+	where, err := CompileWhere(`request.method == "GET"`)
+	require.NoError(t, err)
+	result, err := where.Evaluate(Env{Request: getRequest})
+	require.NoError(t, err)
+	require.Equal(t, Result{Value: true}, result)
 }
 
 func TestEnvBindings(t *testing.T) {
@@ -89,7 +99,7 @@ func TestUnsupportedMethodRejected(t *testing.T) {
 				got, err := where.Evaluate(Env{Request: Request{Method: method}})
 				require.ErrorContains(t, err, "unsupported HTTP method")
 				require.True(t, trace.IsBadParameter(err))
-				require.False(t, got)
+				require.Zero(t, got)
 			})
 		}
 	}
@@ -204,7 +214,7 @@ func TestConcurrentEvaluate(t *testing.T) {
 		wg.Go(func() {
 			got, err := where.Evaluate(env)
 			assert.NoError(t, err)
-			assert.True(t, got)
+			assert.True(t, got.Value)
 		})
 	}
 	wg.Wait()
