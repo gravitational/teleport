@@ -549,7 +549,7 @@ export type PluginEntraIdSpec = {
 /**
  * PluginEntraIdSyncIntervals defines Entra ID service sync intervals.
  */
-type PluginEntraIdSyncIntervals = {
+export type PluginEntraIdSyncIntervals = {
   /**
    * Go duration string that configures delta sync interval.
    */
