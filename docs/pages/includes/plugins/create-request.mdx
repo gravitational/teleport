@@ -1,9 +1,11 @@
+{{ role="editor" }}
+
 <Tabs>
 <TabItem label="As an Admin">
   A Teleport admin can create an Access Request for another user with `tctl`:
 
   ```code
-  $ tctl request create myuser --roles=editor
+  $ tctl request create myuser --roles={{ role }}
   ```
 
 </TabItem>
@@ -11,7 +13,7 @@
 
   Users can use `tsh` to create an Access Request and log in with approved roles:
   ```code
-  $ tsh request create --roles=editor
+  $ tsh request create --roles={{ role }}
   Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
   ```
 
