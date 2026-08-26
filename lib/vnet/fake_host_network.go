@@ -18,11 +18,11 @@ package vnet
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
 	"sync"
 
@@ -292,8 +292,6 @@ func newSplitTUN() (*fakeTUN, *fakeTUN) {
 		}
 }
 
-var errFakeTUNClosed = errors.New("TUN closed")
-
 // fakeTUNPacketPool recycles per-packet buffers so the fake TUN doesn't add
 // its own allocations to benchmarks.
 var fakeTUNPacketPool = sync.Pool{
@@ -335,7 +333,7 @@ func (f *fakeTUN) Write(bufs [][]byte, offset int) (int, error) {
 	select {
 	case <-f.closed:
 		fakeTUNPacketPool.Put(packet)
-		return 0, errFakeTUNClosed
+		return 0, os.ErrClosed
 	case f.writePacketsTo <- packet:
 	}
 	return 1, nil
@@ -353,7 +351,7 @@ func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error
 	var packet *[]byte
 	select {
 	case <-f.closed:
-		return 0, errFakeTUNClosed
+		return 0, os.ErrClosed
 	case packet = <-f.readPacketsFrom:
 	}
 	sizes[0] = copy(bufs[0][offset:], *packet)

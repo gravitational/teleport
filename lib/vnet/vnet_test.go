@@ -153,8 +153,7 @@ func newTestPack(tb testing.TB, ctx context.Context, cfg testPackConfig) *testPa
 			switch {
 			case err == nil,
 				utils.IsOKNetworkError(err),
-				errors.Is(err, context.Canceled),
-				errors.Is(err, errFakeTUNClosed):
+				errors.Is(err, context.Canceled):
 				return nil
 			default:
 				return trace.Wrap(err)
