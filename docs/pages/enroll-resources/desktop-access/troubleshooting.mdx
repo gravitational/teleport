@@ -485,26 +485,6 @@ Look for the "Require use of a specific security layer for remote (RDP)
 connections" setting. The setting should be set to **Negotiate** or **SSL**, not
 **RDP**.
 
-### RDP connection failed
-
-You click **Connect** on a Windows host from the Teleport Web UI, a new tab opens but
-nothing is displayed other than the top bar. You see an error that refers to a
-failed RDP connection. You may also see errors similar to:
-
-```text
-Rdp(Io(Os { code: 54, kind: ConnectionReset, message: "Connection reset by peer" }))
-```
-
-#### Solution: Make sure the Windows host uses secure cipher suites
-
-When the target host forcibly resets the connection, this usually means that the
-desktop does not support secure cipher suites for TLS connections. This issue is
-less common on modern versions of Windows, but is frequently observed on older versions
-such as Windows Server 2012R2.
-
-You can force the host to use secure cipher suites by [configuring a certificate for RDP
-connections](./active-directory.mdx#step-47-configure-a-certificate-for-rdp-connections).
-
 ### Enhanced RDP security with CredSSP required
 
 Attempts to connect to a desktop fail, and the logs show an error similar to:

@@ -223,7 +223,7 @@ connections.
 
 The next step is to connect a Windows Desktop Service to your Teleport cluster and configure
 it to connect to the LDAP server of this domain. Instructions for this can be found starting at
-https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#step-67-configure-teleport.
+https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#step-56-configure-teleport.
 You may use the `ldap` section printed above as the basis for your Windows Desktop Service
 configuration, which contains values derived from the configuration of this domain.`n
 "@ -f $LDAP_CONFIG_YAML
