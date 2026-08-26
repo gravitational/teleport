@@ -123,8 +123,6 @@ func (s *WorkloadAPIService) setup(ctx context.Context) (err error) {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(10 * time.Second):
-		return trace.BadParameter("timeout waiting for identity to be ready")
 	case <-s.svcIdentity.Ready():
 	}
 	facade, err := s.svcIdentity.Facade()
