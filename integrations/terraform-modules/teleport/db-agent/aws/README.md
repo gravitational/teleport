@@ -89,7 +89,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | teleport\_provision\_token\_name | Name for the Teleport provision token resource. | `string` | `"iam-db-agent"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Determines whether the name of the Teleport provision token is used as a prefix. | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address `host:port`. | `string` | n/a | yes |
-| teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"19.0.0-prealpha.2"` | no |
+| teleport\_version\_override | teleport\_version\_override is intended for development and MUST NOT be used to control the Teleport version in a typical deployment. This module is designed to run a specific Teleport version. You will face compatibility issues trying to run a different Teleport version with it. If you want to run Teleport version `X.Y.Z`, you should adjust the module version to `X.Y.Z` instead. | `string` | `null` | no |
 | vpc\_id | VPC ID where Teleport will be deployed. | `string` | n/a | yes |
 
 ## Outputs
