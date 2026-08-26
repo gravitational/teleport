@@ -230,7 +230,8 @@ const ReviewBadge = styled.div<{ isOverdue?: boolean }>`
   position: absolute;
   background-color: ${p =>
     p.isOverdue ? p.theme.colors.error.main : p.theme.colors.warning.main};
-  width: 80px;
+  min-width: 82px;
+  white-space: nowrap;
   height: 20px;
   right: 0;
   border-bottom-left-radius: ${p => p.theme.radii[2]}px;
@@ -238,7 +239,7 @@ const ReviewBadge = styled.div<{ isOverdue?: boolean }>`
   display: flex;
   align-items: center;
   flex-direction: row-reverse;
-  padding-right: ${p => p.theme.space[2]}px;
+  padding-right: ${p => p.theme.space[1]}px;
   margin-top: 2px;
   color: ${p => p.theme.colors.dark};
 
