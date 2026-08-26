@@ -1,0 +1,28 @@
+version: v2
+
+inputs:
+  - directory: .
+    paths:
+      - proto/prehog/
+
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/gravitational/teleport/gen/proto/go
+
+plugins:
+  - local:
+      - go
+      - run
+      - google.golang.org/protobuf/cmd/protoc-gen-go
+    out: .
+    opt: module=github.com/gravitational/teleport
+    strategy: all
+  - local:
+      - go
+      - run
+      - connectrpc.com/connect/cmd/protoc-gen-connect-go
+    out: .
+    opt: module=github.com/gravitational/teleport
+    strategy: all

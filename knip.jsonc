@@ -1,0 +1,204 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "web/.storybook/main.mts",
+        "web/.storybook/preview.tsx",
+        "web/.storybook/vite.config.mts",
+        "web/.storybook/mocks/**/*.{ts,tsx,js}"
+      ],
+      "project": [
+        "web/.storybook/**/*.{ts,tsx,mts,mjs,js}",
+        "web/@types/*.d.ts"
+      ],
+      "ignoreDependencies": [
+        // Only the generated gRPC clients under gen/proto/ts reference this, and those are not
+        // part of any project.
+        "@grpc/grpc-js",
+        // Referenced from a JSDoc type annotation in jest.config.js.
+        "@jest/types",
+        // Named as a string in web/.storybook/main.mts `addons`.
+        "@storybook/addon-vitest",
+        // Loaded by name through `jsPlugins` in .oxlintrc.jsonc. The plugins pull in eslint
+        // itself at runtime via @typescript-eslint/utils.
+        "eslint",
+        "eslint-plugin-jest-dom",
+        "eslint-plugin-storybook",
+        "eslint-plugin-testing-library",
+        "eslint-plugin-unused-imports"
+      ]
+    },
+    "web/packages/build": {
+      "entry": [
+        "vite/**/*.{ts,mts,mjs}",
+        "jest/**/*.{ts,js}",
+        "storybook.ts",
+        "**/*.{test,vitest}.{ts,tsx,js,jsx}"
+      ],
+      // These are loaded by name through the SWC plugin config in vite/react.mjs.
+      "ignoreDependencies": [
+        "@gravitational/swc-plugin-jsx-marker",
+        "@gravitational/swc-plugin-styled-components",
+        "@swc/core",
+        // Named as a string by `environment` in vitest/config.mts, which Vitest resolves at run time.
+        "happy-dom"
+      ]
+    },
+    "web/packages/design": {
+      "entry": [
+        "src/**/*.story.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}", "@types/*.d.ts"],
+      "paths": {
+        "design/*": ["./src/*"],
+        "design": ["./src/"]
+      },
+      // Compile-time only assertions, checked by tsc rather than imported anywhere.
+      "ignore": ["src/**/*.type-test.tsx"]
+    },
+    "web/packages/shared": {
+      "entry": ["**/*.story.{ts,tsx,js,jsx}", "**/*.{test,vitest}.{ts,tsx,js,jsx}"],
+      "project": ["**/*.{ts,tsx,js,jsx,mts,mjs}", "!libs/ironrdp/pkg/**"],
+      "paths": {
+        "design/*": ["../design/src/*"],
+        "design": ["../design/src/"],
+        "shared/*": ["./*"],
+        "gen-proto-ts/*": ["../../../gen/proto/ts/*"]
+      },
+      "ignoreDependencies": [
+        // Reached through the `design/*` path alias rather than the package name.
+        "@gravitational/design",
+        // Browser polyfill, imported as the bare Node builtin specifier.
+        "events"
+      ]
+    },
+    "web/packages/teleport": {
+      "entry": [
+        "babel.config.js",
+        "index.html",
+        "src/**/*.story.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
+        "src/services/audit/gen-event-reference/index.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}"],
+      "paths": {
+        "build/*": ["../build/*"],
+        "shared/*": ["../shared/*"],
+        "design/*": ["../design/src/*"],
+        "design": ["../design/src/"],
+        "teleport/*": ["./src/*"],
+        "teleport": ["./src/"],
+        "teleterm/*": ["../teleterm/src/*"],
+        "e-teleport/*": ["../../../e/web/teleport/src/*"],
+        "gen-proto-ts/*": ["../../../gen/proto/ts/*"]
+      },
+      "ignoreDependencies": [
+        // Reached through path aliases rather than package names.
+        "@gravitational/design",
+        "@gravitational/shared",
+        "@gravitational/teleport",
+        // Declared here but named as strings by web/packages/build/.babelrc.js.
+        "babel-plugin-transform-import-meta",
+        "babel-plugin-transform-vite-meta-env",
+        // Browser polyfill, imported as the bare Node builtin specifier.
+        "events"
+      ]
+    },
+    "web/packages/teleterm": {
+      "entry": [
+        "electron-builder-config.js",
+        "index.html",
+        "src/main.ts",
+        "src/preload.ts",
+        "src/sharedProcess/sharedProcess.ts",
+        "src/agentCleanupDaemon/agentCleanupDaemon.js",
+        "src/**/*.story.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
+        "src/**/*Process.mjs"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}", "csp.ts"],
+      "paths": {
+        "build/*": ["../build/*"],
+        "shared/*": ["../shared/*"],
+        "design/*": ["../design/src/*"],
+        "design": ["../design/src/"],
+        "teleport/*": ["../teleport/src/*"],
+        "teleterm/*": ["./src/*"],
+        "gen-proto-ts/*": ["../../../gen/proto/ts/*"]
+      },
+      "ignoreDependencies": [
+        // Reached through path aliases rather than package names.
+        "@gravitational/design",
+        "@gravitational/shared",
+        // Browser polyfill, imported as the bare Node builtin specifier.
+        "events"
+      ]
+    },
+    "e/web/teleport": {
+      "entry": [
+        "babel.config.js",
+        "index.html",
+        "src/**/*.story.{ts,tsx,js,jsx}",
+        "src/**/*.{test,vitest}.{ts,tsx,js,jsx}",
+        "src/SessionRecordings/summary/generate-mitre-lookup.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,js,jsx,mts,mjs}"],
+      // Generated protobuf bindings.
+      "ignore": ["src/**/*_pb.ts", "src/**/*_pb.*.ts"],
+      "paths": {
+        "build/*": ["../../../web/packages/build/*"],
+        "shared/*": ["../../../web/packages/shared/*"],
+        "design/*": ["../../../web/packages/design/src/*"],
+        "design": ["../../../web/packages/design/src/"],
+        "teleport/*": ["../../../web/packages/teleport/src/*"],
+        "teleport": ["../../../web/packages/teleport/src/"],
+        "teleterm/*": ["../../../web/packages/teleterm/src/*"],
+        "e-teleport/*": ["./src/*"],
+        "gen-proto-ts/*": ["../../../gen/proto/ts/*"]
+      }
+    },
+    "e2e": {
+      "entry": ["tests/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx,js,mjs}"],
+      "project": [
+        "{tests,scripts,helpers,aws,config,node,runner}/**/*.{ts,tsx,js,mjs}"
+      ]
+    },
+    "e/e2e": {
+      "entry": ["tests/**/*.{ts,tsx}"],
+      "project": ["{tests,helpers,config}/**/*.{ts,tsx,js,mjs}"]
+    }
+  },
+  // Exports tagged @allowunused are excluded from the unused-exports report. The tag must name
+  // an owner responsible for removing it: /** @allowunused TODO(github-username): reason */
+  // (the format is enforced by the teleport/allowunused-todo oxlint rule).
+  "tags": ["-allowunused"],
+  "ignoreBinaries": [
+    // Run by .github/workflows/doc-tests.yaml against the separately checked out docs site.
+    // Runs `buf generate` in web/packages/teleterm.
+    "buf",
+    "spellcheck",
+    "markdown-lint",
+    "build",
+    "make"
+  ],
+  "ignoreUnresolved": [
+    // Provided transitively by jest.
+    "babel-jest",
+    // Declared by web/packages/teleport but named as strings by web/packages/build/.babelrc.js.
+    "babel-plugin-transform-import-meta",
+    "babel-plugin-transform-vite-meta-env",
+    // Resolved at runtime relative to the packaged shared process output.
+    "./sharedProcess.js",
+    // Deliberately missing, so the code under test has to handle a failed spawn.
+    "./testProcess-nonExistent.js",
+    "./testProcess-nonExisting.mjs"
+  ],
+  "rules": {
+    // The design system deliberately keeps deprecated aliases (OutlineDanger, the FieldSelect
+    // default export) alongside their replacements.
+    "duplicates": "off",
+    "enumMembers": "off"
+  }
+}

@@ -1,0 +1,48 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package trait
+
+import (
+	"slices"
+)
+
+// Traits is a mapping of traits to values.
+type Traits map[string][]string
+
+// Clone returns a deep copy of the traits map.
+func (t Traits) Clone() Traits {
+	if t == nil {
+		return nil
+	}
+	out := make(Traits, len(t))
+	for key, values := range t {
+		out[key] = slices.Clone(values)
+	}
+	return out
+}
+
+// Merge src traits into dst. If you don't want the dst to be mutated do a Clone() first.
+// Duplicated values are removed, but the order of values for a given trait is not guaranteed.
+func Merge(dst, src Traits) {
+	for key, values := range src {
+		dst[key] = append(dst[key], values...)
+	}
+	for key, values := range dst {
+		slices.Sort(values)
+		dst[key] = slices.Compact(values)
+	}
+}

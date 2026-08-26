@@ -1,0 +1,7 @@
+name: test-chart
+apiVersion: v2
+version: 0.0.0-test
+appVersion: 0.0.0-test
+description: This is a fake chart to test `render-helm-ref`
+keywords:
+  - Test

@@ -1,0 +1,15 @@
+image:
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
+  pullPolicy: IfNotPresent
+  tag: ""
+
+# join token with --type=trusted_cluster
+token: ""
+# proxy web address, e.g. my-cluster.my-route53.zone:443
+proxy: ""
+# the name of a node to benchmark against directly, e.g. tsh bench ssh user@node1
+node: ""
+# the label to match against to benchmark against directly, e.g. tsh bench ssh user@foo=bar
+label: ""
+# the time to run each benchmark test
+duration: "1m"

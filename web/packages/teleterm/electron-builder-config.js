@@ -1,0 +1,334 @@
+const { env, platform } = require('process');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const isMac = platform === 'darwin';
+const isWindows = platform === 'win32';
+
+// The following checks make no sense when cross-building because they check the platform of the
+// host and not the platform we're building for.
+//
+// However, at the moment we don't cross-build Connect and these checks protect us from undesired
+// behavior.
+//
+// Also, we just want to make sure that those are explicitly set but they can be empty. That's why
+// we check for undefined only and not for falsy values.
+//
+// Setting one of the env vars to an empty string is useful in environments where we don't intend to
+// build a fully-fledged Connect version but rather want to just check that the packaging step is
+// working, for example in CI.
+if (
+  isMac &&
+  (env.CONNECT_TSH_APP_PATH === undefined) ===
+    (env.CONNECT_TSH_BIN_PATH === undefined)
+) {
+  throw new Error(
+    'You must provide CONNECT_TSH_APP_PATH xor CONNECT_TSH_BIN_PATH'
+  );
+}
+
+if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
+  throw new Error('You must provide CONNECT_TSH_BIN_PATH');
+}
+
+if (isWindows && env.CONNECT_WINTUN_DLL_PATH === undefined) {
+  throw new Error('You must provide CONNECT_WINTUN_DLL_PATH');
+}
+
+// Holds tsh.app Info.plist during build. Used in afterPack.
+let tshAppPlist;
+
+// appId must be a reverse DNS string since it's also used as CFBundleURLName on macOS, see
+// protocols.name below.
+const appId = 'gravitational.teleport.connect';
+
+// Remap Teleport env vars to electron-builder equivalents if they are set.
+// TEAMID is provided automatically by `make release-connect`.
+if (process.env.APPLE_USERNAME) {
+  process.env.APPLE_ID = process.env.APPLE_USERNAME;
+}
+if (process.env.APPLE_PASSWORD) {
+  process.env.APPLE_APP_SPECIFIC_PASSWORD = process.env.APPLE_PASSWORD;
+}
+if (process.env.TEAMID) {
+  process.env.APPLE_TEAM_ID = process.env.TEAMID;
+}
+
+/**
+ * Describes whether there will be an attempt by electron-builder to sign the app on macOS.
+ */
+const shouldBeSignedOnMacOS =
+  process.env.APPLE_ID ||
+  process.env.APPLE_APP_SPECIFIC_PASSWORD ||
+  process.env.APPLE_TEAM_ID;
+
+const entitlementsMacOS = shouldBeSignedOnMacOS
+  ? 'build_resources/entitlements.mac.plist'
+  : 'build_resources/entitlements.mac.adhoc-signed.plist';
+
+/**
+ * @type { import('electron-builder').Configuration }
+ */
+module.exports = {
+  appId,
+  asar: true,
+  publish: [{ provider: 'custom' }],
+  asarUnpack: '**\\*.{node,dll}',
+  afterPack: packed => {
+    // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
+    // file it finds, causing signature verification to fail for tsh.app that gets
+    // embedded in Teleport Connect. This causes the error "invalid Info.plist (plist
+    // or signature have been modified)".
+    // Workaround this by copying the tsp.app plist file before adding the key and
+    // replace it after it is done.
+
+    if (!env.CONNECT_TSH_APP_PATH) {
+      // Not embedding tsh.app
+      return;
+    }
+
+    const plistPath = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    if (packed.appOutDir.endsWith('mac-universal-x64-temp')) {
+      tshAppPlist = fs.readFileSync(plistPath);
+    }
+    if (packed.appOutDir.endsWith('mac-universal')) {
+      if (!tshAppPlist) {
+        throw new Error(
+          'Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.'
+        );
+      }
+      fs.writeFileSync(plistPath, tshAppPlist);
+    }
+  },
+  files: ['build/app'],
+  protocols: [
+    {
+      // name ultimately becomes CFBundleURLName which is the URL identifier. [1] Apple recommends
+      // to set it to a reverse DNS string. [2]
+      //
+      // [1] https://developer.apple.com/documentation/bundleresources/information_property_list/cfbundleurltypes/cfbundleurlname
+      // [2] https://developer.apple.com/documentation/xcode/defining-a-custom-url-scheme-for-your-app#Register-your-URL-scheme
+      name: appId,
+      schemes: ['teleport'],
+      // Not much documentation is available on the role attribute. It ultimately gets mapped to
+      // CFBundleTypeRole in Info.plist.
+      //
+      // It seems that this field is largely related to how macOS thinks of "documents". Since Connect
+      // doesn't let you really edit anything and we won't be passing any docs, let's just set it to
+      // 'Viewer'.
+      //
+      // https://cocoadev.github.io/CFBundleTypeRole/
+      role: 'Viewer',
+    },
+  ],
+  mac: {
+    // ZIP target is used only for app updates.
+    target: ['zip', 'dmg'],
+    category: 'public.app-category.developer-tools',
+    type: 'distribution',
+    notarize: true,
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    entitlements: entitlementsMacOS,
+    // Use the same entitlements for Electron subprocesses (e.g., renderer, GPU)
+    // as those defined for the main app.
+    entitlementsInherit: entitlementsMacOS,
+    // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
+    signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
+    icon: 'build_resources/icon-mac.png',
+    // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
+    x64ArchFiles:
+      '{Contents/MacOS/tsh.app/Contents/MacOS/tsh,Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/**}',
+    // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
+    // `extraFiles` instead of `extraResources`.
+    // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
+    // https://developer.apple.com/forums/thread/128166
+    extraFiles: [
+      // CONNECT_TSH_APP_PATH is for environments where we want to copy over the whole signed
+      // version of tsh.app for Touch ID support.
+      env.CONNECT_TSH_APP_PATH && {
+        from: env.CONNECT_TSH_APP_PATH,
+        to: './MacOS/tsh.app',
+      },
+      // CONNECT_TSH_BIN_PATH is for environments where we just need a regular tsh binary. We still
+      // copy it to the same location that it would be at in a real tsh.app to avoid conditional
+      // logic elsewhere.
+      env.CONNECT_TSH_BIN_PATH && {
+        from: env.CONNECT_TSH_BIN_PATH,
+        to: './MacOS/tsh.app/Contents/MacOS/tsh',
+      },
+    ].filter(Boolean),
+  },
+  // Copy the tray icon to resources.
+  extraResources: ['build_resources/icon-macTemplate@2x.png'],
+  dmg: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    writeUpdateInfo: false,
+    contents: [
+      {
+        x: 130,
+        y: 220,
+      },
+      {
+        x: 410,
+        y: 220,
+        type: 'link',
+        path: '/Applications',
+      },
+    ],
+  },
+  win: {
+    target: ['nsis'],
+    signtoolOptions: {
+      // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+      // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+      signingHashAlgorithms: ['sha256'],
+      sign: async customSign => {
+        if (process.env.CI !== 'true') {
+          console.warn('Not running in CI pipeline: signing will be skipped');
+          return;
+        }
+
+        await promisifiedSpawn(
+          'powershell',
+          [
+            '-noprofile',
+            '-executionpolicy',
+            'bypass',
+            '-c',
+            "$ProgressPreference = 'SilentlyContinue'; " +
+              "$ErrorActionPreference = 'Stop'; " +
+              '$PSNativeCommandUseErrorActionPreference = $true; ' +
+              '. ../../../build.assets/windows/build.ps1; ' +
+              `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+          ],
+          { stdio: 'inherit' }
+        );
+      },
+    },
+    artifactName: '${productName} Setup-${version}.${ext}',
+    icon: 'build_resources/icon-win.ico',
+    extraResources: [
+      env.CONNECT_TSH_BIN_PATH && {
+        from: env.CONNECT_TSH_BIN_PATH,
+        // Keep in sync with lib/teleterm/autoupdate/per_machine_windows.go.
+        to: './bin/tsh.exe',
+      },
+      env.CONNECT_WINTUN_DLL_PATH && {
+        from: env.CONNECT_WINTUN_DLL_PATH,
+        to: './bin/wintun.dll',
+      },
+      env.CONNECT_MSGFILE_DLL_PATH && {
+        from: env.CONNECT_MSGFILE_DLL_PATH,
+        to: './bin/msgfile.dll',
+      },
+      // Copy the tray icon to resources.
+      'build_resources/icon-win.ico',
+    ].filter(Boolean),
+  },
+  nsis: {
+    // Static app guid, calculated from appId and electron-builder's UUID.
+    guid: '22539266-67e8-54a3-83b9-dfdca7b33ee1',
+    // Turn off blockmaps since we don't support automatic updates.
+    // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
+    differentialPackage: false,
+    // Per-machine and per-user modes differ in features.
+    // VNet is available only in per-machine mode.
+    perMachine: false,
+    oneClick: false,
+    selectPerMachineByDefault: true,
+    // In installer.nsh, the `selectUserMode` message is overridden to display information
+    // about VNet availability. The message is only in English, so the multi-language
+    // installer should be disabled to avoid mixing languages in the installation wizard.
+    multiLanguageInstaller: false,
+  },
+  rpm: {
+    artifactName: '${name}-${version}.${arch}.${ext}',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
+    // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
+    // Connect's rpm next to other Electron apps.
+    // https://github.com/gravitational/teleport/issues/18859
+    fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+  },
+  deb: {
+    artifactName: '${name}_${version}_${arch}.${ext}',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
+  },
+  linux: {
+    target: ['tar.gz', 'rpm', 'deb'],
+    artifactName: '${name}-${version}-${arch}.${ext}', // tar.gz
+    category: 'Development',
+    icon: 'build_resources/icon-linux',
+    extraResources: [
+      env.CONNECT_TSH_BIN_PATH && {
+        from: env.CONNECT_TSH_BIN_PATH,
+        to: './bin/tsh',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/polkit/org.teleport.vnet1.policy'
+        ),
+        to: './vnet/polkit/org.teleport.vnet1.policy',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.conf'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.conf',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.service'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.service',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/teleport-vnet.service'
+        ),
+        to: './vnet/teleport-vnet.service',
+      },
+      {
+        from: 'build_resources/linux/apparmor-profile',
+        to: './apparmor-profile',
+      },
+      // Copy the tray icon to resources.
+      'build_resources/icon-linux/tray.png',
+    ].filter(Boolean),
+  },
+  directories: {
+    buildResources: 'build_resources',
+    output: 'build/release',
+  },
+};
+
+function promisifiedSpawn(cmd, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, options);
+
+    child.on('error', reject);
+
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const codeOrSignal = [
+          // code can be 0, so we cannot just check it the same way as the signal.
+          code != null && `code ${code}`,
+          signal && `signal ${signal}`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        reject(new Error(`Exited with ${codeOrSignal}`));
+      }
+    });
+  });
+}

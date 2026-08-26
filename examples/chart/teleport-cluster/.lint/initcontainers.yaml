@@ -1,0 +1,8 @@
+clusterName: helm-lint
+initContainers:
+- name: "teleport-init"
+  image: "alpine"
+  args: ["echo test"]
+- name: "teleport-init2"
+  image: "alpine"
+  args: ["echo test2"]

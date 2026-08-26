@@ -1,0 +1,244 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { useCallback, useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
+
+import { Box, ButtonText, Flex, Link, P3 } from 'design';
+import { Cross, Stars } from 'design/Icon';
+import Popover from 'design/Popover';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+
+import * as tshd from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import {
+  useKeyboardShortcutFormatters,
+  useKeyboardShortcuts,
+} from 'teleterm/ui/services/keyboardShortcuts';
+
+import { ActiveCluster, IdentityList } from './IdentityList/IdentityList';
+import { IdentitySelector } from './IdentitySelector/IdentitySelector';
+import { useIdentity } from './useIdentity';
+
+export function IdentityContainer() {
+  const {
+    activeWorkspaceCluster,
+    otherWorkspaces,
+    changeWorkspace,
+    logout,
+    addCluster,
+    forget,
+    refreshCluster,
+    changeColor,
+  } = useIdentity();
+  const selectorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+  const hasAnyWorkspaces = Boolean(
+    activeWorkspaceCluster || otherWorkspaces.length
+  );
+  const togglePopoverOrAddCluster = useCallback(() => {
+    if (hasAnyWorkspaces) {
+      setOpen(o => !o);
+    } else {
+      addCluster();
+    }
+  }, [addCluster, hasAnyWorkspaces]);
+
+  useKeyboardShortcuts(
+    useMemo(
+      () => ({
+        openProfiles: togglePopoverOrAddCluster,
+      }),
+      [togglePopoverOrAddCluster]
+    )
+  );
+
+  const makeTitle = (userWithClusterName: string | undefined) =>
+    getLabelWithAccelerator(
+      [userWithClusterName, 'Open Profiles'].filter(Boolean).join('\n'),
+      'openProfiles'
+    );
+
+  function withClose<T extends (...args: any[]) => any>(
+    fn: T
+  ): (...args: Parameters<T>) => ReturnType<T> {
+    return (...args) => {
+      setOpen(false);
+      return fn(...args);
+    };
+  }
+
+  const deviceTrustStatus = calculateDeviceTrustStatus(
+    activeWorkspaceCluster?.loggedInUser
+  );
+  const activeColor = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces[state.rootClusterUri]?.color, [])
+  );
+
+  return (
+    <>
+      <IdentitySelector
+        ref={selectorRef}
+        onClick={togglePopoverOrAddCluster}
+        open={open}
+        activeCluster={activeWorkspaceCluster}
+        activeColor={activeColor}
+        makeTitle={makeTitle}
+        deviceTrustStatus={deviceTrustStatus}
+      />
+      <Popover
+        open={open}
+        anchorEl={selectorRef.current}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        onClose={() => setOpen(false)}
+        popoverCss={() => `max-width: min(450px, 90%)`}
+        updatePositionOnChildResize
+      >
+        <Container>
+          {activeWorkspaceCluster && (
+            <ActiveCluster
+              activeCluster={activeWorkspaceCluster}
+              activeColor={activeColor}
+              onChangeColor={changeColor}
+              onLogout={withClose(() => logout(activeWorkspaceCluster.uri))}
+              onRefresh={withClose(() =>
+                refreshCluster(activeWorkspaceCluster.uri)
+              )}
+              deviceTrustStatus={deviceTrustStatus}
+            />
+          )}
+          <TshHomeMigrationBanner />
+          <KeyboardArrowsNavigation>
+            {focusGrabber}
+            <IdentityList
+              items={otherWorkspaces}
+              onSelect={withClose(changeWorkspace)}
+              onLogout={withClose(logout)}
+              onAdd={withClose(addCluster)}
+              onForget={withClose(forget)}
+            />
+          </KeyboardArrowsNavigation>
+        </Container>
+      </Popover>
+    </>
+  );
+}
+
+const Container = styled(Box)`
+  background: ${props => props.theme.colors.levels.elevated};
+  min-width: 300px;
+  width: 100%;
+`;
+
+export type DeviceTrustStatus = 'none' | 'enrolled' | 'requires-enrollment';
+
+function calculateDeviceTrustStatus(
+  loggedInUser: tshd.LoggedInUser
+): DeviceTrustStatus {
+  if (!loggedInUser) {
+    return 'none';
+  }
+  if (loggedInUser.isDeviceTrusted) {
+    return 'enrolled';
+  }
+  if (
+    loggedInUser.trustedDeviceRequirement === TrustedDeviceRequirement.REQUIRED
+  ) {
+    return 'requires-enrollment';
+  }
+  return 'none';
+}
+
+// Hack - for some reason xterm.js doesn't allow moving focus to the Identity popover
+// when it is focused using element.focus().
+// It used to restore focus after the popover was closed, but this no longer seems to work.
+const focusGrabber = (
+  <input
+    style={{
+      opacity: 0,
+      position: 'absolute',
+      height: 0,
+      zIndex: -1,
+    }}
+    autoFocus={true}
+  />
+);
+
+export function TshHomeMigrationBanner(props: { className?: string }) {
+  const [state, setState] = usePersistedState(
+    'showTshHomeMigrationBanner',
+    false
+  );
+  if (!state) {
+    return;
+  }
+
+  return (
+    <Flex
+      className={props.className}
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor="interactive.tonal.informational.1"
+    >
+      <Stars size="medium" mx={1} />
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        width="100%"
+        gap={2}
+      >
+        {/*This max width value prevents the banner from being too wide in ClusterConnectPanel. */}
+        <Flex maxWidth="280px">
+          {/*Matches the look of a subtitle in TitleAndSubtitle. */}
+          <P3
+            color="text.slightlyMuted"
+            css={`
+              line-height: 1.3;
+            `}
+          >
+            Profiles are now{' '}
+            <Link
+              target="_blank"
+              href={
+                'https://goteleport.com/docs/connect-your-client/teleport-connect/#using-tsh-outside-of-teleport-connect'
+              }
+            >
+              automatically synced
+            </Link>{' '}
+            between Teleport Connect and the tsh command-line tool.
+          </P3>
+        </Flex>
+        <ButtonText
+          size="small"
+          p={1}
+          title="Close"
+          onClick={() => setState(false)}
+        >
+          <Cross size="small" />
+        </ButtonText>
+      </Flex>
+    </Flex>
+  );
+}

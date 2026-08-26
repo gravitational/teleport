@@ -1,0 +1,5 @@
+clusterName: helm-lint
+authentication:
+  type: "github"
+  localAuth: false
+  secondFactor: "off"

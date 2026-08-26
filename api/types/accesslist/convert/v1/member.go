@@ -1,0 +1,123 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1
+
+import (
+	"github.com/gravitational/trace"
+
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	"github.com/gravitational/teleport/api/utils"
+)
+
+type MemberOption func(*accesslist.AccessListMember)
+
+// FromMemberProto converts a v1 access list member into an internal access list member object.
+func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslist.AccessListMember, error) {
+	if msg == nil {
+		return nil, trace.BadParameter("access list member message is nil")
+	}
+
+	if msg.Spec == nil {
+		return nil, trace.BadParameter("spec is missing")
+	}
+
+	member, err := accesslist.NewAccessListMemberWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
+		AccessList: msg.GetSpec().GetAccessList(),
+		Name:       msg.GetSpec().GetName(),
+		Joined:     utils.TimeFromProto(msg.GetSpec().GetJoined()),
+		Expires:    utils.TimeFromProto(msg.GetSpec().GetExpires()),
+		Reason:     msg.GetSpec().GetReason(),
+		AddedBy:    msg.GetSpec().GetAddedBy(),
+		// Set it to empty as default.
+		// Must provide as options to set it with the provided value.
+		IneligibleStatus: "",
+		MembershipKind:   msg.Spec.MembershipKind.String(),
+	}, msg.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, opt := range opts {
+		opt(member)
+	}
+
+	return member, nil
+}
+
+// FromMembersProto converts a list of v1 access list members into a list of internal access list members.
+func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMember, error) {
+	members := make([]*accesslist.AccessListMember, len(msgs))
+	for i, msg := range msgs {
+		var err error
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return members, nil
+}
+
+// ToMemberProto converts an internal access list member into a v1 access list member object.
+func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
+	var ineligibleStatus accesslistv1.IneligibleStatus
+	if enumVal, ok := accesslistv1.IneligibleStatus_value[member.Spec.IneligibleStatus]; ok {
+		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+	}
+
+	var membershipKind accesslistv1.MembershipKind
+	if enumVal, ok := accesslistv1.MembershipKind_value[member.Spec.MembershipKind]; ok {
+		membershipKind = accesslistv1.MembershipKind(enumVal)
+	}
+
+	return &accesslistv1.Member{
+		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
+		Scope:  member.Scope,
+		Spec: &accesslistv1.MemberSpec{
+			AccessList:       member.Spec.AccessList,
+			Name:             member.Spec.Name,
+			Joined:           utils.TimeIntoProto(member.Spec.Joined),
+			Expires:          utils.TimeIntoProto(member.Spec.Expires),
+			Reason:           member.Spec.Reason,
+			AddedBy:          member.Spec.AddedBy,
+			IneligibleStatus: ineligibleStatus,
+			MembershipKind:   membershipKind,
+		},
+	}
+}
+
+// ToMembersProto converts a list of internal access list members into a list of v1 access list members.
+func ToMembersProto(members []*accesslist.AccessListMember) []*accesslistv1.Member {
+	out := make([]*accesslistv1.Member, len(members))
+	for i, member := range members {
+		out[i] = ToMemberProto(member)
+	}
+	return out
+}
+
+// WithMemberIneligibleStatusField sets the "ineligibleStatus" field to the provided proto value.
+func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOption {
+	return func(m *accesslist.AccessListMember) {
+		protoIneligibleStatus := protoMember.GetSpec().GetIneligibleStatus()
+		ineligibleStatus := ""
+		if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+			ineligibleStatus = protoIneligibleStatus.String()
+		}
+		m.Spec.IneligibleStatus = ineligibleStatus
+	}
+}

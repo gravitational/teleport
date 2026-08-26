@@ -1,0 +1,309 @@
+suite: Job
+templates:
+  - delete_hook.yaml
+
+release:
+  upgrade: true
+tests:
+  - it: should not run deletion hook if skipHooks is set
+    template: delete_hook.yaml
+    values:
+      - ../.lint/no-hooks.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    assets:
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+      - containsDocument:
+          kind: Job
+          apiVersion: batch/v1
+
+  - it: should set securityContext in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should set extraLabels for Job in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "job"
+
+  - it: should set nodeSelector in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/node-selector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            gravitational.io/k8s-role: node
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should create ServiceAccount for post-delete hook by default
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 0
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-delete-hook
+      - matchSnapshot:
+        path: spec.template.spec
+
+  - it: should create ServiceAccount for post-delete hook with a custom name if serviceAccount.name is set and serviceAccount.create is true
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 0
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: true
+        name: lint-serviceaccount
+    asserts:
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - equal:
+          path: metadata.name
+          value: lint-serviceaccount-delete-hook
+
+  - it: should set extraLabels for ServiceAccount in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 0
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "serviceaccount"
+
+  - it: should create Role for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should set extraLabels for Role in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 1
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "role"
+
+  - it: should create RoleBinding for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should set extraLabels for RoleBinding in post-delete hook
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 2
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "rolebinding"
+
+  - it: should not create ServiceAccount for post-delete hook if serviceAccount.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - matchSnapshot:
+        path: spec.template.spec
+
+  - it: should inherit ServiceAccount name from values and not create serviceAccount if serviceAccount.create is false and serviceAccount.name is set
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      # ServiceAccount is not created in this mode
+      # documentIndex: 0=Role 1=RoleBinding 2=Job
+      - documentIndex: 2
+        equal:
+          path: spec.template.spec.serviceAccountName
+          value: lint-serviceaccount
+      - documentIndex: 2
+        matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not create Role for post-delete hook if rbac.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+    asserts:
+      - not: true
+        containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should not create RoleBinding for post-delete hook if rbac.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+    asserts:
+      - not: true
+        containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should not create ServiceAccount, Role or RoleBinding for post-delete hook if serviceAccount.create and rbac.create are false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - not: true
+        containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+      - not: true
+        containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should contain pod labels in the Job's pod spec if extraLabels.pod is set
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      extraLabels:
+        pod:
+          testLabel: testValue
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels
+          value:
+            app: RELEASE-NAME
+            testLabel: testValue
+
+  - it: should set resources in the Job's pod spec if resources is set in values
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # These are just sample values to test the chart.
+      # They are not intended to be guidelines or suggestions for running teleport.
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec

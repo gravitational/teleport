@@ -1,0 +1,18 @@
+teleport:
+  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
+  address: ""            # e.g., teleport.example.com:443
+  # Secret containing identity
+  identitySecretName: "" # e.g., teleport-plugin-mattermost-identity 
+  # Path within the secret containing the identity file.
+  identitySecretPath: "" # e.g., identity
+
+mattermost:
+  url: ""          # URL of the Mattermost instance, e.g., https://mattermost.example.com/
+  token: ""        # Mattermost token of the bot
+  recipients:
+    - ""           # User, e.g., access-requests@example.com
+    - ""           # Channel, e.g., team/example-channel
+
+log:
+  output: "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+  severity: "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

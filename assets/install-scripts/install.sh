@@ -1,0 +1,1 @@
+../../lib/web/scripts/install/install.sh

@@ -1,0 +1,29 @@
+clusterName: test-gcp-cluster
+chartMode: gcp
+gcp:
+  projectId: gcpproj-123456
+  backendTable: test-teleport-firestore-storage-collection
+  auditLogTable: test-teleport-firestore-auditlog-collection
+  sessionRecordingBucket: test-gcp-session-storage-bucket
+highAvailability:
+  replicaCount: 2
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: gravitational.io/dedicated
+          operator: In
+          values:
+          - teleport
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - teleport
+        topologyKey: kubernetes.io/hostname
+      weight: 1

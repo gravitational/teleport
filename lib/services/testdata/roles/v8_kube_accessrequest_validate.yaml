@@ -1,0 +1,277 @@
+# Set of v8 roles for Kubernetes related tests.
+# Make sure to maintain `v8-kube-` prefix in all names.
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-access-wildcard
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: '*'
+      api_group: '*'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-no-access
+spec:
+  allow: {}
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-access-namespace
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'namespaces'
+      api_group: '*'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+    - kind: '*'
+      api_group: '*'
+      name: '*'
+      namespace: '^.*$'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-access-pod
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'pods'
+      api_group: ''
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-access-deployment
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+    - kind: 'deployments'
+      api_group: 'apps'
+      name: '*'
+      namespace: '*'
+      verbs:
+      - '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-db-access-wildcard
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-undefined_search-wildcard
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-wildcard
+      - v8-kube-db-access-wildcard
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-pod_search-as-roles-undefined
+spec:
+  allow:
+    request:
+      kubernetes_resources:
+      - kind: 'pods'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-namespace_search-namespace
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-namespace
+      - v8-kube-db-access-wildcard
+      kubernetes_resources:
+      - kind: 'namespaces'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-wildcard_search-wildcard
+  description: Allows requesting for any subresources, but NOT kube_cluster
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-wildcard
+      - v8-kube-db-access-wildcard
+      kubernetes_resources:
+      - kind: '*'
+        api_group: '*'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-secret_search-wildcard
+  description: Allows wildcard search, but should only accept kube secret
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-wildcard
+      kubernetes_resources:
+      - kind: 'secrets'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-pod_search-pods
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-pod
+      kubernetes_resources:
+      - kind: 'pods'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-deployment_search-deployment
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-deployment
+      kubernetes_resources:
+      - kind: 'deployments'
+        api_group: 'apps'
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-deployment-pod_search-deployment-pod
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-deployment
+      - v8-kube-access-pod
+      kubernetes_resources:
+      - kind: 'deployments'
+        api_group: 'apps'
+      - kind: 'pods'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-namespace-but-no-access
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-db-access-wildcard
+      - v8-kube-no-access
+      kubernetes_resources:
+      - kind: 'namespaces'
+        api_group: ''
+  deny: {}
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-namespace_search-namespace_deny-secret
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-namespace
+      kubernetes_resources:
+      - kind: 'namespaces'
+        api_group: ''
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: 'secrets'
+        api_group: ''
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-undefined_search-wildcard_deny-deployment-pod
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-wildcard
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: 'deployments'
+        api_group: 'apps'
+      - kind: 'pods'
+        api_group: ''
+---
+kind: role
+version: v8
+metadata:
+  name: v8-kube-request-wildcard-cancels-deny-wildcard
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - v8-kube-access-namespace
+      kubernetes_resources:
+      - kind: '*'
+        api_group: '*'
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: '*'
+        api_group: '*'

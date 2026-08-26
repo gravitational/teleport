@@ -1,0 +1,265 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package vnet
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"slices"
+
+	"github.com/google/renameio/v2"
+	"github.com/gravitational/trace"
+)
+
+// platformOSConfigState caches applied calls so the reconcile loop
+// can skip unchanged ones. macOS SIOCSIFADDR is delete-then-add, so
+// re-issuing ifconfig flaps the alias and trips linkmon subscribers.
+type platformOSConfigState struct {
+	configuredIPv4       bool
+	configuredIPv6       bool
+	configuredIPv6Route  bool
+	configuredCidrRanges []string
+	configuredDNS        *appliedDNSConfig
+}
+
+// appliedDNSConfig records what configureDNS last wrote.
+type appliedDNSConfig struct {
+	// fileContents is the content written to every managed resolver file.
+	fileContents []byte
+	// files holds the sorted absolute paths of the managed resolver files.
+	files []string
+}
+
+// platformConfigureOS reconciles host OS state for cfg. It is safe
+// to call repeatedly. An empty cfg deconfigures by resetting the
+// cached state so the next call re-applies.
+func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	// IPs and routes are cleaned up when the TUN is deleted on exit,
+	// so no removal is needed.
+	if cfg.tunName == "" {
+		if err := configureDNS(ctx, state, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		*state = platformOSConfigState{}
+		return nil
+	}
+
+	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv4)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up",
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredIPv4 = true
+	}
+	for _, cidrRange := range cfg.cidrRanges {
+		if slices.Contains(state.configuredCidrRanges, cidrRange) {
+			continue
+		}
+		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
+		if err := runCommand(ctx,
+			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
+	}
+
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv6)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredIPv6 = true
+	}
+
+	// Track the IPv6 route separately from the alias so a transient
+	// route-add failure can be retried on the next tick without
+	// re-running the ifconfig (which would re-trigger the alias flap
+	// this gating exists to prevent).
+	if cfg.tunIPv6 != "" && !state.configuredIPv6Route {
+		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
+		if err := runCommand(ctx,
+			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredIPv6Route = true
+	}
+
+	if err := configureDNS(ctx, state, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+		return trace.Wrap(err, "configuring DNS")
+	}
+
+	return nil
+}
+
+// platformHostIPv6Disabled always returns false on macOS, there is no system-wide way
+// to disable IPv6 on macOS, it can only be turned off per link.
+func platformHostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+	return false, nil
+}
+
+const resolverFileComment = "# automatically installed by Teleport VNet"
+
+var resolverPath = filepath.Join("/", "etc", "resolver")
+
+// configureDNS writes resolver files for the zones to /etc/resolver, skipping
+// the write when nothing changed. A change in nameserver order triggers a rewrite.
+func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers []string, zones []string) error {
+	if len(nameservers) == 0 {
+		// There are no nameservers so VNet can't handle any DNS zones. Continue
+		// so that any VNet-managed resolver files can be deleted.
+		zones = nil
+	}
+
+	desiredContents := desiredResolverFileContents(nameservers)
+	files := make([]string, 0, len(zones))
+	for _, zone := range zones {
+		files = append(files, filepath.Join(resolverPath, zone))
+	}
+	slices.Sort(files)
+
+	if state.configuredDNS != nil &&
+		bytes.Equal(state.configuredDNS.fileContents, desiredContents) &&
+		slices.Equal(state.configuredDNS.files, files) {
+		// Read the managed files to catch external drift
+		if resolverFilesMatch(ctx, files, desiredContents) {
+			return nil
+		}
+		log.InfoContext(ctx, "Resolver files no longer match the applied DNS configuration, re-applying.")
+	}
+
+	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
+	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
+		return trace.Wrap(err, "creating %s", resolverPath)
+	}
+
+	managedFiles, err := vnetManagedResolverFiles(ctx)
+	if err != nil {
+		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
+	}
+
+	// Always attempt to write or clean up all files below, even if encountering
+	// errors with one or more of them.
+	var allErrors []error
+
+	for _, fileName := range files {
+		if err := renameio.WriteFile(fileName, desiredContents, 0644); err != nil {
+			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
+		} else {
+			// Successfully wrote this file, don't clean it up below.
+			delete(managedFiles, fileName)
+		}
+	}
+
+	// Delete stale files.
+	for fileName := range managedFiles {
+		if err := os.Remove(fileName); err != nil {
+			allErrors = append(allErrors, trace.Wrap(err, "deleting VNet managed file %s", fileName))
+		}
+	}
+
+	if len(allErrors) == 0 {
+		state.configuredDNS = &appliedDNSConfig{
+			fileContents: desiredContents,
+			files:        files,
+		}
+	}
+	return trace.NewAggregate(allErrors...)
+}
+
+func desiredResolverFileContents(nameservers []string) []byte {
+	var fileContents bytes.Buffer
+	fileContents.WriteString(resolverFileComment)
+	fileContents.WriteByte('\n')
+	for _, nameserver := range nameservers {
+		fileContents.WriteString("nameserver ")
+		fileContents.WriteString(nameserver)
+		fileContents.WriteByte('\n')
+	}
+	return fileContents.Bytes()
+}
+
+// resolverFilesMatch reports whether every managed resolver file still has
+// the expected contents.
+func resolverFilesMatch(ctx context.Context, files []string, wantContents []byte) bool {
+	for _, f := range files {
+		contents, err := os.ReadFile(f)
+		if err != nil {
+			log.DebugContext(ctx, "Failed to read resolver file.", "file", f, "error", err)
+			return false
+		}
+		if !bytes.Equal(contents, wantContents) {
+			log.DebugContext(ctx, "Resolver file does not have the expected contents.", "file", f)
+			return false
+		}
+	}
+	return true
+}
+
+func vnetManagedResolverFiles(ctx context.Context) (map[string]struct{}, error) {
+	entries, err := os.ReadDir(resolverPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading %s", resolverPath)
+	}
+
+	matchingFiles := make(map[string]struct{})
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		filePath := filepath.Join(resolverPath, entry.Name())
+		matches, err := fileStartsWithVNetComment(ctx, filePath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if matches {
+			matchingFiles[filePath] = struct{}{}
+		}
+	}
+	return matchingFiles, nil
+}
+
+// fileStartsWithVNetComment reports whether the first line of the file at
+// path is the comment marking a VNet managed resolver file. Files whose
+// first line cannot be read are treated as not managed by VNet.
+func fileStartsWithVNetComment(ctx context.Context, path string) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, trace.Wrap(err, "opening %s", path)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			log.DebugContext(ctx, "Failed to read first line of resolver file, treating it as not managed by VNet.",
+				"file", path, "error", err)
+		}
+		return false, nil
+	}
+	return scanner.Text() == resolverFileComment, nil
+}

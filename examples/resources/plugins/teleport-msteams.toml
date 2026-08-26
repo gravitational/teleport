@@ -1,0 +1,58 @@
+# Example Microsoft Teams plugin configuration TOML file
+
+# If true, channels and users existence is checked on plugin start. When a
+# user is checked, the app is installed for the user if it was not
+# already. Installation can take up to 10 seconds per user. It is
+# advised to enable preloading unless you are sure all users already got
+# the app installed to avoid possible timeouts when treating an access request.
+preload = true
+
+[teleport]
+# Teleport Auth Service or Proxy Service address.
+# Example: examples/resources/plugins/teleport-msteams.toml
+# addr = ""
+#
+# Should be port 3025 for the Auth Service and 3080 or 443 for the Proxy
+# Service.
+# For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
+
+# Credentials generated with `tctl auth sign`.
+#
+# When using --format=file:
+# Identity file, e.g., /var/lib/teleport/plugins/msteams/identity
+identity = ""   
+# Refresh identity file periodically
+refresh_identity = true                                   
+#
+# When using --format=tls:
+# Teleport TLS secret key, e.g., /var/lib/teleport/plugins/msteams/auth.key
+# client_key = "" 
+# Teleport TLS certificate, e.g., /var/lib/teleport/plugins/msteams/auth.crt
+# client_crt = "" 
+# Teleport CA certs, e.g., /var/lib/teleport/plugins/msteams/auth.cas
+# root_cas = ""   
+
+[msapi]
+# MS API IDs. Please, check the documentation.
+app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# Either contains the app secret or the path of a file containing the secret
+app_secret = "XXXXXXXXXXXXXXXXXXXXXX"
+tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+[role_to_recipients]
+# Map roles to recipients.
+#
+# Provide msteams user email/id or channel URL recipients for access requests for specific roles.
+# role.suggested_reviewers will automatically be treated as additional email recipients.
+# "*" must be provided to match non-specified roles.
+#
+# "dev" = "devs-msteams-channel"
+# "*" = ["admin@email.com", "admin-msteams-channel"]
+"*" = []
+
+[log]
+# Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
+output = "stderr" 
+# Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+severity = "INFO" 

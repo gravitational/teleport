@@ -1,8 +1,24 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package sshutils
 
 import (
-	"crypto/md5"
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -11,12 +27,7 @@ import (
 
 // Fingerprint returns SSH RFC4716 fingerprint of the key
 func Fingerprint(key ssh.PublicKey) string {
-	sum := md5.Sum(key.Marshal())
-	parts := make([]string, len(sum))
-	for i := 0; i < len(sum); i++ {
-		parts[i] = fmt.Sprintf("%0.2x", sum[i])
-	}
-	return strings.Join(parts, ":")
+	return ssh.FingerprintSHA256(key)
 }
 
 // AuthorizedKeyFingerprint returns fingerprint from public key
@@ -37,4 +48,19 @@ func PrivateKeyFingerprint(keyBytes []byte) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return Fingerprint(signer.PublicKey()), nil
+}
+
+// fingerprintPrefix is the fingerprint prefix added by ssh.FingerprintSHA256.
+const fingerprintPrefix = "SHA256:"
+
+func maybeAddPrefix(fingerprint string) string {
+	if !strings.HasPrefix(fingerprint, fingerprintPrefix) {
+		return fingerprintPrefix + fingerprint
+	}
+	return fingerprint
+}
+
+// EqualFingerprints checks if two finger prints are equal.
+func EqualFingerprints(a, b string) bool {
+	return strings.EqualFold(maybeAddPrefix(a), maybeAddPrefix(b))
 }

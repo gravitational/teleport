@@ -1,0 +1,8 @@
+[Unit]
+Description=Service rotating teleport certificates
+ConditionPathExists=/etc/teleport.d/use-letsencrypt
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/local/bin/teleport-lock
+ExecStart=/usr/local/bin/teleport-renew-cert

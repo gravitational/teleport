@@ -1,0 +1,53 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* 
+    the styled-components@5 doesn't support container queries so
+    we have to create and set the classes manually
+    TODO (avatus): DELETE if we ever upgrade to v6
+*/
+.ContainerContext {
+  container-type: inline-size;
+}
+
+.CardsContainer {
+  @container (min-width: 1600px) {
+    grid-template-columns: repeat(4, minmax(400px, 1fr));
+  }
+}
+
+.BulkActionText {
+  display: none;
+  @container (min-width: 700px) {
+    display: block;
+  }
+}
+
+.ListContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.SearchPanel {
+  width: 100%;
+  @container (min-width: 801px) {
+    width: 70%;
+    min-width: 800px;
+  }
+}

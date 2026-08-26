@@ -1,0 +1,151 @@
+---
+title: Teleport Upcoming Releases
+description: A timeline of upcoming Teleport releases.
+tags:
+ - reference
+ - platform-wide
+---
+
+Teleport releases a new major version once per year, and provides
+security-critical support for the current and previous major version. We
+support each major version for 24 months.
+
+The most recent major version of Teleport, referred to as the **current version**,
+is the only major version of Teleport that will receive new features. The
+previous major version, referred to as the **stable version**, will only receive
+bug fixes and security patches.
+
+## Teleport
+
+### Supported releases
+
+We continue to support the following major versions of Teleport:
+
+| Version | Release | Release Date      | EOL              | Minimum `tsh` version |
+|---------|---------|-------------------|------------------|-----------------------|
+| Current | v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
+| Stable  | v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
+
+### Upcoming releases
+
+We plan to release the following versions in the coming months:
+
+| Version | Date                       |
+|---------|----------------------------|
+| 18.11.0 | Week of August 17, 2026    |
+| 19.0.0  | Week of September 21, 2026 |
+
+### 18.11.0
+
+#### Agentic UX for Access Configuration
+
+Teleport will provide a custom agent skill for configuring access to connected
+resources using access lists.
+
+#### Linux Desktop Access
+
+Teleport will support remote desktop sessions to Linux hosts.
+
+_Delayed from Teleport 18.10.0._
+
+#### Desktop Session Recording Export
+
+Desktop session recordings can be exported to video files with the revamped
+`tsh recordings export` command.
+
+#### Identity Security CLI
+
+Teleport will add commands to `tctl` for querying Identity Security, letting you
+explore identities, resources, and their access relationships from the command
+line.
+
+#### Generic OIDC Join Method
+
+Teleport will include a new generic OIDC join method for bots and agents.
+Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
+that lack a dedicated Teleport join method.
+
+#### Auto-Discovery Improvements
+
+Teleport will extend AWS EC2 and Azure VM auto-discovery to support enrollment
+at an organization/tenant level in addition to a single account.
+
+In addition, Teleport will extend cloud database auto-discovery support to
+GCP CloudSQL.
+
+### 19.0.0
+
+#### Amazon Aurora DSQL Cluster State Backend
+
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Audit Log Reliability Improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+_Delayed from Teleport 18.11.0._
+
+#### Improved Principal Selection for Access Requests
+
+Teleport will improve access requests experience by allowing users to pick specific
+principals for SSH nodes, Kubernetes clusters, databases and Windows desktop to better
+support scenarios like just-in-time access elevation requests.
+
+#### In-band Per-Session MFA for SSH and Desktops
+
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
+
+## Teleport Cloud
+
+The key deliverables for Teleport Cloud in the next quarter:
+
+| Week of       | Description                                                     |
+|---------------|-----------------------------------------------------------------|
+| July 13, 2026 | Teleport 18.10.0 will begin rollout on Cloud.                   |
+| July 20, 2026 | Teleport 18.10.0 agents will begin rollout to eligible tenants. |
+
+## Production readiness
+
+Teleport follows [semantic versioning](https://semver.org) for pre-releases and
+releases.
+
+### Pre-releases
+
+Pre-releases of Teleport (versions with suffixes like `-alpha`, `-beta`, `-rc`)
+should not be run in production environments.
+
+Pre-releases of Teleport are great for testing new features, breaking changes,
+and backwards incompatibility issues either in development or staging
+environments.
+
+### Major Releases
+
+Major releases look like `(=teleport.major_version=).0.0`.
+
+Major releases of Teleport contain many large new features and may contain
+breaking changes.
+
+Due to the scope and quantity of changes in a major release, we encourage
+deploying to staging first to verify your usage pattern has not changed.
+
+### Minor Releases
+
+Minor releases look like `(=teleport.major_version=).X.0`.
+
+Minor releases of Teleport typically contain smaller features and improvements.
+Minor releases can typically be deployed directly to production.
+
+Most customers upgrade to the next major version of Teleport during the first
+minor release, such as (=teleport.major_version=).1.0.
+
+### Patch Releases
+
+Patch releases contain small bug fixes and can typically be deployed directly
+to production.
+
+## Version compatibility
+
+(!docs/pages/includes/compatibility.mdx!)

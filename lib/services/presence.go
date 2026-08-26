@@ -1,178 +1,255 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
-	"encoding/json"
-	"fmt"
-	"sort"
-	"strings"
+	"context"
+	"iter"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
+
+// ProxyGetter is a service that gets proxies.
+type ProxyGetter interface {
+	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of registered Proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+}
+
+// NodesGetter is a service that gets nodes.
+type NodesGetter interface {
+	// GetNodes returns a list of registered servers.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+}
+
+// DatabaseServersGetter is a service that gets database servers.
+type DatabaseServersGetter interface {
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
+// AppServersGetter is a service that gets application servers.
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
+// NodesStreamGetter is a service that gets nodes.
+type NodesStreamGetter interface {
+	// GetNodeStream returns a list of registered servers.
+	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
+}
 
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
-	// GetNodes returns a list of registered servers
-	GetNodes() ([]Server, error)
+	// Inventory is a subset of Presence dedicated to tracking the status of all
+	// teleport instances independent of any specific service.
+	Inventory
 
-	// UpsertNode registers node presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(server Server, ttl time.Duration) error
+	// Semaphores is responsible for semaphore handling
+	types.Semaphores
+
+	// GetNode returns a node by name and namespace.
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+
+	// NodesGetter gets nodes
+	NodesGetter
+
+	// DeleteAllNodes deletes all nodes in a namespace.
+	DeleteAllNodes(ctx context.Context, namespace string) error
+
+	// DeleteNode deletes node in a namespace
+	DeleteNode(ctx context.Context, namespace, name string) error
+
+	// UpsertNode registers node presence, permanently if TTL is 0 or for the
+	// specified duration with second resolution if it's >= 1 second.
+	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
 	// GetAuthServers returns a list of registered servers
-	GetAuthServers() ([]Server, error)
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of registered auth servers.
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(server Server, ttl time.Duration) error
+	UpsertAuthServer(ctx context.Context, server types.Server) error
+
+	// DeleteAuthServer deletes auth server by name
+	DeleteAuthServer(name string) error
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server Server, ttl time.Duration) error
+	UpsertProxy(ctx context.Context, server types.Server) error
 
-	// GetProxies returns a list of registered proxies
-	GetProxies() ([]Server, error)
+	// ProxyGetter gets a list of proxies
+	ProxyGetter
+
+	// DeleteProxy deletes proxy by name
+	DeleteProxy(ctx context.Context, name string) error
+
+	// DeleteAllProxies deletes all proxies
+	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(tunnel ReverseTunnel, ttl time.Duration) error
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 
-	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels() ([]ReverseTunnel, error)
+	// GetReverseTunnel returns reverse tunnel by name
+	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
 
-	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
-	DeleteReverseTunnel(domainName string) error
+	// DeleteReverseTunnel deletes reverse tunnel by its domain name
+	DeleteReverseTunnel(ctx context.Context, domainName string) error
+
+	// ListReverseTunnels returns a page of ReverseTunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
+
+	// GetServerInfos returns a stream of ServerInfos.
+	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+
+	// GetServerInfo returns a ServerInfo by name.
+	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
+
+	// UpsertServerInfo upserts a ServerInfo.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// DeleteServerInfo deletes a ServerInfo by name.
+	DeleteServerInfo(ctx context.Context, name string) error
+
+	// DeleteAllServerInfos deletes all ServerInfos.
+	DeleteAllServerInfos(ctx context.Context) error
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	// DeleteAllApplicationServers removes all registered application servers.
+	DeleteAllApplicationServers(context.Context, string) error
+
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+	// UpsertDatabaseServer creates or updates a new database proxy server.
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+	// DeleteDatabaseServer removes the specified database proxy server.
+	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
+	// DeleteAllDatabaseServers removes all database proxy servers.
+	DeleteAllDatabaseServers(context.Context, string) error
+
+	// KeepAliveServer updates TTL of the server resource in the backend.
+	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
+
+	// GetKubernetesServers returns a list of registered kubernetes servers.
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
+
+	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
+	DeleteAllKubernetesServers(context.Context) error
+
+	// UpsertKubernetesServer registers an kubernetes server.
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
+
+	// GetWindowsDesktopServices returns all registered Windows desktop services.
+	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a Windows desktop service by name
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+	// UpsertWindowsDesktopService creates or updates a new Windows desktop service.
+	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
+	// DeleteWindowsDesktopService removes the specified Windows desktop service.
+	DeleteWindowsDesktopService(ctx context.Context, name string) error
+	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
+	DeleteAllWindowsDesktopServices(context.Context) error
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+	// DeleteRelayServer deletes a relay server heartbeat by name.
+	DeleteRelayServer(ctx context.Context, name string) error
+
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-// Site represents a cluster of teleport nodes who collectively trust the same
-// certificate authority (CA) and have a common name.
-//
-// The CA is represented by an auth server (or multiple auth servers, if running
-// in HA mode)
-type Site struct {
-	Name          string    `json:"name"`
-	LastConnected time.Time `json:"lastconnected"`
-	Status        string    `json:"status"`
-}
+// PresenceInternal extends the Presence interface with auth-specific internal methods.
+type PresenceInternal interface {
+	Presence
+	InventoryInternal
 
-// Server represents a node in a Teleport cluster
-type Server struct {
-	ID        string                  `json:"id"`
-	Addr      string                  `json:"addr"`
-	Hostname  string                  `json:"hostname"`
-	Labels    map[string]string       `json:"labels"`
-	CmdLabels map[string]CommandLabel `json:"cmd_labels"`
-}
+	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
+	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
+	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
 
-// ReverseTunnel is SSH reverse tunnel established between a local Proxy
-// and a remote Proxy. It helps to bypass firewall restrictions, so local
-// clusters don't need to have the cluster involved
-type ReverseTunnel struct {
-	// DomainName is a domain name of remote cluster we are connecting to
-	DomainName string `json:"domain_name"`
-	// DialAddrs is a list of remote address to establish a connection to
-	// it's always SSH over TCP
-	DialAddrs []string `json:"dial_addrs"`
-}
+	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
+	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 
-// Check returns nil if all parameters are good, error otherwise
-func (r *ReverseTunnel) Check() error {
-	if strings.TrimSpace(r.DomainName) == "" {
-		return trace.BadParameter("Reverse tunnel validation error: empty domain name")
-	}
+	// UnconditionalUpdateApplicationServer writes an app_server if one with the
+	// same host ID and name exists in storage, no matter its contents (i.e., it
+	// doesn't check the revision of the app_server in storage).
+	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
 
-	if len(r.DialAddrs) == 0 {
-		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.DomainName)
-	}
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
 
-	for _, addr := range r.DialAddrs {
-		_, err := utils.ParseAddr(addr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 
-	return nil
-}
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 
-// CommandLabel is a label that has a value as a result of the
-// output generated by running command, e.g. hostname
-type CommandLabel struct {
-	// Period is a time between command runs
-	Period time.Duration `json:"period"`
-	// Command is a command to run
-	Command []string `json:"command"` //["/usr/bin/hostname", "--long"]
-	// Result captures standard output
-	Result string `json:"result"`
-}
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 
-// CommandLabels is a set of command labels
-type CommandLabels map[string]CommandLabel
-
-// SetEnv sets the value of the label from environment variable
-func (c *CommandLabels) SetEnv(v string) error {
-	if err := json.Unmarshal([]byte(v), c); err != nil {
-		return trace.Wrap(err, "Can't parse Command Labels")
-	}
-	return nil
-}
-
-// LabelsMap returns the full key:value map of both static labels and
-// "command labels"
-func (s *Server) LabelsMap() map[string]string {
-	lmap := make(map[string]string)
-	for key, value := range s.Labels {
-		lmap[key] = value
-	}
-	for key, cmd := range s.CmdLabels {
-		lmap[key] = cmd.Result
-	}
-	return lmap
-}
-
-// MatchAgainst takes a map of labels and returns True if this server
-// has ALL of them
-//
-// Any server matches against an empty label set
-func (s *Server) MatchAgainst(labels map[string]string) bool {
-	if labels != nil {
-		myLabels := s.LabelsMap()
-		for key, value := range labels {
-			if myLabels[key] != value {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// LabelsString returns a comma separated string with all node's labels
-func (s *Server) LabelsString() string {
-	labels := []string{}
-	for key, val := range s.Labels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
-	}
-	for key, val := range s.CmdLabels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, ",")
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

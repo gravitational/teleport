@@ -1,0 +1,15 @@
+.version: &version "18.10.7"
+
+name: teleport-cluster
+apiVersion: v2
+version: *version
+appVersion: *version
+description: Teleport is an access platform for your infrastructure
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
+
+dependencies:
+  - name: teleport-operator
+    version: *version
+    alias: operator

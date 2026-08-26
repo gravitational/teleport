@@ -1,0 +1,19 @@
+{{ if .Values.rbac.create -}}
+# This role grants our tbot the ability to query the Kubernetes API for
+# information about pods, this is necessary for the kubernetes workload
+# attestation.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
+{{- if .Values.extraLabels.clusterRole }}
+  labels: {{- toYaml .Values.extraLabels.clusterRole | nindent 4 }}
+{{- end }}
+{{- if .Values.annotations.clusterRole }}
+  annotations: {{- toYaml .Values.annotations.clusterRole | nindent 4 }}
+{{- end}}
+rules:
+  - resources: [ "pods","nodes","nodes/proxy" ]
+    apiGroups: [ "" ]
+    verbs: [ "get" ]
+{{ end }}

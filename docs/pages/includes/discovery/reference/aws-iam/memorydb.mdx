@@ -1,0 +1,27 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "MemoryDBDiscovery",
+            "Effect": "Allow",
+            "Action": "memorydb:DescribeClusters",
+            "Resource": "*"
+        },
+        {
+            "Sid": "MemoryDBFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "memorydb:DescribeSubnetGroups",
+                "memorydb:ListTags"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `MemoryDBDiscovery` | Discover MemoryDB databases. |
+| `MemoryDBFetchMetadata` | Import AWS tags and additional metadata for each database as Teleport database labels. |

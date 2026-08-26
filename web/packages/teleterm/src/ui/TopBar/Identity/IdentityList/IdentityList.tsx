@@ -1,0 +1,238 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { formatDistanceToNowStrict, isPast } from 'date-fns';
+import { JSX } from 'react';
+import styled from 'styled-components';
+
+import { ButtonText, Flex, P3, Stack } from 'design';
+import {
+  Clock,
+  Logout,
+  Refresh,
+  ShieldCheck,
+  ShieldWarning,
+} from 'design/Icon';
+import Link from 'design/Link';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
+import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+
+import { DeviceTrustStatus } from '../Identity';
+import { IdentityItem } from '../useIdentity';
+import { ColorPicker } from './ColorPicker';
+import {
+  AddClusterItem,
+  getProfileNameLetter,
+  IdentityListItem,
+  TitleAndSubtitle,
+} from './IdentityListItem';
+import { Roles } from './Roles';
+
+export function ActiveCluster(props: {
+  activeCluster: Cluster | undefined;
+  activeColor: WorkspaceColor;
+  deviceTrustStatus: DeviceTrustStatus;
+  onChangeColor(color: WorkspaceColor): void;
+  onRefresh(): void;
+  onLogout(): void;
+}) {
+  const clusterName = routing.parseClusterName(props.activeCluster.uri);
+  const validUntil =
+    props.activeCluster.loggedInUser?.validUntil &&
+    Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
+  const roles = props.activeCluster.loggedInUser?.roles || [];
+  const [isRolesExpanded, setIsRolesExpanded] = usePersistedState(
+    'showRolesExpanded',
+    false
+  );
+
+  return (
+    <>
+      <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
+        <Flex gap={4} justifyContent="space-between">
+          <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
+            <ColorPicker
+              letter={getProfileNameLetter(props.activeCluster.uri)}
+              color={props.activeColor}
+              setColor={props.onChangeColor}
+            />
+            <TitleAndSubtitle
+              title={clusterName}
+              subtitle={props.activeCluster.loggedInUser?.name}
+            />
+          </Flex>
+
+          <Flex flexDirection="row" alignItems="flex-start" gap={1}>
+            <ButtonText
+              title={`Refresh session in ${clusterName}`}
+              size="small"
+              onClick={() => props.onRefresh()}
+            >
+              <Refresh size="small" />
+            </ButtonText>
+            <ButtonText
+              title={`Log out from ${clusterName}`}
+              onClick={() => props.onLogout()}
+              intent="danger"
+              size="small"
+            >
+              <Logout size="small" />
+            </ButtonText>
+          </Flex>
+        </Flex>
+        {props.activeCluster.profileStatusError && (
+          <ProfileStatusError
+            error={props.activeCluster.profileStatusError}
+            // Align the error with the user icon.
+            css={`
+              margin-left: ${props => props.theme.space[2]}px;
+              gap: 14px;
+            `}
+          />
+        )}
+        <Stack gap={0}>
+          <Roles
+            roles={roles}
+            expanded={isRolesExpanded}
+            setExpanded={setIsRolesExpanded}
+          />
+          {validUntil && (
+            <Flex gap={1} color="text.slightlyMuted">
+              <Clock size="small" />
+              <P3>
+                {isPast(validUntil) ? (
+                  'Session expired.'
+                ) : (
+                  <>
+                    Session expires{' '}
+                    <span
+                      title={validUntil.toLocaleString()}
+                      css={`
+                        text-decoration: underline;
+                        text-decoration-style: dotted;
+                      `}
+                    >
+                      {formatDistanceToNowStrict(validUntil, {
+                        addSuffix: true,
+                      })}
+                      .
+                    </span>
+                  </>
+                )}
+              </P3>
+            </Flex>
+          )}
+          <DeviceTrustMessage status={props.deviceTrustStatus} />
+        </Stack>
+      </Flex>
+      <Separator />
+    </>
+  );
+}
+
+export function IdentityList(props: {
+  items: IdentityItem[];
+  onSelect(clusterUri: RootClusterUri): void;
+  onLogout(clusterUri: RootClusterUri): void;
+  onForget(clusterUri: RootClusterUri): void;
+  onAdd(): void;
+}) {
+  return (
+    <>
+      {props.items
+        .toSorted((a, b) => {
+          return (
+            // Puts items with profile first, then sorts equal groups alphabetically.
+            Number(!!b.cluster) - Number(!!a.cluster) ||
+            routing
+              .parseClusterName(a.uri)
+              .localeCompare(routing.parseClusterName(b.uri))
+          );
+        })
+        .map((identityItem, index) => {
+          const { cluster } = identityItem;
+          return (
+            <IdentityListItem
+              key={identityItem.uri}
+              uri={identityItem.uri}
+              index={index}
+              color={identityItem.workspace.color}
+              cluster={cluster}
+              onSelect={() => props.onSelect(identityItem.uri)}
+              onLogout={() => props.onLogout(identityItem.uri)}
+              onForget={() => props.onForget(identityItem.uri)}
+            />
+          );
+        })}
+      <AddClusterItem index={props.items.length} onClick={props.onAdd} />
+    </>
+  );
+}
+
+function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
+  let message: JSX.Element | undefined;
+  switch (props.status) {
+    case 'enrolled':
+      message = (
+        <>
+          <ShieldCheck color="success.main" size="small" mb="2px" />
+          <P3>Access secured with Device Trust.</P3>
+        </>
+      );
+      break;
+    case 'requires-enrollment':
+      message = (
+        <>
+          <ShieldWarning color="warning.main" size="small" mb="2px" />
+          <P3>
+            Full access requires a trusted device. Learn how to{' '}
+            <Link
+              href="https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#create-a-device-enrollment-token"
+              target="_blank"
+            >
+              enroll your device
+            </Link>
+            .
+          </P3>
+        </>
+      );
+      break;
+    case 'none':
+      break;
+    default:
+      props.status satisfies never;
+  }
+
+  if (message) {
+    return (
+      <Flex gap={1} color="text.slightlyMuted">
+        {message}
+      </Flex>
+    );
+  }
+}
+
+const Separator = styled.div`
+  background: ${props => props.theme.colors.spotBackground[1]};
+  height: 1px;
+`;

@@ -1,0 +1,2493 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package local
+
+import (
+	gocmp "cmp"
+	"context"
+	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+// TestApplicationServersCRUD verifies backend operations on app servers.
+func TestApplicationServersCRUD(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mem.Close() })
+
+	// Wrap in the sanitizer so keys with illegal component characters (e.g. a
+	// "/" inside a single component) fail the same way they would on real
+	// backends; the raw memory backend accepts them silently.
+	presence := NewPresenceService(backend.NewSanitizer(mem))
+
+	t.Run("unscoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		// Make an app and an app server.
+		appA, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		serverA, err := types.NewAppServerV3(types.Metadata{
+			Name: appA.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appA,
+		})
+		require.NoError(t, err)
+
+		// Make another app and an app server.
+		appB, err := types.NewAppV3(types.Metadata{Name: "b"},
+			types.AppSpecV3{URI: "http://localhost:8081"})
+		require.NoError(t, err)
+		serverB, err := types.NewAppServerV3(types.Metadata{
+			Name: appB.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appB,
+		})
+		require.NoError(t, err)
+
+		// No app servers should be registered initially
+		out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
+
+		// Create app servers.
+		lease, err := presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+		lease, err = presence.UpsertApplicationServer(ctx, serverB)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+
+		// Make sure all app servers are registered.
+		out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+		servers := types.AppServers(out)
+		require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
+		require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Delete an app server.
+		err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: serverA.GetHostID(),
+			Name:   serverA.GetName(),
+			Scope:  serverA.GetScope(),
+		}.Build())
+		require.NoError(t, err)
+
+		// Expect only one to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Upsert server with TTL.
+		serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		lease, err = presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{
+			Type:      types.KeepAlive_APP,
+			Name:      serverA.GetName(),
+			Namespace: serverA.GetNamespace(),
+			HostID:    serverA.GetHostID(),
+			Expires:   serverA.Expiry(),
+		}, lease)
+
+		// Delete all app servers.
+		err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+
+		// Expect no servers to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
+	})
+
+	t.Run("scoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		newAppServer := func(scope string) *types.AppServerV3 {
+			app, err := types.NewAppV3(types.Metadata{Name: "graf"},
+				types.AppSpecV3{URI: "http://localhost:8080"})
+			require.NoError(t, err)
+			app.Scope = scope
+			server, err := types.NewAppServerV3(types.Metadata{
+				Name: app.GetName(),
+			}, types.AppServerSpecV3{
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+				App:      app,
+			})
+			require.NoError(t, err)
+			server.Scope = scope
+			return server
+		}
+
+		staging := newAppServer("/staging")
+		prod := newAppServer("/prod")
+		unscoped := newAppServer("")
+
+		for _, server := range []*types.AppServerV3{staging, prod, unscoped} {
+			lease, err := presence.UpsertApplicationServer(ctx, server)
+			require.NoError(t, err)
+			require.Equal(t, &types.KeepAlive{}, lease)
+		}
+
+		getScopes := func() []string {
+			out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			apps := []string{}
+			for _, server := range out {
+				apps = append(apps, server.GetScope())
+			}
+			return apps
+		}
+
+		// Same-named servers in different scopes must coexist.
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes())
+
+		// Unconditional updates must land in the scoped range.
+		staging.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		_, err := presence.UnconditionalUpdateApplicationServer(ctx, staging)
+		require.NoError(t, err)
+
+		// Deleting by (hostID, name, scope) must locate the scoped entry.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes())
+
+		// Deleting an unscoped entry uses the legacy layout.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: unscoped.GetHostID(),
+			Name:   unscoped.GetName(),
+			Scope:  unscoped.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"/prod"}, getScopes())
+
+		// Deleting a nonexistent server errors.
+		require.Error(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+
+		// DeleteAll clears both ranges.
+		require.NoError(t, presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace))
+		require.Empty(t, getScopes())
+	})
+}
+
+func TestListAppServersPagination(t *testing.T) {
+	t.Parallel()
+
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mem.Close() })
+	presence := NewPresenceService(backend.NewSanitizer(mem))
+	ctx := t.Context()
+
+	newAppServer := func(name, scope string) *types.AppServerV3 {
+		app, err := types.NewAppV3(types.Metadata{Name: name},
+			types.AppSpecV3{URI: "http://localhost:8080"}, scope)
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3(types.Metadata{
+			Name: app.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      app,
+		}, scope)
+		require.NoError(t, err)
+		return server
+	}
+
+	key := func(s types.AppServer) string {
+		return s.GetScope() + "/" + s.GetHostID() + "/" + s.GetName()
+	}
+
+	var keysExpected []string
+	for _, scope := range []string{"", "", "", "/prod", "/prod", "/staging"} {
+		server := newAppServer("graf", scope)
+		_, err := presence.UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+		keysExpected = append(keysExpected, key(server))
+	}
+
+	var actualKeys []string
+	var sawScopedCursor bool
+	startKey := ""
+	// Loop through all the app servers and check that the NextKey matches the expected key
+	for {
+		resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindAppServer,
+			Namespace:    apidefaults.Namespace,
+			Limit:        1,
+			StartKey:     startKey,
+		})
+		require.NoError(t, err)
+
+		r := resp.Resources[0]
+		server, ok := r.(types.AppServer)
+		require.True(t, ok)
+		if startKey != "" { // first entry
+			if startKey == scopes.ResourceCursorScopedStart() {
+				// The unscoped range ended exactly at a page boundary;
+				// next entry should be scoped
+				require.NotEmpty(t, server.GetScope())
+			} else {
+				require.Equal(t, startKey, services.GetCursorForAppServer(server))
+			}
+		}
+		actualKeys = append(actualKeys, key(server))
+
+		if resp.NextKey == "" {
+			break
+		}
+		if scopes.IsScopedResourceCursor(resp.NextKey) {
+			sawScopedCursor = true
+		}
+		startKey = resp.NextKey
+	}
+
+	require.ElementsMatch(t, keysExpected, actualKeys)
+	require.True(t, sawScopedCursor)
+}
+
+func mustCreateApplicationServer(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	server, err := types.NewAppServerV3FromApp(app, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeApplicationServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeApplicationServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateApplicationServer(t, "shared-app")
+	server2 := mustCreateApplicationServer(t, "shared-app")
+	server3 := mustCreateApplicationServer(t, "standalone-app")
+
+	for _, s := range []types.AppServer{server1, server2, server3} {
+		_, err := presence.UpsertApplicationServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-app", s.GetApp().GetName())
+		}
+	})
+
+	t.Run("SingleServerForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "standalone-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-app", servers[0].GetApp().GetName())
+	})
+
+	t.Run("NoServersForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "nonexistent-app"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+			Scope:  server1.GetScope(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
+func TestDatabaseServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	// Create a database server.
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "foo",
+	}, types.DatabaseServerSpecV3{
+		Database: mustCreateDatabase(t, "foo", defaults.ProtocolPostgres, "localhost:5432"),
+		Hostname: "localhost",
+		HostID:   uuid.New().String(),
+	})
+	require.NoError(t, err)
+
+	// Initially expect not to be returned any servers.
+	out, err := presence.GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Upsert server.
+	lease, err := presence.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{}, lease)
+
+	// Check again, expect a single server to be found.
+	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Make sure can't delete with empty namespace or host ID or name.
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), "", server.GetName())
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	err = presence.DeleteDatabaseServer(ctx, "", server.GetHostID(), server.GetName())
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	// Remove the server.
+	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName())
+	require.NoError(t, err)
+
+	// Now expect no servers to be returned.
+	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Upsert server with TTL.
+	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
+	lease, err = presence.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+	require.Equal(t, &types.KeepAlive{
+		Type:      types.KeepAlive_DATABASE,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+	}, lease)
+
+	// Make sure can't delete all with empty namespace.
+	err = presence.DeleteAllDatabaseServers(ctx, "")
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	// Delete all.
+	err = presence.DeleteAllDatabaseServers(ctx, server.GetNamespace())
+	require.NoError(t, err)
+
+	// Now expect no servers to be returned.
+	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
+func mustCreateDatabaseServer(t *testing.T, dbName string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   uuid.New().String(),
+		Hostname: "localhost",
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
+	})
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeDatabaseServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateDatabaseServer(t, "shared-db")
+	server2 := mustCreateDatabaseServer(t, "shared-db")
+	server3 := mustCreateDatabaseServer(t, "standalone-db")
+
+	for _, s := range []types.DatabaseServer{server1, server2, server3} {
+		_, err := presence.UpsertDatabaseServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-db", s.GetDatabase().GetName())
+		}
+	})
+
+	t.Run("SingleServerForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "standalone-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-db", servers[0].GetDatabase().GetName())
+	})
+
+	t.Run("NoServersForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "nonexistent-db"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteDatabaseServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServer {
+	t.Helper()
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: clusterName,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestKubeServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(backend.NewSanitizer(bk))
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	const scope = "/aa"
+	server1 := mustCreateKubernetesServer(t, "shared-cluster")
+	server2 := mustCreateKubernetesServer(t, "shared-cluster")
+	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+	server4, ok := server2.Copy().(*types.KubernetesServerV3)
+	require.True(t, ok, "expected types.KubernetesServerV3")
+	server4.Scope = scope
+
+	for _, s := range []types.KubeServer{server1, server2, server3, server4} {
+		_, err := presence.UpsertKubernetesServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 3)
+		for _, s := range servers {
+			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
+		}
+	})
+
+	t.Run("SingleServerForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "standalone-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-cluster", servers[0].GetCluster().GetName())
+	})
+
+	t.Run("NoServersForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServerWithScope", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  scope,
+			HostId: server2.GetHostID(),
+			Name:   server2.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, server := range servers {
+			require.Empty(t, server.GetScope())
+		}
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func TestNodeCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	t.Run("CreateNode", func(t *testing.T) {
+		// Initially expect no nodes to be returned.
+		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
+
+		// Create nodes
+		_, err = presence.UpsertNode(ctx, node1)
+		require.NoError(t, err)
+		_, err = presence.UpsertNode(ctx, node2)
+		require.NoError(t, err)
+	})
+
+	t.Run("UpdateNode", func(t *testing.T) {
+		node1, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+		node1.SetAddr("1.2.3.4:8080")
+
+		node2, err = presence.GetNode(ctx, apidefaults.Namespace, node2.GetName())
+		require.NoError(t, err)
+
+		node1, err = presence.UpdateNode(ctx, node1)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:8080", node1.GetAddr())
+
+		rev := node2.GetRevision()
+		node2.SetAddr("1.2.3.4:9090")
+		node2.SetRevision(node1.GetRevision())
+
+		_, err = presence.UpdateNode(ctx, node2)
+		require.True(t, trace.IsCompareFailed(err))
+		node2.SetRevision(rev)
+
+		node2, err = presence.UpdateNode(ctx, node2)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:9090", node2.GetAddr())
+	})
+
+	// Run NodeGetters in nested subtests to allow parallelization.
+	t.Run("NodeGetters", func(t *testing.T) {
+		t.Run("GetNodes", func(t *testing.T) {
+			t.Parallel()
+			// Get all nodes, transparently handle limit exceeded errors
+			nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, nodes, 2)
+			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// GetNodes should fail if namespace isn't provided
+			_, err = presence.GetNodes(ctx, "")
+			require.True(t, trace.IsBadParameter(err))
+		})
+		t.Run("GetNode", func(t *testing.T) {
+			t.Parallel()
+			// Get Node
+			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(node1, node,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// GetNode should fail if node name isn't provided
+			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
+			require.True(t, trace.IsBadParameter(err))
+
+			// GetNode should fail if namespace isn't provided
+			_, err = presence.GetNode(ctx, "", "node1")
+			require.True(t, trace.IsBadParameter(err))
+		})
+	})
+
+	t.Run("DeleteNode", func(t *testing.T) {
+		// Delete node.
+		err = presence.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+
+		// Expect node not found
+		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+	})
+
+	t.Run("DeleteAllNodes", func(t *testing.T) {
+		// Delete nodes
+		err = presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+
+		// Now expect no nodes to be returned.
+		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
+	})
+}
+
+func TestListResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	tests := map[string]struct {
+		resourceType           string
+		createResourceFunc     func(context.Context, *PresenceService, string, map[string]string) error
+		deleteAllResourcesFunc func(context.Context, *PresenceService) error
+		expectedType           types.Resource
+	}{
+		"DatabaseServers": {
+			resourceType: types.KindDatabaseServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
+				server, err := types.NewDatabaseServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.DatabaseServerSpecV3{
+					Database: db,
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertDatabaseServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"DatabaseServersSameHost": {
+			resourceType: types.KindDatabaseServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
+				server, err := types.NewDatabaseServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.DatabaseServerSpecV3{
+					Database: db,
+					Hostname: "localhost",
+					HostID:   "some-host",
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertDatabaseServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"AppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"ScopedAppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				const scope = "/staging"
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"AppServersSameHost": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				})
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   "some-host",
+					App:      app,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
+					},
+					types.KubernetesClusterSpecV3{},
+				)
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllKubernetesServers(ctx)
+			},
+		},
+		"Node": {
+			resourceType: types.KindNode,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				server, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertNode(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"NodeWithDynamicLabels": {
+			resourceType: types.KindNode,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				dynamicLabels := make(map[string]types.CommandLabelV2)
+				for name, value := range labels {
+					dynamicLabels[name] = types.CommandLabelV2{
+						Period:  types.NewDuration(time.Second),
+						Command: []string{name},
+						Result:  value,
+					}
+				}
+
+				server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+					CmdLabels: dynamicLabels,
+				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertNode(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		},
+		"WindowsDesktopService": {
+			resourceType: types.KindWindowsDesktopService,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktop, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
+					},
+					types.WindowsDesktopServiceSpecV3{
+						Addr:            "localhost:1234",
+						TeleportVersion: teleport.Version,
+					})
+				if err != nil {
+					return err
+				}
+
+				_, err = presence.UpsertWindowsDesktopService(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllWindowsDesktopServices(ctx)
+			},
+		},
+		"WindowsDesktop": {
+			resourceType: types.KindWindowsDesktop,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				desktop, err := types.NewWindowsDesktopV3(name, labels, types.WindowsDesktopSpecV3{
+					Addr: "localhost:1234",
+				})
+				if err != nil {
+					return err
+				}
+
+				err = desktopService.UpsertWindowsDesktop(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				return desktopService.DeleteAllWindowsDesktops(ctx)
+			},
+		},
+		"GitServer": {
+			resourceType: types.KindGitServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  "my-org",
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				gitServer.SetName(name)
+				newLabels := gitServer.GetLabels()
+				maps.Copy(newLabels, labels)
+				gitServer.SetStaticLabels(newLabels)
+
+				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
+				return trace.Wrap(err)
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return gitServerService.DeleteAllGitServers(ctx)
+			},
+		},
+	}
+
+	for testName, test := range tests {
+		testName := testName
+		test := test
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			backend, err := memory.New(memory.Config{
+				Clock: clock,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = backend.Close() })
+
+			presence := NewPresenceService(backend)
+
+			resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        1,
+				ResourceType: test.resourceType,
+				StartKey:     "",
+			})
+			require.NoError(t, err)
+			require.Empty(t, resp.Resources)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
+			resourcesPerPage := 4
+			totalWithLabels := 7
+			totalWithoutLabels := 8
+			labels := map[string]string{"env": "test"}
+			totalResources := totalWithLabels + totalWithoutLabels
+
+			// with labels
+			for i := 0; i < totalWithLabels; i++ {
+				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
+				require.NoError(t, err)
+			}
+
+			// without labels
+			for i := 0; i < totalWithoutLabels; i++ {
+				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
+				require.NoError(t, err)
+			}
+
+			resultResourcesLen := 0
+			require.Eventually(t, func() bool {
+				resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:        int32(resourcesPerPage),
+					Namespace:    apidefaults.Namespace,
+					ResourceType: test.resourceType,
+					StartKey:     resp.NextKey,
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.TotalCount)
+
+				resultResourcesLen += len(resp.Resources)
+				if resultResourcesLen == totalResources {
+					require.Empty(t, resp.NextKey)
+				}
+				return resultResourcesLen == totalResources
+			}, time.Second, 100*time.Millisecond)
+
+			// list resources only with matching labels
+			resultResourcesWithLabelsLen := 0
+			require.Eventually(t, func() bool {
+				resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:        int32(resourcesPerPage),
+					Namespace:    apidefaults.Namespace,
+					ResourceType: test.resourceType,
+					StartKey:     resp.NextKey,
+					Labels:       labels,
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.TotalCount)
+
+				resultResourcesWithLabelsLen += len(resp.Resources)
+				if resultResourcesWithLabelsLen == totalWithLabels {
+					require.Empty(t, resp.NextKey)
+				}
+				return resultResourcesWithLabelsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+
+			// list resources only with matching search keywords
+			resultResourcesWithSearchKeywordsLen := 0
+			require.Eventually(t, func() bool {
+				resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:          int32(resourcesPerPage),
+					Namespace:      apidefaults.Namespace,
+					ResourceType:   test.resourceType,
+					StartKey:       resp.NextKey,
+					SearchKeywords: []string{"env", "test"},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.TotalCount)
+
+				resultResourcesWithSearchKeywordsLen += len(resp.Resources)
+				if resultResourcesWithSearchKeywordsLen == totalWithLabels {
+					require.Empty(t, resp.NextKey)
+				}
+				return resultResourcesWithSearchKeywordsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+
+			// list resources only with matching expression
+			resultResourcesWithMatchExprsLen := 0
+			require.Eventually(t, func() bool {
+				resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+					Limit:               int32(resourcesPerPage),
+					Namespace:           apidefaults.Namespace,
+					ResourceType:        test.resourceType,
+					StartKey:            resp.NextKey,
+					PredicateExpression: `labels.env == "test"`,
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.TotalCount)
+
+				resultResourcesWithMatchExprsLen += len(resp.Resources)
+				if resultResourcesWithMatchExprsLen == totalWithLabels {
+					require.Empty(t, resp.NextKey)
+				}
+				return resultResourcesWithMatchExprsLen == totalWithLabels
+			}, time.Second, 100*time.Millisecond)
+
+			// delete everything
+			err = test.deleteAllResourcesFunc(ctx, presence)
+			require.NoError(t, err)
+
+			resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        1,
+				Namespace:    apidefaults.Namespace,
+				ResourceType: test.resourceType,
+				StartKey:     "",
+			})
+			require.NoError(t, err)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.Resources)
+			require.Empty(t, resp.TotalCount)
+		})
+	}
+}
+
+func TestListResources_Helpers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	namespace := apidefaults.Namespace
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+	presence := NewPresenceService(bend)
+
+	tests := []struct {
+		name  string
+		fetch func(proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	}{
+		{
+			name: "listResources",
+			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				return presence.listResources(ctx, req)
+			},
+		},
+		{
+			name: "listResourcesWithSort",
+			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				return presence.listResourcesWithSort(ctx, req)
+			},
+		},
+		{
+			name: "FakePaginate",
+			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				nodes, err := presence.GetNodes(ctx, namespace)
+				require.NoError(t, err)
+
+				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
+					ResourceType:   req.ResourceType,
+					Limit:          req.Limit,
+					Labels:         req.Labels,
+					SearchKeywords: req.SearchKeywords,
+					StartKey:       req.StartKey,
+				})
+			},
+		},
+	}
+
+	t.Run("test fetching when there is 0 upserted nodes", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Limit:        5,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, resp.NextKey)
+				require.Empty(t, resp.Resources)
+				require.Empty(t, resp.TotalCount)
+			})
+		}
+	})
+
+	// Add some test servers.
+	for i := 0; i < 20; i++ {
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		_, err = presence.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Test servers have been inserted.
+	nodes, err := presence.GetNodes(ctx, namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 20)
+
+	t.Run("test invalid limit value", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        -1,
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := tc.fetch(req)
+				require.True(t, trace.IsBadParameter(err))
+			})
+		}
+	})
+
+	t.Run("test retrieving entire list upfront", func(t *testing.T) {
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        int32(len(nodes)),
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Empty(t, resp.NextKey)
+
+				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes, fetchedNodes)
+			})
+		}
+	})
+
+	t.Run("test first, middle, last fetching", func(t *testing.T) {
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				// First fetch.
+				resp, err := tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					Limit:        10,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 10)
+
+				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[:10], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[10]), resp.NextKey) // 11th item
+
+				// Middle fetch.
+				resp, err = tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     resp.NextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[10:15], fetchedNodes)
+				require.Equal(t, backend.GetPaginationKey(nodes[15]), resp.NextKey) // 16th item
+
+				// Last fetch.
+				resp, err = tc.fetch(proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					Namespace:    namespace,
+					StartKey:     resp.NextKey,
+					Limit:        5,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 5)
+
+				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
+				require.NoError(t, err)
+				require.Equal(t, nodes[15:20], fetchedNodes)
+				require.Empty(t, resp.NextKey)
+			})
+		}
+	})
+
+	t.Run("test one result filter", func(t *testing.T) {
+		targetVal := nodes[14].GetName()
+		req := proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      namespace,
+			StartKey:       "",
+			Limit:          5,
+			SearchKeywords: []string{targetVal},
+		}
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp, err := tc.fetch(req)
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+				require.Equal(t, targetVal, resp.Resources[0].GetName())
+				require.Empty(t, resp.NextKey)
+			})
+		}
+	})
+}
+
+func TestFakePaginate_TotalCount(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	namespace := apidefaults.Namespace
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+	presence := NewPresenceService(bend)
+
+	// Add some control servers.
+	server := NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
+	_, err = presence.UpsertNode(ctx, server)
+	require.NoError(t, err)
+
+	server = NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
+	_, err = presence.UpsertNode(ctx, server)
+	require.NoError(t, err)
+
+	server = NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
+	_, err = presence.UpsertNode(ctx, server)
+	require.NoError(t, err)
+
+	// Add some test servers.
+	for i := 0; i < 10; i++ {
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+		_, err = presence.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Test servers have been inserted.
+	nodes, err := presence.GetNodes(ctx, namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, 13)
+
+	// Convert to resources.
+	resources := types.Servers(nodes).AsResources()
+
+	t.Run("total count without filter", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name  string
+			limit int
+		}{
+			{
+				name:  "single",
+				limit: 1,
+			},
+			{
+				name:  "even",
+				limit: 4,
+			},
+			{
+				name:  "odd",
+				limit: 5,
+			},
+			{
+				name:  "max",
+				limit: len(nodes),
+			},
+		}
+
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				req := FakePaginateParams{
+					ResourceType:   types.KindNode,
+					Limit:          int32(tc.limit),
+					NeedTotalCount: true,
+				}
+
+				// First fetch.
+				resp, err := FakePaginate(resources, req)
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, tc.limit)
+				require.Equal(t, resources[0:tc.limit], resp.Resources)
+				require.Len(t, nodes, resp.TotalCount)
+
+				// Next fetch should return same amount of totals.
+				if tc.limit != len(nodes) {
+					require.NotEmpty(t, resp.NextKey)
+
+					req.StartKey = resp.NextKey
+					resp, err = FakePaginate(resources, req)
+					require.NoError(t, err)
+					require.Len(t, resp.Resources, tc.limit)
+					require.Equal(t, resources[tc.limit:tc.limit*2], resp.Resources)
+					require.Len(t, nodes, resp.TotalCount)
+				} else {
+					require.Empty(t, resp.NextKey)
+					require.Equal(t, resources, resp.Resources)
+					require.Len(t, nodes, resp.TotalCount)
+				}
+			})
+		}
+	})
+
+	t.Run("total count with no match", func(t *testing.T) {
+		t.Parallel()
+		req := FakePaginateParams{
+			ResourceType:   types.KindNode,
+			Limit:          5,
+			NeedTotalCount: true,
+			SearchKeywords: []string{"not-found"},
+		}
+		resp, err := FakePaginate(resources, req)
+		require.NoError(t, err)
+		require.Empty(t, resp.Resources)
+		require.Empty(t, resp.NextKey)
+		require.Empty(t, resp.TotalCount)
+	})
+
+	t.Run("total count with all matches", func(t *testing.T) {
+		t.Parallel()
+		req := FakePaginateParams{
+			ResourceType:   types.KindNode,
+			Limit:          5,
+			NeedTotalCount: true,
+			SearchKeywords: []string{"foo"},
+		}
+		resp, err := FakePaginate(resources, req)
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 3)
+		require.Empty(t, resp.NextKey)
+		require.Equal(t, 3, resp.TotalCount)
+	})
+}
+
+// TestFakePaginateWithScopes ensures that a resource scope can be used to
+// paginate resources with duplicate names.
+func TestFakePaginateWithScopes(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+	newKubeCluster := func(i int) *types.KubernetesClusterV3 {
+		kubeCluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: "cluster",
+				// we use the revision to easily tell the resources apart
+				Revision: strconv.Itoa(i),
+			},
+			types.KubernetesClusterSpecV3{},
+			types.KubeClusterWithScope(makeScope(i)),
+		)
+		require.NoError(t, err)
+		return kubeCluster
+	}
+
+	clusterCount := 100
+	// all kube clusters have the same name, so the only way to
+	// correctly paginate them is by scope
+	resources := make([]types.ResourceWithLabels, clusterCount)
+	for i := range clusterCount {
+		resources[i] = newKubeCluster(i)
+	}
+
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
+		startKey := ""
+		count := 0
+		for range clusterCount/pageSize + 1 {
+			res, err := FakePaginate(resources, FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        int32(pageSize),
+				Kinds:        []string{types.KindKubernetesCluster},
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+			for _, r := range res.Resources {
+				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
+				count++
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+		require.Equal(t, clusterCount, count)
+	}
+}
+
+func TestFakePaginateScopedCursors(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+
+	const scope = "/aa"
+	encodedScope := scopes.EncodeForResourceCursor(scope)
+
+	unscopedKubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "cluster",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	scopedKubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "cluster",
+		},
+		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope(scope),
+	)
+	require.NoError(t, err)
+
+	unscopedKubeServer, err := types.NewKubernetesServerV3FromCluster(unscopedKubeCluster, "host", "host-id")
+	require.NoError(t, err)
+
+	scopedKubeServer, err := types.NewKubernetesServerV3FromCluster(scopedKubeCluster, "host", "host-id")
+	require.NoError(t, err)
+
+	unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+
+	unscopedAppServer, err := types.NewAppServerV3FromApp(unscopedApp, "host", "host-id")
+	require.NoError(t, err)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+		types.AppSpecV3{URI: "http://localhost:8080"}, scope)
+	require.NoError(t, err)
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "host", "host-id")
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name          string
+		params        FakePaginateParams
+		resources     []types.ResourceWithLabels
+		expectNextKey string
+		expectErr     bool
+	}{
+		{
+			name: "next key is scoped kube cluster",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{unscopedKubeCluster, scopedKubeCluster},
+			expectNextKey: "~scoped/" + encodedScope + "/cluster",
+		},
+		{
+			name: "next key is unscoped kube cluster",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{scopedKubeCluster, unscopedKubeCluster},
+			expectNextKey: "cluster",
+		},
+		{
+			name: "fake paginating kube servers should fail",
+			params: FakePaginateParams{
+				ResourceType: types.KindKubeServer,
+				Limit:        2,
+			},
+			resources: []types.ResourceWithLabels{unscopedKubeServer, scopedKubeServer},
+			expectErr: true,
+		},
+		{
+			name: "next key is scoped app server",
+			params: FakePaginateParams{
+				ResourceType: types.KindAppServer,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{unscopedAppServer, scopedAppServer},
+			expectNextKey: "~scoped/" + encodedScope + "/host-id/a",
+		},
+		{
+			name: "next key is unscoped app server",
+			params: FakePaginateParams{
+				ResourceType: types.KindAppServer,
+				Limit:        1,
+			},
+			resources:     []types.ResourceWithLabels{scopedAppServer, unscopedAppServer},
+			expectNextKey: "host-id/a",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := FakePaginate(tt.resources, tt.params)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.expectNextKey, res.NextKey)
+		})
+	}
+
+}
+
+func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+	presence := NewPresenceService(bk)
+
+	maxLeases := 5
+	leases := make([]*types.SemaphoreLease, maxLeases)
+
+	// Acquire max number of leases
+	request := types.AcquireSemaphoreRequest{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+		MaxLeases:     int64(maxLeases),
+		Expires:       time.Now().Add(time.Hour),
+		Holder:        "test",
+	}
+	for i := range leases {
+		lease, err := presence.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, lease)
+
+		leases[i] = lease
+	}
+
+	// Validate a semaphore exists with the correct number of leases
+	semaphores, err := presence.GetSemaphores(ctx, types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+	require.NoError(t, err)
+	require.Len(t, semaphores, 1)
+	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
+
+	semaphores, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, semaphores, 1)
+	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
+
+	// Cancel the leases concurrently and ensure that all
+	// cancellations are honored
+	errCh := make(chan error, maxLeases)
+	for _, l := range leases {
+		l := l
+		go func() {
+			errCh <- presence.CancelSemaphoreLease(ctx, *l)
+		}()
+	}
+
+	for i := 0; i < maxLeases; i++ {
+		err := <-errCh
+		require.NoError(t, err)
+	}
+
+	// Validate the semaphore still exists but all leases were removed
+	semaphores, err = presence.GetSemaphores(ctx, types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+	require.NoError(t, err)
+	require.Len(t, semaphores, 1)
+	require.Empty(t, semaphores[0].LeaseRefs())
+
+	semaphores, next, err = presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+
+	require.Empty(t, next)
+	require.NoError(t, err)
+	require.Len(t, semaphores, 1)
+	require.Empty(t, semaphores[0].LeaseRefs())
+}
+
+// TestListResources_DuplicateResourceFilterByLabel tests that we can search for a specific label
+// among duplicated resources, and once a match is found, excludes duplicated matches from the result.
+func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backend, err := memory.New(memory.Config{
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	// Same resource name, but have different labels.
+	names := []string{"a", "a", "a", "a"}
+	labels := []map[string]string{
+		{"env": "prod"},
+		{"env": "dev"},
+		{"env": "qa"},
+		{"env": "dev"},
+	}
+
+	tests := []struct {
+		name            string
+		kind            string
+		insertResources func()
+		wantNames       []string
+	}{
+		{
+			name: "KindDatabaseServer",
+			kind: types.KindDatabaseServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					db, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.DatabaseServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name:   names[i],
+								Labels: labels[i],
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: "_",
+								URI:      "_",
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertDatabaseServer(ctx, db)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindAppServer",
+			kind: types.KindAppServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewAppServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.AppServerSpecV3{
+						HostID: "_",
+						App: &types.AppV3{
+							Metadata: types.Metadata{
+								Name:   names[i],
+								Labels: labels[i],
+							},
+							Spec: types.AppSpecV3{URI: "_"},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindKubernetesCluster",
+			kind: types.KindKubernetesCluster,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+
+					kube, err := types.NewKubernetesClusterV3(
+						types.Metadata{
+							Name:   names[i],
+							Labels: labels[i],
+						},
+						types.KubernetesClusterSpecV3{},
+					)
+					require.NoError(t, err)
+					kubeServer, err := types.NewKubernetesServerV3FromCluster(
+						kube,
+						fmt.Sprintf("host-%v", i),
+						fmt.Sprintf("hostID-%v", i),
+					)
+					require.NoError(t, err)
+					// Upsert server.
+					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResources()
+
+			// Look among the duplicated resource by label
+			resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				Limit:          5,
+				SearchKeywords: []string{"dev"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1)
+			require.Equal(t, 1, resp.TotalCount)
+			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
+		})
+	}
+}
+
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+	presence := NewPresenceService(bk)
+
+	serverInfoA, err := types.NewServerInfo(types.Metadata{
+		Name: "server1",
+		Labels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfoA.SetSubKind(types.SubKindCloudInfo)
+
+	serverInfoB, err := types.NewServerInfo(types.Metadata{
+		Name: "server2",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfoB.SetSubKind(types.SubKindCloudInfo)
+
+	// No infos present initially.
+	out, err := stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create infos.
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoA))
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+
+	// Get server infos.
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	_, err = presence.GetServerInfo(ctx, "nonexistant")
+	require.True(t, trace.IsNotFound(err))
+
+	// Delete a server info.
+	require.NoError(t, presence.DeleteServerInfo(ctx, serverInfoA.GetName()))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Update server info.
+	serverInfoB.SetStaticLabels(map[string]string{
+		"e": "f",
+		"g": "h",
+	})
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Delete all server infos.
+	require.NoError(t, presence.DeleteAllServerInfos(ctx))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
+}
+
+func TestPresenceService_ListReverseTunnels(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceService := NewPresenceService(bk)
+
+	// With no resources, we should not get an error but we should get an empty
+	// token and an empty slice.
+	rcs, pageToken, err := presenceService.ListReverseTunnels(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Empty(t, rcs)
+
+	// Create a few remote clusters
+	for i := 0; i < 10; i++ {
+		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
+		require.NoError(t, err)
+		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	// Check limit behaves
+	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pageToken)
+	require.Len(t, rcs, 1)
+
+	// Iterate through all pages with a low limit to ensure that pageToken
+	// behaves correctly.
+	rcs = []types.ReverseTunnel{}
+	pageToken = ""
+	for i := 0; i < 10; i++ {
+		var got []types.ReverseTunnel
+		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
+		require.NoError(t, err)
+		if i == 9 {
+			// For the final page, we should not get a page token
+			require.Empty(t, pageToken)
+		} else {
+			require.NotEmpty(t, pageToken)
+		}
+		require.Len(t, got, 1)
+		rcs = append(rcs, got...)
+	}
+	require.Len(t, rcs, 10)
+
+	// Check that with a higher limit, we get all resources
+	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 20, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Len(t, rcs, 10)
+}
+
+func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceService := NewPresenceService(bk)
+
+	rt, err := types.NewReverseTunnel("my-tunnel", []string{"example.com:443"})
+	require.NoError(t, err)
+
+	// Upsert a reverse tunnel
+	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
+	require.NoError(t, err)
+	// Check that the returned resource is the same as the one we upserted
+	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Do a get to check revision matches
+	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(got, fetched))
+}
+
+func TestPresenceService_RelayServer(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	var p *PresenceService
+	require.NotPanics(t, func() {
+		p = NewPresenceService(bk)
+	})
+
+	_, err = p.UpsertRelayServer(ctx, nil)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	relayA := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "a",
+		},
+	}
+
+	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	require.NotNil(t, upsertedA.GetMetadata())
+
+	diffOpts := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
+	}
+
+	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
+
+	gottenA, err := p.GetRelayServer(ctx, "a")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
+
+	_, err = p.GetRelayServer(ctx, "b")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	err = p.DeleteRelayServer(ctx, "a")
+	require.NoError(t, err)
+
+	_, err = p.GetRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	err = p.DeleteRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	relayB := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "b",
+		},
+	}
+
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
+	require.NoError(t, err)
+
+	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, listedRelays, 2)
+	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
+	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
+
+	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, "b", nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
+
+	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
+}
+
+func TestPresenceService_ListSemaphores(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { bk.Close() })
+	presence := NewPresenceService(bk)
+
+	newRequest := func(kind, name string) types.AcquireSemaphoreRequest {
+		return types.AcquireSemaphoreRequest{
+			SemaphoreKind: kind,
+			SemaphoreName: name,
+			MaxLeases:     5,
+			Expires:       time.Now().Add(time.Hour),
+			Holder:        "test",
+		}
+	}
+
+	expectedFromReq := func(req types.AcquireSemaphoreRequest) types.Semaphore {
+		sem := &types.SemaphoreV3{
+			SubKind: req.SemaphoreKind,
+			Metadata: types.Metadata{
+				Name: req.SemaphoreName,
+			}}
+		sem.CheckAndSetDefaults()
+		return sem
+	}
+
+	pageSize := 12
+	totalItems := pageSize*2 + (pageSize / 2)
+	expected := make([]types.Semaphore, 0, totalItems)
+
+	for i := range totalItems {
+		kind := types.SemaphoreKindConnection
+		name := fmt.Sprintf("sem-%05d", i)
+		switch {
+		case i%5 == 0:
+			kind = types.SemaphoreKindUploadCompleter
+		case i%3 == 0:
+			// every third name is duplicated with previous item
+			name = expected[i-1].GetName()
+			kind = types.SemaphoreKindKubernetesConnection
+		case i%2 == 0:
+			kind = types.SemaphoreKindAccessListReminderLimiter
+		}
+		request := newRequest(kind, name)
+		_, err := presence.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+		expected = append(expected, expectedFromReq(request))
+
+	}
+
+	slices.SortFunc(expected, func(a, b types.Semaphore) int {
+		if c := gocmp.Compare(a.GetSubKind(), b.GetSubKind()); c != 0 {
+			return c
+		}
+		return gocmp.Compare(a.GetName(), b.GetName())
+	})
+	diffopts := cmp.Options{cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.SemaphoreSpecV3{}, "Leases"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Expires")}
+
+	t.Run("filter by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 2)
+		for _, sem := range page {
+			require.Equal(t, wantName, sem.GetName())
+		}
+		require.NotEqual(t, page[0].GetSubKind(), page[1].GetSubKind())
+	})
+
+	t.Run("filter by name and kind returns single item", func(t *testing.T) {
+		wantKind := types.SemaphoreKindUploadCompleter
+		wantName := "sem-00000"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreKind: wantKind,
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 1)
+		require.Equal(t, wantKind, page[0].GetSubKind())
+		require.Equal(t, wantName, page[0].GetName())
+	})
+
+	t.Run("unfiltered list all", func(t *testing.T) {
+		got, gotNext, err := presence.ListSemaphores(ctx, 1000, "", nil)
+		require.NoError(t, err)
+		require.Empty(t, gotNext)
+		require.Len(t, got, totalItems)
+		require.Empty(t, cmp.Diff(expected, got, diffopts...))
+	})
+
+	t.Run("pagination unfiltered", func(t *testing.T) {
+		page1, page2Start, err := presence.ListSemaphores(ctx, pageSize, "", nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, pageSize)
+		require.Empty(t, cmp.Diff(expected[:pageSize], page1, diffopts...))
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, pageSize, page2Start, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize:pageSize*2], page2, diffopts...))
+
+		page3, next, err := presence.ListSemaphores(ctx, pageSize, page3Start, nil)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, totalItems-2*pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize*2:], page3, diffopts...))
+
+		allPages := append(page1, append(page2, page3...)...)
+		require.Empty(t, cmp.Diff(expected, allPages, diffopts...))
+	})
+
+	t.Run("pagination filtered by kind", func(t *testing.T) {
+		filter := &types.SemaphoreFilter{SemaphoreKind: types.SemaphoreKindKubernetesConnection}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 2, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 2)
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, 2, page2Start, filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, 2)
+
+		page3, next, err := presence.ListSemaphores(ctx, 0, page3Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, 4)
+
+		allPages := append(page1, append(page2, page3...)...)
+
+		for _, sem := range allPages {
+			require.Equal(t, types.SemaphoreKindKubernetesConnection, sem.GetSubKind())
+		}
+	})
+
+	t.Run("pagination filtered by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		filter := &types.SemaphoreFilter{SemaphoreName: wantName}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 1, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 1)
+
+		page2, next, err := presence.ListSemaphores(ctx, 0, page2Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page2, 1)
+
+		allPages := append(page1, page2...)
+		for _, sem := range allPages {
+			require.Equal(t, wantName, sem.GetName())
+		}
+	})
+
+}
+
+func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewPresenceService(mem)
+
+	createResource := func(name string) {
+		rc, err := types.NewReverseTunnel(name, []string{"example.com:443"})
+		require.NoError(t, err)
+		_, err = service.UpsertReverseTunnel(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(reverseTunnelsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListReverseTunnels(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.ReverseTunnel{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			require.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+}
+
+func TestScopedLease(t *testing.T) {
+	t.Parallel()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	const scope = "/aa"
+	expires := time.Now().Add(24 * time.Hour)
+	t.Run("kube servers", func(t *testing.T) {
+		ctx := t.Context()
+		unscoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "unscoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "unscoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "unscoped",
+					},
+				},
+			},
+		}
+
+		scoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "scoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "scoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "scoped",
+					},
+				},
+			},
+			Scope: scope,
+		}
+
+		// Create servers, check lease scopes, and try a keepalive
+		lease, err := presence.UpsertKubernetesServer(ctx, unscoped)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+
+		lease, err = presence.UpsertKubernetesServer(ctx, scoped)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+	})
+
+	t.Run("nodes", func(t *testing.T) {
+		ctx := t.Context()
+		unscopedNode, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		unscopedNode.SetExpiry(expires)
+
+		const scope = "/aa"
+		scopedNode, err := types.NewServerWithLabels("scoped-node", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		scopedServer, ok := scopedNode.(*types.ServerV2)
+		require.True(t, ok, "expected types.ServerV2")
+		scopedServer.Scope = scope
+		scopedServer.SetExpiry(expires)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertNode(ctx, unscopedNode)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertNode(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+
+	t.Run("apps", func(t *testing.T) {
+		ctx := t.Context()
+		expires := time.Now().Add(24 * time.Hour)
+		unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		unscopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    unscopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      unscopedApp,
+		})
+		require.NoError(t, err)
+
+		const scope = "/aa"
+		scopedApp, err := types.NewAppV3(types.Metadata{Name: "graf"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		scopedApp.Scope = scope
+		scopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    scopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      scopedApp,
+		})
+		require.NoError(t, err)
+		scopedServer.Scope = scope
+		require.NoError(t, err)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertApplicationServer(ctx, unscopedServer)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertApplicationServer(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+}

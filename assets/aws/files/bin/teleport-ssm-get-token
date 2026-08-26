@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# This is a service that fetches SSM token from parameter store
+# Note that in this scenario token is written to the file.
+# Script does not attempt to fetch token during boot, because the tokens are published after
+# Auth servers are started.
+
+set -e
+set -o pipefail
+
+# Source variables from user-data
+. /etc/teleport.d/conf
+
+# Fetch token published by Auth server to SSM parameter store to join the cluster
+aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/tokens/${TELEPORT_ROLE} --region ${EC2_REGION} --query Parameter.Value --output text > /var/lib/teleport/token
+
+# Fetch Auth server CA pin hash to validate the identity of the auth server
+# Store any old value for the CA pin hash, then compare the new one to see if we need to update the Teleport config file
+OLD_CA_PIN_HASH=$(grep 'ca_pin' /etc/teleport.yaml | cut -d: -f2- | tr -d ' ')
+CA_PIN_HASH=$(aws ssm get-parameter --name /teleport/${TELEPORT_CLUSTER_NAME}/ca-pin-hash --region=${EC2_REGION} --query=Parameter.Value --output text)
+echo ${CA_PIN_HASH} > /var/lib/teleport/ca-pin-hash
+
+# update Teleport config file if the CA pin hash has changed
+if [[ "${CA_PIN_HASH}" != "${OLD_CA_PIN_HASH}" ]]; then
+    echo "CA pin hash has changed from '${OLD_CA_PIN_HASH}' to '${CA_PIN_HASH}' - updating config"
+    # Workaround for sed not being able to create temporary files in systemd runtime directories
+    cp /etc/teleport.yaml /tmp/teleport.yaml
+    sed -i "s/${OLD_CA_PIN_HASH}/${CA_PIN_HASH}/g" /tmp/teleport.yaml
+    cp /tmp/teleport.yaml /etc/teleport.yaml
+    rm -f /tmp/teleport.yaml
+fi

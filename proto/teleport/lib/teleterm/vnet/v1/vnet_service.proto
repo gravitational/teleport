@@ -1,0 +1,135 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.vnet.v1;
+
+import "teleport/lib/vnet/diag/v1/diag.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1";
+
+// VnetService provides methods to manage a VNet instance.
+service VnetService {
+  // Start starts VNet.
+  rpc Start(StartRequest) returns (StartResponse);
+
+  // Stop stops VNet.
+  rpc Stop(StopRequest) returns (StopResponse);
+
+  // GetServiceInfo returns info about the running VNet service.
+  rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
+
+  // GetBackgroundItemStatus returns the status of the background item responsible for launching
+  // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+  rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
+
+  // CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+  // only be changed by reinstalling the app.
+  rpc CheckInstallTimeRequirements(CheckInstallTimeRequirementsRequest) returns (CheckInstallTimeRequirementsResponse);
+
+  // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+  // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
+  rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
+
+  // AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+  // connections to Teleport SSH hosts.
+  rpc AutoConfigureSSH(AutoConfigureSSHRequest) returns (AutoConfigureSSHResponse);
+}
+
+// Request for Start.
+message StartRequest {}
+
+// Response for Start.
+message StartResponse {}
+
+// Request for Stop.
+message StopRequest {}
+
+// Response for Stop.
+message StopResponse {}
+
+// Request for GetServiceInfo.
+message GetServiceInfoRequest {}
+
+// GetServiceInfoResponse contains the status of the running VNet service.
+message GetServiceInfoResponse {
+  // app_dns_zones is a deduplicated list of all DNS zones valid as DNS
+  // suffixes for connections to TCP apps.
+  repeated string app_dns_zones = 1;
+  // clusters is a list of cluster names valid as DNS suffixes for SSH hosts.
+  repeated string clusters = 2;
+  // ssh_configured is true if the user's SSH config file includes VNet's
+  // generated SSH config necessary for SSH access.
+  bool ssh_configured = 3;
+  // vnet_ssh_config_path is the path of VNet's generated OpenSSH-compatible
+  // config file.
+  string vnet_ssh_config_path = 4;
+}
+
+// Request for GetBackgroundItemStatus.
+message GetBackgroundItemStatusRequest {}
+
+// Response for GetBackgroundItemStatus.
+message GetBackgroundItemStatusResponse {
+  BackgroundItemStatus status = 1;
+}
+
+// BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
+// https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+enum BackgroundItemStatus {
+  BACKGROUND_ITEM_STATUS_UNSPECIFIED = 0;
+  BACKGROUND_ITEM_STATUS_NOT_REGISTERED = 1;
+  // This is the status the background item should have before tsh attempts to send a message to the
+  // daemon.
+  BACKGROUND_ITEM_STATUS_ENABLED = 2;
+  BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL = 3;
+  BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
+  BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
+}
+
+// WindowsServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+enum WindowsServiceStatus {
+  WINDOWS_SERVICE_STATUS_UNSPECIFIED = 0;
+  WINDOWS_SERVICE_STATUS_OK = 1;
+  WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+  // The VNet service cannot start because its version differs from the client.
+  WINDOWS_SERVICE_STATUS_VERSION_MISMATCH = 3;
+}
+
+// Request for CheckInstallTimeRequirementsRequest.
+message CheckInstallTimeRequirementsRequest {}
+
+// Response for CheckInstallTimeRequirementsResponse.
+message CheckInstallTimeRequirementsResponse {
+  oneof status {
+    WindowsServiceStatus windows_service_status = 1;
+  }
+}
+
+// Request for RunDiagnostics.
+message RunDiagnosticsRequest {}
+
+// Response for RunDiagnostics.
+message RunDiagnosticsResponse {
+  teleport.lib.vnet.diag.v1.Report report = 1;
+}
+
+// Request for AutoConfigureSSH.
+message AutoConfigureSSHRequest {}
+
+// Response for AutoConfigureSSH.
+message AutoConfigureSSHResponse {}

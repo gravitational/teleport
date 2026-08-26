@@ -1,0 +1,5 @@
+clusterName: helm-lint
+service:
+  type: LoadBalancer
+  spec:
+    loadBalancerIP: 1.2.3.4

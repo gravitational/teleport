@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.config }}
+  labels:
+  {{- toYaml .Values.extraLabels.config | nindent 4 }}
+{{- end }}
+  {{- if .Values.annotations.config }}
+  annotations:
+    {{- toYaml .Values.annotations.config | nindent 4 }}
+  {{- end }}
+data:
+  teleport.yaml: |
+    {{- mustMergeOverwrite (include "teleport-kube-agent.config" . | fromYaml) .Values.teleportConfig | toYaml | nindent 4 -}}

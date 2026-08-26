@@ -1,0 +1,64 @@
+#
+# Example: Example User Role with less permissions
+#
+kind: role
+metadata:
+  name: user
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    logins:
+    - '{{internal.logins}}'
+    node_labels:
+    # This example user can only log into staging.
+      environment: staging
+    rules:
+    - resources:
+      - role
+      verbs:
+      - list
+      - create
+      - read
+    - resources:
+      - session
+      verbs:
+      - list
+      - read
+    - resources:
+      - trusted_cluster
+      verbs:
+      - connect
+      - list
+      - read
+  deny:
+    logins: null
+    rules:
+    - resources:
+      - role
+      verbs:
+        - update
+        - delete
+    - resources:
+      - auth_connector
+      verbs:
+      - '*'
+    - resources:
+      - trusted_cluster
+      verbs:
+      - create
+      - update
+      - delete
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
+version: v3

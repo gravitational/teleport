@@ -1,0 +1,79 @@
+{{ dbName="test" }}
+Install a Teleport Agent into your Kubernetes Cluster with the Teleport Database
+Service configuration. 
+
+Create a file called `values.yaml` with the following content. Update <Var
+name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+Service and <Var name="JOIN_TOKEN" /> to the join token you created earlier:
+
+```yaml
+roles: db
+proxyAddr: <Var name="example.teleport.sh" />
+# Set to false if using Teleport Community Edition
+enterprise: true
+authToken: "<Var name="JOIN_TOKEN" />"
+databases:
+  - name: {{ dbName }}
+    uri: {{ databaseAddress }}
+    protocol: {{ dbProtocol }}
+    static_labels:
+      env: dev
+```
+
+To configure the Teleport Database Service to trust a custom CA:
+
+1. Export a CA certificate for the custom CA and make it available at `db.ca` on
+   your workstation.
+
+1. Create a secret containing the database CA certificate in the same namespace
+   as Teleport using the following command:
+
+   ```code
+   $ kubectl create secret generic db-ca --from-file=ca.pem=/path/to/db.ca
+   ```
+
+1. Add the following to `values.yaml`:
+
+   ```diff
+     roles: db
+     proxyAddr: example.teleport.sh
+     # Set to false if using Teleport Community Edition
+     enterprise: true
+     authToken: JOIN_TOKEN
+     databases:
+       - name: {{ dbName }}
+         uri: {{ databaseAddress }}
+         protocol: {{ dbProtocol }}
+   +     tls:
+   +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
+         static_labels:
+           env: dev
+   + extraVolumes:
+   +   - name: db-ca
+   +     secret:
+   +       secretName: db-ca
+   + extraVolumeMounts:
+   +   - name: db-ca
+   +     mountPath: /etc/teleport-tls-db/db-ca
+   +     readOnly: true
+   ```
+
+1. Install the chart:
+
+   ```code
+   $ helm install teleport-kube-agent teleport/teleport-kube-agent \
+     --create-namespace \
+     --namespace teleport-agent \
+     --version (=teleport.version=) \
+     -f values.yaml
+   ```
+
+1. Make sure that the Teleport Agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+   ```code
+   $ kubectl -n teleport-agent get pods
+   NAME                    READY   STATUS    RESTARTS   AGE
+   teleport-kube-agent-0   1/1     Running   0          32s
+   ```
+

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: soaktest
+description: Deploys a job that runs tsh bench ssh
+
+type: application
+
+version: 0.1.0
+
+appVersion: "15.0.0"

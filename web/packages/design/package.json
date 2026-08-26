@@ -1,0 +1,19 @@
+{
+  "name": "@gravitational/design",
+  "version": "1.0.0",
+  "description": "Gravitational design system",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/design"
+  },
+  "dependencies": {
+    "@emotion/is-prop-valid": "1.4.0",
+    "csstype": "^3.2.3",
+    "styled-system": "^5.1.5"
+  },
+  "devDependencies": {
+    "@types/styled-system": "^5.1.25"
+  }
+}

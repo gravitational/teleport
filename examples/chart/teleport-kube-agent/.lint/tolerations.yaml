@@ -1,0 +1,13 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+tolerations:
+- key: "dedicated"
+  operator: "Equal"
+  value: "teleport"
+  effect: "NoExecute"
+- key: "dedicated"
+  operator: "Equal"
+  value: "teleport"
+  effect: "NoSchedule"

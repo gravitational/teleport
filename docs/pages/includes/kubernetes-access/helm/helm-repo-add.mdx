@@ -1,0 +1,11 @@
+Configure Helm to fetch Teleport charts from the Teleport Helm repository:
+
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
+```
+
+Refresh the local Helm cache by fetching the latest charts:
+
+```code
+$ helm repo update
+```

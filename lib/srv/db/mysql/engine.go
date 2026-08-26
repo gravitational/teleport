@@ -1,0 +1,410 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package mysql
+
+import (
+	"context"
+	"crypto/tls"
+	"io"
+	"net"
+
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+// NewEngine create new MySQL engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
+	return &Engine{
+		EngineConfig: ec,
+	}
+}
+
+// Engine implements the MySQL database service that accepts client
+// connections coming over reverse tunnel from the proxy and proxies
+// them between the proxy and the MySQL database instance.
+//
+// Implements common.Engine.
+type Engine struct {
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
+	// proxyConn is a client connection.
+	proxyConn *server.Conn
+}
+
+// InitializeConnection initializes the engine with client connection.
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+	e.proxyConn = makeProxyConn(clientConn)
+	return nil
+}
+
+func makeProxyConn(clientConn net.Conn) *server.Conn {
+	return server.MakeConn(
+		clientConn,
+		server.NewServer(
+			DefaultServerVersion,
+			mysql.DEFAULT_COLLATION_ID,
+			mysql.AUTH_CACHING_SHA2_PASSWORD,
+			nil,
+			nil,
+		),
+		&credentialProvider{},
+		server.EmptyHandler{},
+	)
+}
+
+// SendError sends an error to connected client in the MySQL understandable format.
+func (e *Engine) SendError(err error) {
+	if writeErr := e.proxyConn.WriteError(trace.Unwrap(err)); writeErr != nil {
+		e.Log.DebugContext(e.Context, "Failed to send error to MySQL client", "client_error", err, "write_error", writeErr)
+	}
+}
+
+// HandleConnection processes the connection from MySQL proxy coming
+// over reverse tunnel.
+//
+// It handles all necessary startup actions, authorization and acts as a
+// middleman between the proxy and the database intercepting and interpreting
+// all messages i.e. doing protocol parsing.
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
+
+	// Perform authorization checks.
+	err := e.checkAccess(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Automatically create the database user if needed.
+	cancelAutoUserLease, err := e.GetUserProvisioner(e).Activate(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
+		if err != nil {
+			e.Log.ErrorContext(e.Context, "Failed to teardown the user", "error", err)
+		}
+	}()
+
+	// Establish connection to the MySQL server.
+	serverConn, err := e.connect(ctx, sessionCtx)
+	if err != nil {
+		defer cancelAutoUserLease()
+		if trace.IsLimitExceeded(err) {
+			return trace.LimitExceeded("could not connect to the database, please try again later")
+		}
+		return trace.Wrap(err)
+	}
+	defer func() {
+		err := serverConn.Quit()
+		if err != nil {
+			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server", "error", err)
+		}
+	}()
+
+	// Release the auto-users semaphore now that we've successfully connected.
+	cancelAutoUserLease()
+
+	// Internally, updateServerVersion() updates databases only when database version
+	// is not set, or it has changed since previous call.
+	e.updateServerVersion(ctx, sessionCtx.Database, serverConn)
+
+	// notify proxy of auth/connect success. At this point the original client
+	// should consider the connection phase completed.
+	if err := notifyProxy(ctx, e.Log, getHandshakeMode(), e.proxyConn); err != nil {
+		e.Log.ErrorContext(ctx, "Failed to notify proxy of connection",
+			"error", err,
+		)
+		return trace.Wrap(err)
+	}
+
+	if attrs := e.proxyConn.Attributes(); attrs != nil {
+		if clientName, ok := attrs[clientNameParamName]; ok {
+			sessionCtx.UserAgent = clientName
+		}
+	}
+
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
+
+	// Copy between the connections.
+	clientErrCh := make(chan error, 1)
+	serverErrCh := make(chan error, 1)
+	go e.receiveFromClient(e.proxyConn.Conn, serverConn, clientErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, e.proxyConn.Conn, serverErrCh, sessionCtx)
+	select {
+	case err := <-clientErrCh:
+		e.Log.DebugContext(e.Context, "Client done", "error", err)
+	case err := <-serverErrCh:
+		e.Log.DebugContext(e.Context, "Server done", "error", err)
+	case <-ctx.Done():
+		e.Log.DebugContext(e.Context, "Context canceled")
+	}
+	return nil
+}
+
+// updateServerVersion updates the server runtime version if the version
+// reported by the database is different from the version in status
+// configuration.
+func (e *Engine) updateServerVersion(ctx context.Context, db types.Database, serverConn *client.Conn) {
+	err := updateServerVersion(ctx, e.Log, db, serverConn.GetServerVersion(), e.UpdateProxiedDatabase)
+	if err != nil {
+		// Log but do not fail connection if the version update fails.
+		e.Log.WarnContext(ctx, "Failed to update the MySQL server version", "error", err)
+	}
+}
+
+// checkAccess does authorization check for MySQL connection about to be established.
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	authPref, err := e.Auth.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	state := sessionCtx.GetAccessState(authPref)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:       sessionCtx.Database,
+		DatabaseUser:   sessionCtx.DatabaseUser,
+		DatabaseName:   sessionCtx.DatabaseName,
+		AutoCreateUser: sessionCtx.AutoCreateUserMode.IsEnabled(),
+	})
+	err = sessionCtx.Checker.CheckAccess(
+		sessionCtx.Database,
+		state,
+		dbRoleMatchers...,
+	)
+	if err != nil {
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// connect establishes connection to MySQL database.
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
+	connector, err := e.newConnector(sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := connector.connect(ctx, sessionCtx.GetExpiry(), nil)
+	if err != nil {
+		return nil, common.ConvertConnectError(err, sessionCtx)
+	}
+	return conn, nil
+}
+
+func (e *Engine) newConnector(sessionCtx *common.Session) (*connector, error) {
+	return newConnector(connectorConfig{
+		auth:       e.Auth,
+		authClient: e.AuthClient,
+		clock:      e.Clock,
+		gcpClients: e.GCPClients,
+		log:        e.Log,
+
+		database:     sessionCtx.Database,
+		databaseName: sessionCtx.DatabaseName,
+		databaseUser: sessionCtx.DatabaseUser,
+	})
+}
+
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) error {
+	return func(conn *client.Conn) error {
+		for _, cap := range caps {
+			conn.SetCapability(cap)
+		}
+		return nil
+	}
+}
+
+// receiveFromClient relays protocol messages received from MySQL client
+// to MySQL database.
+func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh chan<- error, sessionCtx *common.Session) {
+	log := e.Log.With(
+		"from", "client",
+		"client", clientConn.RemoteAddr(),
+		"server", serverConn.RemoteAddr(),
+	)
+	defer func() {
+		log.DebugContext(e.Context, "Stop receiving from client")
+		close(clientErrCh)
+	}()
+
+	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
+
+	for {
+		packet, err := protocol.ParsePacket(clientConn)
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				log.DebugContext(e.Context, "Client connection closed")
+				return
+			}
+			log.ErrorContext(e.Context, "Failed to read client packet", "error", err)
+			clientErrCh <- err
+			return
+		}
+
+		msgFromClient.Inc()
+
+		switch pkt := packet.(type) {
+		case *protocol.Query:
+			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
+		case *protocol.ChangeUser:
+			// MySQL protocol includes COM_CHANGE_USER command that allows to
+			// re-authenticate connection as a different user. It is not
+			// supported by mysql shell and most drivers but some drivers do
+			// provide it.
+			//
+			// We do not want to allow changing the connection user and instead
+			// force users to go through normal reconnect flow so log the
+			// attempt and close the client connection.
+			log.WarnContext(e.Context, "Rejecting attempt to change user", "user", pkt.User(), "session", sessionCtx)
+			return
+		case *protocol.Quit:
+			return
+
+		case *protocol.InitDB:
+			// Update DatabaseName when switching to another so the audit logs
+			// are up to date. E.g.:
+			// mysql> use foo;
+			// mysql> select * from users;
+			sessionCtx.DatabaseName = pkt.SchemaName()
+
+			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
+		case *protocol.CreateDB:
+			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))
+		case *protocol.DropDB:
+			e.Audit.EmitEvent(e.Context, makeDropDBEvent(sessionCtx, pkt))
+		case *protocol.ShutDown:
+			e.Audit.EmitEvent(e.Context, makeShutDownEvent(sessionCtx, pkt))
+		case *protocol.ProcessKill:
+			e.Audit.EmitEvent(e.Context, makeProcessKillEvent(sessionCtx, pkt))
+		case *protocol.Debug:
+			e.Audit.EmitEvent(e.Context, makeDebugEvent(sessionCtx, pkt))
+		case *protocol.Refresh:
+			e.Audit.EmitEvent(e.Context, makeRefreshEvent(sessionCtx, pkt))
+
+		case *protocol.StatementPreparePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
+		case *protocol.StatementExecutePacket:
+			// TODO(greedy52) Number of parameters is required to parse
+			// parameters out of the packet. Parameter definitions are required
+			// to properly format the parameters for including in the audit
+			// log. Both number of parameters and parameter definitions can be
+			// obtained from the response of COM_STMT_PREPARE.
+			e.Audit.EmitEvent(e.Context, makeStatementExecuteEvent(sessionCtx, pkt))
+		case *protocol.StatementSendLongDataPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementSendLongDataEvent(sessionCtx, pkt))
+		case *protocol.StatementClosePacket:
+			e.Audit.EmitEvent(e.Context, makeStatementCloseEvent(sessionCtx, pkt))
+		case *protocol.StatementResetPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementResetEvent(sessionCtx, pkt))
+		case *protocol.StatementFetchPacket:
+			e.Audit.EmitEvent(e.Context, makeStatementFetchEvent(sessionCtx, pkt))
+		case *protocol.StatementBulkExecutePacket:
+			// TODO(greedy52) Number of parameters and parameter definitions
+			// are required. See above comments for StatementExecutePacket.
+			e.Audit.EmitEvent(e.Context, makeStatementBulkExecuteEvent(sessionCtx, pkt))
+		}
+		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
+		if err != nil {
+			log.ErrorContext(e.Context, "Failed to write server packet", "error", err)
+			clientErrCh <- err
+			return
+		}
+	}
+}
+
+// receiveFromServer relays protocol messages received from MySQL database
+// to MySQL client.
+func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh chan<- error, sessionCtx *common.Session) {
+	log := e.Log.With(
+		"from", "server",
+		"client", clientConn.RemoteAddr(),
+		"server", serverConn.RemoteAddr(),
+	)
+	messagesCounter := common.GetMessagesFromServerMetric(sessionCtx.Database)
+
+	// parse and count the messages from the server in a separate goroutine,
+	// operating on a copy of the server message stream. the copy is arranged below.
+	copyReader, copyWriter := io.Pipe()
+	defer copyWriter.Close()
+
+	go func() {
+		defer copyReader.Close()
+
+		var count int64
+		defer func() {
+			log.DebugContext(e.Context, "Stopped parsing messages from server", "parsed_total", count)
+		}()
+
+		for {
+			_, _, err := protocol.ReadPacket(copyReader)
+			if err != nil {
+				return
+			}
+
+			count += 1
+			messagesCounter.Inc()
+		}
+	}()
+
+	// the messages are ultimately copied from serverConn to clientConn,
+	// but a copy of that message stream is written to a synchronous pipe,
+	// which is read by the analysis goroutine above.
+	total, err := io.Copy(clientConn, io.TeeReader(serverConn, copyWriter))
+	if err != nil {
+		if utils.IsOKNetworkError(err) {
+			log.DebugContext(e.Context, "Server connection closed")
+		} else {
+			log.WarnContext(e.Context, "Server -> Client copy finished with unexpected error", "error", err)
+		}
+	}
+
+	log.DebugContext(e.Context, "Stopped receiving from server", "total_bytes", total)
+	serverErrCh <- trace.Wrap(err)
+}
+
+// FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
+// In case of error the message returned by the database is propagated in returned error.
+func FetchMySQLVersion(ctx context.Context, database types.Database) (string, error) {
+	var dialer client.Dialer
+
+	if database.IsCloudSQL() {
+		dialer = newGCPTLSDialer(&tls.Config{})
+	} else {
+		var nd net.Dialer
+		dialer = nd.DialContext
+	}
+
+	return protocol.FetchMySQLVersionInternal(ctx, dialer, database.GetURI())
+}

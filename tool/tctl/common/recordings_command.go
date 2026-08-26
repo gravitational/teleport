@@ -1,0 +1,979 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package common
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	recordingstui "github.com/gravitational/teleport/tool/tctl/common/recordings"
+)
+
+const (
+	searchModeHybrid    = "hybrid"
+	searchModeKeyword   = "keyword"
+	searchModeEmbedding = "embeddings"
+)
+
+// RecordingsCommand implements "tctl recordings" group of commands.
+type RecordingsCommand struct {
+	config *servicecfg.Config
+
+	// format is the output format (text, json, or yaml)
+	format string
+	// recordingsList implements the "tctl recordings ls" subcommand.
+	recordingsList *kingpin.CmdClause
+	// recordingsDownload implements the "tctl recordings download" subcommand.
+	recordingsDownload *kingpin.CmdClause
+	// recordingsEncryption implements the "tctl recordings encryption" subcommand.
+	recordingsEncryption recordingsEncryptionCommand
+	// fromUTC is the start time to use for the range of recordings listed by the recorded session listing command
+	fromUTC string
+	// toUTC is the start time to use for the range of recordings listed by the recorded session listing command
+	toUTC string
+	// maxRecordingsToShow is the maximum number of recordings to show per page of results
+	maxRecordingsToShow int
+	// recordingsSince is a duration which sets the time into the past in which to list session recordings
+	recordingsSince string
+
+	// recordingsDownloadSessionID is the session ID to download recordings for
+	recordingsDownloadSessionID string
+	// recordingsDownloadOutputDir is the output directory to download session recordings to
+	recordingsDownloadOutputDir string
+	// recordingsSearch implements the "tctl recordings search" subcommand.
+	recordingsSearch *kingpin.CmdClause
+	// searchQuery is the free-text semantic/keyword query.
+	searchQuery []string
+	// searchFromUTC is the start of the time range for the search.
+	searchFromUTC string
+	// searchToUTC is the end of the time range for the search.
+	searchToUTC string
+	// searchLabel filters results by resource labels (key=value pairs).
+	searchLabel string
+	// searchAccessRequests filters results by access request IDs.
+	searchAccessRequests []string
+	// searchLimit is the maximum number of results to return.
+	searchLimit uint32
+	// searchFormat is the output format for search results.
+	searchFormat string
+	// searchKinds filters results by session kind (ssh, db, k8s, desktop).
+	searchKinds []string
+	// searchUsername filters results by the Teleport username that initiated the session.
+	searchUsername string
+	// searchRoles filters results by roles held by the user during the session.
+	searchRoles []string
+	// searchResourceKind filters results by the Teleport resource type (node, kube_cluster, db).
+	searchResourceKind string
+	// searchResourceName filters results by the resource name.
+	searchResourceName string
+	// searchServerHostname filters SSH results by server hostname.
+	searchServerHostname string
+	// searchServerAddr filters SSH results by server address.
+	searchServerAddr string
+	// searchPodNamespace filters Kubernetes results by pod namespace.
+	searchPodNamespace string
+	// searchPodName filters Kubernetes results by pod name.
+	searchPodName string
+	// searchDatabaseName filters database results by database name.
+	searchDatabaseName string
+	// searchSeverity filters results by minimum severity level (low/medium/high/critical).
+	searchSeverity string
+	// searchMode controls which search strategy to use: hybrid (default), keyword, or embedding.
+	searchMode string
+	// searchResumeToken resumes a previous JSON/YAML search from a truncated result set.
+	searchResumeToken string
+
+	// summary implements the "tctl recordings summary" subcommand.
+	summary *kingpin.CmdClause
+	// summarySessionID is the session ID to retrieve a summary for.
+	summarySessionID string
+	// summaryFormat is the summary output format.
+	summaryFormat string
+	// summaryOutputFile is the optional path to write the summary to.
+	summaryOutputFile string
+
+	// stdout allows to switch standard output source for resource command. Used in tests.
+	stdout io.Writer
+}
+
+// Initialize allows RecordingsCommand to plug itself into the CLI parser
+func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
+	c.config = config
+	recordings := app.Command("recordings", "View and control session recordings.")
+	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
+	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.fromUTC)
+	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
+	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
+	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
+	c.recordingsSearch = recordings.Command("search", "Search session recordings using semantic and keyword queries.")
+	c.recordingsSearch.Arg("query", `Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").`).StringsVar(&c.searchQuery)
+	c.recordingsSearch.Flag("from", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).Hidden().StringVar(&c.searchFromUTC)
+	c.recordingsSearch.Flag("to", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).Hidden().StringVar(&c.searchToUTC)
+	c.recordingsSearch.Flag("from-utc", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchFromUTC)
+	c.recordingsSearch.Flag("to-utc", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchToUTC)
+	c.recordingsSearch.Flag("label", "Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.").StringVar(&c.searchLabel)
+	c.recordingsSearch.Flag("access-request", "Filter by access request ID. Can be specified multiple times.").StringsVar(&c.searchAccessRequests)
+	c.recordingsSearch.Flag("kind", "Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.").StringsVar(&c.searchKinds)
+	c.recordingsSearch.Flag("username", "Filter by the Teleport username that initiated the session.").StringVar(&c.searchUsername)
+	c.recordingsSearch.Flag("role", "Filter by role held during the session. Can be specified multiple times.").StringsVar(&c.searchRoles)
+	c.recordingsSearch.Flag("resource-kind", "Filter by Teleport resource type (node, kube_cluster, db).").StringVar(&c.searchResourceKind)
+	c.recordingsSearch.Flag("resource-name", "Filter by resource name.").StringVar(&c.searchResourceName)
+	c.recordingsSearch.Flag("server-hostname", "Filter SSH sessions by server hostname.").StringVar(&c.searchServerHostname)
+	c.recordingsSearch.Flag("server-addr", "Filter SSH sessions by server address.").StringVar(&c.searchServerAddr)
+	c.recordingsSearch.Flag("pod-namespace", "Filter Kubernetes sessions by pod namespace.").StringVar(&c.searchPodNamespace)
+	c.recordingsSearch.Flag("pod-name", "Filter Kubernetes sessions by pod name.").StringVar(&c.searchPodName)
+	c.recordingsSearch.Flag("database-name", "Filter database sessions by database name.").StringVar(&c.searchDatabaseName)
+	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
+	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
+	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
+	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
+	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
+
+	c.recordingsEncryption.Initialize(recordings, c.stdout)
+
+	download := recordings.Command("download", "Download session recordings.")
+	download.Arg("session-id", "ID of the session to download recordings for.").Required().StringVar(&c.recordingsDownloadSessionID)
+	pwd, err := os.Getwd()
+	if err != nil {
+		pwd = "."
+	}
+	download.Flag("output-dir", "Directory to download session recordings to.").Short('o').Default(pwd).StringVar(&c.recordingsDownloadOutputDir)
+	c.recordingsDownload = download
+
+	c.summary = recordings.Command("summary", "View an AI-generated session summary.")
+	c.summary.Arg("session-id", "ID of the session to retrieve the summary for.").Required().StringVar(&c.summarySessionID)
+	c.summary.Flag("format", "Defines the output format for the summary.").Default(teleport.Text).EnumVar(&c.summaryFormat, defaults.DefaultFormats...)
+	c.summary.Flag("output", "Optional file path to write the summary to instead of stdout.").Short('o').StringVar(&c.summaryOutputFile)
+
+	if c.recordingsEncryption.stdout == nil {
+		c.recordingsEncryption.stdout = c.stdout
+	}
+}
+
+// TryRun attempts to run subcommands like "recordings ls".
+func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	switch cmd {
+	case c.recordingsList.FullCommand():
+		commandFunc = c.ListRecordings
+	case c.recordingsDownload.FullCommand():
+		commandFunc = c.DownloadRecordings
+	case c.recordingsSearch.FullCommand():
+		commandFunc = c.SearchRecordings
+	case c.summary.FullCommand():
+		commandFunc = c.GetSummary
+	default:
+		return c.recordingsEncryption.TryRun(ctx, cmd, clientFunc)
+	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
+	return true, trace.Wrap(err)
+}
+
+func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc *authclient.Client) error {
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC, c.recordingsSince)
+	if err != nil {
+		return trace.Errorf("cannot request recordings: %v", err)
+	}
+	// Max number of days is limited to prevent too many requests being sent if dynamo is used as a backend.
+	if days := toUTC.Sub(fromUTC).Hours() / 24; days > defaults.TshTctlSessionDayLimit {
+		return trace.Errorf("date range for recording listing too large: %v days specified: limit %v days",
+			days, defaults.TshTctlSessionDayLimit)
+	}
+	recordings, err := client.GetPaginatedSessions(ctx, fromUTC, toUTC,
+		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxRecordingsToShow, tc)
+	if err != nil {
+		return trace.Errorf("getting session events: %v", err)
+	}
+	return trace.Wrap(common.ShowSessions(recordings, c.format, c.stdout))
+}
+
+func (c *RecordingsCommand) DownloadRecordings(ctx context.Context, tc *authclient.Client) (err error) {
+	sessionID, err := session.ParseID(c.recordingsDownloadSessionID)
+	if err != nil {
+		return trace.BadParameter("invalid session id")
+	}
+
+	e, err := createFileWriter(ctx, *sessionID, c.recordingsDownloadOutputDir)
+	if err != nil {
+		return trace.Wrap(err, "creating file downloader")
+	}
+
+	path := filepath.Join(c.recordingsDownloadOutputDir, string(*sessionID)+".tar")
+	defer func() {
+		completeErr := e.Complete(ctx)
+		if err == nil && completeErr == nil {
+			return
+		}
+		localRemErr := os.Remove(path)
+		// ignore file not found errors
+		if os.IsNotExist(localRemErr) {
+			localRemErr = nil
+		}
+		err = trace.NewAggregate(err, completeErr, localRemErr)
+	}()
+
+	recC, errC := tc.StreamSessionEvents(ctx, *sessionID, 0)
+loop:
+	for {
+		select {
+		case rec, ok := <-recC:
+			if !ok {
+				break loop
+			}
+			prepared, err := e.PrepareSessionEvent(rec)
+			if err != nil {
+				return trace.Wrap(err, "preparing recording event")
+			}
+			err = e.RecordEvent(ctx, prepared)
+			if err != nil {
+				return trace.Wrap(err, "recording session event")
+			}
+		case err := <-errC:
+			if err != nil && !trace.IsEOF(err) {
+				return trace.Wrap(err, "downloading session recordings")
+			}
+			return nil
+		}
+	}
+	fmt.Fprintf(c.stdout, "Session recording %q downloaded to %s\n", string(*sessionID), path)
+	return nil
+}
+
+// SearchRecordings implements "tctl recordings search <query>".
+func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient.Client) error {
+	searchClient := tc.SessionSearchServiceClient()
+	if err := checkSessionSearchEnabled(ctx, searchClient); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.searchFromUTC, c.searchToUTC, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var labels map[string]string
+	if c.searchLabel != "" {
+		labels, err = client.ParseLabelSpec(c.searchLabel)
+		if err != nil {
+			return trace.Wrap(err, "parsing --label")
+		}
+	}
+	var search []string
+	if len(c.searchQuery) > 0 {
+		search = []string{strings.Join(c.searchQuery, " ")}
+	}
+	req := &sessionsearchv1pb.SearchSessionSummariesRequest{
+		StartTime:        timestamppb.New(fromUTC),
+		EndTime:          timestamppb.New(toUTC),
+		SearchQueries:    search,
+		ResourceLabels:   labels,
+		AccessRequestIds: c.searchAccessRequests,
+		Kinds:            c.searchKinds,
+		UserRoles:        c.searchRoles,
+		MaxResults:       c.searchLimit,
+	}
+	resourceProperties, err := c.buildSearchResourceProperties()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.ResourceProperties = resourceProperties
+	if c.searchUsername != "" {
+		req.Username = &c.searchUsername
+	}
+	if c.searchResourceKind != "" {
+		req.ResourceKind = &c.searchResourceKind
+	}
+	if c.searchResourceName != "" {
+		req.ResourceName = &c.searchResourceName
+	}
+	if c.searchSeverity != "" {
+		level, err := parseSeverity(c.searchSeverity)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.Severity = &level
+	}
+	if c.searchMode != "" {
+		mode, err := parseSearchMode(c.searchMode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SearchMode = mode
+	}
+
+	// fetcher resends the full request with the batch token set. It is used for
+	// both the first page (empty or resume token) and subsequent "load more"
+	// pages. The batch token is only a cursor: the server requires and applies
+	// the filter fields (start_time, end_time, ...) on every request, so the
+	// original request must be replayed each time rather than sending the token
+	// alone.
+	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
+		pageReq := proto.CloneOf(req)
+		pageReq.BatchToken = token
+		stream, err := searchClient.SearchSessionSummaries(ctx, pageReq)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return collectStream(stream)
+	})
+
+	// c.searchResumeToken is empty for a fresh search and set when resuming a
+	// previous one; either way the first page is just a fetch with that token.
+	sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher, resumeCommand))
+}
+
+// maxJSONYAMLSessions is the maximum number of sessions collected before truncating
+// structured (JSON/YAML) output and printing a --resume-token hint to stderr.
+const maxJSONYAMLSessions = 100
+
+func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher, resumeCmd func(token string) string) error {
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		// Paginate automatically up to maxJSONYAMLSessions for structured output.
+		all := sessions
+		for nextToken != "" && len(all) < maxJSONYAMLSessions {
+			more, tok, err := fetcher(ctx, nextToken)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			all = append(all, more...)
+			nextToken = tok
+		}
+		if nextToken != "" {
+			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with:\n  %s\n", len(all), resumeCmd(nextToken))
+		}
+		if format == teleport.JSON {
+			return trace.Wrap(utils.WriteJSONArray(w, all))
+		}
+		return trace.Wrap(utils.WriteYAML(w, all))
+	default:
+		if len(sessions) == 0 {
+			fmt.Fprintln(w, "No sessions found.")
+			return nil
+		}
+		return recordingstui.RunSearchTUI(ctx, sessions, nextToken, summaryGetter, fetcher)
+	}
+}
+
+// resumeCommand renders a replayable command for the given resume token by
+// reusing the exact arguments of the current invocation (os.Args) and rewriting
+// only the resume token, replaced in place when already present or appended
+// otherwise. All other flags (including any time range the user passed) are
+// preserved verbatim.
+func resumeCommand(token string) string {
+	args := append([]string(nil), os.Args...)
+	if len(args) > 0 {
+		args[0] = filepath.Base(args[0])
+	}
+	args = replaceOrAppendFlag(args, []string{"--resume-token"}, "--resume-token", token)
+
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shellQuote(a)
+	}
+	return strings.Join(quoted, " ")
+}
+
+// replaceOrAppendFlag removes every occurrence of the given flag names (in both
+// "--flag value" and "--flag=value" forms) from args, then appends
+// "canonical value" so the flag ends up set exactly once to value. The multiple
+// names allow collapsing aliases (e.g. --from and --from-utc) onto a single
+// canonical flag.
+func replaceOrAppendFlag(args, names []string, canonical, value string) []string {
+	match := func(arg string) (isFlag, inlineValue bool) {
+		for _, n := range names {
+			if arg == n {
+				return true, false
+			}
+			if strings.HasPrefix(arg, n+"=") {
+				return true, true
+			}
+		}
+		return false, false
+	}
+	out := make([]string, 0, len(args)+2)
+	for i := 0; i < len(args); i++ {
+		isFlag, inline := match(args[i])
+		if !isFlag {
+			out = append(out, args[i])
+			continue
+		}
+		if !inline {
+			i++ // skip the value token that follows "--flag value"
+		}
+	}
+	return append(out, canonical, value)
+}
+
+// shellQuote wraps s in single quotes when it contains characters that a shell
+// would otherwise interpret, so the rendered resume command can be pasted as-is.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(s, " \t\n'\"\\$`*?(){}[]|&;<>~#!") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.ResourceProperties, error) {
+	sshSet := c.searchServerHostname != "" || c.searchServerAddr != ""
+	kubernetesSet := c.searchPodNamespace != "" || c.searchPodName != ""
+	databaseSet := c.searchDatabaseName != ""
+
+	var variants []string
+	if sshSet {
+		variants = append(variants, "SSH")
+	}
+	if kubernetesSet {
+		variants = append(variants, "Kubernetes")
+	}
+	if databaseSet {
+		variants = append(variants, "Database")
+	}
+	if len(variants) > 1 {
+		return nil, trace.BadParameter("resource property filters can only target one session kind at a time, got %s", strings.Join(variants, ", "))
+	}
+
+	switch {
+	case sshSet:
+		props := &sessionsearchv1pb.SSHProperties{}
+		if c.searchServerHostname != "" {
+			props.ServerHostname = &c.searchServerHostname
+		}
+		if c.searchServerAddr != "" {
+			props.ServerAddr = &c.searchServerAddr
+		}
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
+				Ssh: props,
+			},
+		}, nil
+	case kubernetesSet:
+		props := &sessionsearchv1pb.KubernetesProperties{}
+		if c.searchPodNamespace != "" {
+			props.PodNamespace = &c.searchPodNamespace
+		}
+		if c.searchPodName != "" {
+			props.PodName = &c.searchPodName
+		}
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
+				Kubernetes: props,
+			},
+		}, nil
+	case databaseSet:
+		return &sessionsearchv1pb.ResourceProperties{
+			Type: &sessionsearchv1pb.ResourceProperties_Database{
+				Database: &sessionsearchv1pb.DatabaseProperties{
+					DatabaseName: &c.searchDatabaseName,
+				},
+			},
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
+// checkSessionSearchEnabled returns an error if session search is not active on this cluster.
+func checkSessionSearchEnabled(ctx context.Context, sc sessionsearchv1pb.SessionSearchServiceClient) error {
+	resp, err := sc.IsEnabled(ctx, &sessionsearchv1pb.IsEnabledRequest{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch resp.GetAvailability() {
+	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_AVAILABLE,
+		sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED:
+		// UNSPECIFIED is the proto zero-value; older servers that predate this field
+		// return it. Treat it as available for forward-compatibility.
+		return nil
+	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_NOT_IMPLEMENTED:
+		return trace.NotImplemented("session search requires Access Graph to be enabled with session recording support")
+	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_PG_TRGM_UNAVAILABLE:
+		return trace.NotImplemented("session search requires the pg_trgm PostgreSQL extension to be installed")
+	case sessionsearchv1pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE:
+		return trace.NotImplemented("session search requires the pgvector PostgreSQL extension to be installed")
+	default:
+		return nil
+	}
+}
+
+// collectStream drains a SearchSessionSummaries server stream and returns the
+// accumulated sessions and the next-page token (empty when there are no more pages).
+func collectStream(stream sessionsearchv1pb.SessionSearchService_SearchSessionSummariesClient) ([]*sessionsearchv1pb.SessionSummary, string, error) {
+	var sessions []*sessionsearchv1pb.SessionSummary
+	var nextToken string
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		switch p := resp.Payload.(type) {
+		case *sessionsearchv1pb.SearchSessionSummariesResponse_Summary:
+			sessions = append(sessions, p.Summary)
+		case *sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_:
+			if p.BatchComplete.GetHasMore() {
+				nextToken = p.BatchComplete.GetNextBatchToken()
+			}
+		}
+	}
+	return sessions, nextToken, nil
+}
+
+// parseSearchMode converts a CLI search-mode string to a SearchMode proto enum value.
+func parseSearchMode(s string) (sessionsearchv1pb.SearchMode, error) {
+	switch s {
+	case searchModeHybrid:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_HYBRID, nil
+	case searchModeKeyword:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY, nil
+	case searchModeEmbedding:
+		return sessionsearchv1pb.SearchMode_SEARCH_MODE_EMBEDDING_ONLY, nil
+	default:
+		return 0, trace.BadParameter("invalid --search-mode %q: must be one of %s, %s, %s", s, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
+	}
+}
+
+// parseSeverity converts a CLI severity string to a RiskLevel proto enum value.
+func parseSeverity(s string) (summarizerv1pb.RiskLevel, error) {
+	switch s {
+	case "low":
+		return summarizerv1pb.RiskLevel_RISK_LEVEL_LOW, nil
+	case "medium":
+		return summarizerv1pb.RiskLevel_RISK_LEVEL_MEDIUM, nil
+	case "high":
+		return summarizerv1pb.RiskLevel_RISK_LEVEL_HIGH, nil
+	case "critical":
+		return summarizerv1pb.RiskLevel_RISK_LEVEL_CRITICAL, nil
+	default:
+		return 0, trace.BadParameter("invalid --severity %q: must be one of low, medium, high, critical", s)
+	}
+}
+
+// createFileWriter creates a file-based session event writer that outputs to a file.
+func createFileWriter(ctx context.Context, sessionID session.ID, outputDir string) (*events.SessionWriter, error) {
+	fileStreamer, err := filesessions.NewStreamer(
+		filesessions.StreamerConfig{
+			Dir: outputDir,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create fileStreamer")
+	}
+
+	e, err := events.NewSessionWriter(
+		events.SessionWriterConfig{
+			SessionID: sessionID,
+			Component: "downloader",
+			// Use NoOpPreparer as events are already prepared by the server.
+			Preparer: &events.NoOpPreparer{},
+			Context:  ctx,
+			Clock:    clockwork.NewRealClock(),
+			Streamer: fileStreamer,
+		},
+	)
+	return e, trace.Wrap(err, "creating session writer")
+}
+
+// GetSummary retrieves a session summary and writes it to stdout or a file.
+func (c *RecordingsCommand) GetSummary(ctx context.Context, tc *authclient.Client) error {
+	summarizerClient := tc.SummarizerServiceClient()
+
+	resp, err := summarizerClient.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: c.summarySessionID,
+	}.Build())
+	if trace.IsNotImplemented(err) {
+		// unlicensedISMessage is returned when the cluster does not have the
+		// Identity Security license, which is required to use Session Summaries.
+		const unlicensedISMessage = "this Teleport cluster is not licensed for Identity Security, " +
+			"which is required to use Session Summaries. Contact your Teleport " +
+			"account team to enable it."
+		return trace.NotImplemented("%s", unlicensedISMessage)
+	} else if err != nil {
+		return trace.Wrap(err, "failed to get session summary")
+	}
+
+	summary := resp.GetSummary()
+	if summary == nil {
+		return trace.NotFound("no summary found for session %s", c.summarySessionID)
+	}
+	return trace.Wrap(c.writeSummary(summary))
+}
+
+func (c *RecordingsCommand) writeSummary(summary *summarizerv1pb.Summary) error {
+	if c.summaryOutputFile == "" {
+		return trace.Wrap(c.formatSummary(c.stdout, summary))
+	}
+
+	var buf bytes.Buffer
+	if err := c.formatSummary(&buf, summary); err != nil {
+		return trace.Wrap(err, "failed to format summary")
+	}
+	if err := os.WriteFile(c.summaryOutputFile, buf.Bytes(), 0o600); err != nil {
+		return trace.Wrap(err, "failed to write summary to file")
+	}
+	return nil
+}
+
+// formatSummary formats and displays the summary based on the output format
+func (c *RecordingsCommand) formatSummary(w io.Writer, summary *summarizerv1pb.Summary) error {
+	switch c.summaryFormat {
+	case teleport.Text:
+		return formatSummaryText(w, summary)
+	case teleport.JSON:
+		return formatSummaryJSON(w, summary)
+	case teleport.YAML:
+		return formatSummaryYAML(w, summary)
+	default:
+		return trace.BadParameter("unsupported format %q", c.summaryFormat)
+	}
+}
+
+func marshalSessionSummary(summary *summarizerv1pb.Summary) ([]byte, error) {
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true, Multiline: true, Indent: "  "}.Marshal(summary)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to marshal summary to JSON")
+	}
+	return rBytes, nil
+}
+
+type summaryEventAnalysis interface {
+	GetCategory() summarizerv1pb.CommandCategory
+	GetRiskLevel() summarizerv1pb.RiskLevel
+	GetRiskScore() int32
+	GetThreatCategory() summarizerv1pb.ThreatCategory
+	GetShortDescription() string
+	GetDetailedDescription() string
+	GetSuspiciousPatterns() []string
+	GetIocs() []string
+	GetMitreAttackIds() []string
+	GetHasSensitiveData() bool
+	GetPrivilegeEscalation() bool
+	GetDataExfiltration() bool
+	GetPersistence() bool
+	GetStartOffset() *durationpb.Duration
+	GetEndOffset() *durationpb.Duration
+}
+
+type summaryCommand struct {
+	summaryEventAnalysis
+	command       string
+	success       bool
+	errorMessages []string
+}
+
+// summaryCommands normalizes command SessionEvents and commands from older
+// Auth Servers into the shape used by the text formatter.
+func summaryCommands(enhanced *summarizerv1pb.EnhancedSummary) []summaryCommand {
+	if enhanced == nil {
+		return nil
+	}
+
+	if events := enhanced.GetSessionEvents(); len(events) > 0 {
+		commands := make([]summaryCommand, 0, len(events))
+		for _, event := range events {
+			details := event.GetCommandEventDetails()
+			if details == nil {
+				continue
+			}
+			commands = append(commands, summaryCommand{
+				summaryEventAnalysis: event,
+				command:              details.GetCommand(),
+				success:              details.GetSuccess(),
+				errorMessages:        details.GetErrorMessages(),
+			})
+		}
+		return commands
+	}
+
+	//nolint:staticcheck // Read the deprecated field for compatibility with pre-v19 Auth Servers.
+	legacyCommands := enhanced.GetCommands()
+	commands := make([]summaryCommand, 0, len(legacyCommands))
+	for _, command := range legacyCommands {
+		commands = append(commands, summaryCommand{
+			summaryEventAnalysis: command,
+			command:              command.GetCommand(),
+			success:              command.GetSuccess(),
+			errorMessages:        command.GetErrorMessages(),
+		})
+	}
+	return commands
+}
+
+// formatSummaryText formats the summary in human-readable text format.
+func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
+	// Build the output in a buffer first
+	var buf bytes.Buffer
+	bold := func(s string) string { return utils.Color(utils.Bold, s) }
+
+	fmt.Fprintf(&buf, "%s %s\n", bold("Session ID:"), summary.GetSessionId())
+	fmt.Fprintf(&buf, "%s %s\n", bold("State:"), summary.GetState())
+	fmt.Fprintf(&buf, "%s %s\n", bold("Model:"), summary.GetModelName())
+
+	if summary.GetInferenceStartedAt() != nil {
+		fmt.Fprintf(&buf, "%s %s\n", bold("Started:"), summary.GetInferenceStartedAt().AsTime())
+	}
+	if summary.GetInferenceFinishedAt() != nil {
+		fmt.Fprintf(&buf, "%s %s\n", bold("Finished:"), summary.GetInferenceFinishedAt().AsTime())
+	}
+
+	// Enhanced summary information
+	if enhanced := summary.GetEnhancedSummary(); enhanced != nil {
+		fmt.Fprintf(&buf, "\n%s %s\n", bold("Risk Level:"), enhanced.GetRiskLevel())
+
+		if enhanced.GetCompromiseIndicators() {
+			fmt.Fprintf(&buf, "\n%s Compromise indicators detected!\n", bold("WARNING:"))
+		}
+
+		if len(enhanced.GetSuspiciousActivities()) > 0 {
+			fmt.Fprintf(&buf, "\n%s\n", bold("Suspicious Activities:"))
+			for _, activity := range enhanced.GetSuspiciousActivities() {
+				fmt.Fprintf(&buf, "  - %s\n", activity)
+			}
+		}
+	}
+
+	if summary.GetErrorMessage() != "" {
+		fmt.Fprintf(&buf, "\n%s %s\n", bold("Error:"), summary.GetErrorMessage())
+	}
+
+	if summary.GetContent() != "" {
+		// Convert markdown bold to terminal bold for better readability
+		content := convertMarkdownBoldToANSI(summary.GetContent())
+		fmt.Fprintf(&buf, "\n%s\n%s\n", bold("Summary:"), content)
+	}
+
+	// Display commands with their details
+	if commands := summaryCommands(summary.GetEnhancedSummary()); len(commands) > 0 {
+		fmt.Fprintf(&buf, "\n%s\n", bold(fmt.Sprintf("Commands Executed (%d total)", len(commands))))
+
+		for i, cmd := range commands {
+			fmt.Fprintf(&buf, "[%d] %s\n", i+1, cmd.command)
+
+			// Risk and category information
+			fmt.Fprintf(&buf, "    %s %s", bold("Risk Level:"), cmd.GetRiskLevel())
+			if cmd.GetRiskScore() > 0 {
+				fmt.Fprintf(&buf, " (Score: %d)", cmd.GetRiskScore())
+			}
+			fmt.Fprintf(&buf, "\n")
+
+			if cmd.GetCategory() != summarizerv1pb.CommandCategory_COMMAND_CATEGORY_UNSPECIFIED {
+				fmt.Fprintf(&buf, "    %s %s\n", bold("Category:"), cmd.GetCategory())
+			}
+
+			// Description
+			if desc := cmd.GetShortDescription(); desc != "" {
+				fmt.Fprintf(&buf, "    %s %s\n", bold("Description:"), desc)
+			}
+
+			// Timing information
+			if start := cmd.GetStartOffset(); start != nil {
+				fmt.Fprintf(&buf, "    %s %s", bold("Time:"), start.AsDuration())
+				if end := cmd.GetEndOffset(); end != nil {
+					duration := end.AsDuration() - start.AsDuration()
+					fmt.Fprintf(&buf, " (duration: %s)", duration)
+				}
+				fmt.Fprintf(&buf, "\n")
+			}
+
+			// Status
+			if cmd.success {
+				fmt.Fprintf(&buf, "    %s Success\n", bold("Status:"))
+			} else {
+				fmt.Fprintf(&buf, "    %s Failed\n", bold("Status:"))
+			}
+
+			// Security flags
+			var flags []string
+			if cmd.GetPrivilegeEscalation() {
+				flags = append(flags, "Privilege Escalation")
+			}
+			if cmd.GetDataExfiltration() {
+				flags = append(flags, "Data Exfiltration")
+			}
+			if cmd.GetPersistence() {
+				flags = append(flags, "Persistence")
+			}
+			if cmd.GetHasSensitiveData() {
+				flags = append(flags, "Sensitive Data")
+			}
+			if len(flags) > 0 {
+				fmt.Fprintf(&buf, "    %s %s\n", bold("Security Flags:"), strings.Join(flags, ", "))
+			}
+
+			// Threat information
+			if cmd.GetThreatCategory() != summarizerv1pb.ThreatCategory_THREAT_CATEGORY_UNSPECIFIED {
+				fmt.Fprintf(&buf, "    %s %s\n", bold("Threat Category:"), cmd.GetThreatCategory())
+			}
+
+			// Threat framework mappings
+			if len(cmd.GetMitreAttackIds()) > 0 {
+				//nolint:misspell // MITRE ATT&CK is the official name.
+				fmt.Fprintf(&buf, "    %s %s\n", bold("MITRE ATT&CK:"), strings.Join(cmd.GetMitreAttackIds(), ", "))
+			}
+
+			// Detailed description if available
+			if detailed := cmd.GetDetailedDescription(); detailed != "" {
+				fmt.Fprintf(&buf, "\n    %s\n", bold("Details:"))
+				for _, line := range strings.Split(detailed, "\n") {
+					fmt.Fprintf(&buf, "      %s\n", line)
+				}
+			}
+
+			// Error messages
+			if len(cmd.errorMessages) > 0 {
+				fmt.Fprintf(&buf, "\n    %s\n", bold("Errors:"))
+				for _, errMsg := range cmd.errorMessages {
+					fmt.Fprintf(&buf, "      - %s\n", errMsg)
+				}
+			}
+
+			// Suspicious patterns and IOCs
+			if len(cmd.GetSuspiciousPatterns()) > 0 {
+				fmt.Fprintf(&buf, "\n    %s\n", bold("Suspicious Patterns:"))
+				for _, pattern := range cmd.GetSuspiciousPatterns() {
+					fmt.Fprintf(&buf, "      - %s\n", pattern)
+				}
+			}
+
+			if len(cmd.GetIocs()) > 0 {
+				fmt.Fprintf(&buf, "\n    %s\n", bold("IOCs:"))
+				for _, ioc := range cmd.GetIocs() {
+					fmt.Fprintf(&buf, "      - %s\n", ioc)
+				}
+			}
+
+			fmt.Fprintf(&buf, "\n")
+		}
+	}
+
+	_, err := w.Write(buf.Bytes())
+	return trace.Wrap(err)
+}
+
+// convertMarkdownBoldToANSI converts markdown bold (**text**) to ANSI bold escape codes
+func convertMarkdownBoldToANSI(text string) string {
+	// ANSI escape codes: \x1b[1m for bold, \x1b[0m to reset
+	result := text
+
+	// Replace **text** with ANSI bold
+	for {
+		start := strings.Index(result, "**")
+		if start == -1 {
+			break
+		}
+
+		// Find the closing **
+		end := strings.Index(result[start+2:], "**")
+		if end == -1 {
+			// No closing **, leave as is
+			break
+		}
+
+		// Calculate actual end position
+		end = start + 2 + end
+
+		// Extract the bold text
+		boldText := result[start+2 : end]
+
+		// Replace with ANSI codes
+		replacement := utils.Color(utils.Bold, boldText)
+		result = result[:start] + replacement + result[end+2:]
+	}
+
+	return result
+}
+
+// formatSummaryJSON formats the summary in JSON format.
+func formatSummaryJSON(w io.Writer, summary *summarizerv1pb.Summary) error {
+	rBytes, err := marshalSessionSummary(summary)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal summary")
+	}
+	_, err = w.Write(rBytes)
+	return trace.Wrap(err)
+}
+
+// formatSummaryYAML formats the summary in YAML format.
+func formatSummaryYAML(w io.Writer, summary *summarizerv1pb.Summary) error {
+	rBytes, err := marshalSessionSummary(summary)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal summary")
+	}
+	var jsonObj map[string]any
+	if err := json.Unmarshal(rBytes, &jsonObj); err != nil {
+		return trace.Wrap(err, "failed to unmarshal JSON")
+	}
+	encoder := yaml.NewEncoder(w)
+	encoder.SetIndent(2)
+	defer encoder.Close()
+	return trace.Wrap(encoder.Encode(jsonObj))
+}

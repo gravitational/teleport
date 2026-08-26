@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# This post upgrade script is run each time the teleport package is upgraded.
+
+set -eu

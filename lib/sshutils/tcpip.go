@@ -1,38 +1,69 @@
 /*
-Copyright 2015 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package sshutils
 
 import (
-	log "github.com/Sirupsen/logrus"
+	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
+// DirectTCPIPReq represents the payload of an SSH "direct-tcpip" or
+// "forwarded-tcpip" request.
 type DirectTCPIPReq struct {
+	// Host is the receiver-side address to forward to.
 	Host string
+	// Port is the receiver-side port to forward to.
 	Port uint32
-
-	Orig     string
+	// Orig is the sender-side address to forward from.
+	Orig string
+	// OrigPort is the sender-side port to forward from.
 	OrigPort uint32
 }
 
+// ParseDirectTCPIPReq parses an SSH request's payload into a DirectTCPIPReq.
 func ParseDirectTCPIPReq(data []byte) (*DirectTCPIPReq, error) {
 	var r DirectTCPIPReq
 	if err := ssh.Unmarshal(data, &r); err != nil {
-		log.Infof("failed to parse Direct TCP IP request: %v", err)
-		return nil, err
+		slog.InfoContext(context.Background(), "failed to parse Direct TCP IP request", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	return &r, nil
+}
+
+// TCPIPForwardReq represents the payload of an SSH "tcpip-forward" or
+// "cancel-tcpip-forward" request.
+type TCPIPForwardReq struct {
+	// Addr is the address to listen on.
+	Addr string
+	// Port is the port to listen on.
+	Port uint32
+}
+
+// ParseTCPIPForwardReq parses an SSH request's payload into a TCPIPForwardReq.
+func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
+	var r TCPIPForwardReq
+	if err := ssh.Unmarshal(data, &r); err != nil {
+		slog.InfoContext(context.Background(), "failed to parse TCP IP Forward request", "error", err)
+		return nil, trace.Wrap(err)
 	}
 	return &r, nil
 }

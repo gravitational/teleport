@@ -1,0 +1,60 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "teleport/lib/teleterm/v1/label.proto";
+import "teleport/lib/teleterm/v1/target_health.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// Database describes a database (resource kind "db")
+message Database {
+  // uri is the cluster resource URI
+  string uri = 1;
+  // name is the name of the database
+  string name = 2;
+  // desc is the database description
+  string desc = 3;
+  // protocol is the protocol used by the database
+  string protocol = 4;
+  // type is the database type, self-hosted or cloud-hosted.
+  string type = 5;
+  // hostname is this database hostname
+  string hostname = 6;
+  // addr is this database ip address
+  string addr = 7;
+  // labels is a list of labels for this database
+  repeated Label labels = 8;
+  // target_health of the "db_server" that is serving this database.
+  TargetHealth target_health = 9;
+  // gcp_project_id is optional project ID set for GCP Project databases.
+  string gcp_project_id = 10;
+}
+
+// DatabaseServer (db_server) describes a database heartbeat signal
+// reported from an agent (db_service) that is proxying
+// the database.
+message DatabaseServer {
+  string uri = 1;
+  string hostname = 2;
+  string host_id = 3;
+  TargetHealth target_health = 4;
+}

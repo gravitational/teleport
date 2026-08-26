@@ -1,0 +1,50 @@
+---
+title: Use JWT Tokens With Application Access
+sidebar_label: JWT Tokens
+description: How to use JWT tokens for authentication with Teleport application access.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+page_type: conceptual
+---
+
+This page describes how Teleport supports JSON Web Token authentication with
+protected applications.
+
+(!docs/pages/includes/application-access/jwt-intro.mdx!)
+
+## Inject JWT
+
+(!docs/pages/includes/application-access/jwt-inject.mdx!)
+
+For example:
+
+```yaml
+- name: "elasticsearch"
+  uri: https://localhost:4321
+  public_addr: elastic.example.com
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+## Validate JWT
+
+(!docs/pages/includes/application-access/jwt-validate.mdx!)
+
+See the example Go program used to validate Teleport's JWT tokens on our
+[GitHub](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/jwt/verify-jwt.go).
+
+## Application guides
+
+Many existing web applications and APIs support JWT authentication.
+
+The following guides are currently available showing how to configure it:
+
+- [ElasticSearch](./elasticsearch.mdx)
+- [Grafana](./grafana.mdx)
+
+## Troubleshooting
+
+(!docs/pages/includes/application-access/jwt-configure-claims.mdx!)

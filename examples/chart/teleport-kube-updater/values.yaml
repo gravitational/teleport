@@ -1,0 +1,17 @@
+# Those 4 vars are not exposed to the user.
+releaseName: ""
+releaseNamespace: ""
+versionServerOverride: false
+version: ""
+baseImage: ""
+
+versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
+releaseChannel: "stable/cloud"
+group: ""
+image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+serviceAccount:
+  name: ""
+pullCredentials: ""
+extraArgs: []
+extraVolumes: []
+extraVolumeMounts: []

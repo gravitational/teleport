@@ -1,0 +1,23 @@
+name: Prepare Teleport workspace
+description: Prepares Teleport workspace folder
+
+runs:
+  using: "composite"
+  steps:
+    - name: Mark workspace as git safe.directory
+      shell: bash
+      run: |
+        git config --global --add safe.directory ${GITHUB_WORKSPACE}
+        git config --global --add safe.directory ${GITHUB_WORKSPACE}/webassets
+
+    - name: Fetch Go cache paths
+      id: go-cache-paths
+      shell: bash
+      run: |
+        echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+        echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+    - name: Get Go version
+      id: go-version
+      shell: bash
+      run: echo "go-version=$(go version | { read _ _ v _; echo ${v#go}; })" >> $GITHUB_OUTPUT

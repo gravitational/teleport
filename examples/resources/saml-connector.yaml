@@ -1,0 +1,49 @@
+#
+# Example resource for a SAML connector
+# This connector can be used for SAML endpoints like Okta
+#
+kind: saml
+version: v2
+metadata:
+  # the name of the connector
+  name: okta
+spec:
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
+  display: Okta
+  # SAML provider will make a callback to this URL after successful authentication
+  # cluster-url is the address the cluster UI is reachable at.
+  # The last segment of the URL must be identical to the connector metadata name.
+  acs: https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector
+  # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
+  allow_idp_initiated: false
+  attributes_to_roles:
+  - name: groups
+    value: okta-admin
+    roles:
+    - editor
+  - name: groups
+    value: okta-dev
+    roles:
+    - access
+  # Provides a path to the IdP metadata.
+  entity_descriptor_url: https://example.okta.com/app/your-app-id/sso/saml/metadata
+  # Optional SAML authentication request binding preference. 
+  # Value must be either "http-post" or "http-redirect".
+  # http-redirect binding is the default.
+  preferred_request_binding: http-redirect
+  # Optional SAML Single Logout endpoint. If set, logging out of Teleport
+  # will also log the user out of the SAML provider session.
+  single_logout_url: https://example.okta.com/app/your-app-id/slo/saml
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
+  

@@ -1,0 +1,13 @@
+# example teleport-pagerduty configuration TOML file
+[teleport]
+auth_server = "myinstance.teleport.sh:443"                  # Teleport Cloud proxy HTTPS address
+identity = "/var/lib/teleport/plugins/pagerduty/identity"   # Identity file path
+refresh_identity = true                                     # Refresh identity file periodically
+
+[pagerduty]
+api_key = "key"               # PagerDuty API Key
+user_email = "me@example.com" # PagerDuty bot user email (Could be admin email)
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/pagerduty.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

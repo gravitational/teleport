@@ -1,0 +1,38 @@
+kind: saml
+version: v2
+metadata:
+  name: OneLogin
+spec:
+  acs: https://teleport.example.com/v1/webapi/saml/acs/onelogin
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - auditor
+    - editor
+    value: admins
+  - name: groups
+    roles:
+    - access
+    value: devs
+  audience: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
+  cert: ""
+  display: OneLogin
+  entity_descriptor: |
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.example.com/00000000000000000000">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false"
+  entity_descriptor_url: ""
+  issuer: ""
+  service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
+  sso: ""
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
+version: v2

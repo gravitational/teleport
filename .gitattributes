@@ -1,6 +1,13 @@
-web/dist/app/vendor.js linguist-vendored
-web/dist/app/assets/* linguist-vendored
-web/src/assets/* linguist-vendored
-web/src/styles/bootstrap/bootstrap.scss linguist-vendored
+webassets/* linguist-vendored
 docs/theme/js/* linguist-vendored
 docs/theme/js/theme.js linguist-vendored=false
+
+# JS protobuf files, not caught by built-in linguist rules.
+# https://github.com/github/linguist/blob/v7.23.0/lib/linguist/generated.rb#L349-L358
+*_pb.js linguist-generated
+*_pb.d.ts linguist-generated
+*_pb.ts linguist-generated
+*_pb.grpc-*.ts linguist-generated
+*_pb.client.ts linguist-generated
+
+*.golden -text

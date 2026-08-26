@@ -1,0 +1,18 @@
+teleport:
+  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
+  address: ""
+  # Secret containing identity, e.g., teleport-plugin-discord-identity
+  identitySecretName: "" 
+  # Path within the secret containing the identity file, e.g., identity
+  identitySecretPath: ""
+
+discord:
+  token: "XXXXXXXX"  # Discord Bot OAuth token
+
+# Mapping from role to recipients
+roleToRecipients: {}
+#  "*":
+#    - "1234567890"  # security-team
+#  "dev":
+#    - "0987654321"  # dev-team-channel
+#    - "1212121212"  # admin-team-channel

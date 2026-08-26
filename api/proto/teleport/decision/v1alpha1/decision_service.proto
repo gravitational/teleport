@@ -1,0 +1,44 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.decision.v1alpha1;
+
+import "teleport/decision/v1alpha1/database_access.proto";
+import "teleport/decision/v1alpha1/ssh_access.proto";
+import "teleport/decision/v1alpha1/ssh_join.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
+
+// DecisionService performs authorization decisions for Teleport.
+//
+// DecisionService acts the PDP (Policy Decision Point) for Teleport services,
+// whereas the services themselves act as the PEP (Policy Enforcement Point).
+// In other words, it calculates the outcome of an authorization request but
+// does not enforce it - each Teleport service must do so.
+//
+// Evaluation responses carry all the data necessary for the enforcement of a
+// decision. A successful evaluation carries a Permit, whereas a failed
+// evaluation carries a Denial.
+service DecisionService {
+  // EvaluateSSHAccess evaluates an SSH access attempt.
+  rpc EvaluateSSHAccess(EvaluateSSHAccessRequest) returns (EvaluateSSHAccessResponse);
+
+  // EvaluateSSHJoin evaluates an SSH session-joining attempt.
+  rpc EvaluateSSHJoin(EvaluateSSHJoinRequest) returns (EvaluateSSHJoinResponse);
+
+  // EvaluateDatabaseAccess evaluate a database access attempt.
+  rpc EvaluateDatabaseAccess(EvaluateDatabaseAccessRequest) returns (EvaluateDatabaseAccessResponse);
+}

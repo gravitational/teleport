@@ -1,0 +1,70 @@
+---
+target_package_name: "v1"
+default_package_name: "github.com/gravitational/teleport/api/types"
+use_state_for_unknown_by_default: true
+
+# Top-level type names to export
+types:
+    - "DeviceV1"
+
+# These import paths were not being automatically picked up by
+# protoc-gen-terraform without these overrides
+import_path_overrides:
+    "types": "github.com/gravitational/teleport/api/types"
+    "wrappers": "github.com/gravitational/teleport/api/types/wrappers"
+
+
+injected_fields:
+  DeviceV1:
+    # id field is required for integration tests. It is also used by this provider
+    # to hold Metadata.name value returned by Teleport.
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+
+
+
+# These fields will be marked as Computed: true
+computed_fields:
+    # Metadata
+    - "DeviceV1.Metadata"
+    - "DeviceV1.Kind"
+    # DeviceV1
+    - "DeviceV1.spec.enroll_status"
+
+
+# These fields will be marked as Required: true
+required_fields:
+    - "DeviceV1.spec.asset_tag"
+    - "DeviceV1.spec.os_type"
+    - "DeviceV1.Version"
+
+
+exclude_fields:
+    # Below fields are either managed or not used on Teleport side
+    - "DeviceV1.SubKind"
+    - "DeviceV1.Metadata.ID"
+    - "DeviceV1.Metadata.Namespace"
+    - "DeviceV1.Metadata.Description"
+    - "DeviceV1.Metadata.Expires"
+    - "DeviceV1.spec.create_time"
+    - "DeviceV1.spec.update_time"
+    - "DeviceV1.spec.credential"
+    - "DeviceV1.spec.collected_data"
+    - "DeviceV1.spec.profile"
+
+plan_modifiers:
+    # Force to recreate resource if asset tag changes
+    "DeviceV1.spec.asset_tag":
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+
+
+time_type:
+    type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeType"
+    value_type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"
+    cast_to_type: "time.Time"
+    cast_from_type: "time.Time"
+    type_constructor: "github.com/gravitational/teleport/integrations/terraform/tfschema.UseRFC3339Time()"

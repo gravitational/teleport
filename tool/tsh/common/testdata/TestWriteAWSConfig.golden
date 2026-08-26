@@ -1,0 +1,30 @@
+[default]
+region=us-west-2
+output=json
+
+[profile external]
+role_arn=arn:aws:iam::123456789012:role/external-role
+source_profile=default
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session teleport-d-123]
+sso_start_url=https://d-123.awsapps.com/start
+sso_region=us-east-1
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-awsic-dev-admin]
+sso_session=teleport-d-123
+sso_account_id=111111111111
+sso_role_name=Admin
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-awsic-dev-reader]
+sso_session=teleport-d-123
+sso_account_id=111111111111
+sso_role_name=Reader
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-awsic-222222222222-admin]
+sso_session=teleport-d-123
+sso_account_id=222222222222
+sso_role_name=Admin

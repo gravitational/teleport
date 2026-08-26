@@ -1,0 +1,39 @@
+Once the Teleport Application Service is proxying traffic to your web
+application, the Teleport Proxy Service makes the application available at the
+following URL:
+
+```text
+https://<APPLICATION_NAME>.<TELEPORT_DOMAIN>
+```
+
+For example, if your Teleport domain name is `teleport.example.com`, the
+application named `my-app` would be available at
+`https://my-app.teleport.example.com`. The Proxy Service must present a TLS
+certificate for this domain name that browsers can verify against a certificate
+authority.
+
+If you are using Teleport Enterprise (Cloud), DNS records and TLS certificates
+for this domain name are provisioned automatically. If you are self-hosting
+Teleport, you must configure these yourself:
+
+1. Create either:
+   - A DNS A record that associates a wildcard subdomain of your Teleport Proxy
+     Service domain, e.g., `*.teleport.example.com`, with the IP address of the
+     Teleport Proxy Service.
+   - A DNS CNAME record that associates a wildcard subdomain of your Proxy
+     Service domain, e.g., `*.teleport.example.com`, with the domain name of the
+     Teleport Proxy Service.
+
+1. Ensure that your system provisions TLS certificates for Teleport-registered
+   applications. The method to use depends on how you originally set up TLS for
+   your self-hosted Teleport deployment, and is outside the scope of this guide. 
+
+   In general, the same system that provisions TLS certificates signed for the
+   web address of the Proxy Service (e.g., `teleport.example.com`) must also
+   provision certificates for the wildcard address used for applications (e.g.,
+   `*.teleport.example.com`).
+
+Take care not to create DNS records that map the Teleport cluster subdomain of a
+registered application to the application's own host, as attempts to navigate to
+the application will fail.
+

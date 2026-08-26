@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "event-handler.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.deployment }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: 1
+  {{- if or .Values.persistentVolumeClaim.enabled .Values.persistentVolumeClaim.existingClaim }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "event-handler.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "event-handler.labels" . | nindent 8 }}
+        {{- with .Values.extraLabels.pod }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/teleport-plugin
+          args:
+            - start
+            - "--config"
+            - "/etc/teleport-event-handler.toml"
+            {{- with .Values.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            - name: "TELEPORT_PLUGIN_FAIL_FAST"
+              value: "true"
+            {{- if .Values.tls.existingCASecretName }}
+            - name: SSL_CERT_FILE
+              value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport-event-handler.toml
+              subPath: teleport-event-handler.toml
+            - name: teleport-identity
+              mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
+            - name: certificate
+              mountPath: /var/lib/teleport/plugins/event-handler
+            {{- if .Values.tls.existingCASecretName }}
+            - mountPath: /etc/teleport-tls-ca
+              name: "teleport-tls-ca"
+              readOnly: true
+            {{- end }}
+            {{- if or .Values.persistentVolumeClaim.enabled .Values.persistentVolumeClaim.existingClaim }}
+            - name: "{{ .Values.persistentVolumeClaim.volumeName }}"
+              mountPath: "{{ .Values.eventHandler.storagePath }}"
+            {{- end }}
+            {{- with .Values.volumeMounts -}}
+              {{- toYaml . | nindent 12 }}
+            {{- end}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "event-handler.fullname" . }}
+            defaultMode: 0600
+        - name: teleport-identity
+          secret:
+            secretName: {{ include "event-handler.identitySecretName" . | quote }}
+            defaultMode: 0600
+        {{- if .Values.certManager.enabled }}
+        - name: certificate
+          secret:
+            secretName: {{ include "event-handler.certManager.clientCertSecretName" . | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tls.crt
+                path: client.crt
+              - key: tls.key
+                path: client.key
+            defaultMode: 0600
+        {{- else }}
+        - name: certificate
+          secret:
+            secretName: "{{ .Values.fluentd.certificate.secretName }}"
+            items:
+              - key: {{ .Values.fluentd.certificate.caPath }}
+                path: ca.crt
+              - key: {{ .Values.fluentd.certificate.certPath }}
+                path: client.crt
+              - key: {{ .Values.fluentd.certificate.keyPath }}
+                path: client.key
+            defaultMode: 0600
+        {{- end }}
+        {{- if .Values.tls.existingCASecretName }}
+        - name: "teleport-tls-ca"
+          secret:
+            secretName: {{ .Values.tls.existingCASecretName }}
+        {{- end }}
+        {{- if .Values.persistentVolumeClaim.enabled }}
+        - name: "{{ .Values.persistentVolumeClaim.volumeName }}"
+          persistentVolumeClaim:
+            claimName: {{ include "event-handler.fullname" . }}
+        {{- else }}
+        {{- if .Values.persistentVolumeClaim.existingClaim }}
+        - name: "{{ .Values.persistentVolumeClaim.volumeName }}"
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistentVolumeClaim.existingClaim }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.volumes -}}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}

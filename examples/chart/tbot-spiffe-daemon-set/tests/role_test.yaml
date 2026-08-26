@@ -1,0 +1,16 @@
+suite: Test Role
+templates:
+  - role.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: role.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: role.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}

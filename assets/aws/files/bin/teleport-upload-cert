@@ -1,0 +1,12 @@
+#!/bin/bash
+# This script is called to upload renewed cert
+# to the S3 bucket
+set -e
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
+
+# Source variables from user-data
+. /etc/teleport.d/conf
+
+aws s3 sync --exact-timestamps /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256

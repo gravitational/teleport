@@ -1,0 +1,101 @@
+---
+target_package_name: 'v1'
+default_package_name: 'github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1'
+duration_custom_type: Duration
+use_state_for_unknown_by_default: true
+
+# Top-level type names to export
+types:
+  - 'DiscoveryConfig'
+
+# These import paths were not being automatically picked up by
+# protoc-gen-terraform without these overrides
+import_path_overrides:
+  'types': 'github.com/gravitational/teleport/api/types'
+  'wrappers': 'github.com/gravitational/teleport/api/types/wrappers'
+  'durationpb': 'google.golang.org/protobuf/types/known/durationpb'
+  'timestamppb': 'google.golang.org/protobuf/types/known/timestamppb'
+  'v1': 'github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1'
+  'v11': 'github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1'
+  'github_com_gravitational_teleport_integrations_terraform_tfschema': 'github.com/gravitational/teleport/integrations/terraform/tfschema'
+
+# id field is required for integration tests. It is not used by provider.
+# We have to add it manually (might be removed in the future versions).
+injected_fields:
+  DiscoveryConfig:
+    - name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - 'github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()'
+
+# These fields will be excluded
+exclude_fields:
+  # Metadata (we id resources by name on our side)
+  - 'DiscoveryConfig.header.metadata.id'
+  # Read only field
+  - 'DiscoveryConfig.status'
+
+# These fields will be marked as Computed: true
+computed_fields:
+  # Metadata
+  - 'DiscoveryConfig.header.metadata.expires'
+  - 'DiscoveryConfig.header.metadata.namespace'
+  - 'DiscoveryConfig.header.metadata.revision'
+  - 'DiscoveryConfig.header.kind'
+  - 'DiscoveryConfig.header.sub_kind'
+  - 'DiscoveryConfig.spec.azure.Params'
+  - 'DiscoveryConfig.spec.azure.Params.ScriptName'
+  - 'DiscoveryConfig.spec.azure.Params.Azure'
+
+# These fields will be marked as Required: true
+required_fields:
+  - 'DiscoveryConfig.header'
+  - 'DiscoveryConfig.header.metadata'
+  - 'DiscoveryConfig.header.metadata.name'
+  - 'DiscoveryConfig.header.version'
+  - 'DiscoveryConfig.spec'
+  - 'DiscoveryConfig.spec.azure.Params.Azure.ClientID'
+  - 'DiscoveryConfig.spec.azure.Params.JoinToken'
+  - 'DiscoveryConfig.spec.azure.Params.JoinMethod'
+
+plan_modifiers:
+  # Force to recreate resource if it's name changes
+  Metadata.name:
+    - 'github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()'
+
+# This must be defined for the generator to be happy, but in reality all time
+# fields are overridden (because the protobuf timestamps contain locks and the
+# linter gets mad if we use raw structs instead of pointers).
+time_type:
+  type: 'PlaceholderType'
+duration_type:
+  type: "DurationType"
+  value_type: "DurationValue"
+  cast_to_type: "time.Duration"
+  cast_from_type: "time.Duration"
+
+validators:
+  # Expires must be in the future
+  Metadata.expires:
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()
+
+custom_types:
+  'DiscoveryConfig.header.metadata.expires': Timestamp
+
+schema_types:
+  'DiscoveryConfig.spec.aws.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"
+  'DiscoveryConfig.spec.azure.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"
+  'DiscoveryConfig.spec.gcp.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"

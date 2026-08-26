@@ -1,0 +1,45 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "teleport/lib/teleterm/v1/label.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// Server describes connected Server
+message Server {
+  // uri is the server uri
+  string uri = 1;
+  // tunnel indicates if this server is connected over a reverse tunnel
+  bool tunnel = 2;
+  // name is the server name
+  string name = 3;
+  // hostname is this server hostname
+  string hostname = 4;
+  // addr is this server ip address
+  string addr = 5;
+  // labels is this server list of labels
+  repeated Label labels = 6;
+  // node sub kind: teleport, openssh, openssh-ec2-ice
+  string sub_kind = 7;
+  // Subset of logins allowed by the certificate and RBAC rules.
+  repeated string logins = 8;
+}

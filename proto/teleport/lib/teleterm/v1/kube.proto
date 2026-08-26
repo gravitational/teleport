@@ -1,0 +1,67 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "teleport/lib/teleterm/v1/label.proto";
+import "teleport/lib/teleterm/v1/target_health.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// Kube describes connected Kubernetes cluster
+message Kube {
+  // uri is the kube resource URI
+  string uri = 1;
+  // name is the kube name
+  string name = 2;
+  // labels is the kube labels
+  repeated Label labels = 3;
+  // target_health is the health of the kube cluster
+  TargetHealth target_health = 4;
+}
+
+// KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
+message KubeResource {
+  // uri is the kube resource URI
+  string uri = 1;
+  // kind is the kube subresource kind eg: pods, namespace
+  string kind = 2;
+  // name is the kube resource name eg: pod name, namespace name
+  string name = 3;
+  // labels is the kube resource labels
+  repeated Label labels = 4;
+  // cluster is the kube cluster name that this kube resource belongs to
+  // eg: the kube cluster that a namespace belongs to
+  string cluster = 5;
+  // namespace is the kube namespace where the resource is located
+  // note: this field will be blank if this resource "kind" is "namespace",
+  // refer to field "name" for the name of namespace
+  string namespace = 6;
+}
+
+// KubeServer (kube_server) describes a Kube heartbeat signal
+// reported from an agent (kubernetes_service) that is proxying
+// the Kubernetes cluster.
+message KubeServer {
+  string uri = 1;
+  string hostname = 2;
+  string host_id = 3;
+  TargetHealth target_health = 4;
+}

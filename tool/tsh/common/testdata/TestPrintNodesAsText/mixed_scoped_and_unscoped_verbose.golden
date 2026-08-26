@@ -1,0 +1,7 @@
+SSH Server ID                     Hostname             Address    Labels              
+--------------------------------- -------------------- ---------- ------------------- 
+unscoped-direct-uuid              unscoped-direct-name 1.2.3.4:22 key=val             
+/staging/west::scoped-direct-uuid scoped-direct-name   1.2.3.4:44 key1=val1,key2=val2 
+unscoped-tunnel-uuid              unscoped-tunnel-name ⟵ Tunnel                       
+/staging/west::scoped-tunnel-uuid scoped-tunnel-name   ⟵ Tunnel                       
+

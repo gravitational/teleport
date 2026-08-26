@@ -1,0 +1,8 @@
+extends: substitution
+message: "Incorrect example of a Teleport account URL. Use %s instead of %s."
+scope: raw # So we can catch instances in code fences
+level: warning
+scope:
+ignorecase: true
+swap:
+  - 'https://(?!status|example)\w+.teleport\.sh': 'example.teleport.sh (or status.teleport.sh for the status page)'

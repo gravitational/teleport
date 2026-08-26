@@ -1,0 +1,478 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package filesessions
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+var (
+	// openFileFunc this is the `OpenFileWithFlagsFunc` used by the handler.
+	//
+	// TODO(gabrielcorado): remove this global variable.
+	openFileFunc utils.OpenFileWithFlagsFunc = os.OpenFile
+
+	// flagLock protects access to all globals declared in this file
+	flagLock sync.Mutex
+)
+
+// SetOpenFileFunc sets the OpenFileWithFlagsFunc used by the package.
+//
+// TODO(gabrielcorado): remove this global variable.
+func SetOpenFileFunc(f utils.OpenFileWithFlagsFunc) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	openFileFunc = f
+}
+
+// GetOpenFileFunc gets the OpenFileWithFlagsFunc set in the package.
+//
+// TODO(gabrielcorado): remove this global variable.
+func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return openFileFunc
+}
+
+const (
+	// minUploadBytes is the minimum part file size required to trigger its upload.
+	minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
+	// reservationSize is the size new reservations will preallocate.
+	reservationSize = minUploadBytes + constants.MaxProtoMessageSizeBytes
+)
+
+type StreamerConfig struct {
+	// Dir is the dir to stream session events to.
+	Dir string
+	// MinUploadBytes is the minimum size at which upload parts are submitted.
+	// Due to the nature of the gzip writer, each upload part maybe be marginally
+	// larger, but not smaller, than the minimum size. Defaults to 128KB.
+	MinUploadBytes int64
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter events.EncryptionWrapper
+}
+
+// CheckAndSetDefaults checks and sets streamer defaults
+func (cfg *StreamerConfig) CheckAndSetDefaults() error {
+	if cfg.Dir == "" {
+		return trace.BadParameter("missing parameter Dir")
+	}
+	if cfg.MinUploadBytes == 0 {
+		cfg.MinUploadBytes = minUploadBytes
+	}
+	return nil
+}
+
+// NewStreamer creates a streamer sending uploads to disk
+func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	handler, err := NewHandler(Config{Directory: cfg.Dir, OpenFile: GetOpenFileFunc()})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:       handler,
+		MinUploadBytes: cfg.MinUploadBytes,
+		Encrypter:      cfg.Encrypter,
+	})
+}
+
+// CreateUpload creates a multipart upload
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	upload := events.StreamUpload{
+		SessionID: sessionID,
+		ID:        uuid.New().String(),
+	}
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := os.MkdirAll(h.uploadPath(upload), teleport.PrivateDirMode); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &upload, nil
+}
+
+// UploadPart uploads part
+func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	if err := checkUpload(upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reservationPath := h.reservationPath(upload, partNumber)
+	if err := h.fileRecorder.WritePart(ctx, reservationPath, partBody); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Rename reservation to part file.
+	partPath := h.partPath(upload, partNumber)
+	if err := os.Rename(reservationPath, partPath); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	var lastModified time.Time
+	fi, err := os.Stat(partPath)
+	if err == nil {
+		lastModified = fi.ModTime()
+	}
+
+	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
+}
+
+// CompleteUpload completes the upload
+func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If there are no parts to complete, move to cleanup
+	if len(parts) == 0 {
+		return h.cleanupUpload(ctx, upload)
+	}
+
+	uploadPath := h.recordingPath(upload.SessionID)
+
+	// Prevent other processes from accessing this file until the write is completed
+	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	unlock, err := utils.FSTryWriteLock(uploadPath)
+Loop:
+	for i := 0; i < 3; i++ {
+		switch {
+		case err == nil:
+			break Loop
+		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
+			// If unable to lock the file, try again with some backoff
+			// to allow the UploadCompleter to finish and remove its
+			// file lock before giving up.
+			select {
+			case <-ctx.Done():
+				if err := f.Close(); err != nil {
+					h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
+				}
+
+				return nil
+			case <-time.After(50 * time.Millisecond):
+				unlock, err = utils.FSTryWriteLock(uploadPath)
+				continue
+			}
+		default:
+			if err := f.Close(); err != nil {
+				h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath)
+			}
+
+			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+		}
+	}
+
+	if unlock == nil {
+		if err := f.Close(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
+		}
+
+		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+	}
+
+	defer func() {
+		if err := unlock(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
+		}
+		if err := f.Close(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
+		}
+	}()
+
+	// Parts must be sorted in PartNumber order.
+	slices.SortFunc(parts, func(a, b events.StreamPart) int {
+		return cmp.Compare(a.Number, b.Number)
+	})
+
+	if err := h.fileRecorder.CombineParts(ctx, f, func(yield func(string) bool) {
+		for _, part := range parts {
+			if !yield(h.partPath(upload, part.Number)) {
+				break
+			}
+		}
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.Config.OnBeforeComplete(ctx, upload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.RemoveAll(h.uploadRootPath(upload))
+	if err != nil {
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+	}
+	return nil
+}
+
+func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
+	uploadKey := h.recordingPath(upload.SessionID)
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
+	log.DebugContext(ctx, "Aborting upload")
+	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+	}
+
+	log.InfoContext(ctx, "Aborted upload")
+	return nil
+}
+
+// ListParts lists upload parts
+func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	var parts []events.StreamPart
+	if err := checkUpload(upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := filepath.Walk(h.uploadPath(upload), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			err = trace.ConvertSystemError(err)
+			if trace.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		part, err := partFromFileName(path)
+		if err != nil {
+			h.logger.DebugContext(ctx, "Skipping upload file", "file", path, "error", err)
+
+			return nil
+		}
+		parts = append(parts, events.StreamPart{
+			Number:       part,
+			LastModified: info.ModTime(),
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Parts must be sorted in PartNumber order.
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].Number < parts[j].Number
+	})
+	return parts, nil
+}
+
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first
+func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
+	var uploads []events.StreamUpload
+
+	dirs, err := os.ReadDir(h.uploadsPath())
+	if err != nil {
+		err = trace.ConvertSystemError(err)
+		// The upload folder may not exist if there are no uploads yet.
+		if trace.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	for _, dir := range dirs {
+		if !dir.IsDir() {
+			continue
+		}
+		uploadID := dir.Name()
+		if err := checkUploadID(uploadID); err != nil {
+			h.logger.WarnContext(ctx, "Skipping upload with bad format", "upload_id", uploadID, "error", err)
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
+		if err != nil {
+			err = trace.ConvertSystemError(err)
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		// expect just one subdirectory - session ID
+		if len(files) != 1 {
+			h.logger.WarnContext(ctx, "Skipping upload, missing subdirectory.", "upload_id", uploadID)
+			continue
+		}
+		if !files[0].IsDir() {
+			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
+			continue
+		}
+
+		info, err := dir.Info()
+		if err != nil {
+			h.logger.WarnContext(ctx, "Skipping upload: cannot read file info", "upload_id", uploadID, "error", err)
+			continue
+		}
+
+		uploads = append(uploads, events.StreamUpload{
+			SessionID: session.ID(filepath.Base(files[0].Name())),
+			ID:        uploadID,
+			Initiated: info.ModTime(),
+		})
+	}
+
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].Initiated.Before(uploads[j].Initiated)
+	})
+
+	return uploads, nil
+}
+
+// GetUploadMetadata gets the metadata for session upload
+func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
+	return events.UploadMetadata{
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
+		SessionID: s,
+	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	reservationPath := h.reservationPath(upload, partNumber)
+	if err := h.fileRecorder.ReservePart(ctx, reservationPath, reservationSize); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (h *Handler) uploadsPath() string {
+	return filepath.Join(h.Directory, uploadsDir)
+}
+
+func (h *Handler) uploadRootPath(upload events.StreamUpload) string {
+	return filepath.Join(h.uploadsPath(), upload.ID)
+}
+
+func (h *Handler) uploadPath(upload events.StreamUpload) string {
+	return filepath.Join(h.uploadRootPath(upload), string(upload.SessionID))
+}
+
+func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
+	return filepath.Join(h.uploadPath(upload), partFileName(partNumber))
+}
+
+func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int64) string {
+	return filepath.Join(h.uploadPath(upload), reservationFileName(partNumber))
+}
+
+func partFileName(partNumber int64) string {
+	return fmt.Sprintf("%v%v", partNumber, partExt)
+}
+
+func reservationFileName(partNumber int64) string {
+	return fmt.Sprintf("%v%v", partNumber, reservationExt)
+}
+
+func partFromFileName(fileName string) (int64, error) {
+	base := filepath.Base(fileName)
+	if filepath.Ext(base) != partExt {
+		return -1, trace.BadParameter("expected extension %v, got %v", partExt, base)
+	}
+	numberString := strings.TrimSuffix(base, partExt)
+	partNumber, err := strconv.ParseInt(numberString, 10, 0)
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+	return partNumber, nil
+}
+
+// checkUpload checks that upload IDs are valid
+// and in addition verifies that upload ID is a valid UUID
+// to avoid file scanning by passing bogus upload ID file paths
+func checkUpload(upload events.StreamUpload) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUploadID(upload.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkUploadID checks that upload ID is a valid UUID
+// to avoid path scanning or using local paths as upload IDs
+func checkUploadID(uploadID string) error {
+	_, err := uuid.Parse(uploadID)
+	if err != nil {
+		return trace.WrapWithMessage(err, "bad format of upload ID")
+	}
+	return nil
+}
+
+const (
+	// uploadsDir is a directory with multipart uploads
+	uploadsDir = "multi"
+	// partExt is a part extension
+	partExt = ".part"
+	// tarExt is a suffix for file uploads
+	tarExt = ".tar"
+	// summaryExt is a suffix for summary files
+	summaryExt = ".summary.json"
+	// metadataExt is a suffix for session metadata files
+	metadataExt = ".metadata"
+	// thumbnailExt is a suffix for session thumbnails
+	thumbnailExt = ".thumbnail"
+	// checkpointExt is a suffix for checkpoint extensions
+	checkpointExt = ".checkpoint"
+	// errorExt is a suffix for files storing session errors
+	errorExt = ".error"
+	// reservationExt is part reservation extension.
+	reservationExt = ".reservation"
+)

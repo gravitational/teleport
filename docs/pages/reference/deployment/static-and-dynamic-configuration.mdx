@@ -1,0 +1,100 @@
+---
+title: Reconciling Static and Dynamic Configuration
+description: Learn how Teleport reconciles static configuration files with dynamic resources managed through IaC tools.
+sidebar_position: 1
+sidebar_label: Reconciliation Configurations
+tags:
+ - infrastructure-as-code
+ - conceptual
+ - zero-trust
+---
+
+Some dynamic resources assign the same settings as fields within Teleport's
+static configuration file. For these fields, the Teleport Auth Service
+reconciles static and dynamic configurations on startup and when you create or
+remove a Teleport resource.
+
+While Teleport Enterprise Cloud does not expose the static configuration file to
+operators, they do use a static configuration file for certain settings.
+
+## Shared configuration fields
+
+There are several dynamic resources that share fields with the static configuration file:
+
+### session_recording_config
+
+| Dynamic resource field             | Static configuration field                 |
+|------------------------------------|--------------------------------------------|
+| `spec.mode`                        | `auth_service.session_recording`           |
+| `spec.proxy_checks_host_keys`      | `auth_service.proxy_checks_host_keys`      |
+
+### cluster_auth_preference
+
+| Dynamic resource field        | Static configuration field                              |
+|-------------------------------|---------------------------------------------------------|
+| `spec.type`                   | `auth_service.authentication.type`                      |
+| `spec.second_factors`         | `auth_service.authentication.second_factors`            |
+| `spec.connector_name`         | `auth_service.authentication.connector_name`            |
+| `spec.disconnect_expired_cert`| `auth_service.disconnect_expired_cert`                  |
+| `spec.allow_local_auth`       | `auth_service.authentication.local_auth`                |
+| `spec.message_of_the_day`     | `auth_service.message_of_the_day`                       |
+| `spec.locking_mode`           | `auth_service.authentication.locking_mode`              |
+| `spec.webauthn`               | `auth_service.authentication.webauthn`                  |
+| `spec.require_session_mfa`    | `auth_service.authentication.require_session_mfa`       |
+| `spec.allow_passwordless`     | `auth_service.authentication.passwordless`              |
+| `spec.device_trust`           | `auth_service.authentication.device_trust`              |
+| `spec.idp`                    | `proxy_service.idp`                                     |
+| `spec.allow_headless`         | `auth_service.authentication.headless`                  |
+
+### cluster_networking_config
+
+| Dynamic resource field           | Static configuration field                   |
+|----------------------------------|----------------------------------------------|
+| `spec.client_idle_timeout`       | `auth_service.client_idle_timeout`           |
+| `spec.keep_alive_interval`       | `auth_service.keep_alive_interval`           |
+| `spec.keep_alive_count_max`      | `auth_service.keep_alive_count_max`          |
+| `spec.session_control_timeout`   | `auth_service.session_control_timeout`       |
+| `spec.idle_timeout_message`      | `auth_service.client_idle_timeout_message`   |
+| `spec.web_idle_timeout`          | `auth_service.web_idle_timeout`              |
+| `spec.proxy_listener_mode`       | `auth_service.proxy_listener_mode`           |
+| `spec.routing_strategy`          | `auth_service.routing_strategy`              |
+| `spec.tunnel_strategy`           | `auth_service.tunnel_strategy`               |
+| `spec.proxy_ping_interval`       | `auth_service.proxy_ping_interval`           |
+| `spec.case_insensitive_routing`  | `auth_service.case_insensitive_routing`      |
+
+### ui_config
+
+| Dynamic resource field        | Static configuration field                 |
+|-------------------------------|--------------------------------------------|
+| `spec.scrollback_lines`       | `proxy_service.ui.scrollback_lines`        |
+| `spec.show_resources`         | `proxy_service.ui.show_resources`          |
+
+## Origin labels
+
+The Teleport Auth Service applies the `teleport.dev/origin` label to configuration resources to indicate whether they originated from the static configuration file, a dynamic configuration resource, or the default value.
+
+Here are possible values of the teleport.dev/origin label:
+
+- `defaults`
+- `config-file`
+- `dynamic`
+- `terraform`
+- `kubernetes`
+
+When the Auth Service starts up, it looks up the values of static configuration fields that correspond to fields in dynamic configuration resources. If any of these have values, it creates the corresponding dynamic configuration resources and stores them in its backend.
+
+For any static configuration fields without a value, the Auth Service checks whether the backend contains the corresponding dynamic configuration resource. If not, it creates one with default values and the `teleport.dev/origin=defaults` label.
+
+If you attempt to create a dynamic configuration resource after the Auth Service has already loaded the configuration from a static configuration file, the Auth Service will return an error.
+
+If you remove a dynamic configuration resource, the Auth Service will restore its configuration fields to the default values and add the `teleport.dev/origin=defaults` label.
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Teleport Cloud deployments use configuration files, but these are not available for operators to modify. Users of Teleport Enterprise Cloud may see configuration resources with the `teleport.dev/origin=config-file` label.
+</Admonition>
+
+
+

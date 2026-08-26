@@ -1,0 +1,357 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package aws_sync
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"sync"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+)
+
+// s3Client defines a subset of the AWS S3 client API.
+type s3Client interface {
+	s3.ListBucketsAPIClient
+
+	GetBucketAcl(context.Context, *s3.GetBucketAclInput, ...func(*s3.Options)) (*s3.GetBucketAclOutput, error)
+	GetBucketLocation(context.Context, *s3.GetBucketLocationInput, ...func(*s3.Options)) (*s3.GetBucketLocationOutput, error)
+	GetBucketPolicy(context.Context, *s3.GetBucketPolicyInput, ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error)
+	GetBucketPolicyStatus(context.Context, *s3.GetBucketPolicyStatusInput, ...func(*s3.Options)) (*s3.GetBucketPolicyStatusOutput, error)
+	GetBucketTagging(context.Context, *s3.GetBucketTaggingInput, ...func(*s3.Options)) (*s3.GetBucketTaggingOutput, error)
+}
+
+// pollAWSS3Buckets is a function that returns a function that fetches
+// AWS s3 buckets and their inline and attached policies.
+func (a *Fetcher) pollAWSS3Buckets(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+	return func() error {
+		var err error
+		result.S3Buckets, err = a.fetchS3Buckets(ctx)
+		if err != nil {
+			collectErr(trace.Wrap(err, "failed to fetch s3 buckets"))
+		}
+		return nil
+	}
+}
+
+// fetchS3Buckets fetches AWS s3 buckets and returns them as a slice of
+// accessgraphv1alpha.AWSS3BucketV1.
+func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWSS3BucketV1, error) {
+	var s3s []*accessgraphv1alpha.AWSS3BucketV1
+	var errs []error
+	var mu sync.Mutex
+	var existing = a.lastResult
+	eG, ctx := errgroup.WithContext(ctx)
+	// Set the limit to 5 to avoid too many concurrent requests.
+	// This is a temporary solution until we have a better way to limit the
+	// number of concurrent requests.
+	eG.SetLimit(5)
+	collect := func(s3 *accessgraphv1alpha.AWSS3BucketV1, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			errs = append(errs, err)
+		}
+		if s3 != nil {
+			s3s = append(s3s, s3)
+		}
+	}
+
+	// listClient is not tied to any bucket's region. It lists the buckets and
+	// resolves the region of any bucket that ListBuckets did not report one for.
+	listClient, err := a.getClient(ctx, a.s3ListRegion())
+	if err != nil {
+		return existing.S3Buckets, trace.Wrap(err)
+	}
+
+	// build a map of existing buckets to avoid quadratic lookup complexity from
+	// a linear scan of the slice (existing.S3Buckets).
+	existingByName := make(map[string]*accessgraphv1alpha.AWSS3BucketV1, len(existing.S3Buckets))
+	for _, bucket := range existing.S3Buckets {
+		if bucket.GetAccountId() == a.AccountID {
+			existingByName[bucket.GetName()] = bucket
+		}
+	}
+
+	buckets, err := listS3Buckets(ctx, listClient)
+	if err != nil {
+		return existing.S3Buckets, trace.Wrap(err)
+	}
+
+	for _, bucket := range buckets {
+		bucket := bucket
+		eG.Go(func() error {
+			bucketName := aws.ToString(bucket.Name)
+			existingBucket := existingByName[bucketName]
+
+			region, err := getBucketRegion(ctx, listClient, bucket)
+			if err != nil {
+				// Without a region none of the detail requests can be made.
+				b := cmp.Or(existingBucket, awsS3Bucket(bucketName, nil, nil, nil, nil, a.AccountID))
+				collect(b, err)
+				return nil
+			}
+
+			details, failedReqs, errsL := a.getS3BucketDetails(ctx, bucket, region)
+			newBucket := awsS3Bucket(bucketName, details.policy, details.policyStatus, details.acls, details.tags, a.AccountID)
+			collect(mergeS3Protos(existingBucket, newBucket, failedReqs), trace.NewAggregate(errsL...))
+			return nil
+		})
+	}
+	// always discard the error as we never return an error in the errorgroup
+	_ = eG.Wait()
+
+	return s3s, trace.NewAggregate(errs...)
+}
+
+func awsS3Bucket(name string,
+	policy *s3.GetBucketPolicyOutput,
+	policyStatus *s3.GetBucketPolicyStatusOutput,
+	acls *s3.GetBucketAclOutput,
+	tags *s3.GetBucketTaggingOutput,
+	accountID string,
+) *accessgraphv1alpha.AWSS3BucketV1 {
+	s3 := &accessgraphv1alpha.AWSS3BucketV1{
+		Name:      name,
+		AccountId: accountID,
+	}
+	if policy != nil {
+		s3.PolicyDocument = []byte(aws.ToString(policy.Policy))
+	}
+	if policyStatus != nil && policyStatus.PolicyStatus != nil {
+		s3.IsPublic = aws.ToBool(policyStatus.PolicyStatus.IsPublic)
+	}
+	if acls != nil {
+		s3.Acls = awsACLsToProtoACLs(acls.Grants)
+	}
+	if tags != nil {
+		for _, tag := range tags.TagSet {
+			s3.Tags = append(s3.Tags, &accessgraphv1alpha.AWSTag{
+				Key:   aws.ToString(tag.Key),
+				Value: strPtrToWrapper(tag.Value),
+			})
+		}
+	}
+	return s3
+}
+
+func awsACLsToProtoACLs(grants []s3types.Grant) []*accessgraphv1alpha.AWSS3BucketACL {
+	var acls []*accessgraphv1alpha.AWSS3BucketACL
+	for _, grant := range grants {
+		acls = append(acls, &accessgraphv1alpha.AWSS3BucketACL{
+			Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
+				Id:           aws.ToString(grant.Grantee.ID),
+				DisplayName:  aws.ToString(grant.Grantee.DisplayName),
+				Type:         string(grant.Grantee.Type),
+				Uri:          aws.ToString(grant.Grantee.URI),
+				EmailAddress: aws.ToString(grant.Grantee.EmailAddress),
+			},
+			Permission: string(grant.Permission),
+		})
+	}
+	return acls
+}
+
+type failedRequests struct {
+	policyFailed       bool
+	failedPolicyStatus bool
+	failedAcls         bool
+	failedTags         bool
+}
+
+func mergeS3Protos(existing, new *accessgraphv1alpha.AWSS3BucketV1, failedReqs failedRequests) *accessgraphv1alpha.AWSS3BucketV1 {
+	if existing == nil {
+		return new
+	}
+	if new == nil {
+		return existing
+	}
+	clone := proto.Clone(new).(*accessgraphv1alpha.AWSS3BucketV1)
+	if failedReqs.policyFailed {
+		clone.PolicyDocument = existing.PolicyDocument
+	}
+	if failedReqs.failedPolicyStatus {
+		clone.IsPublic = existing.IsPublic
+	}
+	if failedReqs.failedAcls {
+		clone.Acls = existing.Acls
+	}
+	if failedReqs.failedTags {
+		clone.Tags = existing.Tags
+	}
+
+	return clone
+}
+
+type s3Details struct {
+	policy       *s3.GetBucketPolicyOutput
+	policyStatus *s3.GetBucketPolicyStatusOutput
+	acls         *s3.GetBucketAclOutput
+	tags         *s3.GetBucketTaggingOutput
+}
+
+// getBucketRegion returns the region the bucket is in. A paginated ListBuckets
+// reports it, but if the response omitted it, clt is used to look it up. clt
+// may be for any region.
+func getBucketRegion(ctx context.Context, clt s3Client, bucket s3types.Bucket) (string, error) {
+	if region := aws.ToString(bucket.BucketRegion); region != "" {
+		return region, nil
+	}
+	rsp, err := clt.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: bucket.Name})
+	if err != nil {
+		return "", trace.Wrap(err, "failed to fetch bucket %q region", aws.ToString(bucket.Name))
+	}
+	// An absent location constraint means us-east-1, which has no enum value.
+	return string(cmp.Or(rsp.LocationConstraint, "us-east-1")), nil
+}
+
+// getS3BucketDetails fetches the policy, policy status, ACLs and tags of a
+// bucket. bucketRegion must be the region the bucket is in, as the requests
+// are only served by that region's endpoint.
+func (a *Fetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket, bucketRegion string) (s3Details, failedRequests, []error) {
+	var failedReqs failedRequests
+	var errs []error
+	var details s3Details
+
+	s3Client, err := a.getClient(ctx, bucketRegion)
+	if err != nil {
+		errs = append(errs,
+			trace.Wrap(err, "failed to create s3 client for bucket %q", aws.ToString(bucket.Name)),
+		)
+		return s3Details{},
+			failedRequests{
+				policyFailed:       true,
+				failedPolicyStatus: true,
+				failedAcls:         true,
+				failedTags:         true,
+			}, errs
+	}
+
+	details.policy, err = s3Client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketPolicyNotFound(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)),
+		)
+		failedReqs.policyFailed = true
+	}
+
+	details.policyStatus, err = s3Client.GetBucketPolicyStatus(ctx, &s3.GetBucketPolicyStatusInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketPolicyNotFound(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedPolicyStatus = true
+	}
+
+	details.acls, err = s3Client.GetBucketAcl(ctx, &s3.GetBucketAclInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedAcls = true
+	}
+
+	details.tags, err = s3Client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{
+		Bucket: bucket.Name,
+	})
+	if err != nil && !isS3BucketNoTagSet(err) {
+		errs = append(errs,
+			trace.Wrap(err, "failed to fetch bucket %q tags", aws.ToString(bucket.Name)),
+		)
+		failedReqs.failedTags = true
+	}
+
+	return details, failedReqs, errs
+}
+
+func isAPIErrorCode(err error, code string) bool {
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		return ae.ErrorCode() == code
+	}
+	return false
+}
+
+func isS3BucketPolicyNotFound(err error) bool {
+	return isAPIErrorCode(err, "NoSuchBucketPolicy")
+}
+
+func isS3BucketNoTagSet(err error) bool {
+	return isAPIErrorCode(err, "NoSuchTagSet")
+}
+
+func listS3Buckets(ctx context.Context, clt s3Client) ([]s3types.Bucket, error) {
+	// MaxBuckets must be set so the request is paginated. It also causes
+	// AWS to return BucketRegion in the response (providing any valid input
+	// parameter will do this).
+	pager := s3.NewListBucketsPaginator(clt, &s3.ListBucketsInput{
+		MaxBuckets: aws.Int32(pageSize),
+	}, func(opts *s3.ListBucketsPaginatorOptions) {
+		opts.StopOnDuplicateToken = true
+	})
+
+	var buckets []s3types.Bucket
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		buckets = append(buckets, page.Buckets...)
+	}
+	return buckets, nil
+}
+
+// defaultListRegion is used when the fetcher has no configured regions.
+// Discovery config requires at least one, so this is only a backstop. It is a
+// fixed region rather than the first of awsregion.GetKnownRegions(), which is
+// af-south-1 and changes whenever that generated list does.
+const defaultListRegion = "us-west-2"
+
+// s3ListRegion is the region used for the AWS APIs that are not specific to a
+// bucket's region: listing buckets and getting a bucket's region.
+func (a *Fetcher) s3ListRegion() string {
+	if len(a.Regions) == 0 {
+		return defaultListRegion
+	}
+	return a.Regions[0]
+}
+
+// getClient returns an s3Client for the given region.
+func (a *Fetcher) getClient(ctx context.Context, region string) (s3Client, error) {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.awsClients.getS3Client(awsCfg), nil
+}

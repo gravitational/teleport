@@ -1,0 +1,120 @@
+/**
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { ResourceIconName } from 'design/ResourceIcon';
+
+import cfg from 'teleport/config';
+import { type IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
+import { IntegrationKind } from 'teleport/services/integrations';
+
+export type IntegrationTileSpec = {
+  /**
+   * In enterprise, resource type 'plugin' and type 'integration' are mixed.
+   * This 'type' field is used to differentiate between this 'integration' type
+   * and the plugin types defined for PluginBase found in:
+   * https://github.com/gravitational/teleport.e/blob/62a53a71708366f1c314a8b32d99e09bc5c9b894/web/teleport/src/services/plugins/types.ts#L36
+   */
+  type: 'integration';
+  kind: IntegrationKind;
+  icon: ResourceIconName;
+  name: string;
+  description: string;
+  tags: IntegrationTag[];
+};
+
+// Add new integrations here sorted by 'name' field.
+const integrations: IntegrationTileSpec[] = [
+  {
+    type: 'integration',
+    kind: IntegrationKind.ExternalAuditStorage,
+    description:
+      'Store audit events and session recordings on AWS infrastructure.',
+    icon: 'awssimplestorageservices3',
+    name: 'AWS External Audit Storage',
+    tags: ['resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsOidc,
+    icon: 'aws',
+    name: 'AWS OIDC Identity Provider',
+    description:
+      'Set up Teleport as AWS OIDC IdP to support AWS resource enrollment.',
+    tags: ['idp'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsRa,
+    description:
+      'Use AWS Roles Anywhere to provide AWS Console and CLI access.',
+    icon: 'awsidentityandaccessmanagementiam',
+    name: 'AWS IAM Roles Anywhere',
+    tags: ['resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsCloud,
+    icon: 'aws',
+    name: 'AWS Discovery with Terraform',
+    description:
+      'Use Terraform to connect your AWS account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AzureCloud,
+    icon: 'azure',
+    name: 'Azure Discovery with Terraform',
+    description:
+      'Use Terraform to connect your Azure account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.GoogleCloud,
+    icon: 'google',
+    name: 'Google Cloud Discovery with Terraform',
+    description:
+      'Use Terraform to connect your Google Cloud account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
+];
+
+export function installableIntegrations() {
+  const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
+
+  return integrations.filter(i => {
+    // We only render external audit storage for OSS (with CTA buttons) or cloud edition.
+    if (i.kind === IntegrationKind.ExternalAuditStorage && isOnpremEnterprise) {
+      return false;
+    }
+
+    // IaC integrations are built against Cloud environments -- expecting
+    // a discovery service to be running and a public proxy for OIDC.
+    // This check will be removed when the flow is polished for self-hosted.
+    const requiresCloudEnvironment =
+      i.kind === IntegrationKind.AwsCloud ||
+      i.kind === IntegrationKind.AzureCloud ||
+      i.kind === IntegrationKind.GoogleCloud;
+    if (requiresCloudEnvironment && !cfg.isCloud) {
+      return false;
+    }
+
+    return true;
+  });
+}

@@ -1,0 +1,97 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { fonts } from '../fonts';
+import typography, { fontSizes, fontWeights } from '../typography';
+import { getContrastRatio } from '../utils/colorManipulator';
+import type { SharedStyles } from './types';
+
+// TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
+// by changing the minimum width on a per-view basis (Main.tsx).
+const sidebarWidth = 256;
+
+// breakpointsPx exists because while styled-system requires breakpoints to be defined as strings
+// with units, some components in our project read a container width and compare it against a
+// breakpoint – they need breakpoints to be defined as numbers.
+export const breakpointsPx = {
+  small: 600,
+  medium: 1024,
+  large: 1280,
+  700: 700,
+  900: 900,
+  1200: 1200,
+} as const;
+
+// Styles that are shared by all themes.
+export const sharedStyles: SharedStyles = {
+  sidebarWidth,
+  boxShadow: [
+    '0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12)',
+    '0px 5px 5px -3px rgba(0, 0, 0, 0.2), 0px 8px 10px 1px rgba(0, 0, 0, 0.14), 0px 3px 14px 2px rgba(0, 0, 0, 0.12)',
+    '0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px rgba(0, 0, 0, 0.14), 0px 1px 18px rgba(0, 0, 0, 0.12)',
+    '0px 1px 10px 0px rgba(0, 0, 0, 0.12), 0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 2px 4px -1px rgba(0, 0, 0, 0.20)',
+  ],
+  breakpoints: {
+    // TODO (avatus): remove mobile/tablet/desktop breakpoints in favor of screensize descriptions
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: `${400 + sidebarWidth}px`,
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: `${800 + sidebarWidth}px`,
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: `${1200 + sidebarWidth}px`,
+    // use these from now on
+    small: `${breakpointsPx.small}px`,
+    medium: `${breakpointsPx.medium}px`,
+    large: `${breakpointsPx.large}px`,
+    700: `${breakpointsPx[700]}px`,
+    900: `${breakpointsPx[900]}px`,
+    1200: `${breakpointsPx[1200]}px`,
+  },
+  topBarHeight: [44, 56, 72],
+  /**
+   *
+   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
+   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
+   */
+  space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
+  borders: [
+    0,
+    '1px solid',
+    '2px solid',
+    '4px solid',
+    '8px solid',
+    '16px solid',
+    '32px solid',
+  ],
+  typography,
+  font: fonts.sansSerif,
+  fonts: fonts,
+  fontWeights,
+  fontSizes,
+  // TODO(rudream): Clean up radii order in sharedStyles.
+  radii: [0, 2, 4, 8, 16, 9999, '100%', 24],
+  regular: fontWeights.regular,
+  bold: fontWeights.bold,
+};
+
+export function getContrastText(background: string) {
+  // Use the same logic as
+  // Bootstrap: https://github.com/twbs/bootstrap/blob/1d6e3710dd447de1a200f29e8fa521f8a0908f70/scss/_functions.scss#L59
+  // and material-components-web https://github.com/material-components/material-components-web/blob/ac46b8863c4dab9fc22c4c662dc6bd1b65dd652f/packages/mdc-theme/_functions.scss#L54
+  return getContrastRatio(background, '#FFFFFF') >= 3 ? '#FFFFFF' : '#000000';
+}

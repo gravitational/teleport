@@ -1,0 +1,40 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster
+extraLabels:
+  role:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "role"
+  roleBinding:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "rolebinding"
+  clusterRole:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "clusterrole"
+  clusterRoleBinding:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "clusterrolebinding"
+  config:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "config"
+  deployment:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "deployment"
+  job:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "job"
+  pod:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "pod"
+  podDisruptionBudget:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "poddisruptionbudget"
+  podSecurityPolicy:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "podsecuritypolicy"
+  secret:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "secret"
+  serviceAccount:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "serviceaccount"

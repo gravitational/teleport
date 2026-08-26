@@ -1,0 +1,38 @@
+suite: Auth ClusterRoleBinding
+templates:
+  - auth/clusterrolebinding.yaml
+tests:
+  - it: creates a ClusterRoleBinding
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ClusterRoleBinding
+  - it: uses the provided serviceAccount name
+    values:
+      - ../.lint/service-account.yaml
+    asserts:
+      - contains:
+          path: subjects
+          any: true
+          content:
+            kind: ServiceAccount
+            name: "helm-lint"
+
+  - it: sets extraLabels on ClusterRoleBindings
+    set:
+      extraLabels:
+        clusterRoleBinding:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          clusterRoleBinding:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden

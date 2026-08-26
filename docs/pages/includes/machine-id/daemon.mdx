@@ -1,0 +1,67 @@
+By default, `tbot` will run in daemon mode. However, this must then be
+configured as a service within the service manager on the Linux host. The
+service manager will start `tbot` on boot and ensure it is restarted if it
+fails.
+
+**If tbot was installed using the Teleport install script or `teleport-update`
+command, the `tbot` systemd service is automatically created for you.**
+
+After `tbot.yaml` is created, enable and start the service:
+
+```code
+$ sudo systemctl enable tbot --now
+```
+
+Check the service has started successfully:
+
+```code
+$ sudo systemctl status tbot
+```
+
+Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.
+
+**If tbot was installed manually, service configuration will need to be
+performed manually as well.**
+
+For this guide, systemd will be demonstrated but `tbot` should be
+compatible with all common alternatives.
+
+Use `tbot install systemd` to generate a systemd service file:
+
+```code
+$ sudo tbot install systemd \
+   --write \
+   --config /etc/tbot.yaml \
+   --user teleport \
+   --group teleport \
+   --pid-file /run/tbot.pid \
+   --anonymous-telemetry
+```
+
+Ensure that you replace:
+
+- `teleport` with the name of Linux user you wish to run `tbot` as.
+- `/etc/tbot.yaml` with the path to the configuration file you have created.
+- `/run/tbot.pid` with a path that the user configured for `tbot` has write
+  access to. By default, `tbot` writes its PID file to `/run/tbot.pid`.
+
+You can omit `--write` to print the systemd service file to the console instead
+of writing it to disk.
+
+`--anonymous-telemetry` enables the submission of anonymous usage telemetry.
+This helps us shape the future development of `tbot`. You can disable this by
+omitting this.
+
+Next, enable the service so that it will start on boot and then start the
+service:
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable tbot --now
+```
+
+Check the service has started successfully:
+
+```code
+$ sudo systemctl status tbot
+```

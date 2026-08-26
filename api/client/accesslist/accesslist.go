@@ -1,0 +1,570 @@
+// Copyright 2023 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package accesslist
+
+import (
+	"context"
+	"time"
+
+	"github.com/gravitational/trace"
+
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+)
+
+// Client is an access list client that conforms to the following lib/services interfaces:
+// * services.AccessLists
+type Client struct {
+	grpcClient accesslistv1.AccessListServiceClient
+}
+
+// NewClient creates a new Access List client.
+func NewClient(grpcClient accesslistv1.AccessListServiceClient) *Client {
+	return &Client{
+		grpcClient: grpcClient,
+	}
+}
+
+// GetAccessLists returns a list of all access lists.
+func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(
+			accessList,
+			conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
+}
+
+// ListAccessLists returns a paginated list of access lists.
+// TODO (avatus): DELETE IN 21.0.0
+func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	//nolint:staticcheck // SA1019. ListAccessLists is deprecated but will
+	// continue be supported for backward compatibility.
+	resp, err := c.grpcClient.ListAccessLists(ctx, &accesslistv1.ListAccessListsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return accessLists, resp.GetNextToken(), nil
+}
+
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (c *Client) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListAccessListsV2(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return accessLists, resp.GetNextPageToken(), nil
+}
+
+// GetAccessList returns the specified access list resource.
+func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
+	return c.GetAccessListV2(ctx, &accesslistv1.GetAccessListRequest{
+		Name: name,
+	})
+}
+
+// GetAccessListV2 returns the specified access list resource.
+func (c *Client) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessList(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return accessList, trace.Wrap(err)
+}
+
+// GetAccessListsToReview returns access lists that the user needs to review.
+func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessListsToReview(ctx, &accesslistv1.GetAccessListsToReviewRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
+}
+
+// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
+func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
+	resp, err := c.grpcClient.GetInheritedGrants(ctx, &accesslistv1.GetInheritedGrantsRequest{
+		AccessListId: accessListID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	grants := conv.ConvertGrantsFromProto(resp.GetGrants())
+	return &grants, nil
+}
+
+// UpsertAccessList creates or updates an access list resource.
+func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return responseAccessList, trace.Wrap(err)
+}
+
+// UpdateAccessList updates an access list resource.
+func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
+	return responseAccessList, trace.Wrap(err)
+}
+
+// DeleteAccessList removes the specified access list resource.
+func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
+	_, err := c.grpcClient.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAccessList removes the specified access list resource.
+func (c *Client) DeleteAccessListV2(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) error {
+	_, err := c.grpcClient.DeleteAccessList(ctx, req)
+	return trace.Wrap(err)
+}
+
+// CountAccessListMembers will count all access list members.
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
+	return c.CountAccessListMembersV2(ctx, &accesslistv1.CountAccessListMembersRequest{
+		AccessListName: accessListName,
+	})
+}
+
+// CountAccessListMembersV2 will count all access list members.
+func (c *Client) CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error) {
+	resp, err := c.grpcClient.CountAccessListMembers(ctx, req)
+	if err != nil {
+		return 0, 0, trace.Wrap(err)
+	}
+
+	return resp.Count, resp.ListCount, nil
+}
+
+// ListAccessListMembers returns a paginated list of all access list members for an access list.
+func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	return c.ListAccessListMembersV2(ctx, &accesslistv1.ListAccessListMembersRequest{
+		PageSize:   int32(pageSize),
+		PageToken:  pageToken,
+		AccessList: accessList,
+	})
+}
+
+// ListAccessListMembersV2 returns a paginated list of all access list members for an access list.
+func (c *Client) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListMembers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	members = make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return members, resp.GetNextPageToken(), nil
+}
+
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	return c.ListAllAccessListMembersV2(ctx, &accesslistv1.ListAllAccessListMembersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+}
+
+// ListAllAccessListMembersV2 returns a paginated list of all access list members for all access lists.
+func (c *Client) ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListMembers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	members = make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return members, resp.GetNextPageToken(), nil
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (c *Client) GetAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
+	return c.GetAccessListMemberV2(ctx, &accesslistv1.GetAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+}
+
+// GetAccessListMemberV2 returns the specified access list member resource.
+func (c *Client) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetAccessListMember(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return member, trace.Wrap(err)
+}
+
+// GetStaticAccessListMember returns the specified access_list_member resource. If returns error if
+// the target access_list is not of type static.
+func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
+	return c.GetStaticAccessListMemberV2(ctx, accesslistv1.GetStaticAccessListMemberRequest_builder{
+		AccessList: accessList,
+		MemberName: memberName,
+	}.Build())
+}
+
+// GetStaticAccessListMemberV2 returns the specified access_list_member resource. If returns error if
+// the target access_list is not of type static.
+func (c *Client) GetStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.GetStaticAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
+	return member, trace.Wrap(err)
+}
+
+// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	return c.GetAccessListOwnersV2(ctx, &accesslistv1.GetAccessListOwnersRequest{
+		AccessList: accessListName,
+	})
+}
+
+// GetAccessListOwnersV2 returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListOwnersV2(ctx context.Context, req *accesslistv1.GetAccessListOwnersRequest) ([]*accesslist.Owner, error) {
+	resp, err := c.grpcClient.GetAccessListOwners(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	owners := make([]*accesslist.Owner, 0, len(resp.Owners))
+	for _, owner := range resp.Owners {
+		ownerProto := conv.FromOwnerProto(owner)
+		owners = append(owners, &ownerProto)
+	}
+
+	return owners, nil
+}
+
+// UpsertAccessListMember creates or updates an access list member resource.
+func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return responseMember, trace.Wrap(err)
+}
+
+// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns error
+// and does nothing if the target access_list is not of type static.
+func (c *Client) UpsertStaticAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertStaticAccessListMember(ctx, &accesslistv1.UpsertStaticAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
+	return m, trace.Wrap(err)
+}
+
+// UpdateAccessListMember updates an access list member resource using a conditional update.
+func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
+	return responseMember, trace.Wrap(err)
+}
+
+// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and
+// does nothing if the target access_list is not of static type.
+func (c *Client) DeleteStaticAccessListMember(ctx context.Context, accessList, memberName string) error {
+	return c.DeleteStaticAccessListMemberV2(ctx, accesslistv1.DeleteStaticAccessListMemberRequest_builder{
+		AccessList: accessList,
+		MemberName: memberName,
+	}.Build())
+}
+
+// DeleteStaticAccessListMemberV2 hard deletes the specified access_list_member. It returns error and
+// does nothing if the target access_list is not of static type.
+func (c *Client) DeleteStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteStaticAccessListMemberRequest) error {
+	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, req)
+	return trace.Wrap(err)
+}
+
+// DeleteAccessListMember hard deletes the specified access list member resource.
+func (c *Client) DeleteAccessListMember(ctx context.Context, accessList, memberName string) error {
+	_, err := c.grpcClient.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAccessListMemberV2 hard deletes the specified access list member resource.
+func (c *Client) DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error {
+	_, err := c.grpcClient.DeleteAccessListMember(ctx, req)
+	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
+func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
+	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
+		AccessList: accessList,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListMembersForAccessListV2 hard deletes all access list members for an access list.
+func (c *Client) DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error {
+	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, req)
+	return trace.Wrap(err)
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+		AccessList: conv.ToProto(list),
+		Members:    conv.ToMembersProto(members),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return accessList, updatedMembers, nil
+}
+
+// AccessRequestPromote promotes an access request to an access list.
+func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
+	resp, err := c.grpcClient.AccessRequestPromote(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	return c.ListAccessListReviewsV2(ctx, &accesslistv1.ListAccessListReviewsRequest{
+		AccessList: accessList,
+		PageSize:   int32(pageSize),
+		NextToken:  pageToken,
+	})
+}
+
+// ListAccessListReviewsV2 will list access list reviews for a particular access list.
+func (c *Client) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListReviews(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	reviews = make([]*accesslist.Review, len(resp.Reviews))
+	for i, review := range resp.Reviews {
+		var err error
+		reviews[i], err = conv.FromReviewProto(review)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return reviews, resp.GetNextToken(), nil
+}
+
+// ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
+func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	return c.ListAllAccessListReviewsV2(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: pageToken,
+	})
+}
+
+// ListAllAccessListReviewsV2 will list access list reviews for all access lists. Only to be used by the cache.
+func (c *Client) ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	reviews = make([]*accesslist.Review, len(resp.Reviews))
+	for i, review := range resp.Reviews {
+		var err error
+		reviews[i], err = conv.FromReviewProto(review)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return reviews, resp.GetNextToken(), nil
+}
+
+// CreateAccessListReview will create a new review for an access list.
+func (c *Client) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
+	resp, err := c.grpcClient.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	review.SetName(resp.ReviewName)
+	return review, resp.NextAuditDate.AsTime(), nil
+}
+
+// DeleteAccessListReview will delete an access list review from the backend.
+func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error {
+	_, err := c.grpcClient.DeleteAccessListReview(ctx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: accessListName,
+		ReviewName:     reviewName,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAccessListReviewV2 will delete an access list review from the backend.
+func (c *Client) DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error {
+	_, err := c.grpcClient.DeleteAccessListReview(ctx, req)
+	return trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
+func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetSuggestedAccessLists(ctx, &accesslistv1.GetSuggestedAccessListsRequest{
+		AccessRequestId: accessRequestID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
+}
+
+// ListUserAccessLists returns a paginated list of all access lists where the
+// user is explicitly an owner or member.
+func (c *Client) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListUserAccessLists(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return accessLists, resp.GetNextPageToken(), nil
+}

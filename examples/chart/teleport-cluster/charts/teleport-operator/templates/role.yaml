@@ -1,0 +1,60 @@
+{{- if .Values.enabled }}
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "teleport-cluster.operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  # Rights to manage the Teleport CRs
+  - apiGroups:
+      - "resources.teleport.dev"
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  # Used to perform leader election when running with multiple replicas
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - update
+  # Ability to emit reconciliation events
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+  # Ability to lookup sensitive values from secrets rather than CRs
+  - apiGroups:
+      - ""
+    resources:
+      - "secrets"
+    verbs:
+      - "get"
+      - "list"
+      - "watch"
+  {{- if .Values.scope }}
+  # ability to store its state in Kubernetes when running in scoped mode.
+  - apiGroups:
+      - ""
+    resources:
+      - "secrets"
+    verbs:
+      - "get"
+      - "update"
+      - "patch"
+      - "delete"
+    resourceNames:
+      - {{ include "teleport-cluster.operator.shared-state-name" . | quote }}
+  {{- end }}
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,11 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+extraVolumeMounts:
+- name: "my-mount"
+  mountPath: "/path/to/mount"
+extraVolumes:
+- name: "my-mount"
+  secret:
+    secretName: "mySecret"

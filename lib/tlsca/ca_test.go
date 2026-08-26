@@ -1,0 +1,1081 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package tlsca
+
+import (
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
+)
+
+// TestPrincipals makes sure that SAN extension of generated x509 cert gets
+// correctly set with DNS names and IP addresses based on the provided
+// principals.
+func TestPrincipals(t *testing.T) {
+	tests := []struct {
+		name       string
+		createFunc func() (*CertAuthority, error)
+	}{
+		{
+			name: "FromKeys",
+			createFunc: func() (*CertAuthority, error) {
+				return FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+			},
+		},
+		{
+			name: "FromCertAndSigner",
+			createFunc: func() (*CertAuthority, error) {
+				signer, err := keys.ParsePrivateKey([]byte(fixtures.TLSCAKeyPEM))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return FromCertAndSigner([]byte(fixtures.TLSCACertPEM), signer)
+			},
+		},
+		{
+			name: "FromTLSCertificate",
+			createFunc: func() (*CertAuthority, error) {
+				cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return FromTLSCertificate(cert)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ca, err := test.createFunc()
+			require.NoError(t, err)
+
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+
+			hostnames := []string{"localhost", "example.com"}
+			ips := []string{"127.0.0.1", "192.168.1.1"}
+
+			clock := clockwork.NewFakeClock()
+
+			certBytes, err := ca.GenerateCertificate(CertificateRequest{
+				Clock:     clock,
+				PublicKey: privateKey.Public(),
+				Subject:   pkix.Name{CommonName: "test"},
+				NotAfter:  clock.Now().Add(time.Hour),
+				DNSNames:  append(hostnames, ips...),
+			})
+			require.NoError(t, err)
+
+			cert, err := ParseCertificatePEM(certBytes)
+			require.NoError(t, err)
+			require.ElementsMatch(t, cert.DNSNames, hostnames)
+			var certIPs []string
+			for _, ip := range cert.IPAddresses {
+				certIPs = append(certIPs, ip.String())
+			}
+			require.ElementsMatch(t, certIPs, ips)
+		})
+	}
+}
+
+// TestScopePin verifies the encoding/decoding of the scope pin field.
+func TestScopePin(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username: "alice@example.com",
+		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: "/foo",
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"/::r1"}, "/foo": {"/::r2"}},
+			}),
+		},
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+
+	require.Empty(t, cmp.Diff(parsed.ScopePin, identity.ScopePin, protocmp.Transform()))
+}
+
+func TestRenewableIdentity(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username:  "alice@example.com",
+		Groups:    []string{"admin"},
+		Expires:   expires,
+		Renewable: true,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	require.True(t, parsed.Renewable)
+}
+
+func TestJoinAttributes(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username:      "bot-bernard",
+		Groups:        []string{"bot-bernard"},
+		BotName:       "bernard",
+		BotInstanceID: "1234-5678",
+		BotScope:      "/foo",
+		BotInternal:   true,
+		Expires:       expires,
+		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
+			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Namespace: "default",
+					Name:      "foo",
+				},
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "bar",
+				},
+			},
+		},
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	require.Empty(t, cmp.Diff(parsed, &identity, protocmp.Transform()))
+}
+
+// TestKubeExtensions test ASN1 subject kubernetes extensions
+func TestKubeExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:     "alice@example.com",
+		Groups:       []string{"admin"},
+		Impersonator: "bob@example.com",
+		// Generate a certificate restricted for
+		// use against a kubernetes endpoint, and not the API server endpoint
+		// otherwise proxies can generate certs for any user.
+		Usage:             []string{teleport.UsageKubeOnly},
+		KubernetesGroups:  []string{"system:masters", "admin"},
+		KubernetesUsers:   []string{"IAM#alice@example.com"},
+		KubernetesCluster: "kube-cluster",
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestDatabaseExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:          "alice@example.com",
+		Groups:            []string{"admin"},
+		Impersonator:      "bob@example.com",
+		Usage:             []string{teleport.UsageDatabaseOnly},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+			Roles:       []string{"read_only"},
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestAzureExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:        "alice@example.com",
+		Groups:          []string{"admin"},
+		Impersonator:    "bob@example.com",
+		Usage:           []string{teleport.UsageAppsOnly},
+		AzureIdentities: []string{"azure-identity-1", "azure-identity-2"},
+		RouteToApp: RouteToApp{
+			SessionID:     "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15",
+			ClusterName:   "teleport.example.com",
+			Name:          "azure-app",
+			AzureIdentity: "azure-identity-3",
+		},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+	require.Equal(t, "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15", out.RouteToApp.SessionID)
+}
+
+func TestIdentity_ToFromSubject(t *testing.T) {
+	assertStringOID := func(t *testing.T, want string, oid asn1.ObjectIdentifier, subj *pkix.Name, msgAndArgs ...any) {
+		for _, en := range subj.ExtraNames {
+			if !oid.Equal(en.Type) {
+				continue
+			}
+
+			got, ok := en.Value.(string)
+			require.True(t, ok, "Value for OID %v is not a string: %T", oid, en.Value)
+			assert.Equal(t, want, got, msgAndArgs)
+			return
+		}
+		t.Fatalf("OID %v not found", oid)
+	}
+
+	tests := []struct {
+		name          string
+		identity      *Identity
+		assertSubject func(t *testing.T, identity *Identity, subj *pkix.Name)
+	}{
+		{
+			name: "device extensions",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				DeviceExtensions: DeviceExtensions{
+					DeviceID:     "deviceid1",
+					AssetTag:     "assettag2",
+					CredentialID: "credentialid3",
+				},
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				want := identity.DeviceExtensions
+				assertStringOID(t, want.DeviceID, DeviceIDExtensionOID, subj, "DeviceID mismatch")
+				assertStringOID(t, want.AssetTag, DeviceAssetTagExtensionOID, subj, "AssetTag mismatch")
+				assertStringOID(t, want.CredentialID, DeviceCredentialIDExtensionOID, subj, "CredentialID mismatch")
+			},
+		},
+		{
+			name: "user type: sso",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "sso",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
+		{
+			name: "user type: local",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "local",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
+		{
+			name: "aws credential process credentials on app",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				RouteToApp: RouteToApp{
+					AWSCredentialProcessCredentials: "my credential process credentials",
+				},
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, "my credential process credentials", AppAWSCredentialProcessCredentialsASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity := test.identity
+
+			// Marshal identity into subject.
+			subj, err := identity.Subject()
+			require.NoError(t, err, "Subject failed")
+			test.assertSubject(t, identity, &subj)
+
+			// ExtraNames are appended to Names when the cert is created.
+			subj.Names = append(subj.Names, subj.ExtraNames...)
+			subj.ExtraNames = nil
+
+			// Extract identity from subject and verify that no data got lost.
+			got, err := FromSubject(subj, identity.Expires)
+			require.NoError(t, err, "FromSubject failed")
+			if diff := cmp.Diff(identity, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("FromSubject mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestAllowedResources_EncodeDecodeCycle verifies that AllowedResourceIDs and
+// AllowedResourceAccessIDs survive encode-decode-re-encode cycles correctly
+// across all resource mix permutations. The re-encode step simulates the
+// database proxy CSR signing path.
+func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
+	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
+	plainDB := types.ResourceID{ClusterName: "cluster", Kind: types.KindDatabase, Name: "prod-db"}
+	constrainedApp := types.ResourceAccessID{
+		Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws-console"},
+		Constraints: &types.ResourceConstraints{
+			Version: types.V1,
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{"arn:aws:iam::123456789012:role/DevOps"},
+				},
+			},
+		},
+	}
+	sentinel := types.CreateSentinelResourceID()
+
+	tests := []struct {
+		name string
+		// identity fields set before first encode
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+		// expected state after decode
+		wantAllowedResourceIDs       []types.ResourceID
+		wantAllowedResourceAccessIDs []types.ResourceAccessID
+		// expected contents of the legacy extension after re-encode
+		wantLegacyExtension []types.ResourceID
+	}{
+		{
+			name:                         "plain resources only (new auth cert)",
+			allowedResourceIDs:           []types.ResourceID{plainNode, plainDB},
+			allowedResourceAccessIDs:     types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
+			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
+			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
+			wantLegacyExtension:          []types.ResourceID{plainNode, plainDB},
+		},
+		{
+			name:                         "constrained resources only (new auth cert)",
+			allowedResourceIDs:           nil,
+			allowedResourceAccessIDs:     []types.ResourceAccessID{constrainedApp},
+			wantAllowedResourceIDs:       nil,
+			wantAllowedResourceAccessIDs: []types.ResourceAccessID{constrainedApp},
+			wantLegacyExtension:          []types.ResourceID{sentinel},
+		},
+		{
+			name:                     "mixed plain and constrained (new auth cert)",
+			allowedResourceIDs:       []types.ResourceID{plainNode},
+			allowedResourceAccessIDs: append(types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}), constrainedApp),
+			wantAllowedResourceIDs:   []types.ResourceID{plainNode},
+			wantAllowedResourceAccessIDs: append(
+				types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}),
+				constrainedApp,
+			),
+			wantLegacyExtension: []types.ResourceID{plainNode},
+		},
+		{
+			name:                         "old auth cert (only old extension, no new extension)",
+			allowedResourceIDs:           []types.ResourceID{plainNode, plainDB},
+			allowedResourceAccessIDs:     nil,
+			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
+			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
+			wantLegacyExtension:          []types.ResourceID{plainNode, plainDB},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			identity := &Identity{
+				Username: "test-user",
+				Groups:   []string{"access"},
+				//nolint:staticcheck // testing deprecated field
+				AllowedResourceIDs:       tt.allowedResourceIDs,
+				AllowedResourceAccessIDs: tt.allowedResourceAccessIDs,
+			}
+
+			// Encode then decode
+			subj, err := identity.Subject()
+			require.NoError(t, err)
+			subj.Names = append(subj.Names, subj.ExtraNames...)
+			subj.ExtraNames = nil
+
+			decoded, err := FromSubject(subj, time.Time{})
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, tt.wantAllowedResourceAccessIDs, decoded.AllowedResourceAccessIDs)
+			//nolint:staticcheck // testing deprecated field
+			assert.ElementsMatch(t, tt.wantAllowedResourceIDs, decoded.AllowedResourceIDs)
+
+			// Re-encode, verify legacy extension, decode again
+			subj2, err := decoded.Subject()
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.wantLegacyExtension, legacyExtensionIDs(t, subj2))
+
+			subj2.Names = append(subj2.Names, subj2.ExtraNames...)
+			subj2.ExtraNames = nil
+
+			roundtripped, err := FromSubject(subj2, time.Time{})
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, decoded.AllowedResourceAccessIDs, roundtripped.AllowedResourceAccessIDs)
+			//nolint:staticcheck // testing deprecated field
+			assert.ElementsMatch(t, decoded.AllowedResourceIDs, roundtripped.AllowedResourceIDs)
+		})
+	}
+}
+
+// TestAllowedResources_UnknownConstraintKindDecodes verifies that a cert
+// minted by a newer Auth with a constraint kind this build does not know
+// still decodes, keeping the unknown content as an unenforceable entry.
+func TestAllowedResources_UnknownConstraintKindDecodes(t *testing.T) {
+	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
+	constrainedApp := types.ResourceAccessID{
+		Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws-console"},
+		Constraints: &types.ResourceConstraints{
+			Version: types.V1,
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{"arn:aws:iam::123456789012:role/DevOps"},
+				},
+			},
+		},
+	}
+
+	identity := &Identity{
+		Username:                 "test-user",
+		Groups:                   []string{"access"},
+		AllowedResourceAccessIDs: append(types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}), constrainedApp),
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	// Simulate the same cert minted by a newer Auth.
+	tampered := false
+	for i, name := range subj.ExtraNames {
+		if !name.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID) {
+			continue
+		}
+		val, ok := name.Value.(string)
+		require.True(t, ok)
+		require.Contains(t, val, `"aws_console"`)
+		subj.ExtraNames[i].Value = strings.Replace(val, `"aws_console"`, `"some_future_kind"`, 1)
+		tampered = true
+	}
+	require.True(t, tampered, "AllowedResourceAccessIDs extension not found")
+
+	subj.Names = append(subj.Names, subj.ExtraNames...)
+	subj.ExtraNames = nil
+
+	decoded, err := FromSubject(subj, time.Time{})
+	require.NoError(t, err)
+
+	byName := map[string]types.ResourceAccessID{}
+	for _, r := range decoded.AllowedResourceAccessIDs {
+		byName[r.GetResourceID().Name] = r
+	}
+	require.Len(t, byName, 2)
+	require.Contains(t, byName, "prod-node")
+	require.Nil(t, byName["prod-node"].Constraints)
+
+	rc := byName["aws-console"].Constraints
+	require.NotNil(t, rc, "constraints must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, types.V1, rc.Version)
+}
+
+// legacyExtensionIDs extracts ResourceIDs from the legacy AllowedResources
+// extension (OID 1.3.9999.2.10) in a pkix.Name subject. This is what an
+// old agent would parse from the cert.
+func legacyExtensionIDs(t *testing.T, subj pkix.Name) []types.ResourceID {
+	t.Helper()
+	for _, name := range subj.ExtraNames {
+		if name.Type.Equal(AllowedResourcesASN1ExtensionOID) {
+			ids, err := types.ResourceIDsFromString(name.Value.(string))
+			require.NoError(t, err)
+			return ids
+		}
+	}
+	return nil
+}
+
+func TestGCPExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:           "alice@example.com",
+		Groups:             []string{"admin"},
+		Impersonator:       "bob@example.com",
+		Usage:              []string{teleport.UsageAppsOnly},
+		GCPServiceAccounts: []string{"acct-1@example-123456.iam.gserviceaccount.com", "acct-2@example-123456.iam.gserviceaccount.com"},
+		RouteToApp: RouteToApp{
+			SessionID:         "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15",
+			ClusterName:       "teleport.example.com",
+			Name:              "GCP-app",
+			GCPServiceAccount: "acct-3@example-123456.iam.gserviceaccount.com",
+		},
+		TeleportCluster:   "tele-cluster",
+		OriginClusterName: "tele-cluster",
+		Expires:           expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestIdentity_GetUserMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		identity Identity
+		want     apievents.UserMetadata
+	}{
+		{
+			name: "user metadata",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "",
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for bot",
+			identity: Identity{
+				Username:      "bot-alpaca",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-alpaca",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
+			},
+		},
+		{
+			name: "device metadata",
+			identity: Identity{
+				Username: "llama",
+				DeviceExtensions: DeviceExtensions{
+					DeviceID:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialID: "credentialid1",
+				},
+				BotName: "",
+			},
+			want: apievents.UserMetadata{
+				User: "llama",
+				TrustedDevice: &apievents.DeviceMetadata{
+					DeviceId:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialId: "credentialid1",
+				},
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for auth system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleAuth)},
+			},
+			want: apievents.UserMetadata{
+				User:      "system.teleport.name",
+				UserRoles: []string{string(types.RoleAuth)},
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
+			},
+		},
+		{
+			name: "user metadata for discovery system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleDiscovery)},
+			},
+			want: apievents.UserMetadata{
+				User:      "system.teleport.name",
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
+				UserRoles: []string{string(types.RoleDiscovery)},
+			},
+		},
+		{
+			name: "user metadata for okta system role",
+			identity: Identity{
+				Username: "system.teleport.name",
+				Groups:   []string{string(types.RoleOkta)},
+			},
+			want: apievents.UserMetadata{
+				User:      "system.teleport.name",
+				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
+				UserRoles: []string{string(types.RoleOkta)},
+			},
+		},
+		{
+			name: "pinned user identity",
+			identity: Identity{
+				Username: "alpaca",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
+					Scope: "/staging",
+					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						"/staging": {
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
+						},
+					}),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:     "alpaca",
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
+			},
+		},
+		{
+			name: "pinned bot identity",
+			identity: Identity{
+				Username:      "bot-alpaca",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
+				BotScope:      "/staging",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
+					Scope: "/staging",
+					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						"/staging": {
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
+						},
+					}),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:             "bot-alpaca",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123",
+				BotScopeOfOrigin: "/staging",
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
+			},
+		},
+		{
+			name: "pinned system identity",
+			identity: Identity{
+				Username: "system.teleport.name",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/staging",
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: types.RoleInstance.String(),
+						Additional: []string{
+							types.RoleNode.String(), types.RoleKube.String(),
+						},
+					},
+				},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+				ScopePin: &apievents.ScopePin{
+					Scope:       "/staging",
+					SystemRoles: []string{types.RoleNode.String(), types.RoleKube.String()},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.identity.GetUserMetadata()
+			want := test.want
+			if !proto.Equal(&got, &want) {
+				t.Errorf("GetUserMetadata mismatch (-want +got)\n%s", cmp.Diff(want, got))
+			}
+		})
+	}
+}
+
+// TestKeyUsage asserts that only certs with RSA subject keys get the
+// KeyEncipherment keyUsage extension.
+func TestKeyUsage(t *testing.T) {
+	rsaKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	require.NoError(t, err)
+	ecdsaKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		algo                  string
+		key                   crypto.Signer
+		expectCAKeyUsage      x509.KeyUsage
+		expectSubjectKeyUsage x509.KeyUsage
+	}{
+		{
+			algo:                  "RSA",
+			key:                   rsaKey,
+			expectCAKeyUsage:      x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageKeyEncipherment,
+			expectSubjectKeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		},
+		{
+			algo:                  "ECDSA",
+			key:                   ecdsaKey,
+			expectCAKeyUsage:      x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+			expectSubjectKeyUsage: x509.KeyUsageDigitalSignature,
+		},
+	} {
+		t.Run(tc.algo, func(t *testing.T) {
+			caPEM, err := GenerateSelfSignedCAWithSigner(tc.key, pkix.Name{
+				CommonName:   "teleport.example.com",
+				Organization: []string{"teleport.example.com"},
+			}, nil /*dnsNames*/, defaults.CATTL)
+			require.NoError(t, err)
+
+			ca, err := FromCertAndSigner(caPEM, tc.key)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectCAKeyUsage, ca.Cert.KeyUsage)
+
+			subjectPEM, err := ca.GenerateCertificate(CertificateRequest{
+				PublicKey: tc.key.Public(),
+				Subject: pkix.Name{
+					CommonName:   "teleport.example.com",
+					Organization: []string{"teleport.example.com"},
+				},
+				NotAfter: time.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			subject, err := ParseCertificatePEM(subjectPEM)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectSubjectKeyUsage, subject.KeyUsage)
+		})
+	}
+}
+
+func TestDelegationSessionID(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:            "alice@example.com",
+		Groups:              []string{"admin"},
+		Impersonator:        "bob@example.com",
+		Usage:               []string{teleport.UsageDatabaseOnly},
+		TeleportCluster:     "tele-cluster",
+		OriginClusterName:   "tele-cluster",
+		Expires:             expires,
+		DelegationSessionID: "delegation-session-id",
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.True(t, out.IsDelegationSession())
+	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestGenerateCertificate_SubjectModifcationsPreserved(t *testing.T) {
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	generated, err := ca.GenerateCertificate(CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:         "alice",
+			Organization:       []string{"org"},
+			OrganizationalUnit: []string{"engineering"},
+			Locality:           []string{"Somewhere"},
+			Province:           []string{"N/A"},
+			StreetAddress:      []string{"123 Cherry Street"},
+			PostalCode:         []string{"99999"},
+			Country:            []string{"US"},
+			SerialNumber:       "12345",
+		},
+		PublicKey: key.Public(),
+		DNSNames:  []string{"dns"},
+		NotAfter:  time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsed, err := ParseCertificatePEM(generated)
+	require.NoError(t, err)
+
+	// Let's modify the subject a bit from the original.
+	// Add some new OIDs, modify the CN, etc.
+	parsed.Subject.ExtraNames = []pkix.AttributeTypeAndValue{
+		{
+			Type:  []int{1, 2, 3},
+			Value: "somevalue",
+		},
+	}
+	parsed.Subject.CommonName = "bob"
+	parsed.Subject.Organization = []string{"marketing"}
+
+	roundTripped, err := ca.GenerateCertificate(CertificateRequest{
+		Subject:   parsed.Subject,
+		PublicKey: key.Public(),
+		// Override DNSNames as well
+		DNSNames: []string{"overridden-dns"},
+		NotAfter: time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsedRoundTripped, err := ParseCertificatePEM(roundTripped)
+	require.NoError(t, err)
+
+	// Subject modifications are preserved.
+	assert.Equal(t, "bob", parsedRoundTripped.Subject.CommonName)
+	assert.Equal(t, []string{"marketing"}, parsedRoundTripped.Subject.Organization)
+	// DNS modification preserved.
+	assert.Equal(t, []string{"overridden-dns"}, parsedRoundTripped.DNSNames)
+
+	// The extra name that we added should be present in the roundtripped cert.
+	assert.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
+	assert.Contains(t, parsedRoundTripped.Subject.Names, parsed.Subject.ExtraNames[0])
+}

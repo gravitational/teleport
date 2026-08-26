@@ -1,0 +1,103 @@
+//go:build unix
+
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package workloadattest
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+)
+
+func TestPodmanAttestor(t *testing.T) {
+	server, err := podman.NewFakeServer(
+		t.TempDir(),
+		podman.WithContainer(podman.Container{
+			ID:   "d54768c18894b931db6f6876f6be2178d8a8b34fc3485659fda78fe86af3e08b",
+			Name: "web-server",
+			Config: podman.ContainerConfig{
+				Image:  "nginx:latest",
+				Labels: map[string]string{"region": "eu"},
+			},
+			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
+		}),
+		podman.WithPod(podman.Pod{
+			ID:     "5ffc3df0af9a6dd0f92668fc949734aad2ad41a5670b7218196d377d55ca32c5",
+			Name:   "billing-system",
+			Labels: map[string]string{"department": "marketing"},
+		}),
+	)
+	require.NoError(t, err)
+
+	server.Start()
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Logf("failed to close http server: %v", err)
+		}
+	})
+
+	attestor := NewPodmanAttestor(
+		PodmanAttestorConfig{
+			Enabled: true,
+			Addr:    server.Addr(),
+		},
+		logtest.NewLogger(),
+	)
+
+	attestor.rootPath = t.TempDir()
+	procPath := filepath.Join(attestor.rootPath, "proc", "1234")
+	require.NoError(t, os.MkdirAll(procPath, 0755))
+
+	require.NoError(t,
+		utils.CopyFile(
+			filepath.Join("container", "testdata", "mountfile", "podman-real-4.3.1-rootless-systemd-pod"),
+			filepath.Join(procPath, "mountinfo"),
+			0755,
+		),
+	)
+
+	attrs, err := attestor.Attest(context.Background(), 1234)
+	require.NoError(t, err)
+
+	expected := &workloadidentityv1.WorkloadAttrsPodman{
+		Attested: true,
+		Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+			Name:        "web-server",
+			Image:       "nginx:latest",
+			Labels:      map[string]string{"region": "eu"},
+			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
+		},
+		Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
+			Name:   "billing-system",
+			Labels: map[string]string{"department": "marketing"},
+		},
+	}
+	require.Empty(t, cmp.Diff(expected, attrs, protocmp.Transform()))
+}

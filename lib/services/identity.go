@@ -1,214 +1,425 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package services implements API services exposed by Teleport:
-// * presence service that takes care of heratbeats
+// * presence service that takes care of heartbeats
 // * web service that takes care of web logins
 // * ca service - certificate authorities
 package services
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/url"
-	"sync"
+	"context"
+	"crypto"
+	"crypto/x509"
+	"iter"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gokyle/hotp"
-	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// User represents teleport or external user
-type User interface {
-	// GetName returns user name
-	GetName() string
-	// GetAllowedLogins returns user's allowed linux logins
-	GetAllowedLogins() []string
-	// GetIdentities returns a list of connected OIDCIdentities
-	GetIdentities() []OIDCIdentity
-	// String returns user
-	String() string
-	// Check checks if all parameters are correct
-	Check() error
-	// Equals checks if user equals to another
-	Equals(other User) bool
-}
-
-// TeleportUser is an optional user entry in the database
-type TeleportUser struct {
-	// Name is a user name
-	Name string `json:"name"`
-
-	// AllowedLogins represents a list of OS users this teleport
-	// user is allowed to login as
-	AllowedLogins []string `json:"allowed_logins"`
-
-	// OIDCIdentities lists associated OpenID Connect identities
-	// that let user log in using externally verified identity
-	OIDCIdentities []OIDCIdentity `json:"oidc_identities"`
-}
-
-// Equals checks if user equals to another
-func (u *TeleportUser) Equals(other User) bool {
-	if u.Name != other.GetName() {
-		return false
-	}
-	otherLogins := other.GetAllowedLogins()
-	if len(u.AllowedLogins) != len(otherLogins) {
-		return false
-	}
-	for i := range u.AllowedLogins {
-		if u.AllowedLogins[i] != otherLogins[i] {
-			return false
-		}
-	}
-	otherIdentities := other.GetIdentities()
-	if len(u.OIDCIdentities) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.OIDCIdentities {
-		if !u.OIDCIdentities[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// GetAllowedLogins returns user's allowed linux logins
-func (u *TeleportUser) GetAllowedLogins() []string {
-	return u.AllowedLogins
-}
-
-// GetIdentities returns a list of connected OIDCIdentities
-func (u *TeleportUser) GetIdentities() []OIDCIdentity {
-	return u.OIDCIdentities
-}
-
-// GetName returns user name
-func (u *TeleportUser) GetName() string {
-	return u.Name
-}
-
-func (u *TeleportUser) String() string {
-	return fmt.Sprintf("User(name=%v, allowed_logins=%v, identities=%v)", u.Name, u.AllowedLogins, u.OIDCIdentities)
-}
-
-// Check checks validity of all parameters
-func (u *TeleportUser) Check() error {
-	if !cstrings.IsValidUnixUser(u.Name) {
-		return trace.BadParameter("'%v' is not a valid user name", u.Name)
-	}
-	if len(u.AllowedLogins) == 0 {
-		return trace.BadParameter("'%v' has no valid allowed logins", u.Name)
-	}
-	for _, login := range u.AllowedLogins {
-		if !cstrings.IsValidUnixUser(login) {
-			return trace.BadParameter("'%v' is not a valid user name", login)
-		}
-	}
-	for _, id := range u.OIDCIdentities {
-		if err := id.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// Identity is responsible for managing user entries
-type Identity interface {
-	// GetUsers returns a list of users registered with the local auth server
-	GetUsers() ([]User, error)
-
-	// UpsertUser updates parameters about user
-	UpsertUser(user User) error
-
+// UserGetter is responsible for getting users
+type UserGetter interface {
 	// GetUser returns a user by name
-	GetUser(user string) (User, error)
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
+}
 
-	// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
-	// user specified with this identity
-	GetUserByOIDCIdentity(id OIDCIdentity) (User, error)
-
+// UsersService is responsible for basic user management
+type UsersService interface {
+	UserGetter
+	// UpdateUser updates an existing user.
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
+	// UpsertUser updates parameters about user
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
+	// CompareAndSwapUser updates an existing user, but fails if the user does
+	// not match an expected backend value.
+	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
-	DeleteUser(user string) error
+	DeleteUser(ctx context.Context, user string) error
+	// GetUsers returns a list of users registered with the local auth server
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+}
 
-	// UpsertPasswordHash upserts user password hash
-	UpsertPasswordHash(user string, hash []byte) error
+// IdentityInternal extends the Identity interface with auth-specific internal methods.
+type IdentityInternal interface {
+	Identity
+
+	// AppendPutUserParamsActions adds conditional actions to an atomic write to
+	// create or update the user params resource (without secrets, mfa devices).
+	AppendPutUserParamsActions(
+		actions []backend.ConditionalAction,
+		user types.User,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteUserParamsActions adds conditional actions to an atomic write
+	// to delete the user params resource.
+	//
+	// Note: the returned actions will NOT delete the user's password, MFA devices,
+	// etc. so is only really suitable for bot users, in most cases you should use
+	// DeleteUser instead.
+	AppendDeleteUserParamsActions(
+		actions []backend.ConditionalAction,
+		user string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+}
+
+// Identity is responsible for managing user entries and external identities
+type Identity interface {
+	// CreateUser creates user, only if the user entry does not exist
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// UsersService implements most methods
+	UsersService
+
+	// AddUserLoginAttempt logs user login attempt
+	AddUserLoginAttempt(user string, attempt LoginAttempt, ttl time.Duration) error
+
+	// GetUserLoginAttempts returns user login attempts
+	GetUserLoginAttempts(user string) ([]LoginAttempt, error)
+
+	// DeleteUserLoginAttempts removes all login attempts of a user. Should be
+	// called after successful login.
+	DeleteUserLoginAttempts(user string) error
+
+	// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
+	// user specified with this identity
+	GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error)
+
+	// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns first
+	// user specified with this identity
+	GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error)
+
+	// GetUserByGithubIdentity returns a user by its specified Github identity
+	GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error)
 
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
 
-	// UpsertHOTP upserts HOTP state for user
-	UpsertHOTP(user string, otp *hotp.HOTP) error
+	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
+	// during the 30 second window it's valid.
+	UpsertUsedTOTPToken(user string, otpToken string) error
 
-	// GetHOTP gets HOTP token state for a user
-	GetHOTP(user string) (*hotp.HOTP, error)
+	// GetUsedTOTPToken returns the last successfully used TOTP token.
+	GetUsedTOTPToken(user string) (string, error)
 
-	// UpsertWebSession updates or inserts a web session for a user and session id
-	UpsertWebSession(user, sid string, session WebSession, ttl time.Duration) error
+	// UpsertPassword upserts a new password. It also sets the user's
+	// `PasswordState` status flag accordingly. Returns an error if the user
+	// doesn't exist.
+	UpsertPassword(user string, password []byte) error
 
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (*WebSession, error)
+	// DeletePassword deletes user's password and sets the `PasswordState` status
+	// flag accordingly.
+	DeletePassword(ctx context.Context, username string) error
 
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
+	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
+	// Webauthn.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	// Automatically indexes the WebAuthn user ID for lookup by
+	// GetTeleportUserByWebauthnID.
+	UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error
 
-	// UpsertPassword upserts new password and HOTP token
-	UpsertPassword(user string, password []byte) (hotpURL string, hotpQR []byte, err error)
+	// GetWebauthnLocalAuth retrieves the existing local auth configuration for
+	// Webauthn, if any.
+	// WebauthnLocalAuth is a component of LocalAuthSecrets.
+	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
 
-	// CheckPassword is called on web user or tsh user login
-	CheckPassword(user string, password []byte, hotpToken string) error
+	// GetTeleportUserByWebauthnID reads a Teleport username from a WebAuthn user
+	// ID (aka user handle).
+	// See UpsertWebauthnLocalAuth and types.WebauthnLocalAuth.
+	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 
-	// CheckPasswordWOToken checks just password without checking HOTP tokens
-	// used in case of SSH authentication, when token has been validated
-	CheckPasswordWOToken(user string, password []byte) error
+	// UpsertWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication or
+	// registration challenge.
+	// Session data is expected to expire according to backend settings.
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 
-	// UpsertSignupToken upserts signup token - one time token that lets user to create a user account
-	UpsertSignupToken(token string, tokenData SignupToken, ttl time.Duration) error
+	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
+	// if it exists and has not expired.
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 
-	// GetSignupToken returns signup token data
-	GetSignupToken(token string) (*SignupToken, error)
+	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
+	// not expired.
+	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 
-	// GetSignupTokens returns a list of signup tokens
-	GetSignupTokens() ([]SignupToken, error)
+	// UpsertGlobalWebauthnSessionData creates or updates WebAuthn session data in
+	// storage, for the purpose of later verifying an authentication challenge.
+	// Session data is expected to expire according to backend settings.
+	// Used for passwordless challenges.
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
 
-	// DeleteSignupToken deletes signup token from the storage
-	DeleteSignupToken(token string) error
+	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
+	// if it exists and has not expired.
+	// Used for passwordless challenges.
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
 
-	// UpsertOIDCConnector upserts OIDC Connector
-	UpsertOIDCConnector(connector OIDCConnector, ttl time.Duration) error
+	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
+	// and has not expired.
+	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
+
+	// UpsertMFADevice upserts an MFA device for the user.
+	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
+
+	// GetMFADevices gets all MFA devices for the user.
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
+
+	// DeleteMFADevice deletes an MFA device for the user by ID.
+	DeleteMFADevice(ctx context.Context, user, id string) error
+
+	// CreateOIDCConnector creates a new OIDC connector.
+	CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpdateOIDCConnector updates an existing OIDC connector.
+	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
+	// UpsertOIDCConnector updates or creates an OIDC connector.
+	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC Connector
-	DeleteOIDCConnector(connectorID string) error
+	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 
-	// GetOIDCConnector returns OIDC connector data, , withSecrets adds or removes client secret from return results
-	GetOIDCConnector(id string, withSecrets bool) (*OIDCConnector, error)
+	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
+	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 
-	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
-	GetOIDCConnectors(withSecrets bool) ([]OIDCConnector, error)
+	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
+	// results.  Invalid Connectors are simply logged but errors are not forwarded.
+	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
+	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 
 	// CreateOIDCAuthRequest creates new auth request
-	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
+	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
-	GetOIDCAuthRequest(stateToken string) (*OIDCAuthRequest, error)
+	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error)
+
+	// CreateSAMLConnector creates a new SAML connector.
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpdateSAMLConnector updates an existing SAML connector
+	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	// UpsertSAMLConnector updates or creates a SAML connector
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+
+	// DeleteSAMLConnector deletes OIDC Connector
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
+
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
+
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
+	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+	// RangeSAMLConnectorsWithOptions returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
+
+	// CreateSAMLAuthRequest creates new auth request
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
+
+	// GetSAMLAuthRequest returns SAML auth request if found
+	GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error)
+
+	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
+	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
+
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error)
+
+	// CreateGithubConnector creates a new Github connector.
+	CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpdateGithubConnector updates an existing Github connector.
+	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+	// UpsertGithubConnector creates or updates a Github connector.
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
+
+	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
+	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
+
+	// GetGithubConnector returns a Github connector by its name
+	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error)
+
+	// DeleteGithubConnector deletes a Github connector by its name
+	DeleteGithubConnector(ctx context.Context, name string) error
+
+	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
+	CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error
+
+	// GetGithubAuthRequest retrieves Github auth request by the token
+	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
+
+	// UpsertMFASessionData creates or updates MFA session data in
+	// storage, for the purpose of later verifying an MFA authentication attempt.
+	// MFA session data is expected to expire according to backend settings.
+	// Used for both SSO and Browser MFA.
+	UpsertMFASessionData(ctx context.Context, sd *MFASessionData) error
+
+	// GetMFASessionData retrieves SSO or Browser MFA session data by ID.
+	GetMFASessionData(ctx context.Context, sessionID string) (*MFASessionData, error)
+
+	// DeleteMFASessionData deletes SSO or Browser MFA session data by ID.
+	DeleteMFASessionData(ctx context.Context, sessionID string) error
+
+	// TODO(danielashare): Remove deprecated *SSOMFASessionData functions once teleport.e is using the new functions
+	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
+	// storage, for the purpose of later verifying an SSO MFA authentication
+	// attempt.
+	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
+
+	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
+	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
+
+	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
+	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
+
+	// CreateUserToken creates a new user token.
+	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
+
+	// DeleteUserToken deletes a user token.
+	DeleteUserToken(ctx context.Context, tokenID string) error
+
+	// ListUserTokens returns a page of user tokens.
+	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
+
+	// GetUserToken returns a user token by id.
+	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
+
+	// UpsertUserTokenSecrets upserts a user token secrets.
+	UpsertUserTokenSecrets(ctx context.Context, secrets types.UserTokenSecrets) error
+
+	// GetUserTokenSecrets returns a user token secrets.
+	GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error)
+
+	// UpsertRecoveryCodes upserts a user's new recovery codes.
+	UpsertRecoveryCodes(ctx context.Context, user string, recovery *types.RecoveryCodesV1) error
+
+	// GetRecoveryCodes gets a user's recovery codes.
+	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
+
+	// UpsertKeyAttestationData upserts a verified public key attestation response.
+	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
+
+	// GetKeyAttestationData gets a verified public key attestation response.
+	GetKeyAttestationData(ctx context.Context, pubDer []byte) (*keys.AttestationData, error)
+
+	HeadlessAuthenticationService
+
+	types.WebSessionsGetter
+	WebToken
+
+	// AppSession defines application session features.
+	AppSession
+	// SnowflakeSession defines Snowflake session features.
+	SnowflakeSession
+}
+
+// AppSession defines application session features.
+type AppSessionReader interface {
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
+	// ListAppSessions gets a paginated list of application web sessions.
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// DeleteAppSession removes an application web session.
+	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
+	// DeleteAllAppSessions removes all application web sessions.
+	DeleteAllAppSessions(context.Context) error
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
+}
+
+// AppSession defines application session features.
+type AppSession interface {
+	AppSessionReader
+	// UpdateAppSession updates an existing application web session if the revisions match.
+	UpdateAppSession(context.Context, types.WebSession) error
+	// UpsertAppSession upserts an application web session.
+	UpsertAppSession(context.Context, types.WebSession) error
+}
+
+// SnowflakeSession defines Snowflake session features.
+type SnowflakeSession interface {
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+	// GetSnowflakeSessions gets all Snowflake web sessions.
+	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
+	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
+	// UpsertSnowflakeSession upserts a Snowflake web session.
+	UpsertSnowflakeSession(context.Context, types.WebSession) error
+	// DeleteSnowflakeSession removes a Snowflake web session.
+	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
+	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+	DeleteAllSnowflakeSessions(context.Context) error
+}
+
+// HeadlessAuthenticationService is responsible for headless authentication resource management
+type HeadlessAuthenticationService interface {
+	// GetHeadlessAuthentication gets a headless authentication.
+	GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error)
+
+	// GetHeadlessAuthentications gets all headless authentications.
+	GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error)
+
+	// UpsertHeadlessAuthentication upserts a headless authentication.
+	UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error
+
+	// CompareAndSwapHeadlessAuthentication performs a compare
+	// and swap replacement on a headless authentication resource.
+	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
+	DeleteHeadlessAuthentication(ctx context.Context, username, name string) error
+
+	// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
+	DeleteAllHeadlessAuthentications(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -225,162 +436,9 @@ func VerifyPassword(password []byte) error {
 	return nil
 }
 
-// WebSession stores key and value used to authenticate with SSH
-// notes on behalf of user
-type WebSession struct {
-	// Pub is a public certificate signed by auth server
-	Pub []byte `json:"pub"`
-	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv"`
-	// BearerToken is a special bearer token used for additional
-	// bearer authentication
-	BearerToken string `json:"bearer_token"`
-	// Expires - absolute time when token expires
-	Expires time.Time `json:"expires"`
-}
-
-// SignupToken stores metadata about user signup token
-// is stored and generated when tctl add user is executed
-type SignupToken struct {
-	Token           string       `json:"token"`
-	User            TeleportUser `json:"user"`
-	Hotp            []byte       `json:"hotp"`
-	HotpFirstValues []string     `json:"hotp_first_values"`
-	HotpQR          []byte       `json:"hotp_qr"`
-	Expires         time.Time    `json:"expires"`
-}
-
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `json:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `json:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `json:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `json:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successfull authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `json:"redirect_url"`
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (o *OIDCConnector) Check() error {
-	if o.ID == "" {
-		return trace.BadParameter("ID: missing connector id")
-	}
-	if _, err := url.Parse(o.IssuerURL); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", o.IssuerURL)
-	}
-	if _, err := url.Parse(o.RedirectURL); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", o.RedirectURL)
-	}
-	if o.ClientID == "" {
-		return trace.BadParameter("ClientID: missing client id")
-	}
-	if o.ClientSecret == "" {
-		return trace.BadParameter("ClientSecret: missing client secret")
-	}
-	return nil
-}
-
-// OIDCIdentity is OpenID Connect identity that is linked
-// to particular user and connector and lets user to log in using external
-// credentials, e.g. google
-type OIDCIdentity struct {
-	// ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
-	ConnectorID string `json:"connector_id"`
-
-	// Email is OIDC verified email claim
-	// e.g. bob@example.com
-	Email string `json:"username"`
-}
-
-// String returns debug friendly representation of this identity
-func (i *OIDCIdentity) String() string {
-	return fmt.Sprintf("OIDCIdentity(connectorID=%v, email=%v)", i.ConnectorID, i.Email)
-}
-
-// Equals returns true if this identity equals to passed one
-func (i *OIDCIdentity) Equals(other *OIDCIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Email == other.Email
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *OIDCIdentity) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.Email == "" {
-		return trace.BadParameter("Email: missing email")
-	}
-	return nil
-}
-
-// OIDCAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
-type OIDCAuthRequest struct {
-	// ConnectorID is ID of OIDC connector this request uses
-	ConnectorID string `json:"connector_id"`
-
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-
-	// CheckUser tells validator if it should expect and check user
-	CheckUser bool `json:"check_user"`
-
-	// StateToken is generated by service and is used to validate
-	// reuqest coming from
-	StateToken string `json:"state_token"`
-
-	// RedirectURL will be used by browser
-	RedirectURL string `json:"redirect_url"`
-
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successfull auth
-	PublicKey []byte `json:"public_key"`
-
-	// CertTTL is the TTL of the certificate user wants to get
-	CertTTL time.Duration `json:"cert_ttl"`
-
-	// CreateWebSession indicates if user wants to generate a web
-	// session after successful authentication
-	CreateWebSession bool `json:"create_web_session"`
-
-	// ClientRedirectURL is a URL client wants to be redirected
-	// after successfull authentication
-	ClientRedirectURL string `json:"client_redirect_url"`
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *OIDCAuthRequest) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.StateToken == "" {
-		return trace.BadParameter("StateToken: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
-	return nil
-}
-
 // Users represents a slice of users,
 // makes it sort compatible (sorts by username)
-type Users []User
+type Users []types.User
 
 func (u Users) Len() int {
 	return len(u)
@@ -394,31 +452,53 @@ func (u Users) Swap(i, j int) {
 	u[i], u[j] = u[j], u[i]
 }
 
-var mtx sync.Mutex
-var unmarshaler UserUnmarshaler
+// SortedLoginAttempts sorts login attempts by time
+type SortedLoginAttempts []LoginAttempt
 
-func SetUserUnmarshaler(u UserUnmarshaler) {
-	mtx.Lock()
-	defer mtx.Unlock()
-	unmarshaler = u
+// Len returns length of a role list
+func (s SortedLoginAttempts) Len() int {
+	return len(s)
 }
 
-func GetUserUnmarshaler() UserUnmarshaler {
-	mtx.Lock()
-	defer mtx.Unlock()
-	if unmarshaler == nil {
-		return TeleportUserUnmarshaler
+// Less stacks latest attempts to the end of the list
+func (s SortedLoginAttempts) Less(i, j int) bool {
+	return s[i].Time.Before(s[j].Time)
+}
+
+// Swap swaps two attempts
+func (s SortedLoginAttempts) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// LastFailed calculates last x successive attempts are failed
+func LastFailed(x int, attempts []LoginAttempt) bool {
+	var failed int
+	for i := len(attempts) - 1; i >= 0; i-- {
+		if !attempts[i].Success {
+			failed++
+		} else {
+			return false
+		}
+		if failed >= x {
+			return true
+		}
 	}
-	return unmarshaler
+	return false
 }
 
-type UserUnmarshaler func(bytes []byte) (User, error)
-
-func TeleportUserUnmarshaler(bytes []byte) (User, error) {
-	var u *TeleportUser
-	err := json.Unmarshal(bytes, &u)
+// NewWebSessionAttestationData creates attestation data for a web session key.
+// Inserting data to the Auth server will allow certificates generated for the
+// web session key to pass private key policies that are unobtainable in the web
+// (hardware key policies). In exchange, these keys must be kept strictly in the
+// Auth and Proxy processes and Auth storage. These keys and certs can only be
+// retrieved by users in the form of web session cookies.
+func NewWebSessionAttestationData(pub crypto.PublicKey) (*keys.AttestationData, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return u, nil
+	return &keys.AttestationData{
+		PublicKeyDER:     pubDER,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyWebSession,
+	}, nil
 }

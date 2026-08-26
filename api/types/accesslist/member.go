@@ -1,0 +1,168 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package accesslist
+
+import (
+	"time"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/compare"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/header/convert/legacy"
+	"github.com/gravitational/teleport/api/utils"
+)
+
+var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
+
+// AccessListMember is an access list member resource.
+type AccessListMember struct {
+	// ResourceHeader is the common resource header for all resources.
+	header.ResourceHeader
+
+	// Spec is the specification for the access list member.
+	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
+
+	// Scope is the scope of the access list member, it must be equal to the
+	// scope of the parent access list.
+	Scope string `json:"scope" yaml:"scope"`
+}
+
+// AccessListMemberSpec describes the specification of a member of an access list.
+type AccessListMemberSpec struct {
+	// AccessList is the name of the associated access list.
+	// If the member is scoped, this is a scope-qualified name.
+	AccessList string `json:"access_list" yaml:"access_list"`
+
+	// Name is the name of the member of the access list, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the member.
+	// MEMBERSHIP_KIND_LIST: the name of the member Access List.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.
+	Name string `json:"name" yaml:"name"`
+
+	// TODO (avatus): eventually populate this in the backend/cache.
+
+	// Title is the title of an AccessListMember if it is of type MEMBERSHIP_KIND_LIST.
+	// This is only populated by the proxy when fetching an access list and its members for the web UI
+	Title string `json:"title" yaml:"title"`
+
+	// Joined is when the user joined the access list.
+	Joined time.Time `json:"joined" yaml:"joined"`
+
+	// expires is when the user's membership to the access list expires.
+	Expires time.Time `json:"expires" yaml:"expires"`
+
+	// reason is the reason this user was added to the access list.
+	Reason string `json:"reason" yaml:"reason"`
+
+	// added_by is the user that added this user to the access list.
+	AddedBy string `json:"added_by" yaml:"added_by"`
+
+	// IneligibleStatus describes the reason why this member is not eligible.
+	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// MembershipKind describes the kind of membership,
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST" or "MEMBERSHIP_KIND_SCOPED_LIST".
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
+}
+
+// NewAccessListMember will create a new AccessListMember.
+func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*AccessListMember, error) {
+	return NewAccessListMemberWithScope(metadata, spec, "")
+}
+
+// NewAccessListMemberWithScope will create a new AccessListMember.
+func NewAccessListMemberWithScope(metadata header.Metadata, spec AccessListMemberSpec, scope string) (*AccessListMember, error) {
+	member := &AccessListMember{
+		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
+		Spec:           spec,
+		Scope:          scope,
+	}
+
+	if err := member.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return member, nil
+}
+
+// CheckAndSetDefaults defaults empty fields and performs metadata validation.
+func (a *AccessListMember) CheckAndSetDefaults() error {
+	a.SetKind(types.KindAccessListMember)
+	a.SetVersion(types.V1)
+	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if a.Spec.MembershipKind == "" {
+		a.Spec.MembershipKind = MembershipKindUser
+	}
+	return nil
+}
+
+// GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
+// and should be removed when possible.
+func (a *AccessListMember) GetMetadata() types.Metadata {
+	return legacy.FromHeaderMetadata(a.Metadata)
+}
+
+// IsEqual defines AccessListMember equality for use with
+// `services.CompareResources()` (and hence the services.Reconciler).
+//
+// For the purposes of reconciliation, we only care that the user and target
+// AccessList match.
+func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
+	return a.Spec.Name == other.Spec.Name &&
+		a.Spec.AccessList == other.Spec.AccessList
+}
+
+func (a *AccessListMember) GetScope() string {
+	return a.Scope
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (a *AccessListMember) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
+	return types.MatchSearch(fieldVals, values, nil)
+}
+
+// Clone returns a copy of the member.
+func (a *AccessListMember) Clone() *AccessListMember {
+	if a == nil {
+		return nil
+	}
+	out := &AccessListMember{}
+	deriveDeepCopyAccessListMember(out, a)
+	return out
+}
+
+// IsExpired checks if the access list member is expired based on the current time.
+func (a *AccessListMember) IsExpired(t time.Time) bool {
+	return !a.Spec.Expires.IsZero() && !t.Before(a.Spec.Expires)
+}
+
+// IsUser returns true if the membership kind is User
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
+func (a *AccessListMember) IsUser() bool {
+	return isMembershipKindUser(a.Spec.MembershipKind)
+}
+
+// IsList returns true if the member is an access list.
+func (a *AccessListMember) IsList() bool {
+	return IsMembershipKindList(a.Spec.MembershipKind)
+}

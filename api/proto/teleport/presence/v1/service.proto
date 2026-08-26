@@ -1,0 +1,299 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.presence.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "teleport/legacy/types/types.proto";
+import "teleport/presence/v1/relay_server.proto";
+import "teleport/scopes/v1/scopes.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1";
+
+// PresenceService provides methods to manage presence of RemoteClusters
+service PresenceService {
+  // GetRemoteCluster retrieves a RemoteCluster by name.
+  rpc GetRemoteCluster(GetRemoteClusterRequest) returns (types.RemoteClusterV3);
+  // ListRemoteClusters retrieves a page of RemoteClusters.
+  rpc ListRemoteClusters(ListRemoteClustersRequest) returns (ListRemoteClustersResponse);
+  // UpdateRemoteCluster updates an existing RemoteCluster.
+  rpc UpdateRemoteCluster(UpdateRemoteClusterRequest) returns (types.RemoteClusterV3);
+  // DeleteRemoteCluster removes an existing RemoteCluster by name.
+  rpc DeleteRemoteCluster(DeleteRemoteClusterRequest) returns (google.protobuf.Empty);
+
+  // ListReverseTunnels retrieves a page of ReverseTunnels.
+  rpc ListReverseTunnels(ListReverseTunnelsRequest) returns (ListReverseTunnelsResponse);
+  // UpsertReverseTunnel upserts a ReverseTunnel.
+  rpc UpsertReverseTunnel(UpsertReverseTunnelRequest) returns (types.ReverseTunnelV2);
+  // DeleteReverseTunnel removes an existing ReverseTunnel by name.
+  rpc DeleteReverseTunnel(DeleteReverseTunnelRequest) returns (google.protobuf.Empty);
+
+  // GetRelayServer returns a single relay_server by name.
+  rpc GetRelayServer(GetRelayServerRequest) returns (GetRelayServerResponse);
+  // ListRelayServers returns a page of relay_server resources.
+  rpc ListRelayServers(ListRelayServersRequest) returns (ListRelayServersResponse);
+  // DeleteRelayServer deletes a relay_server resource by name.
+  rpc DeleteRelayServer(DeleteRelayServerRequest) returns (DeleteRelayServerResponse);
+
+  // ListAuthServers returns a page of Auth servers.
+  rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
+  // ListProxyServers returns a page of Proxy servers.
+  rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
+
+  // Deletes a specific scoped or unscoped application server.
+  rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
+
+  // Fetches a kube cluster resource from the backend.
+  rpc GetKubeCluster(GetKubeClusterRequest) returns (GetKubeClusterResponse);
+  // Lists kube cluster resources within the backend.
+  rpc ListKubeClusters(ListKubeClustersRequest) returns (ListKubeClustersResponse);
+  // Deletes a kube cluster resource from the backend.
+  rpc DeleteKubeCluster(DeleteKubeClusterRequest) returns (DeleteKubeClusterResponse);
+
+  // Deletes a specific scoped or unscoped kube server from the backend.
+  rpc DeleteKubeServer(DeleteKubeServerRequest) returns (DeleteKubeServerResponse);
+}
+
+// Request for GetRemoteCluster
+message GetRemoteClusterRequest {
+  // Name is the name of the RemoteCluster to retrieve.
+  string name = 1;
+}
+
+// Request for ListRemoteClusters
+message ListRemoteClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The page_token is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// Response for ListRemoteClusters
+message ListRemoteClustersResponse {
+  // RemoteClusters is the list of RemoteClusters that were retrieved.
+  repeated types.RemoteClusterV3 remote_clusters = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for UpdateRemoteCluster
+message UpdateRemoteClusterRequest {
+  // RemoteCluster is the RemoteCluster to update.
+  types.RemoteClusterV3 remote_cluster = 1;
+  // The update mask applied to the RemoteCluster.
+  // Fields are masked according to their proto name.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// Request for DeleteRemoteCluster
+message DeleteRemoteClusterRequest {
+  // Name is the name of the RemoteCluster to delete.
+  string name = 1;
+}
+
+// Request for ListReverseTunnels
+message ListReverseTunnelsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The page_token is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// Response for ListReverseTunnels
+message ListReverseTunnelsResponse {
+  // ReverseTunnels is the list of ReverseTunnels that were retrieved.
+  repeated types.ReverseTunnelV2 reverse_tunnels = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for UpsertReverseTunnel
+message UpsertReverseTunnelRequest {
+  // ReverseTunnel is the ReverseTunnel to upsert.
+  types.ReverseTunnelV2 reverse_tunnel = 1;
+}
+
+// Request for DeleteReverseTunnel
+message DeleteReverseTunnelRequest {
+  // Name is the name of the ReverseTunnel to delete.
+  string name = 1;
+}
+
+// Request message for the PresenceService.GetRelayServer rpc.
+message GetRelayServerRequest {
+  string name = 1;
+}
+
+// Response message for the PresenceService.GetRelayServer rpc.
+message GetRelayServerResponse {
+  RelayServer relay_server = 1;
+}
+
+// Request message for the PresenceService.ListRelayServers rpc.
+message ListRelayServersRequest {
+  // The maximum number of items to return. The service may return fewer than
+  // this value. If unspecified, the service will use a sensible default.
+  int64 page_size = 1;
+
+  // A pagination token returned from a previous request. If empty, the request
+  // will return the first page.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListRelayServers rpc.
+message ListRelayServersResponse {
+  repeated RelayServer relays = 1;
+
+  // A token that can be sent as the page_token to retrieve the next page. If
+  // this field is empty, there are no more pages.
+  string next_page_token = 2;
+}
+
+// Request message for the PresenceService.DeleteRelayServer rpc.
+message DeleteRelayServerRequest {
+  string name = 1;
+}
+
+// Response message for the PresenceService.DeleteRelayServer rpc.
+message DeleteRelayServerResponse {}
+
+// Request message for the PresenceService.ListAuthServers rpc.
+message ListAuthServersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListAuthServers rpc.
+message ListAuthServersResponse {
+  // A list of auth server resources.
+  repeated types.ServerV2 servers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request message for the PresenceService.ListProxyServers rpc.
+message ListProxyServersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListProxyServers rpc.
+message ListProxyServersResponse {
+  // A list of proxy server resources.
+  repeated types.ServerV2 servers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request to delete a specific scoped or unscoped application server.
+message DeleteAppServerRequest {
+  // HostId is the app server host uuid.
+  string host_id = 1;
+  // Name is the name of the application to delete.
+  string name = 2;
+  // Scope is the scope of the application to delete. Empty for unscoped
+  // applications.
+  string scope = 3;
+}
+
+// The response for deleting an application server.
+message DeleteAppServerResponse {}
+
+// The request for fetching a specific scoped or unscoped kube cluster resource.
+message GetKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+  // If true, include secrets in the response. Requires secret-inclusive read
+  // permission on kubernetes_cluster.
+  bool with_secrets = 3;
+}
+
+// The response for fetching a kube cluster.
+message GetKubeClusterResponse {
+  types.KubernetesClusterV3 cluster = 1;
+}
+
+// The request to list kube cluster resources within the backend.
+message ListKubeClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Filters kube clusters by scope.
+  teleport.scopes.v1.Filter scope_filter = 3;
+
+  // If true, include secrets in the response. Requires secret-inclusive read
+  // permission on kubernetes_cluster.
+  bool with_secrets = 4;
+}
+
+// The response for listing kube cluster resources within the backend.
+message ListKubeClustersResponse {
+  // The page of kube clusters that matched the request.
+  repeated types.KubernetesClusterV3 clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+}
+
+// The response for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterResponse {}
+
+// The request to delete a specific scoped or unscoped kube server.
+message DeleteKubeServerRequest {
+  // The kube server host uuid.
+  string host_id = 1;
+  // The name of the kube server to delete.
+  string name = 2;
+  // The scope of the kube server to delete. Empty for unscoped
+  // servers.
+  string scope = 3;
+}
+
+// The response for deleting a kube server.
+message DeleteKubeServerResponse {}

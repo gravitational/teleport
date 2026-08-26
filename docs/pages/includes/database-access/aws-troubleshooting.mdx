@@ -1,0 +1,55 @@
+### Certificate error
+
+If your `tsh db connect` error includes the following text, you likely have an RDS or DocumentDB database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
+
+```text
+x509: certificate relies on legacy Common Name field, use SANs instead
+```
+
+AWS provides instructions to rotate your [SSL/TLS certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html).
+
+(!docs/pages/includes/aws-no-credential-provider.mdx service="Database"!)
+
+### Timeout errors
+
+(!docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx!)
+
+### Not authorized to perform `sts:AssumeRole`
+
+The Database Service assumes an IAM role in one of following situations:
+
+- A Teleport user specifies an IAM role as the database user they wish to use
+  when accessing AWS services that require IAM roles as database users.
+  Databases that support using an IAM role as a database user include: DynamoDB,
+  Keyspaces, Opensearch, Redshift, and Redshift Serverless.
+- The `assume_role_arn` field is specified for the database resources or
+  dynamic resource matchers.
+
+<details>
+<summary>What if both situations apply? (role chaining)</summary>
+When both of the above conditions are true for a database connection, the
+Database Service performs a role chaining by assuming the IAM role specified
+in `assume_role_arn` first, then using that IAM role to assume the IAM role for
+the database user.
+</details>
+
+You may encounter the following error if the trust relationship is not
+configured properly between the IAM roles:
+```text
+AccessDenied: User: arn:aws:sts::111111111111:assumed-role/teleport-db-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/db-user-role
+```
+
+<details>
+<summary>how to properly configure the trust relationship?</summary>
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="db-user-role" !)
+
+</details>
+
+You can test the trust relationship by running this AWS CLI command as `teleport-db-service-role`:
+```code
+$ aws sts assume-role --role-arn arn:aws:iam::111111111111:role/db-user-role --role-session-name test-trust-relationship
+```
+
+Learn more on [how to use trust policies with IAM
+roles](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/).

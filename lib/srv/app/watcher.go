@@ -1,0 +1,232 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package app
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+// startReconciler starts reconciler that registers/unregisters proxied
+// apps according to the up-to-date list of application resources.
+func (s *Server) startReconciler(ctx context.Context) error {
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
+		Matcher:             s.matcher,
+		GetCurrentResources: s.getResources,
+		GetNewResources:     s.monitoredApps.get,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Logger:              s.log.With("kind", types.KindApp),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		for {
+			select {
+			case <-s.reconcileCh:
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
+				} else {
+					s.reconcileDoneOnce.Do(func() { close(s.reconcileDone) })
+					if s.c.OnReconcile != nil {
+						s.c.OnReconcile(s.getApps())
+					}
+				}
+			case <-ctx.Done():
+				s.log.DebugContext(ctx, "Reconciler done.")
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+// startResourceWatcher starts watching changes to application resources and
+// registers/unregisters the proxied applications accordingly.
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, readonly.Application], error) {
+	if len(s.c.ResourceMatchers) == 0 {
+		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
+		return nil, nil
+	}
+	s.log.DebugContext(ctx, "Initializing application resource watcher.")
+	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentApp,
+			Logger:    s.log,
+			Client:    s.c.AccessPoint,
+		},
+		AppGetter: s.c.AccessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		defer watcher.Close()
+		for {
+			select {
+			case apps := <-watcher.ResourcesC:
+				for _, app := range apps {
+					if app.GetPublicAddr() == "" {
+						// TODO (williamo/scopes): Dynamic app registration does not support scoped apps
+						// add scoped app here when we do support it.
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName(), "")
+						if err == nil {
+							app.SetPublicAddr(pubAddr)
+						} else {
+							s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+								"app_name", app.GetName(),
+								"error", err,
+							)
+						}
+					}
+				}
+				s.monitoredApps.setResources(apps)
+				select {
+				case s.reconcileCh <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				s.log.DebugContext(ctx, "Application resource watcher done.")
+				return
+			}
+		}
+	}()
+	return watcher, nil
+}
+
+// FindPublicAddrClient is a client used for finding public addresses.
+type FindPublicAddrClient interface {
+	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+}
+
+// FindPublicAddr tries to resolve the public address of the proxy of this cluster.
+//
+// For a scoped app, the address is always derived as the
+// scope-qualified FQDN "<hash(name,scope)>.<proxy>"
+// TODO(williamo/scopes): We added a scopeVar as a variadic parameter to not break the e submodule.
+// This will be amended in a future PR.
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr, appName string, scopeVar ...string) (string, error) {
+	// If the application has a public address already set, use it. Scoped apps
+	// always derive their address, so the config value is not honored.
+	scope := ""
+	switch len(scopeVar) {
+	case 1:
+		scope = scopeVar[0]
+	case 0:
+	default:
+		return "", trace.BadParameter("multiple scopes not allowed")
+	}
+	if appPublicAddr != "" && scope == "" {
+		return appPublicAddr, nil
+	}
+
+	// Fetch list of proxies, if first has public address set, use it.
+	servers, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return client.GetProxies()
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(servers) == 0 {
+		return "", trace.BadParameter("cluster has no proxy registered, at least one proxy must be registered for application access")
+	}
+	if servers[0].GetPublicAddr() != "" {
+		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		if scope != "" {
+			return scopedapp.ScopedAppPublicAddr(scope, appName, addr.Host()), nil
+		}
+		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
+	}
+
+	// Fall back to cluster name.
+	cn, err := client.GetClusterName(context.TODO())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if scope != "" {
+		return scopedapp.ScopedAppPublicAddr(scope, appName, cn.GetClusterName()), nil
+	}
+	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
+}
+
+func (s *Server) getResources() map[string]types.Application {
+	return utils.FromSlice(s.getApps(), types.Application.GetName)
+}
+
+func (s *Server) onCreate(ctx context.Context, app types.Application) error {
+	return s.registerApp(ctx, app)
+}
+
+func (s *Server) onUpdate(ctx context.Context, app, _ types.Application) error {
+	return s.updateApp(ctx, app)
+}
+
+func (s *Server) onDelete(ctx context.Context, app types.Application) error {
+	return s.unregisterAndRemoveApp(ctx, app.GetName())
+}
+
+func (s *Server) matcher(app types.Application) bool {
+	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	if !matchesLabels {
+		return false
+	}
+
+	if s.c.IgnoreAppsWithCommandLabels {
+		if len(app.GetDynamicLabels()) > 0 {
+			s.log.WarnContext(
+				context.Background(),
+				"refusing to register app with dynamic labels",
+				"app_name", app.GetName(),
+			)
+			return false
+		}
+	}
+
+	return true
+}

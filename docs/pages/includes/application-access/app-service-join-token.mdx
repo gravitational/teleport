@@ -1,0 +1,17 @@
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Application Service
+instance by creating a join token:
+
+```code
+$ tctl tokens add --type=app --ttl=1h --format=text
+(=presets.tokens.first=)
+```
+
+Assign <Var name="join-token" /> to your token and, on the host where you will
+install the Teleport Application Service, run the following command to create a
+file called `/tmp/token` that consists only of your token:
+
+```code
+$ echo <Var name="join-token" /> | sudo tee /tmp/token
+```

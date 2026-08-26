@@ -1,0 +1,24 @@
+joinParams:
+  tokenName: token-name-2
+  method: join-method-2
+
+proxyAddr: proxy-2.example.com:443
+
+log:
+  level: randomLogLevel
+  format: randomLogFormat
+
+shutdownDelay: "90s"
+
+relayGroup: relay-group-2
+
+publicHostnames:
+  - public-hostname-3.example.com
+  - public-hostname-4.example.com
+
+targetConnectionCount: 42
+
+highAvailability:
+  replicaCount: 0
+
+proxyProtocol: true

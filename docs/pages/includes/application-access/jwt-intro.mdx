@@ -1,0 +1,73 @@
+{{ appType="application" }}
+
+Teleport sends a JWT token signed with Teleport's authority with each request
+to a target {{ appType }} in a `Teleport-Jwt-Assertion` header.
+
+You can use the JWT token to get information about the authenticated Teleport
+user, its roles, and its traits. This allows you to:
+
+- Map Teleport identity/roles/traits onto the identity/roles/traits of your web application.
+- Trust Teleport identity to automatically sign in users into your application.
+
+## Introduction to JWTs
+
+JSON Web Token (JWT) is an open standard that defines a secure way to transfer
+information between parties as a JSON Object.
+
+For an in-depth explanation please visit [https://jwt.io/introduction/](https://jwt.io/introduction/).
+
+Teleport JWTs include three sections:
+
+- Header
+- Payload
+- Signature
+
+### Header
+
+*Example Header*
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+```
+
+### Payload
+
+*Example Payload*
+
+```json
+{
+  "aud": [
+    "http://127.0.0.1:34679"
+  ],
+  "iss": "aws",
+  "nbf": 1603835795,
+  "sub": "alice",
+  // Teleport user name.
+  "username": "alice"
+  // Teleport user roles.
+  "roles": [
+    "admin"
+  ],
+  // Teleport user traits.
+  "traits": {
+    "logins": [
+      "root",
+      "ubuntu",
+      "ec2-user"
+    ]
+  },
+  // Teleport identity expiration.
+  "exp": 1603943800,
+}
+```
+
+The JWT will be sent with the header: `Teleport-Jwt-Assertion`.
+
+*Example Teleport JWT Assertion*
+
+```json
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJdLCJleHAiOjE2MDM5NDM4MDAsImlzcyI6ImF3cyIsIm5iZiI6MTYwMzgzNTc5NSwicm9sZXMiOlsiYWRtaW4iXSwic3ViIjoiYmVuYXJlbnQiLCJ1c2VybmFtZSI6ImJlbmFyZW50In0.PZGUyFfhEWl22EDniWRLmKAjb3fL0D4cTmkxEfb-Q30hVMzVhka5WB8AUsPsLPVhTzsQ6Nkk1DnXHdz6oxrqDDfumuRrDnpJpjiXj_l0D3bExrchN61enzBHxSD13VkRIqP1V6l4i8yt8kXDIBWc-QejLTodA_GtczkDfnnpuAfaxIbD7jEwF27KI4kZu7uES9LMu2iCLdV9ZqarA-6HeDhXPA37OJ3P6eVQzYpgaOBYro5brEiVpuJLr1yA0gncmR4FqmhCpCj-KmHi2vmjmJAuuHId6HZoEZJjC9IAsNlrSA4GHH9j82o7FF1F4J2s38bRy3wZv46MT8X8-QBSpg
+```

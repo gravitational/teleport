@@ -1,0 +1,39 @@
+name: Build CentOS 7 Buildbox Assets Images
+run-name: Build CentOS 7 Buildbox Assets Images
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 13 * * 0' # At 1:00 PM UTC every Sunday
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  buildbox-centos7-assets:
+    name: Build CentOS 7 Asset Buildbox
+    # Build assets on x86 for now, as no GHA-hosted runner for ARM64.
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        with:
+          driver: docker
+
+      - name: Login to registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # We need to keep env vars in sync, so, we can't use standard build actions
+      - name: Build and push buildbox assets image
+        run: cd build.assets && make build-centos7-assets PUSH=1

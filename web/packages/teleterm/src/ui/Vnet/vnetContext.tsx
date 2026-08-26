@@ -1,0 +1,684 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import { Action } from 'design/Alert';
+import {
+  BackgroundItemStatus,
+  GetServiceInfoResponse,
+  WindowsServiceStatus,
+  type CheckInstallTimeRequirementsResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import { useStateRef } from 'shared/hooks';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
+import { statusOneOfIsWindowsServiceStatus } from 'teleterm/helpers';
+import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
+import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { IAppContext } from 'teleterm/ui/types';
+
+/**
+ * VnetContext manages the VNet instance.
+ *
+ * There is a single VNet instance running for all workspaces.
+ */
+export type VnetContext = {
+  /**
+   * Describes whether the given OS can run VNet.
+   */
+  isSupported: boolean;
+  status: VnetStatus;
+  start: () => Promise<[void, Error]>;
+  startAttempt: Attempt<void>;
+  stop: () => Promise<[void, Error]>;
+  stopAttempt: Attempt<void>;
+  /**
+   * Always returns the current VNet service info by making a gRPC call to the service.
+   */
+  currentServiceInfo: () => Promise<GetServiceInfoResponse>;
+  /**
+   * The current attempt to get the VNet service info.
+   */
+  serviceInfoAttempt: Attempt<GetServiceInfoResponse>;
+  /**
+   * Refreshes serviceInfoAttempt by making a new gRPC call to the service.
+   */
+  refreshServiceInfoAttempt: () => Promise<[GetServiceInfoResponse, Error]>;
+  runDiagnostics: () => Promise<[Report, Error]>;
+  diagnosticsAttempt: Attempt<Report>;
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  getDisabledDiagnosticsReason: (
+    runDiagnosticsAttempt: Attempt<Report>
+  ) => string;
+  /**
+   * Status of install-time prerequisites (for example, VNet service presence) that can
+   * only be changed by reinstalling the app.
+   */
+  installTimeRequirementsCheck: InstallTimeRequirementsCheck;
+  /**
+   * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
+   * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
+   *
+   * The user can dismissed an alert only after a diagnostics run was successful and either found
+   * some issues or some checks have failed to complete.
+   */
+  dismissDiagnosticsAlert: () => void;
+  /**
+   * Whether the user dismissed the diagnostics alert in the VNet panel.
+   */
+  hasDismissedDiagnosticsAlert: boolean;
+  /**
+   * Shows the diagnostics alert in the VNet panel again.
+   */
+  reinstateDiagnosticsAlert: () => void;
+  /**
+   * openReport opens the report in a new document. If there's already a document with the same
+   * report, it opens the existing document instead.
+   *
+   * openReport is undefined if the user is not within any workspace.
+   */
+  openReport: ((report: Report) => void) | undefined;
+  /**
+   * Whether the connections icon in the top left and the icon for the VNet connection item should
+   * show a warning state.
+   */
+  showDiagWarningIndicator: boolean;
+  /**
+   * Whether VNet has started successfully at least once.
+   */
+  hasEverStarted: boolean;
+  /**
+   * Opens a modal that handles SSH client configuration.
+   */
+  openSSHConfigurationModal: (params: {
+    /** The path to the user's generated VNet SSH config, available in the
+     * service info and diagnostic report. */
+    vnetSSHConfigPath: string;
+    /** Optional host address that will be used for example text. */
+    host?: string;
+    /** Optional callback that will be invoked after SSH clients are configured. */
+    onSuccess?: () => void;
+  }) => void;
+};
+
+export type VnetStatus =
+  | { value: 'running' }
+  | { value: 'stopped'; reason: VnetStoppedReason };
+
+export type VnetStoppedReason =
+  | { value: 'regular-shutdown-or-not-started' }
+  | { value: 'unexpected-shutdown'; errorMessage: string };
+
+export const VnetContext = createContext<VnetContext>(null);
+
+export const VnetContextProvider: FC<
+  PropsWithChildren<{ diagnosticsIntervalMs?: number }>
+> = ({ diagnosticsIntervalMs = defaultDiagnosticsIntervalMs, children }) => {
+  const [status, setStatus] = useState<VnetStatus>({
+    value: 'stopped',
+    reason: { value: 'regular-shutdown-or-not-started' },
+  });
+  const appCtx = useAppContext();
+  const { vnet, mainProcessClient, notificationsService, workspacesService } =
+    appCtx;
+  const isWorkspaceStateInitialized = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.isInitialized, [])
+  );
+  const [{ autoStart, hasEverStarted }, setAppState] = usePersistedState(
+    'vnet',
+    {
+      autoStart: false,
+      hasEverStarted: false,
+    }
+  );
+  const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
+
+  const platform = useMemo(
+    () => mainProcessClient.getRuntimeSettings().platform,
+    [mainProcessClient]
+  );
+  const isSupported =
+    platform === 'darwin' || platform === 'win32' || platform === 'linux';
+
+  const [checkInstallTimeRequirementsAttempt, checkInstallTimeRequirements] =
+    useAsync(
+      useCallback(async () => {
+        const { response } = await vnet.checkInstallTimeRequirements({});
+        return response;
+      }, [vnet])
+    );
+  const installTimeRequirementsCheck = useMemo(
+    () => makeInstallTimeRequirements(checkInstallTimeRequirementsAttempt),
+    [checkInstallTimeRequirementsAttempt]
+  );
+
+  useEffect(() => {
+    checkInstallTimeRequirements();
+  }, [checkInstallTimeRequirements]);
+
+  const [startAttempt, start] = useAsync(
+    useCallback(async () => {
+      const { didBackgroundItemRequireEnablement } =
+        await checkDaemonBackgroundItemStatus(appCtx);
+
+      try {
+        await vnet.start({});
+      } catch (error) {
+        if (!isTshdRpcError(error, 'ALREADY_EXISTS')) {
+          throw error;
+        }
+      }
+
+      if (didBackgroundItemRequireEnablement) {
+        // On the first start of VNet on macOS, the user needs to enable the background item for the
+        // VNet daemon. vnet.start does not resolve until that happens.
+        //
+        // Enabling the background item requires the user to switch focus away from Connect. If they
+        // started VNet through the "Connect" button next to a TCP app, it means that once we return
+        // from this function, Connect is going to attempt to copy the address of the app to the
+        // clipboard. This won't work unless Connect has focus, hence forcing focus here.
+        await mainProcessClient.forceFocusWindow({ wait: true });
+      }
+
+      setStatus({ value: 'running' });
+      setAppState({ autoStart: true, hasEverStarted: true });
+    }, [vnet, setAppState, appCtx, mainProcessClient])
+  );
+
+  const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
+    useCallback(
+      (signal?: AbortSignal) =>
+        vnet
+          .runDiagnostics({}, { abort: signal && cloneAbortSignal(signal) })
+          .then(({ response }) => response.report),
+      [vnet]
+    )
+  );
+
+  /** Holds the ID of the currently displayed warning notification about diagnostics. */
+  const diagNotificationIdRef = useRef('');
+  /**
+   * Removes any currently shown diag notification _and_ makes it so that the next periodic call to
+   * runDiagnosticsAndShowNotification is not going to skip the notification due to the user
+   * interacting with the notification.
+   */
+  const resetHasActedOnPreviousNotification = useCallback(() => {
+    if (!diagNotificationIdRef.current) {
+      return;
+    }
+    notificationsService.removeNotification(diagNotificationIdRef.current);
+    diagNotificationIdRef.current = '';
+  }, [notificationsService]);
+
+  const [
+    /** Whether user has dismissed the diagnostic alert shown in the VNet panel. */
+    hasDismissedDiagnosticsAlert,
+    hasDismissedDiagnosticsAlertRef,
+    setHasDismissedDiagnosticsAlert,
+  ] = useStateRef(false);
+  const reinstateDiagnosticsAlert = useCallback(() => {
+    setHasDismissedDiagnosticsAlert(false);
+  }, [setHasDismissedDiagnosticsAlert]);
+  const dismissDiagnosticsAlert = useCallback(() => {
+    setHasDismissedDiagnosticsAlert(true);
+    resetHasActedOnPreviousNotification();
+  }, [setHasDismissedDiagnosticsAlert, resetHasActedOnPreviousNotification]);
+
+  const [stopAttempt, stop] = useAsync(
+    useCallback(async () => {
+      await vnet.stop({});
+      setStatus({
+        value: 'stopped',
+        reason: { value: 'regular-shutdown-or-not-started' },
+      });
+      setAppState(state => ({ ...state, autoStart: false }));
+      setDiagnosticsAttempt(makeEmptyAttempt());
+      setHasDismissedDiagnosticsAlert(false);
+    }, [
+      vnet,
+      setAppState,
+      setDiagnosticsAttempt,
+      setHasDismissedDiagnosticsAlert,
+    ])
+  );
+
+  const currentServiceInfo = useCallback(
+    () => vnet.getServiceInfo({}).then(({ response }) => response),
+    [vnet]
+  );
+  const [serviceInfoAttempt, refreshServiceInfoAttempt] =
+    useAsync(currentServiceInfo);
+
+  /**
+   * Calculates whether the button for running diagnostics should be disabled. If it should be
+   * disabled, it returns a reason for this, otherwise it returns a falsy value.
+   *
+   * Accepts an attempt as an arg to accommodate for places that run diagnostics periodically
+   * vs manually.
+   */
+  const getDisabledDiagnosticsReason = useCallback(
+    (runDiagnosticsAttempt: Attempt<Report>) =>
+      status.value !== 'running'
+        ? 'VNet must be running to run diagnostics'
+        : runDiagnosticsAttempt.status === 'processing'
+          ? 'Generating diagnostic report…'
+          : '',
+    [status.value]
+  );
+
+  const isWorkspaceSelected = useStoreSelector(
+    'workspacesService',
+    useCallback(state => !!state.rootClusterUri, [])
+  );
+
+  const openReport = useCallback(
+    (report: Report) => {
+      const rootClusterUri = workspacesService.getRootClusterUri();
+      if (!rootClusterUri) {
+        return;
+      }
+
+      const docsService =
+        workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+      // Check for an existing doc first. It may be present if someone re-runs diagnostics from within
+      // a doc, then opens the VNet panel and clicks "Open Diag Report". The report in the panel and
+      // the report in the doc are equal in that case, as they both come from diagnosticsAttempt.data.
+      const existingDoc = docsService.getDocuments().find(
+        d =>
+          d.kind === 'doc.vnet_diag_report' &&
+          // Reports don't have IDs, so createdAt is used as a good-enough approximation of an ID.
+          d.report?.createdAt === report.createdAt
+      );
+      if (existingDoc) {
+        docsService.open(existingDoc.uri);
+      } else {
+        const doc = docsService.createVnetDiagReportDocument({
+          rootClusterUri,
+          report,
+        });
+        docsService.add(doc);
+        docsService.open(doc.uri);
+      }
+
+      // NOTE: Do not reset diagNotificationIdRef here for the notification to be considered acted
+      // upon on the next run of runDiagnosticsAndShowNotification.
+      notificationsService.removeNotification(diagNotificationIdRef.current);
+    },
+    [workspacesService, notificationsService]
+  );
+
+  const showDiagWarningIndicator: boolean = useMemo(
+    () =>
+      !hasDismissedDiagnosticsAlert &&
+      // Look at data, not status === 'running', otherwise this would briefly swap to false
+      // whenever a diagnostic run would be in progress.
+      diagnosticsAttempt.data &&
+      hasReportFoundIssues(diagnosticsAttempt.data),
+    [hasDismissedDiagnosticsAlert, diagnosticsAttempt]
+  );
+
+  useEffect(() => {
+    const handleAutoStart = async () => {
+      if (
+        isSupported &&
+        autoStart &&
+        // Accessing resources through VNet might trigger the MFA modal,
+        // so we have to wait for the tshd events service to be initialized.
+        isWorkspaceStateInitialized &&
+        startAttempt.status === '' &&
+        installTimeRequirementsCheck.status === 'success'
+      ) {
+        const [, error] = await start();
+
+        // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
+        // autostart by themselves.
+        if (error) {
+          setAppState(state => ({ ...state, autoStart: false }));
+        }
+      }
+    };
+
+    handleAutoStart();
+  }, [isWorkspaceStateInitialized, installTimeRequirementsCheck.status]);
+
+  useEffect(
+    function handleUnexpectedShutdown() {
+      const removeListener = appCtx.addUnexpectedVnetShutdownListener(
+        ({ error }) => {
+          setStatus({
+            value: 'stopped',
+            reason: { value: 'unexpected-shutdown', errorMessage: error },
+          });
+
+          notificationsService.notifyError({
+            title: 'VNet has unexpectedly shut down',
+            description: error
+              ? `Reason: ${error}`
+              : 'No reason was given, check the logs for more details.',
+          });
+        }
+      );
+
+      return removeListener;
+    },
+    [appCtx, notificationsService]
+  );
+
+  const runDiagnosticsAndShowNotification = useCallback(
+    async (signal: AbortSignal) => {
+      const [report, error] = await runDiagnostics(signal);
+      if (error) {
+        return;
+      }
+
+      const previousNotificationId = diagNotificationIdRef.current;
+      /**
+       * Whether the user dismissed the previous notification or opened the report from the previous
+       * notification.
+       */
+      const hasActedOnPreviousNotification =
+        previousNotificationId &&
+        !notificationsService.hasNotification(previousNotificationId);
+      notificationsService.removeNotification(previousNotificationId);
+
+      // Once a user acknowledged or dismissed a VNet warning during a session, we don't want to
+      // notify them about it again unless they manually re-run diagnostics.
+      if (
+        hasActedOnPreviousNotification ||
+        hasDismissedDiagnosticsAlertRef.current
+      ) {
+        return;
+      }
+
+      if (!hasReportFoundIssues(report)) {
+        // Resetting here handles a situation where issues are found, then a second run finds no
+        // issues and then another run finds issues again. Without resetting after the second run,
+        // that last run would not send a notification
+        resetHasActedOnPreviousNotification();
+        return;
+      }
+
+      if (isConnectionsPanelOpenRef.current) {
+        // If the connection panel is open and the report has found some issues, the user should be
+        // able to see the warning in the panel. If they're on the VNet panel, we don't want to show
+        // the notification _and_ the alert in the panel.
+        //
+        // diagNotificationIdRef needs to be made dirty so that on the next run the notification is
+        // considered to be acted upon.
+        diagNotificationIdRef.current = 'bogus-id';
+        return;
+      }
+
+      let action: Action;
+      let description: string;
+      if (workspacesService.getRootClusterUri()) {
+        action = {
+          content: 'Open Diag Report',
+          onClick: () => {
+            openReport(report);
+            // NOTE: Do not reset diagNotificationIdRef here. Opening a notification must result in
+            // hasActedOnPreviousNotification to be equal to true on the next interval run.
+            notificationsService.removeNotification(
+              diagNotificationIdRef.current
+            );
+          },
+        };
+      } else {
+        description =
+          'Log in to a cluster to open the diag report from the VNet panel.';
+      }
+
+      diagNotificationIdRef.current = notificationsService.notifyWarning({
+        isAutoRemovable: false,
+        title: 'Other software on your device might interfere with VNet.',
+        description,
+        action,
+      });
+    },
+    [
+      runDiagnostics,
+      notificationsService,
+      openReport,
+      hasDismissedDiagnosticsAlertRef,
+      resetHasActedOnPreviousNotification,
+      isConnectionsPanelOpenRef,
+      workspacesService,
+    ]
+  );
+
+  useEffect(
+    function periodicallyRunDiagnostics() {
+      if (status.value !== 'running') {
+        return;
+      }
+
+      let abortController = new AbortController();
+
+      runDiagnosticsAndShowNotification(abortController.signal);
+      const intervalId = setInterval(() => {
+        abortController.abort();
+        abortController = new AbortController();
+
+        runDiagnosticsAndShowNotification(abortController.signal);
+      }, diagnosticsIntervalMs);
+
+      return () => {
+        abortController.abort();
+        clearInterval(intervalId);
+        resetHasActedOnPreviousNotification();
+      };
+    },
+    [
+      diagnosticsIntervalMs,
+      runDiagnosticsAndShowNotification,
+      status.value,
+      resetHasActedOnPreviousNotification,
+    ]
+  );
+
+  const autoConfigureSSH = useCallback(async (): Promise<void> => {
+    await vnet.autoConfigureSSH({});
+    // Refresh the service info and diagnostic attempts because SSH is now configured.
+    refreshServiceInfoAttempt();
+    runDiagnostics();
+  }, [vnet, refreshServiceInfoAttempt]);
+  const openSSHConfigurationModal: VnetContext['openSSHConfigurationModal'] =
+    useCallback(
+      ({ vnetSSHConfigPath, host, onSuccess }) => {
+        appCtx.modalsService.openRegularDialog({
+          kind: 'configure-ssh-clients',
+          onConfirm: async () => {
+            await autoConfigureSSH();
+            if (onSuccess) {
+              onSuccess();
+            }
+          },
+          vnetSSHConfigPath,
+          host,
+        });
+      },
+      [appCtx.modalsService, autoConfigureSSH]
+    );
+
+  return (
+    <VnetContext.Provider
+      value={{
+        isSupported,
+        status,
+        start,
+        startAttempt,
+        stop,
+        stopAttempt,
+        currentServiceInfo,
+        serviceInfoAttempt,
+        refreshServiceInfoAttempt,
+        runDiagnostics,
+        diagnosticsAttempt,
+        getDisabledDiagnosticsReason,
+        dismissDiagnosticsAlert,
+        hasDismissedDiagnosticsAlert,
+        reinstateDiagnosticsAlert,
+        openReport: isWorkspaceSelected ? openReport : undefined,
+        showDiagWarningIndicator,
+        hasEverStarted,
+        openSSHConfigurationModal,
+        installTimeRequirementsCheck,
+      }}
+    >
+      {children}
+    </VnetContext.Provider>
+  );
+};
+
+const defaultDiagnosticsIntervalMs = 30 * 1000; // 30s
+
+export const useVnetContext = () => {
+  const context = useContext(VnetContext);
+
+  if (!context) {
+    throw new Error('useVnetContext must be used within a VnetContextProvider');
+  }
+
+  return context;
+};
+
+const checkDaemonBackgroundItemStatus = async (
+  ctx: IAppContext
+): Promise<{ didBackgroundItemRequireEnablement: boolean }> => {
+  const { vnet, notificationsService } = ctx;
+
+  let backgroundItemStatus: BackgroundItemStatus;
+  try {
+    const { response } = await vnet.getBackgroundItemStatus({});
+    backgroundItemStatus = response.status;
+  } catch (error) {
+    // vnet.getBackgroundItemStatus returns UNIMPLEMENTED if tsh was compiled without the
+    // vnetdaemon build tag.
+    if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
+      return { didBackgroundItemRequireEnablement: false };
+    }
+
+    throw error;
+  }
+
+  if (
+    backgroundItemStatus === BackgroundItemStatus.ENABLED ||
+    backgroundItemStatus === BackgroundItemStatus.NOT_SUPPORTED ||
+    backgroundItemStatus === BackgroundItemStatus.UNSPECIFIED
+  ) {
+    return { didBackgroundItemRequireEnablement: false };
+  }
+
+  notificationsService.notifyInfo(
+    'Please enable the background item for tsh.app in System Settings > General > Login Items to start VNet.'
+  );
+  return { didBackgroundItemRequireEnablement: true };
+};
+
+function makeInstallTimeRequirements(
+  attempt: Attempt<CheckInstallTimeRequirementsResponse>
+): InstallTimeRequirementsCheck {
+  switch (attempt.status) {
+    case '':
+    case 'processing':
+      return { status: 'unknown' };
+    case 'error':
+      if (isTshdRpcError(attempt.error, 'UNIMPLEMENTED')) {
+        return { status: 'success' };
+      }
+      return {
+        status: 'failed',
+        reason: {
+          kind: 'error',
+          statusText: attempt.statusText,
+        },
+      };
+  }
+
+  const { status } = attempt.data;
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.DOES_NOT_EXIST
+  ) {
+    return {
+      status: 'failed',
+      reason: {
+        kind: 'missing-windows-service',
+      },
+    };
+  }
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.VERSION_MISMATCH
+  ) {
+    return {
+      status: 'failed',
+      reason: {
+        kind: 'windows-service-version-mismatch',
+      },
+    };
+  }
+
+  return { status: 'success' };
+}
+
+type InstallTimeRequirementsCheck =
+  | {
+      status: 'unknown';
+    }
+  | {
+      status: 'success';
+    }
+  | {
+      status: 'failed';
+      reason:
+        | {
+            kind: 'missing-windows-service';
+          }
+        | {
+            kind: 'windows-service-version-mismatch';
+          }
+        | {
+            kind: 'error';
+            statusText: string;
+          };
+    };

@@ -1,0 +1,5 @@
+Name       Description Type  Labels                                     Command Args Allowed Tools          
+---------- ----------- ----- ------------------------------------------ ------- ---- ---------------------- 
+allow-read description stdio env=dev,teleport.internal/app-sub-kind=mcp test    arg  [read_*]               
+deny-write description stdio env=dev,teleport.internal/app-sub-kind=mcp test    arg  [*], except: [write_*] 
+

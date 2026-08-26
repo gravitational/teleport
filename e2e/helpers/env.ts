@@ -1,0 +1,52 @@
+/**
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// This file provides helper functions to read required environment variables for the E2E tests.
+
+import { readFileSync } from 'node:fs';
+
+function required(name: string) {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`required environment variable ${name} is not set`);
+  }
+
+  return value;
+}
+
+export type UserCredentials = {
+  password: string;
+  webauthnPrivateKey: string;
+  webauthnCredentialId: string;
+  // Assigned by the runner so each user's login gets its own rate limiter bucket.
+  clientIp: string;
+};
+
+export const users: Record<string, UserCredentials> = JSON.parse(
+  readFileSync(required('E2E_USERS_FILE'), 'utf-8')
+);
+export const tctlBin = required('E2E_TCTL_BIN');
+export const teleportConfig = required('E2E_TELEPORT_CONFIG');
+export const startUrl = required('START_URL');
+export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
+export const connectAppDir = required('E2E_CONNECT_APP_DIR');
+
+// Set by the runner when the docker daemon's kernel cannot load the enhanced recording programs.
+export const skipEnhancedRecording =
+  process.env.E2E_SKIP_ENHANCED_RECORDING === '1';
