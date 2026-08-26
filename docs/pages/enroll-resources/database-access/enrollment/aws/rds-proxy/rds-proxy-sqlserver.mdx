@@ -12,4 +12,11 @@ page_type: how-to
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon RDS proxy for Microsoft SQL Server" dbConfigure="with IAM authentication"!)
 
+<Admonition type="note" title="Supported SQL Server versions">
+Amazon RDS Proxy does not support RDS for SQL Server 2022. SQL Server 2019 is
+currently the newest supported major version. See the [Amazon RDS Proxy
+limitations](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.html#rds-proxy.limitations)
+for the latest supported versions.
+</Admonition>
+
 (!docs/pages/includes/database-access/rds-proxy.mdx protocol="sqlserver" !)
