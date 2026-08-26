@@ -21,12 +21,12 @@ package desktop
 import (
 	"context"
 	"iter"
-	"maps"
 	"math"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/google/btree"
 	"github.com/gravitational/teleport/api/types/events"
 )
 
@@ -41,6 +41,7 @@ type fileOperationsKey struct {
 // so that we need only one compactor implementation.
 type fileOperationEvent interface {
 	Base() events.AuditEvent
+	GetID() string
 	IsWriteEvent() bool
 	GetDirectoryID() directoryID
 	GetPath() string
@@ -53,7 +54,7 @@ type fileOperationEvent interface {
 // to a particular file within some period of time.
 type fileOperationsBucket struct {
 	expireTime time.Time
-	events     []fileOperationEvent
+	events     fileOperations[fileOperationEvent]
 	timer      *time.Timer
 	done       chan struct{}
 }
@@ -84,6 +85,100 @@ func newAuditCompactor(refreshInterval, maxDelayInterval time.Duration, emitFn f
 	}
 }
 
+type fileOperation interface {
+	GetOffset() uint64
+	GetLength() uint64
+	SetLength(uint64)
+	GetID() string
+}
+
+// Assumes that the provided fileOperations are consecutive.
+// Typically returns a slice of length 1, but may return length >1
+// if the compacted length exceeds math.MaxUint32
+func compact[T fileOperation](op ...T) []T {
+	if len(op) == 0 {
+		return []T{}
+	}
+
+	base := op[0]
+	out := []T{base}
+	for idx, nextSegment := range op[1:] {
+		nextLength := base.GetLength() + nextSegment.GetLength()
+		if nextLength > math.MaxUint32 {
+			// The edge case where we need to return multiple
+			// events
+			base = op[idx+1] // +1, compensate for starting the iteration at [1:]
+			out = append(out, base)
+			continue
+		}
+		base.SetLength(nextLength)
+	}
+	return out
+}
+
+func newFileOperations[T fileOperation]() fileOperations[T] {
+	return fileOperations[T]{
+		operations: btree.NewG[fileOperation](2, func(a, b fileOperation) bool {
+			if a.GetOffset() != b.GetOffset() {
+				return a.GetOffset() < b.GetOffset()
+			}
+			// The google/btree implementation does not natively support
+			// insertion of multiple objects with the same key. Work around
+			// this by falling back to the audit event ID when offsets match.
+			return a.GetID() < b.GetID()
+		}),
+	}
+}
+
+type fileOperations[T fileOperation] struct {
+	operations *btree.BTreeG[fileOperation]
+}
+
+func (f fileOperations[T]) insert(item T) {
+	f.operations.ReplaceOrInsert(item)
+}
+
+func (f fileOperations[T]) getByOffset(offset uint64) (fileOperation, bool) {
+	var op fileOperation
+	f.operations.Ascend(func(item fileOperation) bool {
+		if item.GetOffset() == offset {
+			op = item
+		}
+		return item.GetOffset() < offset
+	})
+
+	if op != nil {
+		return f.operations.Delete(op)
+	}
+
+	return nil, false
+}
+
+// Consume the operations tree to produce a new, compacted list of operations.
+func (f fileOperations[T]) compact() []T {
+	out := []T{}
+	currentRoot, exists := f.operations.DeleteMin()
+	for exists {
+		consecutiveSegments := []T{currentRoot.(T)}
+		nextOffset := currentRoot.GetOffset() + currentRoot.GetLength()
+		// Compaction only makes sense for events with length > 0.
+		if currentRoot.GetLength() > 0 {
+			// Try to compact from the current root
+			nextConsecutiveSegment, hasConsecutiveSegment := f.getByOffset(nextOffset)
+			for hasConsecutiveSegment {
+				consecutiveSegments = append(consecutiveSegments, nextConsecutiveSegment.(T))
+				nextOffset += nextConsecutiveSegment.GetLength()
+				nextConsecutiveSegment, hasConsecutiveSegment = f.getByOffset(nextOffset)
+			}
+		}
+		// Now that we have a slice of consecutive segments, compact them.
+		out = append(out, compact(consecutiveSegments...)...)
+		// Try the next minimum segment
+		currentRoot, exists = f.operations.DeleteMin()
+	}
+	return out
+}
+
 func (s *fileOperationsBucket) emitEvents(ctx context.Context, emitFn func(ctx context.Context, event events.AuditEvent)) {
 	for event := range s.compactEvents() {
 		emitFn(ctx, event.Base())
@@ -91,75 +186,11 @@ func (s *fileOperationsBucket) emitEvents(ctx context.Context, emitFn func(ctx c
 }
 
 func (s *fileOperationsBucket) compactEvents() iter.Seq[fileOperationEvent] {
-	offsetMapping := map[uint64][]fileOperationEvent{}
-	for _, event := range s.events {
-		offsetMapping[event.GetOffset()] = append(offsetMapping[event.GetOffset()], event)
-	}
-
-	var finalEvents []fileOperationEvent
-	for len(offsetMapping) > 0 {
-		// Find the read/write event with the lowest offset
-		// so that we may greedily search for the longest
-		// contiguous segment we can produce.
-		smallestKey := slices.Min(slices.Collect(maps.Keys(offsetMapping)))
-		// The audit event at which we will begin our search.
-		event := offsetMapping[smallestKey][0]
-		// compact returns the longest slice of contiguous read/write audit events.
-		// It always a slice of at least length 1, containing the starting event.
-		sequentialEvents, sequenceLength := s.compact(event, offsetMapping)
-		// base is the first event in the sequence. We will mutate this
-		// event with the updated length and emit it.
-		base := sequentialEvents[0]
-
-		// Remove each event in this sequence from the map
-		for _, subsequent := range sequentialEvents {
-			offset := subsequent.GetOffset()
-			events := offsetMapping[offset]
-			deleteIdx := slices.Index(events, subsequent)
-			events = slices.Delete(events, deleteIdx, deleteIdx+1)
-			if len(events) > 0 {
-				offsetMapping[offset] = events
-			} else {
-				delete(offsetMapping, offset)
-			}
-		}
-		base.SetLength(sequenceLength)
-		finalEvents = append(finalEvents, base)
-	}
-
-	return slices.Values(finalEvents)
-}
-
-// compact finds the longest contiguous set of reads/writes following the given 'event'.
-func (s *fileOperationsBucket) compact(event fileOperationEvent, eventsByOffset map[uint64][]fileOperationEvent) ([]fileOperationEvent, uint64) {
-	eventLength := event.GetLength()
-	// Determine the offset at which the next contiguous segment must start.
-	offset := event.GetOffset() + eventLength
-	// Consult the map for any events with this offset.
-	// Skip events with length 0
-	if eventLength > 0 && len(eventsByOffset[offset]) > 0 {
-		// There may be multiple candidate segments to follow.
-		// Try each of them out and select the longest contiguous set of segments
-		var winner []fileOperationEvent
-		var maxLength uint64
-		for _, choice := range eventsByOffset[offset] {
-			// TODO: We could probably speed this up with memoization/dynamic programmming,
-			// but this code is fairly readable as-is and it's probably not likely that
-			// we'll end up with too many possible paths in production.
-			// Recursively evaluate each option.
-			option, length := s.compact(choice, eventsByOffset)
-			if length > maxLength {
-				winner = option
-				maxLength = length
-			}
-		}
-		return append([]fileOperationEvent{event}, winner...), maxLength + event.GetLength()
-	}
-	return []fileOperationEvent{event}, event.GetLength()
+	return slices.Values(s.events.compact())
 }
 
 func (s *fileOperationsBucket) addEvent(event fileOperationEvent) {
-	s.events = append(s.events, event)
+	s.events.insert(event)
 }
 
 func (a *auditCompactor) handleEvent(ctx context.Context, event fileOperationEvent) {
@@ -197,10 +228,12 @@ func (a *auditCompactor) handleEvent(ctx context.Context, event fileOperationEve
 	//   - We are not tracking any such bucket yet.
 	//   - We were tracking this bucket but the timer has already fired.
 	if newBucket {
+		ops := newFileOperations[fileOperationEvent]()
+		ops.insert(event)
 		bucket := &fileOperationsBucket{
 			done:       make(chan struct{}),
 			expireTime: time.Now().Add(a.maxDelayInterval),
-			events:     []fileOperationEvent{event},
+			events:     ops,
 		}
 		bucket.timer = time.AfterFunc(a.refreshInterval, func() {
 			// Close done channel so that the 'flush' function can
@@ -257,7 +290,7 @@ func (r *readEvent) SetLength(len uint64)        { r.Length = toUint32(len) }
 func (r *readEvent) GetLength() uint64           { return uint64(r.Length) }
 func (r *readEvent) GetOffset() uint64           { return r.Offset }
 func (r *readEvent) GetPath() string             { return r.Path }
-func (r *readEvent) IsWriteEvent() bool          { return true }
+func (r *readEvent) IsWriteEvent() bool          { return false }
 func (r *readEvent) GetDirectoryID() directoryID { return directoryID(r.DirectoryID) }
 func (r *readEvent) Base() events.AuditEvent     { return r.DesktopSharedDirectoryRead }
 
@@ -269,7 +302,7 @@ func (r *writeEvent) SetLength(len uint64)        { r.Length = toUint32(len) }
 func (r *writeEvent) GetLength() uint64           { return uint64(r.Length) }
 func (r *writeEvent) GetOffset() uint64           { return r.Offset }
 func (r *writeEvent) GetPath() string             { return r.Path }
-func (r *writeEvent) IsWriteEvent() bool          { return false }
+func (r *writeEvent) IsWriteEvent() bool          { return true }
 func (r *writeEvent) GetDirectoryID() directoryID { return directoryID(r.DirectoryID) }
 func (r *writeEvent) Base() events.AuditEvent     { return r.DesktopSharedDirectoryWrite }
 
