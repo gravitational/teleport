@@ -23,7 +23,7 @@ export type GetEnrollPairingResponse = {
   device?: EnrollPairingDevice;
 };
 
-export type EnrollPairingDevice = {
+type EnrollPairingDevice = {
   // Friendly OS name, e.g. "iOS".
   osType: string;
   serialNumber: string;
