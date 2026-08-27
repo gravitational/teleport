@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,6 +64,53 @@ type KeyAgentTestSuite struct {
 	clusterName string
 	tlsca       *tlsca.CertAuthority
 	tlscaCert   authclient.TrustedCerts
+
+	// systemAgentConns tracks client connections to the agent served on
+	// $SSH_AUTH_SOCK.
+	systemAgentConns *systemAgentConnTracker
+}
+
+type systemAgentConnTracker struct {
+	mu     sync.Mutex
+	open   int
+	zeroCh chan struct{}
+}
+
+func newSystemAgentConnTracker() *systemAgentConnTracker {
+	zeroCh := make(chan struct{})
+	close(zeroCh)
+	return &systemAgentConnTracker{zeroCh: zeroCh}
+}
+
+func (c *systemAgentConnTracker) opened() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.open == 0 {
+		c.zeroCh = make(chan struct{})
+	}
+	c.open++
+}
+
+func (c *systemAgentConnTracker) closed() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.open--
+	if c.open == 0 {
+		close(c.zeroCh)
+	}
+}
+
+func (c *systemAgentConnTracker) waitForZero(ctx context.Context) error {
+	c.mu.Lock()
+	zeroCh := c.zeroCh
+	c.mu.Unlock()
+
+	select {
+	case <-zeroCh:
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
 }
 
 type keyAgentTestSuiteFunc func(opt *keyAgentTestSuiteOpt)
@@ -96,14 +144,15 @@ func makeSuite(t *testing.T, opts ...keyAgentTestSuiteFunc) *KeyAgentTestSuite {
 		o(&settings)
 	}
 
-	err := startDebugAgent(t)
+	systemAgentConns, err := startDebugAgent(t)
 	require.NoError(t, err)
 
 	s := &KeyAgentTestSuite{
-		keyDir:      t.TempDir(),
-		username:    "foo",
-		hostname:    settings.hostname,
-		clusterName: settings.clusterName,
+		keyDir:           t.TempDir(),
+		username:         "foo",
+		hostname:         settings.hostname,
+		clusterName:      settings.clusterName,
+		systemAgentConns: systemAgentConns,
 	}
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
@@ -181,6 +230,56 @@ func TestAddKey(t *testing.T) {
 	}
 	require.True(t, found)
 
+}
+
+// TestSystemAgentConnections ensures that a LocalKeyAgent does not hold
+// connections to the system agent open.
+func TestSystemAgentConnections(t *testing.T) {
+	s := makeSuite(t)
+
+	requireNoOpenConns := func(t *testing.T) {
+		t.Helper()
+
+		// By this point, all connections have already been initiated. Make one final request
+		// to ensure the server has accepted them all. This connection is last in the listener
+		// queue, so List returns only after the earlier connections were accepted.
+		//
+		// Use a nested scope so the deferred Close runs before we start
+		// waiting for all connections to close.
+		func() {
+			probe, err := sshagent.NewSystemAgentClient()
+			require.NoError(t, err)
+			defer probe.Close()
+
+			_, err = probe.List()
+			require.NoError(t, err)
+		}()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, s.systemAgentConns.waitForZero(ctx), "connections to the system agent were leaked")
+	}
+
+	// Creating many key agents must not accumulate connections to the system agent.
+	var keyAgents []*LocalKeyAgent
+	for range 10 {
+		keyAgent := s.newKeyAgent(t)
+		require.NotNil(t, keyAgent.systemAgent, "expected the key agent to use the system agent")
+		keyAgents = append(keyAgents, keyAgent)
+	}
+	requireNoOpenConns(t)
+
+	for _, keyAgent := range keyAgents {
+		require.NoError(t, keyAgent.AddKeyRing(s.keyRing))
+		requireNoOpenConns(t)
+
+		_, err := keyAgent.Signers()
+		require.NoError(t, err)
+		requireNoOpenConns(t)
+
+		require.NoError(t, keyAgent.UnloadKeyRing(s.keyRing.KeyRingIndex))
+		requireNoOpenConns(t)
+	}
 }
 
 // TestLoadKey ensures correct loading of a key into an agent. This test
@@ -812,7 +911,9 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 	}
 }
 
-func startDebugAgent(t *testing.T) error {
+// startDebugAgent serves an in-memory keyring over $SSH_AUTH_SOCK, mimicking
+// the system agent. It returns a tracker for client connections to that agent.
+func startDebugAgent(t *testing.T) (*systemAgentConnTracker, error) {
 	// Create own tmp dir instead of using t.TmpDir
 	// because net.Listen("unix", path) has dir path length limitation
 	tempDir, err := os.MkdirTemp("", "teleport-test")
@@ -824,18 +925,18 @@ func startDebugAgent(t *testing.T) error {
 	socketpath := filepath.Join(tempDir, "agent.sock")
 	listener, err := net.Listen("unix", socketpath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	systemAgent := agent.NewKeyring()
 	t.Setenv(teleport.SSHAuthSock, socketpath)
 
+	conns := newSystemAgentConnTracker()
 	startedC := make(chan struct{})
 	doneC := make(chan struct{})
+
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// agent is listening and environment variable is set, unblock now
 		close(startedC)
 		for {
@@ -846,24 +947,22 @@ func startDebugAgent(t *testing.T) error {
 				}
 				return
 			}
-			wg.Add(2)
-			go func() {
+			conns.opened()
+			wg.Go(func() {
+				defer conns.closed()
 				agent.ServeAgent(systemAgent, conn)
-				wg.Done()
-			}()
-			go func() {
+			})
+			wg.Go(func() {
 				<-doneC
 				conn.Close()
-				wg.Done()
-			}()
+			})
 		}
-	}()
+	})
 
-	go func() {
+	wg.Go(func() {
 		<-doneC
 		listener.Close()
-		wg.Done()
-	}()
+	})
 
 	t.Cleanup(func() {
 		close(doneC)
@@ -872,7 +971,7 @@ func startDebugAgent(t *testing.T) error {
 
 	// block until agent is started
 	<-startedC
-	return nil
+	return conns, nil
 }
 
 func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {
