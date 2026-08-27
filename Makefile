@@ -1422,6 +1422,11 @@ lint-go:
 fix-imports:
 	$(MAKE) -C build.assets fix-imports
 
+# Rewrite protobuf Open API usage to the Opaque API.
+.PHONY: open2opaque
+open2opaque:
+	$(OPEN2OPAQUE) rewrite -levels=red ./...
+
 .PHONY: fix-imports/host
 fix-imports/host:
 	$(GCI) write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
