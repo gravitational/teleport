@@ -25,7 +25,7 @@ import (
 )
 
 // Config configures a [SortCache].
-type Config[T any, I comparable] struct {
+type Config[T comparable, I comparable] struct {
 	// Indexes is a map of index name to key constructor, and defines the set of indexes
 	// upon which lookups can be made. Values that overlap in *any* indexes are treated
 	// as unique. A Put operation for a value that matches an existing value on *any* index
@@ -44,30 +44,34 @@ type Config[T any, I comparable] struct {
 // multiple indexes simultaneously. It has an internal read-write lock
 // and is safe for concurrent use, but the supplied configuration must not
 // be modified, and it is generally best to never modify stored resources.
-type SortCache[T any, I comparable] struct {
+type SortCache[T comparable, I comparable] struct {
 	rw      sync.RWMutex
 	indexes map[I]func(T) string
-	trees   map[I]*btree.BTreeG[entry]
-	values  map[uint64]T
-	counter uint64
+	trees   map[I]*btree.BTreeG[entry[T]]
+	// Because the design of SortCache doesn't have a privileged index that
+	// represents the identity of an item (i.e. a primary key) we have to make
+	// up our own primary key by requiring that T is comparable and storing the
+	// values once more, keyed by the value itself (which is almost universally
+	// going to be a pointer or an interface storing a pointer.
+	values map[T]struct{}
 }
 
-type entry struct {
-	key string
-	ref uint64
+type entry[T comparable] struct {
+	key   string
+	value T
 }
 
 // New sets up a new [SortCache] based on the provided configuration.
-func New[T any, I comparable](cfg Config[T, I]) *SortCache[T, I] {
+func New[T comparable, I comparable](cfg Config[T, I]) *SortCache[T, I] {
 	const (
 		// bTreeDegree of 8 is standard across most of the teleport codebase
 		bTreeDegree = 8
 	)
 
-	trees := make(map[I]*btree.BTreeG[entry], len(cfg.Indexes))
+	trees := make(map[I]*btree.BTreeG[entry[T]], len(cfg.Indexes))
 
 	for index := range cfg.Indexes {
-		trees[index] = btree.NewG(bTreeDegree, func(a, b entry) bool {
+		trees[index] = btree.NewG(bTreeDegree, func(a, b entry[T]) bool {
 			return a.key < b.key
 		})
 	}
@@ -75,7 +79,7 @@ func New[T any, I comparable](cfg Config[T, I]) *SortCache[T, I] {
 	return &SortCache[T, I]{
 		indexes: cfg.Indexes,
 		trees:   trees,
-		values:  make(map[uint64]T),
+		values:  make(map[T]struct{}),
 	}
 }
 
@@ -88,12 +92,7 @@ func (c *SortCache[T, I]) Get(index I, key string) (value T, ok bool) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
-	ref, ok := c.lookup(index, key)
-	if !ok {
-		return value, false
-	}
-
-	return c.values[ref], true
+	return c.getLocked(index, key)
 }
 
 // HasIndex checks if the specified index is present in this cache.
@@ -113,20 +112,18 @@ func (c *SortCache[T, I]) KeyOf(index I, value T) string {
 	return fn(value)
 }
 
-// lookup is an internal helper that finds the unique reference id for a value given a specific
-// index/key. Must be called either under read or write lock.
-func (c *SortCache[T, I]) lookup(index I, key string) (ref uint64, ok bool) {
+func (c *SortCache[T, I]) getLocked(index I, key string) (T, bool) {
 	tree, exists := c.trees[index]
 	if !exists {
-		return 0, false
+		return *new(T), false
 	}
 
-	entry, exists := tree.Get(entry{key: key})
+	entry, exists := tree.Get(entry[T]{key: key})
 	if !exists {
-		return 0, false
+		return *new(T), false
 	}
 
-	return entry.ref, true
+	return entry.value, true
 }
 
 // Put inserts a value into the sort cache, removing any existing values that collide with it. Since all indexes
@@ -138,20 +135,21 @@ func (c *SortCache[T, I]) Put(value T) (evicted int) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 
-	c.counter++
-	c.values[c.counter] = value
+	if _, alreadyStored := c.values[value]; alreadyStored {
+		return 0
+	}
+	c.values[value] = struct{}{}
 
 	for index, fn := range c.indexes {
 		key := fn(value)
-		// ensure previous entry in this index is deleted if it exists. note that we are fully
-		// deleting it, not just overwriting the reference for this index.
-		if prev, ok := c.lookup(index, key); ok {
-			c.deleteValue(prev)
+		// ensure previous entry in this index is deleted if it exists
+		if prev, ok := c.getLocked(index, key); ok {
+			c.deleteValueLocked(prev)
 			evicted++
 		}
-		c.trees[index].ReplaceOrInsert(entry{
-			key: key,
-			ref: c.counter,
+		c.trees[index].ReplaceOrInsert(entry[T]{
+			key:   key,
+			value: value,
 		})
 	}
 	return
@@ -168,7 +166,6 @@ func (c *SortCache[T, I]) Clear() {
 	}
 
 	clear(c.values)
-	c.counter = 0
 }
 
 // Delete deletes the value associated with the specified index/key if one exists.
@@ -176,42 +173,39 @@ func (c *SortCache[T, I]) Delete(index I, key string) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 
-	ref, ok := c.lookup(index, key)
+	value, ok := c.getLocked(index, key)
 	if !ok {
 		return
 	}
 
-	c.deleteValue(ref)
+	c.deleteValueLocked(value)
 }
 
-// deleteValue is an internal helper that completely deletes the value associated with the specified
-// unique reference id, including removing all of its associated index entries.
-func (c *SortCache[T, I]) deleteValue(ref uint64) {
-	value, ok := c.values[ref]
-	if !ok {
+func (c *SortCache[T, I]) deleteValueLocked(value T) {
+	if _, ok := c.values[value]; !ok {
 		return
 	}
-	delete(c.values, ref)
+	delete(c.values, value)
 
 	for idx, fn := range c.indexes {
-		c.trees[idx].Delete(entry{key: fn(value)})
+		c.trees[idx].Delete(entry[T]{key: fn(value)})
 	}
 }
 
 // readItems populates out with up to pageSize entries from the tree between start and stop.
 // The returned values indicate how many entries were read and what the next key in the
 // sequence is.
-func (c *SortCache[T, I]) readItems(tree *btree.BTreeG[entry], start, stop string, desc bool, out []T) (n int, next string) {
+func (c *SortCache[T, I]) readItems(tree *btree.BTreeG[entry[T]], start, stop string, desc bool, out []T) (n int, next string) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
-	fn := func(ent entry) bool {
+	fn := func(ent entry[T]) bool {
 		if n == len(out) {
 			next = ent.key
 			return false
 		}
 
-		out[n] = c.values[ent.ref]
+		out[n] = ent.value
 		n++
 		return true
 	}
@@ -223,22 +217,22 @@ func (c *SortCache[T, I]) readItems(tree *btree.BTreeG[entry], start, stop strin
 		case start == "" && stop == "":
 			tree.Descend(fn)
 		case start == "":
-			tree.DescendGreaterThan(entry{key: stop}, fn)
+			tree.DescendGreaterThan(entry[T]{key: stop}, fn)
 		case stop == "":
-			tree.DescendLessOrEqual(entry{key: start}, fn)
+			tree.DescendLessOrEqual(entry[T]{key: start}, fn)
 		default:
-			tree.DescendRange(entry{key: start}, entry{key: stop}, fn)
+			tree.DescendRange(entry[T]{key: start}, entry[T]{key: stop}, fn)
 		}
 	} else {
 		switch {
 		case start == "" && stop == "":
 			tree.Ascend(fn)
 		case start == "":
-			tree.AscendLessThan(entry{key: stop}, fn)
+			tree.AscendLessThan(entry[T]{key: stop}, fn)
 		case stop == "":
-			tree.AscendGreaterOrEqual(entry{key: start}, fn)
+			tree.AscendGreaterOrEqual(entry[T]{key: start}, fn)
 		default:
-			tree.AscendRange(entry{key: start}, entry{key: stop}, fn)
+			tree.AscendRange(entry[T]{key: start}, entry[T]{key: stop}, fn)
 		}
 	}
 
