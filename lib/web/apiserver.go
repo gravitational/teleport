@@ -3155,6 +3155,16 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	// TODO(bl-nero): Fix session renewal for scoped sessions. This endpoint
 	// doesn't work for scoped sessions, but currently, the web UI doesn't even
 	// call it in such scenario.
+	identity, err := ctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if identity.ScopePin != nil {
+		// Reject scoped sessions explicitly to prevent removing a scope pin from an existing session without reauthentication.
+		return nil, trace.BadParameter("Scoped sessions are not supported yet")
+	}
+
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
