@@ -83,4 +83,6 @@ type Token interface {
 	GetGithub() *types.ProvisionTokenSpecV2GitHub
 	// GetGitLab returns the GitLab-specific configuration for this token.
 	GetGitLab() *types.ProvisionTokenSpecV2GitLab
+	// GetTPM returns the TPM-specific configuration for this token.
+	GetTPM() *types.ProvisionTokenSpecV2TPM
 }

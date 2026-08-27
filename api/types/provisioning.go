@@ -182,6 +182,8 @@ type ProvisionToken interface {
 	GetGithub() *ProvisionTokenSpecV2GitHub
 	// GetGitLab returns gitlab-specific configuration for this token.
 	GetGitLab() *ProvisionTokenSpecV2GitLab
+	// GetTPM returns the TPM-specific configuration for this token.
+	GetTPM() *ProvisionTokenSpecV2TPM
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -633,6 +635,11 @@ func (p *ProvisionTokenV2) GetGithub() *ProvisionTokenSpecV2GitHub {
 // GetGitLab returns github-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGitLab() *ProvisionTokenSpecV2GitLab {
 	return p.Spec.GitLab
+}
+
+// GetTPM returns the TPM-specific configuration for this token.
+func (p *ProvisionTokenV2) GetTPM() *ProvisionTokenSpecV2TPM {
+	return p.Spec.TPM
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
