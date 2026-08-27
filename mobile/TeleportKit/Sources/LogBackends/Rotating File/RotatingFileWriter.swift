@@ -121,7 +121,8 @@ extension RotatingFileWriter {
 	/// Appends the record to the currently active file.
 	/// - Parameter record: The record to write to disk.
 	private func append(record: String) throws {
-		let record = truncateRecordIfNeeded(Data(record.utf8))
+		let record = encodeAndTruncateIfNeeded(record)
+
 		try openActiveFileIfNeeded()
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
@@ -142,12 +143,43 @@ extension RotatingFileWriter {
 		// TODO: Implement dropped record logging
 	}
 
-	/// Truncates a record if its size exceeds the max size of a single log file.
-	/// - Parameter record: The record to truncate
-	/// - Returns: The record, truncated only if necessary
-	private func truncateRecordIfNeeded(_ record: Data) -> Data {
-		// TODO: Truncate the record
-		record
+	/// Encodes a record as UTF-8, truncating it when its encoded byte count exceeds the maximum file size.
+	///
+	/// Truncation preserves Unicode scalar boundaries and reserves space for a visible truncation marker.
+	///
+	/// - Parameter record: The record to encode and truncate
+	/// - Returns: The record's UTF-8 data, truncated only if necessary
+	private func encodeAndTruncateIfNeeded(_ record: String) -> Data {
+		let recordBytes = Data(record.utf8)
+		guard recordBytes.count > configuration.maximumFileSize else {
+			return recordBytes
+		}
+
+		let truncationMarkerBytes = Data("… [truncated]".utf8)
+		let maximumPrefixByteCount = configuration.maximumFileSize - truncationMarkerBytes.count
+
+		// We take a best guess at where to end the prefix by slicing exactly at the maximum byte count. This is
+		// imperfect, however, because we may be splitting a multi-byte unicode character. We repair this scenario
+		// below.
+		var prefixEndIndex = maximumPrefixByteCount
+
+		// UTF-8 continuation bytes have the bit pattern 10xxxxxx. If the proposed boundary falls within the UTF-8
+		// encoding of a Unicode scalar (i.e. it splits a multi-byte character down the middle) then we should back it
+		// up to scalar's leading byte which will _not_ have that same 10xxxxxx bit pattern.
+		//
+		// See Unicode Standard section 3.9, Table 3-6.
+		// <https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-3/#G27288>
+
+		func isUnicodeContinuationByte(_ byte: UInt8) -> Bool {
+			byte & 0b1100_0000 == 0b1000_0000
+		}
+		while isUnicodeContinuationByte(recordBytes[prefixEndIndex]) {
+			prefixEndIndex -= 1
+		}
+
+		var truncatedRecord = Data(recordBytes[0 ..< prefixEndIndex])
+		truncatedRecord.append(contentsOf: truncationMarkerBytes)
+		return truncatedRecord
 	}
 
 	/// Opens a file for appending if no active file is yet open.
@@ -177,13 +209,12 @@ extension RotatingFileWriter {
 
 			let activeFileSize = try fileClient.seekToEnd()
 			let maximumFileSize = UInt64(configuration.maximumFileSize)
-			let appendingByteCount = UInt64(byteCount)
+			let unsignedByteCount = UInt64(byteCount)
 
-			// Rotation isn't needed when the active file is within its limit and the new record still fits.
-			if
-				activeFileSize <= maximumFileSize,
-				appendingByteCount <= maximumFileSize - activeFileSize
-			{
+			// Rotation isn't needed if appending the record would keep the file within limits
+			let (resultingFileSize, additionOverflowed) = activeFileSize.addingReportingOverflow(unsignedByteCount)
+			let appendingWouldExceedCapacity = additionOverflowed || resultingFileSize > maximumFileSize
+			guard appendingWouldExceedCapacity else {
 				return
 			}
 
@@ -278,10 +309,28 @@ extension RotatingFileWriter {
 
 extension RotatingFileWriter {
 	struct Configuration {
+		/// We need a minimum file size that's at least as large as the smallest token we record in the file, which is
+		/// our truncation marker  "… [truncated]"
+		static let minimumFileSize = 16
+
 		static let live = Configuration(
 			maximumFileSize: 4 * 1024 * 1024,
 			maximumArchiveCount: 3,
 		)
+
+		init(maximumFileSize: Int, maximumArchiveCount: Int) {
+			precondition(
+				maximumFileSize >= Self.minimumFileSize,
+				"Maximum file size must be at least \(Self.minimumFileSize) bytes",
+			)
+			precondition(
+				maximumArchiveCount >= 1,
+				"Maximum archive count must be at least 1",
+			)
+
+			self.maximumFileSize = maximumFileSize
+			self.maximumArchiveCount = maximumArchiveCount
+		}
 
 		/// The maximum size any individual file is allowed to be, in number of bytes
 		let maximumFileSize: Int
