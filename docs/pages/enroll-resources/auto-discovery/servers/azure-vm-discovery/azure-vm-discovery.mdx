@@ -20,7 +20,15 @@ and enroll virtual machines matching configured labels. It will then execute a
 script on these discovered instances that will install Teleport, start it and
 join the cluster.
 
+## Choosing subscription or management group scope
+
+If you want to discover Azure VMs in specific subscriptions, follow the "Single Subscription" guide below.
+
+If you want to discover Azure VMs across subscriptions in a management group
+or tenant, follow the [Management Group Azure VM Auto-Discovery](azure-vm-discovery-management-group.mdx) guide.
+
 ## Guides
 
-- [Manual Azure VM Auto-Discovery](azure-vm-discovery-manual.mdx)
+- [Single Subscription Manual Azure VM Auto-Discovery](azure-vm-discovery-manual.mdx)
 - [Terraform Azure VM Auto-Discovery Configuration](azure-vm-discovery-terraform.mdx)
+- [Management Group Azure VM Auto-Discovery](azure-vm-discovery-management-group.mdx)

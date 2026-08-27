@@ -154,6 +154,10 @@ If you are running Terraform in a remote environment, such as a cloud VM, an on-
 
 Add the `teleport-discovery-azure` module to your Terraform configuration.
 
+<Admonition type="tip">
+To discover VMs across subscriptions in a management group, see [Discover VMs in multiple subscriptions using management groups](#discover-vms-in-multiple-subscriptions-using-management-groups).
+</Admonition>
+
 <Tabs>
 
 <TabItem label="Teleport Cloud">
@@ -284,7 +288,7 @@ Terraform should plan to create the following resources:
 - Azure user-assigned managed identity for the Teleport Discovery Service
 - Azure federated identity credential for OIDC workload identity federation
 - Azure custom role definition with the required VM discovery permissions
-- Azure role assignment scoped to the configured subscription(s)
+- Azure role assignment scoped to the configured subscription(s) or management group
 - Teleport `discovery_config` cluster resource that configures Teleport for Azure resource discovery
 - Teleport `integration` cluster resource for Azure OIDC
 - Teleport `token` cluster resource that allows Teleport nodes to join the cluster using Azure credentials
@@ -399,6 +403,106 @@ Review the Terraform plan before confirming the changes.
 After Terraform finishes applying its plan, the Discovery Service will pick up
 the change to the dynamic `discovery_config` and begin to enroll VMs in the
 newly-configured regions.
+
+## Discover VMs in multiple subscriptions using management groups
+
+To discover VMs across all subscriptions in a management group,
+add the `azure_management_group_id` input and use a wildcard (`"*"`)
+subscription matcher. A tenant ID can be provided to target the Tenant root group.
+
+```hcl
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
+  teleport_discovery_group_name = "<Var name="discovery-group-name" />"
+
+  # Management group ID or tenant ID. Using a tenant ID targets the
+  # Tenant root group, which requires elevated access.
+  azure_management_group_id = "<Var name="management-group-id" />"
+
+  # Name of an existing Azure Resource Group where Azure resources will be created.
+  azure_resource_group_name       = "<Var name="my-resource-group" />"
+  # Azure region where the managed identity used by the Discovery Service will be created.
+  azure_managed_identity_location = "<Var name="eastus" />"
+
+  azure_matchers = [
+    {
+      types = ["vm"]
+      # The wildcard discovers VMs across all subscriptions visible to the
+      # managed identity's role assignment scope.
+      subscriptions = ["*"]
+      # regions filters which Azure regions are scanned. The wildcard matches all regions.
+      regions = ["*"]
+      # tags filter which VMs are enrolled. The wildcard matches all tags.
+      tags = { "*" : ["*"] }
+    }
+  ]
+}
+```
+
+The module will create the role definition and assignment using the provided management
+group scope and generate a provision token allow rule using your tenant ID.
+
+<Admonition type="warning">
+Using the tenant ID as the management group ID targets the
+[Tenant root group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory),
+which requires
+[elevated access](https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin).
+</Admonition>
+
+See the
+[management group example](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-azure/examples/management-group.mdx)
+for a complete example configuration.
+
+### Discover VMs across multiple management groups
+
+To discover VMs across multiple management groups, set `azure_management_group_id`
+to a management group at the top of the hierarchy of the child management groups.
+Use `azure_role_assignment_scopes` input to explicitly set the qualified scopes for the
+managed identity's role assignments.
+
+Using the wildcard subscription matcher (`["*"]`), the Discovery Service will
+discover VMs in subscriptions visible to the role assignments in
+`azure_role_assignment_scopes`.
+
+When `azure_role_assignment_scopes` is provided,
+`teleport_provision_token_allow_rules` must be explicitly set.
+
+```hcl
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
+  teleport_discovery_group_name = "<Var name="discovery-group-name" />"
+
+  azure_resource_group_name       = "<Var name="my-resource-group" />"
+  azure_managed_identity_location = "<Var name="eastus" />"
+
+  # Common parent management group, used as the role definition's assignable scope.
+  azure_management_group_id = "<Var name="management-group-id" />"
+
+  # Role assignments are created at each scope. The wildcard subscription
+  # matcher will discover subscriptions visible to the assigned scopes.
+  azure_role_assignment_scopes = [
+    "/providers/Microsoft.Management/managementGroups/management-group-1",
+    "/providers/Microsoft.Management/managementGroups/management-group-2",
+  ]
+
+  azure_matchers = [
+    {
+      types         = ["vm"]
+      subscriptions = ["*"]
+    }
+  ]
+
+  teleport_provision_token_allow_rules = [
+    { tenant = "00000000-0000-0000-0000-000000000000" }
+  ]
+}
+```
 
 ## Troubleshooting
 

@@ -1,0 +1,43 @@
+If you are running the Discovery Service on its own host, the service requires a
+valid join token to connect to the cluster. Generate one by running the
+following command:
+
+```code
+$ tctl tokens add --type=discovery
+```
+
+Save the generated token in `/tmp/token` on the virtual machine that will run
+the Discovery Service.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
+and <Var name="azure-prod" /> to a name that identifies a group of resources that you will enroll:
+
+```yaml
+# teleport.yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: <Var name="azure-prod" />
+```
+
+Create a matcher for the resources you want to enroll.
+
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
