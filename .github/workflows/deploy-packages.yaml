@@ -317,7 +317,8 @@ jobs:
           aws-region: us-west-2
           role-to-assume: ${{ env.DEPLOYMENT_AWS_ROLE }}
           role-session-name: "gha-os-package-repo-tool-deploy-${{ github.run_number }}"
-          role-duration-seconds: 3600  # 1 hour, the max that the Terraform module allows. DR takes a long time (6 hrs+) so this will cause DR to fail the first time.
+          #role-duration-seconds: 3600  # 1 hour, the max that the Terraform module allows. DR takes a long time (6 hrs+) so this will cause DR to fail the first time.
+          role-duration-seconds: 28800 # For first initial run, we also need to change the Terraform module to allow it.
       - name: Setup GPG signing key
         uses: ./.github/actions/load-gpg-key
         with:
