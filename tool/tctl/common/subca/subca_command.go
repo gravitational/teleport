@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/subca"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	tctlstrings "github.com/gravitational/teleport/tool/tctl/common/strings"
 )
 
 type pemFileList []string
@@ -363,7 +364,7 @@ func (c *createOverrideCSRCommand) Run(
 	}
 
 	// Find smaller hashes so the filenames aren't always 73+ characters.
-	minHashes := findMinHashes(publicKeyHashes)
+	minHashes := tctlstrings.FindMinPrefixes(publicKeyHashes)
 
 	// Write output files.
 	for i, csr := range resp.GetCsrs() {
@@ -374,52 +375,6 @@ func (c *createOverrideCSRCommand) Run(
 		fmt.Fprintf(s.Stdout, "Wrote %s\n", name)
 	}
 	return nil
-}
-
-// findMinHashes finds a smaller, non-conflicting prefix of hashes.
-// Returns a slice containing the prefix hashes, all with the same length.
-func findMinHashes(hashes []string) []string {
-	if len(hashes) == 0 {
-		return nil
-	}
-
-	minHashes := make([]string, len(hashes))
-
-	const startLen = 8
-	for minLen := startLen; true; minLen++ {
-		seenHashes := make(map[string]struct{})
-		trimmed := false
-
-		// Attempt to trim all entries to minLen.
-		for i, h := range hashes {
-			if minLen < len(h) {
-				minHashes[i] = h[:minLen]
-				trimmed = true
-			} else {
-				minHashes[i] = h
-			}
-		}
-
-		// If no hashes could be trimmed stop and return original slice.
-		if !trimmed {
-			break
-		}
-
-		// Look for a repeated hash. If there is none, return.
-		collision := false
-		for _, mh := range minHashes {
-			if _, seen := seenHashes[mh]; seen {
-				collision = true
-				break
-			}
-			seenHashes[mh] = struct{}{}
-		}
-		if !collision {
-			return minHashes
-		}
-	}
-
-	return hashes
 }
 
 type pubKeyHashCommand struct {

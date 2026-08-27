@@ -21,22 +21,29 @@ package common
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -388,6 +395,7 @@ type mockClient struct {
 	dbCertsReq     *proto.DatabaseCertRequest
 	dbCerts        *proto.DatabaseCertResponse
 	cas            []types.CertAuthority
+	caOverride     *subcav1.CertAuthorityOverride
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
 	kubeServers    []types.KubeServer
@@ -427,6 +435,13 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 		}
 	}
 	return nil, trace.NotFound("%q CA not found", id)
+}
+
+func (c *mockClient) GetCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error) {
+	if c.caOverride == nil {
+		return nil, trace.NotFound("ca override not found")
+	}
+	return c.caOverride, nil
 }
 
 func (c *mockClient) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
@@ -969,33 +984,282 @@ func TestGenerateAndSignKeys(t *testing.T) {
 }
 
 func TestExportCRL(t *testing.T) {
-	ctx := context.Background()
-	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
+	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "zarquon2",
+		ClusterID:   "399282f3-4eb1-4fe9-88a1-bb98c199ced9",
+	})
 	require.NoError(t, err)
+
 	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))
 	for i, certificateType := range allowedCRLCertificateTypes {
 		cas[i], err = types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.CertAuthType(certificateType),
-			ClusterName: "name",
+			ClusterName: cn.GetClusterName(),
 			ActiveKeys: types.CAKeySet{
 				TLS: []*types.TLSKeyPair{{
-					CRL:  []byte{},
-					Cert: []byte{1},
+					CRL: []byte{}, // Exercise fallback.
+					// Cert is correct, but doesn't necessarily matches the CA types.
+					// Good enough for this test.
+					Cert: []byte(`-----BEGIN CERTIFICATE-----
+MIIDfTCCAmWgAwIBAgIRAIuoscyl0dc9/t/KwsJQlT0wDQYJKoZIhvcNAQELBQAw
+WDERMA8GA1UEChMIemFycXVvbjIxETAPBgNVBAMTCHphcnF1b24yMTAwLgYDVQQF
+EycxODU2Mzg2MDM0ODY3MDA4NjUyMDAwNDQ0MzI1NTkwOTkxMjMwMDUwHhcNMjYw
+NTI1MTkwNzE1WhcNMzYwNTIyMTkwNzE1WjBYMREwDwYDVQQKEwh6YXJxdW9uMjER
+MA8GA1UEAxMIemFycXVvbjIxMDAuBgNVBAUTJzE4NTYzODYwMzQ4NjcwMDg2NTIw
+MDA0NDQzMjU1OTA5OTEyMzAwNTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
+ggEBAJtsB4WxMx3XT5YPESccngAK1SrvozCxlklY0lR+T59t9NXEntvCguYmkbmH
+83+rHRH7RJcle31HXmfotO0E1mLjE9wfMeSetp/4N0eEUMWGOIrzWiEpwKTuN+XD
+2A7wyKQM2d6gSkXb1wwLHNP244ht/aiItOFdvVkc9SI0vwT1skT+oaHj+oG7ZeGd
+mBOMtTMBr5d2tC+MBBb1q4Wa4ZaSrtyM68mhP5agGhOh+M0RjS+6j1AMcZ6+J9WH
+Qzf9ARmOzmDr3mvQT7Hhx8yAF6P79+U9aZ+2lYbKOKZIG+SY+9eS2MO7lpV1d8v3
+9EeGNgT+90qpEYUc7zIEC/tQ0QUCAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8G
+A1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFNJZ4MklyJbcQEMnTYWtRbfhxwTQMA0G
+CSqGSIb3DQEBCwUAA4IBAQBKyATEQ5vM5ADJc1MgiL6JezoLgziIypePunhCNrT4
+u+1giXOCVN2hvL5Txi297gdI6mkzvXCF2A/zWu9GC52/6dVZJdzV3B0DZA1ndO9w
+59aVs1M42TL4/UFMC13uVlBGDNWqVRuwbj/32f+Fk2XS5wWifCALt2FZFoC8EJtz
+J5sVCOjW4770V/Rv6dKrgQ4Aetjh+uFfkwGIrS+ML9P+kGYn/DH7YjAd+G1zDO0J
+GpjHiUgMO+DiVCbXvGVkCDIsTY9if7mKqK3/1NApw7dNPYTsbEd/MvBZjavTp4g3
+g91LhyoHvL2hDz1Dxg3yMf5qQXgmn6b7+Cb4XGkfLii0
+-----END CERTIFICATE-----`),
 				}}},
 		})
 		require.NoError(t, err)
 	}
-	authClient := &mockClient{crl: []byte{}, clusterName: name, cas: cas}
+
+	const caCRLPEM = `insert fallback CRL here`
+	authClient := &mockClient{
+		clusterName: cn,
+		cas:         cas,
+		crl:         []byte(caCRLPEM),
+	}
 
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			require.NoError(t, ac.ExportCRL(ctx, authClient))
+			require.NoError(t, ac.ExportCRL(t.Context(), authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		require.Error(t, ac.ExportCRL(ctx, authClient))
+		require.Error(t, ac.ExportCRL(t.Context(), authClient))
+	})
+
+	t.Run("export CA override CRLs", func(t *testing.T) {
+		const caType = types.DatabaseClientCA
+
+		// This test uses realistic data extracted from a test cluster.
+
+		// CRLs for the CA keys.
+		const crl0B64 = `MIIB0jCBuwIBATANBgkqhkiG9w0BAQsFADBYMREwDwYDVQQKEwh6YXJxdW9uMjERMA8GA1UEAxMIemFycXVvbjIxMDAuBgNVBAUTJzE2MTI4NzczNDA3MDQwMTExNTQ4MTE1MTQxNjc4NTg4MDc5MDMyNBcNMjYwNzAzMjE0MTU3WhcNMzYwNjMwMjE0MjU3WqAvMC0wHwYDVR0jBBgwFoAUAnBL+mnAnFYlInnsCxa16c840JcwCgYDVR0UBAMCAQEwDQYJKoZIhvcNAQELBQADggEBAHPVNlteYTPsC38KB+ClTbEKvuj4ete8eIwWeE1mPENRA7u8LgnTHMy53FwfNhwu93fUuebQi5umO+0nh4z8bYnYLnADv2V7gND3cBHGdqdUVQ+4fH9kTbH/JJ4udRfTfNcrhRzDlt2+xIh4UuYJVu99xsXeTRmpemvRevA7hwaDuAQoMtaGMI5eVjHFzCBKNuRo7GEQyRNKk/XNq6b/5mOnrvOa5YHaE2uo6Z5mw+CrvF7L3yEAqjhG+RGgsfS/wbn7GTRcNkOk+dq8YOrjzo3bH5O88fCJhTyZYHXBopOM1jzE8KI9BLiULsvTMta5tvAAimtlPA31w/7Wc4DTmuo=`
+		const crl1B64 = `MIIB0TCBugIBATANBgkqhkiG9w0BAQsFADBXMREwDwYDVQQKEwh6YXJxdW9uMjERMA8GA1UEAxMIemFycXVvbjIxLzAtBgNVBAUTJjk4OTc4MjA4ODYwNjY0NDI4MTk2MDc4NDM4NDk4OTYyMjQyNzQyFw0yNjA3MDMyMTQyMTFaFw0zNjA2MzAyMTQzMTFaoC8wLTAfBgNVHSMEGDAWgBRwPftLdWlY7fcq2R52heLZ4uOn4TAKBgNVHRQEAwIBATANBgkqhkiG9w0BAQsFAAOCAQEAmY2p9h1QZ39TrZnhnVycgwnGQIGwM/BtFqM7xcX0kgbx46eAbZCG8jZRFzDOy25xIzPAe0JtfhOo/DCkIqoUL9OFVCrQm3xFoNGcGugFhelwOiONYOLllsCYPvYnIDKCj4UgI46BsqKYBqo0ajFx7ZkuYCMx1NkFBNMhRKen9hM3VxITlt6OqI5Ti38SGaVwde+mmTOMBYw+EBq37nga4Aty759rQ735qdoWNG+CBWad8CX8AhkEV8IA2ArDKmqv7D5NX8FVE2S6zDGLWEr0rzavJ58h1U/mhNPxTcICTUdXYBCTXYsjaDSdYxh3R22hMTK88AtxscEK1olf4i++uQ==`
+		crl0DER, err := base64.StdEncoding.DecodeString(crl0B64)
+		require.NoError(t, err)
+		crl1DER, err := base64.StdEncoding.DecodeString(crl1B64)
+		require.NoError(t, err)
+
+		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        caType,
+			ClusterName: cn.GetClusterName(),
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{
+					{
+						Cert: []byte(`-----BEGIN CERTIFICATE-----
+MIIDfDCCAmSgAwIBAgIQeVbjPmWsOfHncpf+XTi1NDANBgkqhkiG9w0BAQsFADBY
+MREwDwYDVQQKEwh6YXJxdW9uMjERMA8GA1UEAxMIemFycXVvbjIxMDAuBgNVBAUT
+JzE2MTI4NzczNDA3MDQwMTExNTQ4MTE1MTQxNjc4NTg4MDc5MDMyNDAeFw0yNjA3
+MDMyMTQyNTdaFw0zNjA2MzAyMTQyNTdaMFgxETAPBgNVBAoTCHphcnF1b24yMREw
+DwYDVQQDEwh6YXJxdW9uMjEwMC4GA1UEBRMnMTYxMjg3NzM0MDcwNDAxMTE1NDgx
+MTUxNDE2Nzg1ODgwNzkwMzI0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+AQEAvM447Iks2+YBGKnXutWtyI95qip8j+XwhfWvZU8/UibUdK82Tt5XgEi29bVy
+ZlylpgFng8zYJXtaJ+YOLvrmRj0+4yMxP3auMRj4zZagmuWYquB9krCc9/NvLtTA
+Ij76/dEeFUQ+Tp6InlDpHF7XH8iIe2/axDsp1osYNMj6bf0ceKCNJnpb53Xdab0V
+a5roeb8xNjDmshb7UVyLtonKcZp0yGia/ewvuwxnu+eVx2iI++oqY6w6ZFdy7kML
+VzMnQzIKjoziso0vzgCo7CsHC9uhOssMcTZEIeQvawINDstkGPxn5tam+q7XcrzP
+xp2dKY8cB6owLjvRyE9z+LovOwIDAQABo0IwQDAOBgNVHQ8BAf8EBAMCAaYwDwYD
+VR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUAnBL+mnAnFYlInnsCxa16c840JcwDQYJ
+KoZIhvcNAQELBQADggEBABfTDRHfs6qrcxYYrXWax8M6UzsTflveNgU+uaFNiK+U
+IKZ6D3ffrbMlgeVdBZE7x49LQ0rlM0nQrCPnQ+zCM3gCQvb7z2+kM7zjve5AE+Yh
+PSp04g+KBziEi7Gph/acungRSgvShpPnhjr6j+CKgx12OVsQR0RKJCHNar1OCEMl
+8u03f2e2UHV2rSoWPH6m40unNVUFmRAaKA4GYNxyzKSt9I53XXYmLWKxSgo1Cs5j
+BPVpD3G/VE471YE4VXyP57nGCF4f/I3q0giHu5J3HciI+hstqGv6/yRzCe1v3l+o
+qaN2yzRzuW5Kxr0Lq39hGVjbrrG6RuSq8Z4PoSOeJkM=
+-----END CERTIFICATE-----`),
+						CRL: crl0DER,
+					},
+					{
+						Cert: []byte(`-----BEGIN CERTIFICATE-----
+MIIDejCCAmKgAwIBAgIQSnaCdwYN6cRDxWdfh2v8tjANBgkqhkiG9w0BAQsFADBX
+MREwDwYDVQQKEwh6YXJxdW9uMjERMA8GA1UEAxMIemFycXVvbjIxLzAtBgNVBAUT
+Jjk4OTc4MjA4ODYwNjY0NDI4MTk2MDc4NDM4NDk4OTYyMjQyNzQyMB4XDTI2MDcw
+MzIxNDMxMVoXDTM2MDYzMDIxNDMxMVowVzERMA8GA1UEChMIemFycXVvbjIxETAP
+BgNVBAMTCHphcnF1b24yMS8wLQYDVQQFEyY5ODk3ODIwODg2MDY2NDQyODE5NjA3
+ODQzODQ5ODk2MjI0Mjc0MjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AODhC8EStri0FiF5jkEVOPJCnYSE+qwiEwTk7LecjRO3ek1JVCCG0UpbhmzeNpa1
+CqTa/LJ3nwCxp5F4MfP+OSKHQ0r0OSqQhx8N7mF4ug/E4onivVkzokX02T8C/lww
+ncES+yBW6lJLlsEiZfvqpJZRhJZ2ij1XjBsWe7GhUXth0sfdxoOHL8DEkaOxMojG
+fx+JbfsMEsqIEwECHG2mjgzHSEgPSuqFYXn1XKu9vYQXGHaUa0tH3RrmUXczvP1w
+yE/nu8AWryUtPNsBqqrdKJomST714oEZvwzkT4fTCdpvCITY2aAouBhdPxa8772A
+IWOYQxyZXahVGkKrpHlAQ4MCAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8GA1Ud
+EwEB/wQFMAMBAf8wHQYDVR0OBBYEFHA9+0t1aVjt9yrZHnaF4tni46fhMA0GCSqG
+SIb3DQEBCwUAA4IBAQAF4jFGIoZhBuB4n4AnfC8bUyf2tHke3PkM2C5orVqQwMTl
+XOaA2BKTXKuIJlcGNzgI3Zr5i7Gh9y4f7MwQonruffGLN/rR5NnpzA6Kkf/p2ksm
+wSvDPiCkGyxCDg3Yigx/MD7LHReC2CDU3CsnBjTENVX4yj71LwYQUslUYi542yzl
+TsSpWpepmZtL6l0PvsmfvVErK9I4qOi5pKlpyI9gvDy1q+8FqqVcf0NWF0NPQwCq
+UVA40Q9XMe+1LYkPf1DQSR2jqQvle8zBDPIRLupK0DFlRfjMEK3xFw8c26itsJB+
+4fdpEnavGFEZi5jrrj4Nf8oxw41QVXb18E92YS42
+-----END CERTIFICATE-----`),
+						CRL: crl1DER,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		dbOverride := subcav1.CertAuthorityOverride_builder{
+			Kind:    types.KindCertAuthorityOverride,
+			SubKind: string(caType),
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: cn.GetClusterName(),
+			}.Build(),
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					subcav1.CertificateOverride_builder{
+						PublicKey: "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3",
+						Certificate: `-----BEGIN CERTIFICATE-----
+MIICmTCCAkCgAwIBAgIUZnPGsB96Sun0DmoXogO492VLDFUwCgYIKoZIzj0EAwIw
+RDETMBEGA1UEChMKTGxhbWEgQ29ycDERMA8GA1UECxMITGxhbWEgQ0ExGjAYBgNV
+BAMTEUxsYW1hIERhdGFiYXNlIENBMB4XDTI2MDcwNjE3MTUwMFoXDTMxMDcwNTE3
+MTUwMFowJjERMA8GA1UEChMIemFycXVvbjIxETAPBgNVBAMTCHphcnF1b24yMIIB
+IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvM447Iks2+YBGKnXutWtyI95
+qip8j+XwhfWvZU8/UibUdK82Tt5XgEi29bVyZlylpgFng8zYJXtaJ+YOLvrmRj0+
+4yMxP3auMRj4zZagmuWYquB9krCc9/NvLtTAIj76/dEeFUQ+Tp6InlDpHF7XH8iI
+e2/axDsp1osYNMj6bf0ceKCNJnpb53Xdab0Va5roeb8xNjDmshb7UVyLtonKcZp0
+yGia/ewvuwxnu+eVx2iI++oqY6w6ZFdy7kMLVzMnQzIKjoziso0vzgCo7CsHC9uh
+OssMcTZEIeQvawINDstkGPxn5tam+q7XcrzPxp2dKY8cB6owLjvRyE9z+LovOwID
+AQABo2MwYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E
+FgQURQRbVb2EI4egIQZ2zt/oXcb2NC0wHwYDVR0jBBgwFoAUDC1GIwweTul8uBzi
+Q4FKcCFBuhowCgYIKoZIzj0EAwIDRwAwRAIgQiPzqSjKq8ucTqmBNVeZklTuyw5M
+kTSEqy+nGEix+p0CIHRzwR+NglPmmAyxH6bSFZ95a96MmhziET2vaoTicSEW
+-----END CERTIFICATE-----`,
+						Disabled: true, // Doesn't matter, should still print.
+					}.Build(),
+					subcav1.CertificateOverride_builder{
+						PublicKey: "1cd6a96e049f643d1f8c1cdd0390c08c2a7587df204ba254ee46009c08e80456",
+						Certificate: `-----BEGIN CERTIFICATE-----
+MIIDejCCAmKgAwIBAgIQSnaCdwYN6cRDxWdfh2v8tjANBgkqhkiG9w0BAQsFADBX
+MREwDwYDVQQKEwh6YXJxdW9uMjERMA8GA1UEAxMIemFycXVvbjIxLzAtBgNVBAUT
+Jjk4OTc4MjA4ODYwNjY0NDI4MTk2MDc4NDM4NDk4OTYyMjQyNzQyMB4XDTI2MDcw
+MzIxNDMxMVoXDTM2MDYzMDIxNDMxMVowVzERMA8GA1UEChMIemFycXVvbjIxETAP
+BgNVBAMTCHphcnF1b24yMS8wLQYDVQQFEyY5ODk3ODIwODg2MDY2NDQyODE5NjA3
+ODQzODQ5ODk2MjI0Mjc0MjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AODhC8EStri0FiF5jkEVOPJCnYSE+qwiEwTk7LecjRO3ek1JVCCG0UpbhmzeNpa1
+CqTa/LJ3nwCxp5F4MfP+OSKHQ0r0OSqQhx8N7mF4ug/E4onivVkzokX02T8C/lww
+ncES+yBW6lJLlsEiZfvqpJZRhJZ2ij1XjBsWe7GhUXth0sfdxoOHL8DEkaOxMojG
+fx+JbfsMEsqIEwECHG2mjgzHSEgPSuqFYXn1XKu9vYQXGHaUa0tH3RrmUXczvP1w
+yE/nu8AWryUtPNsBqqrdKJomST714oEZvwzkT4fTCdpvCITY2aAouBhdPxa8772A
+IWOYQxyZXahVGkKrpHlAQ4MCAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8GA1Ud
+EwEB/wQFMAMBAf8wHQYDVR0OBBYEFHA9+0t1aVjt9yrZHnaF4tni46fhMA0GCSqG
+SIb3DQEBCwUAA4IBAQAF4jFGIoZhBuB4n4AnfC8bUyf2tHke3PkM2C5orVqQwMTl
+XOaA2BKTXKuIJlcGNzgI3Zr5i7Gh9y4f7MwQonruffGLN/rR5NnpzA6Kkf/p2ksm
+wSvDPiCkGyxCDg3Yigx/MD7LHReC2CDU3CsnBjTENVX4yj71LwYQUslUYi542yzl
+TsSpWpepmZtL6l0PvsmfvVErK9I4qOi5pKlpyI9gvDy1q+8FqqVcf0NWF0NPQwCq
+UVA40Q9XMe+1LYkPf1DQSR2jqQvle8zBDPIRLupK0DFlRfjMEK3xFw8c26itsJB+
+4fdpEnavGFEZi5jrrj4Nf8oxw41QVXb18E92YS42
+-----END CERTIFICATE-----`,
+						Chain:    []string{},
+						Disabled: false,
+					}.Build(),
+				},
+			}.Build(),
+			Status: subcav1.CertAuthorityOverrideStatus_builder{
+				PublicKeyHashToCrl: map[string]*subcav1.CertificateRevocationList{
+					"ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3": subcav1.CertificateRevocationList_builder{
+						Pem: `-----BEGIN X509 CRL-----
+MIIBoDCBiQIBATANBgkqhkiG9w0BAQsFADAmMREwDwYDVQQKEwh6YXJxdW9uMjER
+MA8GA1UEAxMIemFycXVvbjIXDTI2MDgxNDE3NDc0MloXDTM2MDYzMDIxNDI1N1qg
+LzAtMB8GA1UdIwQYMBaAFEUEW1W9hCOHoCEGds7f6F3G9jQtMAoGA1UdFAQDAgEB
+MA0GCSqGSIb3DQEBCwUAA4IBAQCRGbSir414VBt3g5ZUI4gv9E3nvFu09rZBWOj6
+i30gHEsZZog0CBfP82gZU55SknJFeI/MpcpzUYedyuQw9caZNHYtHZEvosY5VbL5
+pNIvX0kPlvLb5noX5T+X3Nu5WC1OI0Ms7Wkf8/+BcBt92OFfOdiA4q2ayKQINg9S
+5ppN//kyVTwL5SSDXneDzwFzWELKDn2FkAtAdw4AdmOzcyNy+UrroOiKq+3j9GIa
+PDtU51hI1fJYfKQsw1d2MOfbUgPjB8uytX7nDtE804XvZc2pi+Ad3ETAO6JnJsN8
+T5uCDcQc3NmievDZ4l0Z5mW/EZY2G2p4GTbMlHQ/jn9trdAw
+-----END X509 CRL-----`,
+					}.Build(),
+					"1cd6a96e049f643d1f8c1cdd0390c08c2a7587df204ba254ee46009c08e80456": subcav1.CertificateRevocationList_builder{
+						Pem: `-----BEGIN X509 CRL-----
+MIIBoDCBiQIBATANBgkqhkiG9w0BAQsFADAmMREwDwYDVQQKEwh6YXJxdW9uMjER
+MA8GA1UEAxMIemFycXVvbjIXDTI2MDgxNDE3NDc0NVoXDTM2MDYzMDIxNDMxMVqg
+LzAtMB8GA1UdIwQYMBaAFEy7tFBeWHGV2/R88jUvUqJ9rSNaMAoGA1UdFAQDAgEB
+MA0GCSqGSIb3DQEBCwUAA4IBAQBzRwg3M4ISfibS4G4vYhkrUC5sjT6xY7Y5mdOw
+6TMDwqEMLHY03wRlsrSRriAZWiIn4EryWFqLUBa0NoOeGWnlzRiECWqrheqQx8nK
+GRZiwVVgd2WccI+/8keyXo3INhQ8v74GOkJSHVKky1mVcI7Y6kbuAfBEExbK4ZFN
+es8dmGd0jSRo34VydUMdQ4JSZhKdSLg8MS0fQBB9Wu6ThGVz6VSopczNRZvuNR7R
+E756JiXjWgGMayVLpU2eODddiIIZgwUOyeqcYUu5bcqtQcm/mLUUKIIzsy+1/Qgv
+CUtq0a2VtxmCG/KK3WLQKMk5X2VeOSX+kW8NH+UR8dOKwH6w
+-----END X509 CRL-----`,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build()
+
+		// Parse override CRLs.
+		override0PK := dbOverride.GetSpec().GetCertificateOverrides()[0].GetPublicKey()
+		override1PK := dbOverride.GetSpec().GetCertificateOverrides()[1].GetPublicKey()
+		override0CRLBlock, _ := pem.Decode([]byte(dbOverride.GetStatus().GetPublicKeyHashToCrl()[override0PK].GetPem()))
+		require.NotNil(t, override0CRLBlock, "Failed to decoded CRL PEM")
+		override1CRLBlock, _ := pem.Decode([]byte(dbOverride.GetStatus().GetPublicKeyHashToCrl()[override1PK].GetPem()))
+		require.NotNil(t, override1CRLBlock, "Failed to decoded CRL PEM")
+
+		authClient := &mockClient{
+			clusterName: cn,
+			cas:         []types.CertAuthority{dbCA},
+			caOverride:  dbOverride,
+		}
+
+		stderr := &strings.Builder{}
+		ac := AuthCommand{
+			caType:         string(caType),
+			stderrOverride: stderr,
+		}
+		// This should fail, we only allow 1 PEM to stdout.
+		require.ErrorContains(t, ac.ExportCRL(t.Context(), authClient), "CA has multiple exportable CRLs")
+		stderr.Reset()
+
+		tempDir := t.TempDir()
+		ac.output = filepath.Join(tempDir, "c")
+		require.NoError(t, ac.ExportCRL(t.Context(), authClient))
+
+		// Filenames are deterministic.
+		wantFiles := map[string][]byte{
+			tempDir + "/c-db_client-ea16c3a8.crl":          crl0DER,
+			tempDir + "/c-db_client-1cd6a96e.crl":          crl1DER,
+			tempDir + "/c-db_client-override-ea16c3a8.crl": override0CRLBlock.Bytes,
+			tempDir + "/c-db_client-override-1cd6a96e.crl": override1CRLBlock.Bytes,
+		}
+		for path, want := range wantFiles {
+			got, err := os.ReadFile(path)
+			if assert.NoError(t, err, "read output file") {
+				assert.Equal(t, want, got, "output file %q contents mismatch", path)
+			}
+		}
+
+		// Assert instructions.
+		wantInstructions := []string{
+			`certutil -dspublish ` + tempDir + `/c-db_client-ea16c3a8.crl TeleportDB "09O4NUJ9O2E5C992F7M0M5LLT77JHK4N_zarquon2"`,
+			`certutil -dspublish ` + tempDir + `/c-db_client-1cd6a96e.crl TeleportDB "E0UVMIRLD5CERTPAR4F7D1F2R7HE79V1_zarquon2"`,
+			`certutil -dspublish ` + tempDir + `/c-db_client-override-ea16c3a8.crl TeleportDB "8K25MLDTGGHOF8110PRCTNV8BN3FCD1D_zarquon2"`,
+			`certutil -dspublish ` + tempDir + `/c-db_client-override-1cd6a96e.crl TeleportDB "E0UVMIRLD5CERTPAR4F7D1F2R7HE79V1_zarquon2"`,
+		}
+		t.Logf("Command stderr:\n[%s]\n\n", stderr)
+		lines := strings.Split(stderr.String(), "\n")
+		for _, want := range wantInstructions {
+			found := slices.ContainsFunc(lines, func(line string) bool {
+				return strings.Contains(line, want)
+			})
+			assert.True(t, found, "Missing instruction in stderr: %q", want)
+		}
 	})
 }

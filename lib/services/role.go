@@ -70,6 +70,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindAuthServer, RO()),
 	types.NewRule(types.KindReverseTunnel, RO()),
 	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
+	types.NewRule(types.KindCertAuthorityOverride, RO()),
 	types.NewRule(types.KindClusterAuthPreference, RO()),
 	types.NewRule(types.KindClusterName, RO()),
 	types.NewRule(types.KindSSHSession, RO()),

@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -27,6 +28,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
@@ -52,11 +55,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
+	tctlstrings "github.com/gravitational/teleport/tool/tctl/common/strings"
 	subcacmd "github.com/gravitational/teleport/tool/tctl/common/subca"
 )
 
@@ -99,6 +104,9 @@ type AuthCommand struct {
 	streamTarfile              bool
 	identityWriter             identityfile.ConfigWriter
 	integration                string
+
+	// Used to override stdout/stderr in testing.
+	stderrOverride io.Writer
 
 	authRotate authRotateCommand
 
@@ -519,76 +527,223 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	return nil
 }
 
+type exportCRLOutput struct {
+	CertPEM, CRLDER []byte
+	IsOverride      bool
+
+	// Cert is parsed from CertPEM.
+	Cert *x509.Certificate
+	// MinPublicKeyHash is calculated in relation to the entire set of outputs.
+	MinPublicKeyHash string
+}
+
 // ExportCRL exports an empty certificate revocation list for a
 // Teleport certificate authority.
 func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClient) error {
+	stderr := cmp.Or(a.stderrOverride, io.Writer(os.Stderr))
+
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := clusterAPI.GetClusterName(ctx)
+	clusterNameResource, err := clusterAPI.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clusterName := clusterNameResource.GetClusterName()
+
+	// Read CA.
 	authority, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       certType,
-		DomainName: clusterName.GetClusterName(),
+		DomainName: clusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	tlsKeys := authority.GetActiveKeys().TLS
-	if len(tlsKeys) == 0 {
-		return trace.BadParameter("CA has no active keys")
+
+	// Run CRL generation fallback.
+	// Only allowed for single-key clusters, in multi-signer clusters this isn't
+	// guaranteed to hit the correct Auth server.
+	// TODO(codingllama): DELETE IN 20. All CRLs are backfilled by v19.
+	if len(tlsKeys) == 1 && len(tlsKeys[0].CRL) == 0 {
+		fmt.Fprintf(stderr,
+			"Keypair is missing CRL for %v authority %v, generating legacy fallback\n",
+			authority.GetType(),
+			authority.GetName(),
+		)
+		crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsKeys[0].CRL = crl
+	}
+
+	// Collect output.
+	var res []*exportCRLOutput
+	for i, kp := range tlsKeys {
+		if len(kp.CRL) == 0 {
+			fmt.Fprintf(stderr, "Keypair %d has an empty CRL for %v authority %v, skipping\n",
+				i,
+				authority.GetType(),
+				authority.GetName(),
+			)
+			continue
+		}
+		res = append(res, &exportCRLOutput{
+			CertPEM: kp.Cert,
+			CRLDER:  kp.CRL,
+		})
+	}
+
+	// Read CA overrides.
+	overrideCRLs, err := a.exportCAOverrideCRLs(ctx, clusterAPI, clusterName, certType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	res = append(res, overrideCRLs...)
+
+	if len(res) == 0 {
+		return trace.BadParameter("CA has no exportable CRLs")
 	}
 
 	if a.output == "" {
-		if len(tlsKeys) > 1 {
-			return trace.BadParameter("CA has multiple active keys, use --out to export all CRLs")
+		if len(res) > 1 {
+			return trace.BadParameter("CA has multiple exportable CRLs, use --out to export all")
 		}
-		crl := tlsKeys[0].CRL
-		if len(crl) == 0 {
-			fmt.Fprintf(os.Stderr, "keypair is missing CRL for %v authority %v, generating legacy fallback", authority.GetType(), authority.GetName())
-			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Print(string(crl))
+		// Yes, this prints DER to stdout. Kept for compatilibity purposes.
+		os.Stdout.Write(res[0].CRLDER)
 		return nil
 	}
 
-	// collect the CRLs ahead of time so we can print a message
-	// like we do with tctl auth export
-	type output struct{ cert, crl []byte }
-	var results []output
-	for _, keypair := range tlsKeys {
-		results = append(results, output{keypair.Cert, keypair.CRL})
+	// Parse certificates and calculate min hashes.
+	if err := prepareCRLOutputs(res); err != nil {
+		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
-	commands := make([]string, len(results))
-	for i, out := range results {
-		block, _ := pem.Decode(out.cert)
-		cert, err := x509.ParseCertificate(block.Bytes)
+	fmt.Fprintf(stderr, "Writing %d files with prefix %q\n", len(res), a.output)
+	commands := make([]string, len(res))
+	for i, out := range res {
+		overrideSuffix := ""
+		if out.IsOverride {
+			overrideSuffix = "-override"
+		}
+		filename := fmt.Sprintf("%s-%s%s-%s.crl",
+			a.output,
+			certType,
+			overrideSuffix,
+			out.MinPublicKeyHash,
+		)
+		if err := os.WriteFile(filename, out.CRLDER, os.FileMode(0644)); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(stderr, filename)
+
+		var crlCN string
+		if len(tlsKeys) > 1 || out.IsOverride {
+			crlCN = winpki.CRLCN(out.Cert.Subject.CommonName, out.Cert.SubjectKeyId)
+		} else {
+			crlCN = winpki.CRLCN(out.Cert.Subject.CommonName, nil)
+		}
+		commands[i] = fmt.Sprintf("certutil -dspublish %s TeleportDB %q", filename, crlCN)
+	}
+
+	if certType == types.DatabaseClientCA && len(res) > 1 {
+		fmt.Fprintln(stderr, "\nTo publish CRLs, run the following in Windows:")
+		for _, command := range commands {
+			fmt.Fprintln(stderr, "  "+command)
+		}
+	}
+
+	return nil
+}
+
+func (a *AuthCommand) exportCAOverrideCRLs(
+	ctx context.Context,
+	clusterAPI authCommandClient,
+	clusterName string,
+	caType types.CertAuthType,
+) ([]*exportCRLOutput, error) {
+	subCAType := string(caType)
+	if !slices.Contains(subca.SupportedCATypes(), subCAType) {
+		return nil, nil
+	}
+
+	caOverride, err := clusterAPI.GetCertAuthorityOverride(ctx, types.CertAuthorityOverrideID{
+		ClusterName: clusterName,
+		CAType:      subCAType,
+	})
+	switch {
+	case trace.IsNotImplemented(err) || trace.IsNotFound(err):
+		return nil, nil
+	case err != nil:
+		return nil, trace.Wrap(err, "read CA overrides")
+	}
+
+	var res []*exportCRLOutput
+	for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+		if co.GetCertificate() == "" {
+			continue
+		}
+
+		pkh := subca.NormalizePublicKey(co.GetPublicKey())
+		if pkh == "" {
+			cert, err := tlsutils.ParseCertificatePEM([]byte(co.GetCertificate()))
+			if err != nil {
+				return nil, trace.Wrap(err, "parse CA override certificate")
+			}
+			pkh = subca.HashCertificatePublicKey(cert)
+		}
+
+		crl, ok := caOverride.GetStatus().GetPublicKeyHashToCrl()[pkh]
+		if ok && crl.GetPem() != "" {
+			block, _ := pem.Decode([]byte(crl.GetPem()))
+			if block == nil {
+				return nil, trace.BadParameter("failed to decode CRL PEM from certificate override %s", pkh)
+			}
+			res = append(res, &exportCRLOutput{
+				CertPEM:    []byte(co.GetCertificate()),
+				CRLDER:     block.Bytes,
+				IsOverride: true,
+			})
+		}
+	}
+
+	return res, nil
+}
+
+func prepareCRLOutputs(res []*exportCRLOutput) error {
+	// Pre-calculate public key hashes. We need all hashes at once to calculate
+	// the min prefixes.
+	var minCAHashes []string
+	var minOverrideHashes []string
+	for _, out := range res {
+		var err error
+		out.Cert, err = tlsutils.ParseCertificatePEM(out.CertPEM)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		cn := winpki.CRLCN(cert.Subject.CommonName, cert.SubjectKeyId)
-		filename := fmt.Sprintf("%s-%v-%v.crl", a.output, certType, cn)
-		if err := os.WriteFile(filename, out.crl, os.FileMode(0644)); err != nil {
-			return trace.Wrap(err)
+		pkh := subca.HashCertificatePublicKey(out.Cert)
+		if out.IsOverride {
+			minOverrideHashes = append(minOverrideHashes, pkh)
+		} else {
+			minCAHashes = append(minCAHashes, pkh)
 		}
-		fmt.Fprintln(os.Stderr, filename)
-		commands[i] = fmt.Sprintf("certutil -dspublish %s TeleportDB %s", filename, cn)
 	}
 
-	if certType == types.DatabaseClientCA && len(results) > 1 {
-		fmt.Fprintln(os.Stderr, "\nTo publish CRLs, run the following in Windows:")
-		for _, command := range commands {
-			fmt.Fprintln(os.Stderr, "  "+command)
+	// CA and CA override hashes will always clash. Calculate separately.
+	minCAHashes = tctlstrings.FindMinPrefixes(minCAHashes)
+	minOverrideHashes = tctlstrings.FindMinPrefixes(minOverrideHashes)
+
+	// Assign the min hashes. We can count on the ordering.
+	for _, out := range res {
+		if out.IsOverride {
+			out.MinPublicKeyHash = minOverrideHashes[0]
+			minOverrideHashes = minOverrideHashes[1:]
+		} else {
+			out.MinPublicKeyHash = minCAHashes[0]
+			minCAHashes = minCAHashes[1:]
 		}
 	}
 

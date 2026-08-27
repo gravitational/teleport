@@ -35,6 +35,7 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -3112,17 +3113,39 @@ func TestDefaultImplicitRules(t *testing.T) {
 				{rule: types.KindGitServer, verb: types.VerbDelete, hasAccess: false},
 			},
 		},
+		{
+			name: "KindCA and KindCAOverride",
+			role: newRole(func(r *types.RoleV6) {}),
+			checks: []check{
+				// Reads allowed. Similar permissions granted to CA and CAOverrides.
+				{rule: types.KindCertAuthority, verb: types.VerbReadNoSecrets, hasAccess: true},
+				{rule: types.KindCertAuthority, verb: types.VerbList, hasAccess: true},
+				{rule: types.KindCertAuthorityOverride, verb: types.VerbRead, hasAccess: true},
+				{rule: types.KindCertAuthorityOverride, verb: types.VerbList, hasAccess: true},
+				// CA read-with-secrets not allowed.
+				{rule: types.KindCertAuthority, verb: types.VerbRead, hasAccess: false},
+				// Writes not allowed.
+				{rule: types.KindCertAuthority, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindCertAuthority, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindCertAuthority, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindCertAuthorityOverride, verb: types.VerbCreate, hasAccess: false},
+				{rule: types.KindCertAuthorityOverride, verb: types.VerbUpdate, hasAccess: false},
+				{rule: types.KindCertAuthorityOverride, verb: types.VerbDelete, hasAccess: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
-		roleSet := NewRoleSet(tc.role)
-		for _, check := range tc.checks {
-			result := roleSet.CheckAccessToRule(&check.context, apidefaults.Namespace, check.rule, check.verb)
-			if check.hasAccess {
-				require.NoError(t, result)
-			} else {
-				require.True(t, trace.IsAccessDenied(result))
+		t.Run(tc.name, func(t *testing.T) {
+			roleSet := NewRoleSet(tc.role)
+			for _, check := range tc.checks {
+				result := roleSet.CheckAccessToRule(&check.context, apidefaults.Namespace, check.rule, check.verb)
+				if check.hasAccess {
+					assert.NoError(t, result)
+				} else {
+					assert.ErrorAs(t, result, new(*trace.AccessDeniedError))
+				}
 			}
-		}
+		})
 	}
 }
 

@@ -16,6 +16,4 @@
 
 package subca
 
-var FindMinHashes = findMinHashes
-
 var MakeCATypeNames = makeCATypeNames
