@@ -1020,7 +1020,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	allAllow := newRole(func(rv *types.RoleV6) {
 		rv.SetName("all-allow")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
+			PortForwarding: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy field precedence.
 			SSHPortForwarding: &types.SSHPortForwarding{
 				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
 				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
@@ -1065,7 +1065,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	legacyAllow := newRole(func(rv *types.RoleV6) {
 		rv.SetName("legacy-allow")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(true),
+			PortForwarding: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy field fallback.
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
 	})
@@ -1073,7 +1073,7 @@ func TestSSHPortForwarding(t *testing.T) {
 	legacyDeny := newRole(func(rv *types.RoleV6) {
 		rv.SetName("legacy-deny")
 		rv.SetOptions(types.RoleOptions{
-			PortForwarding: types.NewBoolOption(false),
+			PortForwarding: types.NewBoolOption(false), //nolint:staticcheck // exercises legacy field fallback.
 		})
 		rv.SetNodeLabels(types.Allow, anyLabels)
 	})

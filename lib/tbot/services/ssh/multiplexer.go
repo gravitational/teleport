@@ -578,9 +578,9 @@ func (s *MultiplexerService) Run(ctx context.Context) (err error) {
 				s.agentMu.Unlock()
 
 				s.log.DebugContext(egCtx, "Serving agent connection")
-				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
+				// ServeAgent always returns a non-nil error, io.EOF on a clean close.
 				err := agent.ServeAgent(currentAgent, conn)
-				if err != nil && !utils.IsOKNetworkError(err) {
+				if !utils.IsOKNetworkError(err) {
 					s.log.WarnContext(
 						egCtx,
 						"Error encountered serving agent connection",

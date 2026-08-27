@@ -148,7 +148,6 @@ func (s *grpcServerCredentials) Clone() credentials.TransportCredentials {
 func (s *grpcServerCredentials) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: "tls",
-		SecurityVersion:  "1.2",
 	}
 }
 

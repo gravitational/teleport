@@ -111,7 +111,8 @@ func (a *Server) Serve() error {
 			}
 			defer instance.Close()
 
-			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
+			// ServeAgent always returns a non-nil error, io.EOF on a clean close.
+			if err := agent.ServeAgent(instance, conn); !errors.Is(err, io.EOF) {
 				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
 			}
 		}()

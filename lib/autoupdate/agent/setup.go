@@ -334,7 +334,9 @@ func (ns *Namespace) installSELinux(ctx context.Context, rev Revision) error {
 	}
 
 	binaryPath := filepath.Join(ns.Dir(), versionsDirName, rev.Dir(), "bin", "teleport")
+	//nolint:staticcheck // SA4023. FileContexts on non-Linux platforms always returns err.
 	fileCtxs, err := selinux.FileContexts(ns.dataDir, ns.teleportConfigFile, binaryPath)
+	//nolint:staticcheck // SA4023. The check appears always-true because FileContexts on non-Linux platforms always returns err.
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -422,7 +424,9 @@ func (ns *Namespace) createAndLabelDirs(ctx context.Context, cmd localExec) erro
 }
 
 func (ns *Namespace) removeSELinux(ctx context.Context) error {
+	//nolint:staticcheck // SA4023. ModuleInstalled on non-Linux platforms always returns err.
 	installed, err := selinux.ModuleInstalled()
+	//nolint:staticcheck // SA4023. The check appears always-true because ModuleInstalled on non-Linux platforms always returns err.
 	if err != nil {
 		return trace.Wrap(err, "failed to check if SELinux module is installed")
 	}
@@ -492,7 +496,9 @@ func (ns *Namespace) checkSELinux(ctx context.Context, installing bool) error {
 // Teardown removes all traces of the auto-updater, including its configuration.
 // Teardown does not verify that the removed files were created by teleport-update.
 func (ns *Namespace) Teardown(ctx context.Context) error {
+	//nolint:staticcheck // SA4023. ModuleInstalled on non-Linux platforms always returns err.
 	modInstalled, err := selinux.ModuleInstalled()
+	//nolint:staticcheck // SA4023. The check appears always-true because ModuleInstalled on non-Linux platforms always returns err.
 	if err != nil {
 		return trace.Wrap(err, "failed to check if SELinux module is installed")
 	}

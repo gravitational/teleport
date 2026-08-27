@@ -637,9 +637,12 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               apidefaults.EnhancedEvents(),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+			ForwardAgent: types.NewBool(true),
+			BPF:          apidefaults.EnhancedEvents(),
 			RecordSession: &types.RecordSession{
 				Desktop: types.NewBoolOption(false),
 			},

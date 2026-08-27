@@ -293,9 +293,6 @@ func (p *Plugin) getAccessGraphFileFallback(w http.ResponseWriter, r *http.Reque
 	}
 
 	agClt := acl.AccessGraphClient()
-	if agClt == nil {
-		return nil, trace.NotFound("access graph client is not configured")
-	}
 	ctx := r.Context()
 	resp, err := agClt.GetFile(ctx, accessgraphv1.GetFileRequest_builder{
 		Filepath: filePath,

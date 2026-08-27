@@ -170,12 +170,12 @@ func TestGithubWithoutRoleMapping(t *testing.T) {
 // githubUserAndTeamsOverride overrides the user and teams mapping on the Github user response.
 func githubUserAndTeamsOverride() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
 	return &auth.GithubUserResponse{
-			Login: "alice",
-		}, []auth.GithubTeamResponse{{
-			Name: "devs",
-			Slug: "devs",
-			Org:  auth.GithubOrgResponse{Login: "octocats"},
-		}}, nil
+		Login: "alice",
+	}, []auth.GithubTeamResponse{{
+		Name: "devs",
+		Slug: "devs",
+		Org:  auth.GithubOrgResponse{Login: "octocats"},
+	}}, nil
 }
 
 // mustCreateGithubSSOConnector creates the given connector in the backend.

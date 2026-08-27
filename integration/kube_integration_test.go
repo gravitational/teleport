@@ -1780,11 +1780,11 @@ func generateDebugContainer(name string, cmd []string, pod *v1.Pod) (*v1.Pod, *v
 func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, podName, containerName string) (*v1.Pod, error) {
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", podName).String()
 	lw := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
 			return podClient.List(ctx, options)
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
 			return podClient.Watch(ctx, options)
 		},

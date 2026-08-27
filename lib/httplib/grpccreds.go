@@ -38,8 +38,6 @@ type TLSCreds struct {
 func (c TLSCreds) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: "tls",
-		SecurityVersion:  "1.2",
-		ServerName:       c.Config.ServerName,
 	}
 }
 

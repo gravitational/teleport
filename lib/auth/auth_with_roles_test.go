@@ -878,12 +878,12 @@ func TestGithubAuthCompat(t *testing.T) {
 
 	srv.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
 		return &auth.GithubUserResponse{
-				Login: "alice",
-			}, []auth.GithubTeamResponse{{
-				Name: "devs",
-				Slug: "devs",
-				Org:  auth.GithubOrgResponse{Login: "octocats"},
-			}}, nil
+			Login: "alice",
+		}, []auth.GithubTeamResponse{{
+			Name: "devs",
+			Slug: "devs",
+			Org:  auth.GithubOrgResponse{Login: "octocats"},
+		}}, nil
 	}
 
 	_, err = authtest.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})

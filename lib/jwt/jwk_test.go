@@ -19,6 +19,8 @@
 package jwt
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
 	"testing"
@@ -45,6 +47,82 @@ func TestMarshalJWK(t *testing.T) {
 
 			// Required for integrating with AWS OpenID Connect Identity Provider.
 			require.Equal(t, "sig", jwk.Use)
+		})
+	}
+}
+
+func TestUnmarshalECDSAJWK(t *testing.T) {
+	t.Parallel()
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	pubBytes, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
+	jwk, err := MarshalJWK(pubBytes)
+	require.NoError(t, err)
+
+	strippedLeadingZeroPublicKey, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), []byte{
+		0x04,
+		0x98, 0x6a, 0xe2, 0x50, 0x6f, 0x1f, 0xf1, 0x04,
+		0xd0, 0x42, 0x30, 0x86, 0x1d, 0x8f, 0x4b, 0x49,
+		0x8f, 0x4b, 0xc4, 0xc6, 0xd0, 0x09, 0xb3, 0x0f,
+		0x75, 0x44, 0xdc, 0x12, 0x9b, 0x82, 0xd2, 0x8d,
+		0x00,
+		0x3c, 0xcc, 0xc0, 0xa6, 0x46, 0x0e, 0x0a, 0xe3,
+		0x28, 0xa4, 0xd9, 0x7d, 0x3c, 0x7b, 0x61, 0xd8,
+		0x6f, 0xc6, 0x28, 0x9c, 0x18, 0x9f, 0x25, 0x25,
+		0x11, 0x0c, 0x44, 0x1b, 0xb0, 0x7e, 0x97,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		jwk           JWK
+		wantErr       bool
+		wantPublicKey *ecdsa.PublicKey
+	}{
+		{
+			name:          "round trip",
+			jwk:           jwk,
+			wantPublicKey: key.Public().(*ecdsa.PublicKey),
+		},
+		{
+			name: "stripped leading zero coordinate",
+			jwk: JWK{
+				KeyType:   keyTypeEC,
+				Algorithm: "ES256",
+				Curve:     "P-256",
+				X:         "mGriUG8f8QTQQjCGHY9LSY9LxMbQCbMPdUTcEpuC0o0",
+				Y:         "PMzApkYOCuMopNl9PHth2G_GKJwYnyUlEQxEG7B-lw",
+			},
+			wantPublicKey: strippedLeadingZeroPublicKey,
+		},
+		{
+			name: "malformed coordinates",
+			jwk: JWK{
+				KeyType:   keyTypeEC,
+				Algorithm: "ES256",
+				Curve:     "P-256",
+				X:         "AA",
+				Y:         "AA",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pub, err := UnmarshalJWK(test.jwk)
+			if test.wantErr {
+				require.Error(t, err)
+				require.Nil(t, pub)
+				return
+			}
+
+			require.NoError(t, err)
+			require.True(t, test.wantPublicKey.Equal(pub))
 		})
 	}
 }

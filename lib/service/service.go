@@ -1202,6 +1202,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			return nil, trace.Errorf("SELinux is only supported for the SSH service")
 		}
 
+		//nolint:staticcheck // SA4023. CheckConfiguration on non-Linux platforms always returns err.
 		if err := selinux.CheckConfiguration(cfg.SSH.EnsureSELinuxEnforcing, cfg.Logger); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4122,7 +4123,7 @@ func checkEmbeddedReexecAndLog(ctx context.Context, selinux bool, logger *slog.L
 		return
 	}
 
-	if err := reexec.InitEmbeddedReexec(); err != nil {
+	if err := reexec.InitEmbeddedReexec(); err != nil { //nolint:staticcheck // SA4023 depends on sessionhelper_embed build tag.
 		// TODO(espadolini): always warn in v19
 		level := slog.LevelDebug
 		if explicitlyEnabled {

@@ -664,8 +664,11 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
-				MaxSessionTTL:     types.Duration(time.Hour),
-				PortForwarding:    types.NewBoolOption(true),
+				MaxSessionTTL: types.Duration(time.Hour),
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+					Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+				},
 				CertificateFormat: constants.CertificateFormatStandard,
 				BPF:               apidefaults.EnhancedEvents(),
 			},

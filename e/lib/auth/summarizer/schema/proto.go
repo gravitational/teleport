@@ -212,7 +212,7 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 		// Persisted alongside SessionEvents so a pre-v19 auth serving a recording
 		// written by a v19+ auth (rolling upgrade or rollback) still has data to
 		// return. TODO(ryanclark): DELETE IN v21.0.0.
-		Commands: commandAnalysesListToProto(commands),
+		Commands: commandAnalysesListToProto(commands), //nolint:staticcheck // populated for rolling-upgrade and rollback compatibility.
 	}.Build()
 
 	if analysis.TooLarge {

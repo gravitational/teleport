@@ -150,7 +150,7 @@ func testLocalPortForward(ctx context.Context, t *testing.T, proc *networking.Pr
 	// Create a client that will dial via the networking process.
 	httpClient := http.Client{
 		Transport: &http.Transport{
-			Dial: func(network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return proc.Dial(ctx, network, addr)
 			},
 		},

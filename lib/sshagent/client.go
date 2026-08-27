@@ -292,7 +292,8 @@ func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAge
 				go ssh.DiscardRequests(reqs)
 				go io.Copy(io.Discard, channel.Stderr())
 
-				if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
+				// ServeAgent always returns a non-nil error, io.EOF on a clean close.
+				if err := agent.ServeAgent(forwardAgent, channel); !errors.Is(err, io.EOF) {
 					slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
 				}
 			}()

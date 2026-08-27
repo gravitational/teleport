@@ -5816,7 +5816,7 @@ func TestRoleVersions(t *testing.T) {
 					},
 				},
 				Options: types.RoleOptions{
-					PortForwarding:    types.NewBoolOption(true),
+					PortForwarding:    types.NewBoolOption(true), //nolint:staticcheck // expected downgrade output for older clients.
 					SSHPortForwarding: enabledRole.GetOptions().SSHPortForwarding,
 				},
 			}),
@@ -5835,7 +5835,7 @@ func TestRoleVersions(t *testing.T) {
 					},
 				},
 				Options: types.RoleOptions{
-					PortForwarding:    types.NewBoolOption(false),
+					PortForwarding:    types.NewBoolOption(false), //nolint:staticcheck // expected downgrade output for older clients.
 					SSHPortForwarding: disabledRole.GetOptions().SSHPortForwarding,
 				},
 			}),

@@ -35,7 +35,7 @@ func (*registrator) Register(ctx context.Context, config ServiceClientConfig, ge
 	}
 	_, err = client.Register(ctx, accessgraphv1.RegisterRequest_builder{
 		// Keep compatibility with older TAG versions that expect a single Host CA PEM.
-		HostCaPem:   hostCAPems[0],
+		HostCaPem:   hostCAPems[0], //nolint:staticcheck // populated for compatibility with older TAG versions.
 		HostCaPems:  hostCAPems,
 		ClusterName: clusterName,
 	}.Build())

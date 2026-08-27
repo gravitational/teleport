@@ -35,7 +35,7 @@ import (
 func TestMainImplementation(m *testing.M) {
 	if !reexec.EmbeddedReexecAvailable {
 		reexec.MaybeReexec()
-	} else if err := reexec.InitEmbeddedReexec(); err != nil {
+	} else if err := reexec.InitEmbeddedReexec(); err != nil { //nolint:staticcheck // SA4023 depends on sessionhelper_embed build tag.
 		panic(err)
 	} else if reexec.IsReexec() {
 		panic("reexec attempted when embedded reexec was supposed to be available")

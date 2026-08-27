@@ -128,23 +128,23 @@ func TestStartNewParker(t *testing.T) {
 				parkerStarted := false
 
 				return &osWrapper{
-						LookupGroup: func(name string) (*user.Group, error) {
-							require.Equal(t, apiconstants.TeleportDropGroup, name)
-							return &user.Group{Gid: currentUser.Gid}, nil
-						},
-						CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
-							require.NotNil(t, ctx)
-							require.Len(t, arg, 1)
-							require.Equal(t, reexecconstants.ParkSubCommand, arg[0])
-							parkerStarted = true
-							return exec.CommandContext(ctx, name, arg...)
-						},
-						LookupUser: func(username string) (*user.User, error) {
-							return &user.User{Uid: currentUser.Uid, Gid: currentUser.Gid}, nil
-						},
-					}, func() {
-						require.True(t, parkerStarted, "parker process didn't start")
-					}
+					LookupGroup: func(name string) (*user.Group, error) {
+						require.Equal(t, apiconstants.TeleportDropGroup, name)
+						return &user.Group{Gid: currentUser.Gid}, nil
+					},
+					CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
+						require.NotNil(t, ctx)
+						require.Len(t, arg, 1)
+						require.Equal(t, reexecconstants.ParkSubCommand, arg[0])
+						parkerStarted = true
+						return exec.CommandContext(ctx, name, arg...)
+					},
+					LookupUser: func(username string) (*user.User, error) {
+						return &user.User{Uid: currentUser.Uid, Gid: currentUser.Gid}, nil
+					},
+				}, func() {
+					require.True(t, parkerStarted, "parker process didn't start")
+				}
 			},
 			args: args{
 				credential: &syscall.Credential{

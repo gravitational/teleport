@@ -840,12 +840,12 @@ func TestGithubCallbackRoleValidation(t *testing.T) {
 	a := srv.Auth()
 	a.GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
 		return &auth.GithubUserResponse{
-				Login: "testuser1",
-			}, []auth.GithubTeamResponse{{
-				Name: "other-team",
-				Slug: "other-team",
-				Org:  auth.GithubOrgResponse{Login: "org1"},
-			}}, nil
+			Login: "testuser1",
+		}, []auth.GithubTeamResponse{{
+			Name: "other-team",
+			Slug: "other-team",
+			Org:  auth.GithubOrgResponse{Login: "org1"},
+		}}, nil
 	}
 
 	_, err = auth.UpsertGithubConnector(ctx, a, connector)

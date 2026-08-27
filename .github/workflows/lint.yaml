@@ -40,6 +40,7 @@ jobs:
               - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
+              - 'build.assets/versions.mk'
               - 'Makefile'
               - '.golangci.yml'
             has_rust:

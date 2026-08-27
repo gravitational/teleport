@@ -279,7 +279,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -332,7 +331,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -412,7 +410,7 @@ func TestRoleParse(t *testing.T) {
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
-						PortForwarding:    types.NewBoolOption(true),
+						PortForwarding:    types.NewBoolOption(true), //nolint:staticcheck // expected output for legacy role input.
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -424,7 +422,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateDatabaseUser:      types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -525,7 +522,7 @@ func TestRoleParse(t *testing.T) {
 					Options: types.RoleOptions{
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
-						PortForwarding:    types.NewBoolOption(true),
+						PortForwarding:    types.NewBoolOption(true), //nolint:staticcheck // expected output for legacy role input.
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -536,7 +533,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
@@ -635,7 +631,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						ForwardAgent:      types.NewBool(true),
 						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
-						PortForwarding:    types.NewBoolOption(true),
+						PortForwarding:    types.NewBoolOption(true), //nolint:staticcheck // expected output for legacy role input.
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -646,7 +642,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -731,7 +726,7 @@ func TestRoleParse(t *testing.T) {
 						CertificateFormat: constants.CertificateFormatStandard,
 						ForwardAgent:      types.NewBool(true),
 						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
-						PortForwarding:    types.NewBoolOption(true),
+						PortForwarding:    types.NewBoolOption(true), //nolint:staticcheck // expected output for legacy role input.
 						RecordSession: &types.RecordSession{
 							Default: constants.SessionRecordingModeBestEffort,
 							Desktop: types.NewBoolOption(true),
@@ -742,7 +737,6 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
-						CreateHostUser:          nil,
 						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -4745,8 +4739,11 @@ func TestBoolOptions(t *testing.T) {
 		// Setting options explicitly off should remain off.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:            types.NewBool(false),
-				PortForwarding:          types.NewBoolOption(false),
+				ForwardAgent: types.NewBool(false),
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+					Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+				},
 				RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(false)},
 				DesktopClipboard:        types.NewBoolOption(false),
 				DesktopDirectorySharing: types.NewBoolOption(false),
@@ -4773,8 +4770,11 @@ func TestBoolOptions(t *testing.T) {
 		// Explicitly enabling should enable them.
 		{
 			inOptions: types.RoleOptions{
-				ForwardAgent:            types.NewBool(true),
-				PortForwarding:          types.NewBoolOption(true),
+				ForwardAgent: types.NewBool(true),
+				SSHPortForwarding: &types.SSHPortForwarding{
+					Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+					Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+				},
 				RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
 				DesktopClipboard:        types.NewBoolOption(true),
 				DesktopDirectorySharing: types.NewBoolOption(true),
@@ -8955,7 +8955,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -8978,7 +8978,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -8988,7 +8988,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Deny: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -9011,7 +9011,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -9021,7 +9021,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -9320,7 +9320,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -9343,7 +9343,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -9352,7 +9352,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(false),
+						CreateHostUser: types.NewBoolOption(false), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabelsExpression: `labels["success"] == "abc"`,
@@ -9375,7 +9375,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -9384,7 +9384,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(true),
+						CreateHostUser: types.NewBoolOption(true), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabelsExpression: `labels["success"] == "abc"`,
@@ -9393,7 +9393,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUser: types.NewBoolOption(false),
+						CreateHostUser: types.NewBoolOption(false), //nolint:staticcheck // exercises legacy host-user option fallback.
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"unmatched": []string{"abc"}},
@@ -9414,9 +9414,6 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			canCreate: false,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						CreateHostUser: nil,
-					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
 					},

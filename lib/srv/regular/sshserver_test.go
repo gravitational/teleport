@@ -1069,6 +1069,8 @@ func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, leg
 				Enabled: local,
 			},
 		}
+	} else {
+		roleOptions.SSHPortForwarding = nil
 	}
 
 	role.SetOptions(roleOptions)
@@ -1108,7 +1110,7 @@ func TestDirectTCPIP(t *testing.T) {
 		// s.clt.Dial (which performs the "direct-tcpip" request).
 		httpClient := http.Client{
 			Transport: &http.Transport{
-				Dial: func(network string, addr string) (net.Conn, error) {
+				DialContext: func(_ context.Context, network string, addr string) (net.Conn, error) {
 					return f.ssh.clt.DialContext(t.Context(), "tcp", u.Host)
 				},
 			},
@@ -1142,7 +1144,7 @@ func TestDirectTCPIP(t *testing.T) {
 		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
-				Dial: func(network string, addr string) (net.Conn, error) {
+				DialContext: func(_ context.Context, network string, addr string) (net.Conn, error) {
 					return clientConn.DialContext(t.Context(), "tcp", u.Host)
 				},
 			},
@@ -1171,7 +1173,7 @@ func TestDirectTCPIP(t *testing.T) {
 		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
-				Dial: func(network string, addr string) (net.Conn, error) {
+				DialContext: func(_ context.Context, network string, addr string) (net.Conn, error) {
 					return clientConn.DialContext(t.Context(), "tcp", u.Host)
 				},
 			},
@@ -1194,7 +1196,7 @@ func TestDirectTCPIP(t *testing.T) {
 		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
 		httpClientUsingSessionJoin := http.Client{
 			Transport: &http.Transport{
-				Dial: func(network string, addr string) (net.Conn, error) {
+				DialContext: func(_ context.Context, network string, addr string) (net.Conn, error) {
 					return cliUsingSessionJoin.DialContext(ctx, "tcp", u.Host)
 				},
 			},

@@ -10881,7 +10881,6 @@ func marshalValidPodList(t *testing.T, w http.ResponseWriter) {
 			APIVersion: "v1",
 		},
 		ListMeta: metav1.ListMeta{
-			SelfLink:           "",
 			ResourceVersion:    "1231415",
 			Continue:           "",
 			RemainingItemCount: nil,
@@ -11805,12 +11804,12 @@ func TestGithubAuthCompat(t *testing.T) {
 
 	env.server.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
 		return &auth.GithubUserResponse{
-				Login: "alice",
-			}, []auth.GithubTeamResponse{{
-				Name: "devs",
-				Slug: "devs",
-				Org:  auth.GithubOrgResponse{Login: "octocats"},
-			}}, nil
+			Login: "alice",
+		}, []auth.GithubTeamResponse{{
+			Name: "devs",
+			Slug: "devs",
+			Org:  auth.GithubOrgResponse{Login: "octocats"},
+		}}, nil
 	}
 
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{

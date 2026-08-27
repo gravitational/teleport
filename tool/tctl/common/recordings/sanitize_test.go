@@ -28,7 +28,7 @@ import (
 func TestRenderTimelineSanitizesTerminalControlSequences(t *testing.T) {
 	timeline := renderTimeline(summarizerv1pb.EnhancedSummary_builder{
 		NotableCommandIndexes: []int32{0},
-		Commands: []*summarizerv1pb.CommandAnalysis{
+		Commands: []*summarizerv1pb.CommandAnalysis{ //nolint:staticcheck // exercises sanitization of legacy summarizer command data.
 			summarizerv1pb.CommandAnalysis_builder{
 				TimelineTitle:    "\x1b]0;owned title\aListed files\x1b[31m",
 				TimelineSubtitle: "\x1b]8;;https://example.com\aDenied\x1b]8;;\a",

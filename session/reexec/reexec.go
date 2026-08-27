@@ -543,7 +543,9 @@ func RunCommand() (exitErr error, err error) {
 	// enabled so the child process will be running with the correct SELinux
 	// user, role and domain.
 	if c.SetSELinuxContext {
+		//nolint:staticcheck // SA4023. UserContext on non-Linux platforms always returns err.
 		seContext, err := selinux.UserContext(c.Login)
+		//nolint:staticcheck // SA4023. The check appears always-true because UserContext on non-Linux platforms always returns err.
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to get SELinux context of login user")
 		}

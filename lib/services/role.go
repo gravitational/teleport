@@ -193,9 +193,12 @@ func RoleWithVersionForUser(u types.User, v string) types.Role {
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
-			PortForwarding:    types.NewBoolOption(true),
-			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+			ForwardAgent: types.NewBool(true),
+			BPF:          defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
 			Namespaces:            []string{defaults.Namespace},
