@@ -1,7 +1,10 @@
 ANTITHESIS_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 REPO_ROOT := $(abspath $(ANTITHESIS_DIR)/../../..)
 
+include $(REPO_ROOT)/build.assets/versions.mk
 -include $(ANTITHESIS_DIR)/.env
+
+GO_VERSION := $(patsubst go%,%,$(GOLANG_VERSION))
 
 SUTS := core
 SUT ?= core
@@ -20,6 +23,7 @@ DOCKER_PLATFORMS ?= $(if $(filter 1 true yes,$(LOCAL)),$(LOCAL_PLATFORM),$(PLATF
 DOCKER_OUTPUT = $(if $(filter 1 true yes,$(PUSH)),--push,$(if $(filter 1 true yes,$(LOAD)),--load,))
 BUILDER_FLAG = $(if $(BUILDER),--builder $(BUILDER),)
 PLATFORM_FLAG = $(if $(DOCKER_PLATFORMS),--platform $(DOCKER_PLATFORMS),)
+BUILD_ARGS = --build-arg GO_VERSION=$(GO_VERSION)
 
 .PHONY: build-all
 build-all: build-teleport build-tbot build-pki build-pg build-nginx build-workload
@@ -31,6 +35,7 @@ build-teleport:
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
+		$(BUILD_ARGS) \
 		--target teleport \
 		--tag $(TELEPORT_IMAGE) \
 		$(DOCKER_OUTPUT) \
@@ -40,6 +45,7 @@ build-teleport:
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
+		$(BUILD_ARGS) \
 		--cache-from $(TELEPORT_IMAGE) \
 		--target auth \
 		--tag $(AUTH_IMAGE) \
@@ -53,6 +59,7 @@ build-tbot:
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
+		$(BUILD_ARGS) \
 		--target tbot \
 		--tag $(TBOT_IMAGE) \
 		$(DOCKER_OUTPUT) \
@@ -66,6 +73,7 @@ build-pki:
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
+		$(BUILD_ARGS) \
 		--tag $(PKI_IMAGE) \
 		$(DOCKER_OUTPUT) \
 		$(ANTITHESIS_DIR)/docker/pki
@@ -98,6 +106,7 @@ build-workload:
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
+		$(BUILD_ARGS) \
 		--target $(WORKLOAD_TARGET) \
 		--tag $(WORKLOAD_IMAGE) \
 		$(DOCKER_OUTPUT) \
