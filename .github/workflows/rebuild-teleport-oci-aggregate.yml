@@ -97,6 +97,8 @@ jobs:
 
   slack-on-fail:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     needs:
       - rebuild-operator
       - rebuild-plugins
@@ -105,12 +107,20 @@ jobs:
       - rebuild-teleport
     if: always()
     steps:
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.3
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          values: |
+            TOOLING_ALERTS_SLACK_TOKEN,secret
       - name: Slack Notify Failure
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
         with:
           method: chat.postMessage
-          token: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+          token: ${{ env.TOOLING_ALERTS_SLACK_TOKEN }}
           payload: |
             {
               "channel": "${{ inputs.slack-notify-channel }}",

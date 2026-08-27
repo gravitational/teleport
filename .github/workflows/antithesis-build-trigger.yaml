@@ -85,7 +85,6 @@ jobs:
       matrix: ${{ fromJson(needs.params.outputs.matrix) }}
     env:
       SUT: ${{ matrix.sut }}
-      REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v4
@@ -109,19 +108,31 @@ jobs:
         with:
           driver: docker-container
 
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.3
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          values: |
+            REGISTRY,secret
+            ANTITHESIS_GCP_SA_KEY,secret
+            ANTITHESIS_REGISTRY,secret
+            ANTITHESIS_API_KEY,secret
+
       - name: Login to registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ${{ env.REGISTRY }}
           username: _json_key
-          password: ${{ secrets.ANTITHESIS_GCP_SA_KEY }}
+          password: ${{ env.ANTITHESIS_GCP_SA_KEY }}
 
       - name: Build and push all images
         working-directory: e/tests/antithesis
         run: |
           make build-all build-config \
             SUT="${SUT}" \
-            REGISTRY="${REGISTRY}" \
+            REGISTRY="${ANTITHESIS_REGISTRY}" \
             TAG="${{ steps.tag.outputs.tag }}" \
             PUSH=1
 
@@ -130,7 +141,7 @@ jobs:
         working-directory: e/tests/antithesis
         env:
           TAG: "${{ steps.tag.outputs.tag }}"
-          REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
+          REGISTRY: ${{ env.ANTITHESIS_REGISTRY }}
         run: ./sut/"${SUT}"/images.sh
 
       - name: Load base parameters
@@ -149,7 +160,7 @@ jobs:
         with:
           notebook_name: teleport
           tenant: teleport
-          api_key: ${{ secrets.ANTITHESIS_API_KEY }}
+          api_key: ${{ env.ANTITHESIS_API_KEY }}
           config_image: ${{ steps.images.outputs.config_image }}
           images: ${{steps.images.outputs.images }}
           description: >-
