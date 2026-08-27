@@ -126,7 +126,10 @@ extension RotatingFileWriter {
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
 		try fileState.withLock { fileState in
-			guard let fileClient = fileState.fileClient else { return }
+			guard let fileClient = fileState.fileClient else {
+				assertionFailure("Active file should be open before appending")
+				return
+			}
 			_ = try fileClient.seekToEnd()
 			try fileClient.write(data: record)
 		}
@@ -166,7 +169,93 @@ extension RotatingFileWriter {
 	/// maximum capacity.
 	/// - Parameter byteCount: The number of bytes we intend to append to the log file.
 	private func rotateActiveFileIfNeeded(forAppendingByteCount byteCount: Int) throws {
-		// TODO: Implement rotation
+		try fileState.withLock { fileState in
+			guard let fileClient = fileState.fileClient else {
+				assertionFailure("Active file should be open before checking whether to rotate")
+				return
+			}
+
+			let activeFileSize = try fileClient.seekToEnd()
+			let maximumFileSize = UInt64(configuration.maximumFileSize)
+			let appendingByteCount = UInt64(byteCount)
+
+			// Rotation isn't needed when the active file is within its limit and the new record still fits.
+			if
+				activeFileSize <= maximumFileSize,
+				appendingByteCount <= maximumFileSize - activeFileSize
+			{
+				return
+			}
+
+			// Rotation comes in N steps.
+
+			// 1. Ensure the file is written to disk
+			//
+			// Once written to disk, we no longer need the file handle and can discard it.
+			try fileClient.synchronize()
+			try fileClient.close()
+			fileState.fileClient = nil
+
+			// 2. Delete the oldest archive file, and rotate the remaining ones.
+			//
+			// We walk the files in reverse chronological order so that we don't accidentally overwrite anything. In
+			// other words, if there are 3 total archive files, to rotate them we would do the following in order:
+			// 		a. Remove archive 3
+			// 		b. Rename archive 2 to archive 3
+			// 		c. Rename archive 1 to archive 2
+			let oldestArchiveFileURL = archiveFileURL(
+				forAgeCounter: configuration.maximumArchiveCount,
+			)
+			if fileSystemClient.fileExists(oldestArchiveFileURL) {
+				try fileSystemClient.removeItem(oldestArchiveFileURL)
+			}
+			for ageCounter in stride(
+				from: configuration.maximumArchiveCount - 1,
+				through: 1,
+				by: -1,
+			) {
+				let sourceURL = archiveFileURL(forAgeCounter: ageCounter)
+				guard fileSystemClient.fileExists(sourceURL) else { continue }
+
+				let destinationURL = archiveFileURL(forAgeCounter: ageCounter + 1)
+				try fileSystemClient.moveItem(sourceURL, destinationURL)
+			}
+
+			// 3. Rename the active file to archive it.
+			//
+			// Archives have the format: "\(originalFileName).\(ageCounter).\(originalExtension)" where `ageCounter`
+			// is an incrementing counter beginning at 1 and going to N, where N is the max number of archive files.
+			// The archive with ageCounter=1 is the newest archive, and where the active file gets rotated to.
+			let newestArchiveFileURL = archiveFileURL(forAgeCounter: 1)
+			try fileSystemClient.moveItem(activeFileURL, newestArchiveFileURL)
+
+			// 4. Create a new active file, and retain the handle to it.
+			try fileSystemClient.createFile(activeFileURL, nil)
+			fileState.fileClient = try fileSystemClient.openFileForWriting(activeFileURL)
+		}
+	}
+
+	/// Calculates the URL for an archive file with a given age counter.
+	///
+	/// The names of archive files have a simple, predictable format. Given an active file named "logs.txt" and an age
+	/// counter of "1", the archive file will be named "logs.1.txt". Age counters identify archived logs in reverse
+	/// chronological order. That is, "logs.1.txt" contains the records that immediately precede the active "logs.txt".
+	/// Similarly, "logs.2.txt" contains records that immediately precede "logs.1.txt" and so on.
+	///
+	/// - Parameter ageCounter: The age counter associated with the archive file
+	/// - Returns: A URL for the archive file
+	private func archiveFileURL(forAgeCounter ageCounter: Int) -> URL {
+		let archiveFileName = [
+			activeFileURL.deletingPathExtension().lastPathComponent,
+			String(ageCounter),
+			activeFileURL.pathExtension,
+		]
+		.filter { !$0.isEmpty }
+		.joined(separator: ".")
+
+		return activeFileURL
+			.deletingLastPathComponent()
+			.appending(path: archiveFileName)
 	}
 
 	/// Flushes all pending writes to disk via the file handle, ensuring all records are persisted.
