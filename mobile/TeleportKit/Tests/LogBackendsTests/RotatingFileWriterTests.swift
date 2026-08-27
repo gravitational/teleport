@@ -16,10 +16,10 @@
 
 import Dependencies
 import Foundation
+@testable import LogBackends
 import Logging
 import SystemClients
 import Testing
-@testable import LogBackends
 
 struct RotatingFileWriterTests {
 	@Test
@@ -28,12 +28,13 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "first")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "first\nsecond\n")
+			let expectedContents = "firstsecond"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -43,14 +44,15 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "first\n")
+			writer.enqueue(logMessage: "first")
 			try await writer.flush()
 
-			writer.enqueue(logMessage: "second\n")
+			writer.enqueue(logMessage: "second")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "first\nsecond\n")
+			let expectedContents = "firstsecond"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -60,11 +62,12 @@ struct RotatingFileWriterTests {
 			let fileURL = directoryURL.appending(path: "nested/logs/events.log")
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "record\n")
+			writer.enqueue(logMessage: "record")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "record\n")
+			let expectedContents = "record"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -72,14 +75,15 @@ struct RotatingFileWriterTests {
 	func `writing appends to an existing active file`() async throws {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
-			try Data("existing\n".utf8).write(to: fileURL)
+			try Data("existing".utf8).write(to: fileURL)
 			let writer = makeWriter(fileURL: fileURL)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "new")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "existing\nnew\n")
+			let expectedContents = "existingnew"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -88,15 +92,98 @@ struct RotatingFileWriterTests {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
 			let archiveURL = directoryURL.appending(path: "events.1.log")
-			try Data("123\n".utf8).write(to: fileURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+			try Data("123456789012".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "45\n")
+			writer.enqueue(logMessage: "3456")
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents == "123\n45\n")
+			let expectedContents = "1234567890123456"
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
+		}
+	}
+
+	@Test
+	func `a record matching the exact file size limit remains unchanged`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
+			let expectedContents = "1234567890123456"
+
+			writer.enqueue(logMessage: expectedContents)
+			try await writer.flush()
+
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
+			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
+		}
+	}
+
+	@Test
+	func `a record exceeding the size limit is truncated`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
+			let record = "12345678901234567"
+			let expectedActiveContents = "1… [truncated]"
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+			#expect(!FileManager.default.fileExists(atPath: archiveURL.path))
+		}
+	}
+
+	@Test
+	func `an oversized record rotates a nonempty active file before writing the truncated record`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let archiveURL = directoryURL.appending(path: "events.1.log")
+			try Data("existing".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
+			let record = "12345678901234567"
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let expectedActiveContents = "1… [truncated]"
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+
+			let expectedArchiveContents = "existing"
+			let gotArchiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
+			#expect(expectedArchiveContents == gotArchiveContents)
+		}
+	}
+
+	@Test
+	func `truncation preserves valid UTF-8`() async throws {
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 18)
+
+			// The letter `é` (U+00E9) encodes as two UTF-8 bytes (0xC3 0xA9). Only three bytes fit before the
+			// truncation marker, so if we implemented truncation as a raw byte prefix, we would keep only `12` and only
+			// the first byte of `é`. While 0xC3 is a valid leading byte, it's invalid UTF-8 on its own. So this test
+			// ensures that our truncation code is UTF-8 aware.
+			let record = "12é345678901234567"
+			let expectedContents = "12… [truncated]"
+
+			// These expectations are self-evident but I kept them here for clarity
+			#expect(record.utf8.count == 19)
+			#expect(expectedContents.utf8.count == 17)
+
+			writer.enqueue(logMessage: record)
+			try await writer.flush()
+
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
 		}
 	}
 
@@ -105,16 +192,19 @@ struct RotatingFileWriterTests {
 		try await withTemporaryDirectory { directoryURL in
 			let fileURL = directoryURL.appending(path: "events.log")
 			let archiveURL = directoryURL.appending(path: "events.1.log")
-			try Data("123\n".utf8).write(to: fileURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 7)
+			try Data("123456789012".utf8).write(to: fileURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "456\n")
+			writer.enqueue(logMessage: "34567")
 			try await writer.flush()
 
-			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			let archiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
-			#expect(activeContents == "456\n")
-			#expect(archiveContents == "123\n")
+			let expectedActiveContents = "34567"
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+
+			let expectedArchiveContents = "123456789012"
+			let gotArchiveContents = try? String(contentsOf: archiveURL, encoding: .utf8)
+			#expect(expectedArchiveContents == gotArchiveContents)
 		}
 	}
 
@@ -125,23 +215,30 @@ struct RotatingFileWriterTests {
 			let firstArchiveURL = directoryURL.appending(path: "events.1.log")
 			let secondArchiveURL = directoryURL.appending(path: "events.2.log")
 			let thirdArchiveURL = directoryURL.appending(path: "events.3.log")
-			try Data("active\n".utf8).write(to: fileURL)
-			try Data("first archive\n".utf8).write(to: firstArchiveURL)
-			try Data("second archive\n".utf8).write(to: secondArchiveURL)
-			try Data("third archive\n".utf8).write(to: thirdArchiveURL)
-			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 8)
+			try Data("active-record".utf8).write(to: fileURL)
+			try Data("first archive".utf8).write(to: firstArchiveURL)
+			try Data("second archive".utf8).write(to: secondArchiveURL)
+			try Data("third archive".utf8).write(to: thirdArchiveURL)
+			let writer = makeWriter(fileURL: fileURL, maximumFileSize: 16)
 
-			writer.enqueue(logMessage: "new\n")
+			writer.enqueue(logMessage: "next")
 			try await writer.flush()
 
-			let activeContents = try? String(contentsOf: fileURL, encoding: .utf8)
-			let firstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
-			let secondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
-			let thirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
-			#expect(activeContents == "new\n")
-			#expect(firstArchiveContents == "active\n")
-			#expect(secondArchiveContents == "first archive\n")
-			#expect(thirdArchiveContents == "second archive\n")
+			let expectedActiveContents = "next"
+			let gotActiveContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedActiveContents == gotActiveContents)
+
+			let expectedFirstArchiveContents = "active-record"
+			let gotFirstArchiveContents = try? String(contentsOf: firstArchiveURL, encoding: .utf8)
+			#expect(expectedFirstArchiveContents == gotFirstArchiveContents)
+
+			let expectedSecondArchiveContents = "first archive"
+			let gotSecondArchiveContents = try? String(contentsOf: secondArchiveURL, encoding: .utf8)
+			#expect(expectedSecondArchiveContents == gotSecondArchiveContents)
+
+			let expectedThirdArchiveContents = "second archive"
+			let gotThirdArchiveContents = try? String(contentsOf: thirdArchiveURL, encoding: .utf8)
+			#expect(expectedThirdArchiveContents == gotThirdArchiveContents)
 		}
 	}
 
@@ -167,8 +264,10 @@ struct RotatingFileWriterTests {
 			))
 			try await writer.flush()
 
-			let contents = try? String(contentsOf: fileURL, encoding: .utf8)
-			#expect(contents?.contains("hello from the handler") == true)
+			let expectedContentsToContainMessage = true
+			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
+			let gotContentsContainsMessage = gotContents?.contains("hello from the handler")
+			#expect(expectedContentsToContainMessage == gotContentsContainsMessage)
 		}
 	}
 }
@@ -176,7 +275,7 @@ struct RotatingFileWriterTests {
 private func makeWriter(
 	fileURL: URL,
 	maximumFileSize: Int = 4 * 1024 * 1024,
-	maximumArchiveCount: Int = 3
+	maximumArchiveCount: Int = 3,
 ) -> RotatingFileWriter {
 	withDependencies {
 		$0.fileSystemClient = FileSystemClient.liveValue
@@ -185,8 +284,8 @@ private func makeWriter(
 			fileURL: fileURL,
 			configuration: .init(
 				maximumFileSize: maximumFileSize,
-				maximumArchiveCount: maximumArchiveCount
-			)
+				maximumArchiveCount: maximumArchiveCount,
+			),
 		)
 	}
 }
