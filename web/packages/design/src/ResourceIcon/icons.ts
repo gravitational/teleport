@@ -381,6 +381,8 @@ export { default as tabnine } from './assets/tabnine.svg?no-inline';
 export { default as temporalDark } from './assets/temporal-dark.svg?no-inline';
 export { default as temporalLight } from './assets/temporal-light.svg?no-inline';
 export { default as terraform } from './assets/terraform.svg?no-inline';
+export { default as thanosDark } from './assets/thanos-dark.svg?no-inline';
+export { default as thanosLight } from './assets/thanos-light.svg?no-inline';
 export { default as tlaplusDark } from './assets/tlaplus-dark.svg?no-inline';
 export { default as tlaplusLight } from './assets/tlaplus-light.svg?no-inline';
 export { default as torqDark } from './assets/torq-dark.svg?no-inline';
