@@ -2490,6 +2490,10 @@ func TestCreateResources(t *testing.T) {
 			create: testCreateWithEmptyDocument,
 		},
 		{
+			kind:   "no-file-or-input",
+			create: testCreateWithNoFileOrInput,
+		},
+		{
 			kind:   types.KindDatabaseObjectImportRule,
 			create: testCreateDatabaseObjectImportRule,
 		},
@@ -2778,6 +2782,15 @@ spec:
 	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
 	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateWithNoFileOrInput(t *testing.T, clt *authclient.Client) {
+	prevStdin := os.Stdin
+	os.Stdin, _ = os.Open(os.DevNull)
+	t.Cleanup(func() { os.Stdin = prevStdin })
+
+	_, err := runResourceCommand(t, clt, []string{"create"})
+	require.ErrorContains(t, err, "no file specified or input via stdin")
 }
 
 func testCreateUser(t *testing.T, clt *authclient.Client) {
