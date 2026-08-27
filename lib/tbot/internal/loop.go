@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -65,7 +64,6 @@ type RunOnIntervalConfig struct {
 	Service string
 	Name    string
 	F       func(ctx context.Context) error
-	Clock   clockwork.Clock
 	// ReloadCh allows the task to be triggered immediately, ideal for handling
 	// CA rotations or a manual signal from a user.
 	// ReloadCh can be nil, in which case, the task will only run on the
@@ -98,9 +96,6 @@ func (cfg *RunOnIntervalConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("name is required")
 	}
 
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
 	if cfg.StatusReporter == nil {
 		cfg.StatusReporter = readyz.NoopReporter()
 	}
@@ -132,7 +127,7 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 		}
 	}
 
-	ticker := cfg.Clock.NewTicker(cfg.Interval)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 	jitter := retryutils.DefaultJitter
 	firstRun := true
@@ -141,7 +136,7 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-ticker.Chan():
+			case <-ticker.C:
 			case <-cfg.ReloadCh:
 			}
 		}
@@ -183,7 +178,7 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 					// probably won't be collected if we're shutting down,
 					// anyway.
 					return nil
-				case <-cfg.Clock.After(backoffTime):
+				case <-time.After(backoffTime):
 				}
 			}
 		}
