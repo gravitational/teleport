@@ -58,6 +58,9 @@ export function reportClientError(
 
   void api.fetch(cfg.api.logClientErrorPath, {
     method: 'POST',
-    body: JSON.stringify({ component, error_source: errorSource }),
+    body: JSON.stringify({
+      client_component: component,
+      error_source: errorSource,
+    }),
   });
 }

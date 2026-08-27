@@ -34,7 +34,10 @@ test('sends a report with only component and error_source', () => {
   expect(api.fetch).toHaveBeenCalledTimes(1);
   expect(api.fetch).toHaveBeenCalledWith(cfg.api.logClientErrorPath, {
     method: 'POST',
-    body: JSON.stringify({ component: 'cloud-panel', error_source: 'network' }),
+    body: JSON.stringify({
+      client_component: 'cloud-panel',
+      error_source: 'network',
+    }),
   });
 });
 

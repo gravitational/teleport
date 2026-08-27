@@ -25,9 +25,10 @@ func (p *Plugin) registerClientErrorHandlers() {
 
 // reportClientErrorRequest is the body of a POST to /enterprise/log
 type reportClientErrorRequest struct {
-	// Component identifies which part of the web UI is reporting the error.
-	Component   string `json:"component"`
-	ErrorSource string `json:"error_source"`
+	// ClientErrorComponent identifies which part of the client is reporting the error.
+	ClientErrorComponent string `json:"client_component"`
+	// ClientErrorSource categorizes the kind of failure being reported.
+	ClientErrorSource string `json:"error_source"`
 }
 
 // Client-error component identifiers. Must stay in sync with the frontend's
@@ -59,17 +60,17 @@ func (p *Plugin) reportClientErrorHandle(w http.ResponseWriter, r *http.Request,
 		if err := httplib.ReadJSON(r, &req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !validClientErrorComponents[req.Component] {
-			return nil, trace.BadParameter("invalid component %q", req.Component)
+		if !validClientErrorComponents[req.ClientErrorComponent] {
+			return nil, trace.BadParameter("invalid client_component %q", req.ClientErrorComponent)
 		}
-		if !validClientErrorSources[req.ErrorSource] {
-			return nil, trace.BadParameter("invalid error_source %q", req.ErrorSource)
+		if !validClientErrorSources[req.ClientErrorSource] {
+			return nil, trace.BadParameter("invalid error_source %q", req.ClientErrorSource)
 		}
 
 		p.Logger.WarnContext(r.Context(), "Web UI client error",
 			"origin", "client",
-			"component", req.Component,
-			"error_source", req.ErrorSource,
+			"client_component", req.ClientErrorComponent,
+			"error_source", req.ClientErrorSource,
 		)
 		return nil, nil
 	})
