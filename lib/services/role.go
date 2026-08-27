@@ -618,7 +618,7 @@ func validateSessionParticipantModes(modes []string) error {
 	return nil
 }
 
-// validateRule parses the where and action fields to validate the rule.
+// validateRule parses the where, action and verbs fields to validate the rule.
 func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
 		parser, err := NewWhereParser(&Context{},
@@ -645,6 +645,14 @@ func validateRule(r types.Rule) error {
 			_, err = parser.Parse(action)
 			if err != nil {
 				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+
+	if len(r.Verbs) != 0 {
+		for _, verb := range r.Verbs {
+			if !slices.Contains(types.RulesVerbs, verb) && verb != types.Wildcard {
+				return trace.BadParameter("unsupported verb %q; Supported: %v", verb, types.RulesVerbs)
 			}
 		}
 	}
