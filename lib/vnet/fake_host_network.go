@@ -278,18 +278,18 @@ func newSplitTUN() (*fakeTUN, *fakeTUN) {
 	ab := make(chan *[]byte)
 	ba := make(chan *[]byte)
 	return &fakeTUN{
-			name:            "tun1",
-			writePacketsTo:  ab,
-			readPacketsFrom: ba,
-			closed:          aClosed,
-			closeOnce:       sync.OnceFunc(func() { close(aClosed) }),
-		}, &fakeTUN{
-			name:            "tun2",
-			writePacketsTo:  ba,
-			readPacketsFrom: ab,
-			closed:          bClosed,
-			closeOnce:       sync.OnceFunc(func() { close(bClosed) }),
-		}
+		name:            "tun1",
+		writePacketsTo:  ab,
+		readPacketsFrom: ba,
+		closed:          aClosed,
+		closeOnce:       sync.OnceFunc(func() { close(aClosed) }),
+	}, &fakeTUN{
+		name:            "tun2",
+		writePacketsTo:  ba,
+		readPacketsFrom: ab,
+		closed:          bClosed,
+		closeOnce:       sync.OnceFunc(func() { close(bClosed) }),
+	}
 }
 
 // fakeTUNPacketPool recycles per-packet buffers so the fake TUN doesn't add

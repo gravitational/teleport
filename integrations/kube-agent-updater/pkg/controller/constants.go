@@ -37,11 +37,9 @@ const (
 
 var (
 	requeueLater = ctrl.Result{
-		Requeue:      true,
 		RequeueAfter: defaultRequeue,
 	}
 	requeueNow = ctrl.Result{
-		Requeue:      true,
-		RequeueAfter: 0,
+		RequeueAfter: time.Nanosecond,
 	}
 )

@@ -1546,13 +1546,13 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", waitingCont.GetSpec().GetPodName()).String()
 	lw := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
 			options.ResourceVersion = result.GetResourceVersion()
 			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan
 			return podClient.List(ctx, options)
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
 			options.ResourceVersion = result.GetResourceVersion()
 			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan

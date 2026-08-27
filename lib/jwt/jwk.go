@@ -26,6 +26,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"math/big"
 
 	"github.com/go-jose/go-jose/v3"
@@ -190,18 +191,38 @@ func unmarshalECDSAJWK(jwk JWK) (*ecdsa.PublicKey, error) {
 		return nil, trace.BadParameter("unsupported curve %v", jwk.Curve)
 	}
 
-	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	const coordinateSize = 32 // P-256
+	for _, coord := range []*string{&jwk.X, &jwk.Y} {
+		b, err := base64.RawURLEncoding.DecodeString(*coord)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(b) > coordinateSize {
+			return nil, trace.BadParameter("invalid coordinate size %v", len(b))
+		}
+		if len(b) < coordinateSize {
+			padded := make([]byte, coordinateSize)
+			copy(padded[coordinateSize-len(b):], b)
+			*coord = base64.RawURLEncoding.EncodeToString(padded)
+		}
 	}
-	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
+
+	data, err := json.Marshal(jwk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     new(big.Int).SetBytes(x),
-		Y:     new(big.Int).SetBytes(y),
-	}, nil
+	var key jose.JSONWebKey
+	if err := json.Unmarshal(data, &key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pub, ok := key.Key.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, trace.BadParameter("expected ECDSA public key, got %T", key.Key)
+	}
+	if pub.Curve != elliptic.P256() {
+		return nil, trace.BadParameter("unsupported curve %v", jwk.Curve)
+	}
+
+	return pub, nil
 }

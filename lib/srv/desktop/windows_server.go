@@ -882,7 +882,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
 	// read the client hello and wrap the connection with a translation layer (if needed)
-	translatedConn, hello, err := rdpclient.PrepareConnecton(clientProtocol, tdpConn, log)
+	translatedConn, hello, err := rdpclient.PrepareConnecton(clientProtocol, tdpConn, log) //nolint:staticcheck // SA4023 depends on desktop client build tags.
+	//nolint:staticcheck // SA4023. The check appears always-true because PrepareConnecton always returns err in builds without the desktop client.
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -54,8 +54,6 @@ type InventoryCommand struct {
 
 	format string
 
-	controlLog bool
-
 	version string
 
 	olderThan string
@@ -93,7 +91,6 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
-	c.inventoryPing.Flag("control-log", "Use control log for ping").Hidden().BoolVar(&c.controlLog)
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
@@ -360,8 +357,7 @@ func formatAge(seconds int64) string {
 
 func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
-		ServerID:   c.serverID,
-		ControlLog: c.controlLog,
+		ServerID: c.serverID,
 	})
 	if err != nil {
 		return trace.Wrap(err)

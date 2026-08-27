@@ -3951,7 +3951,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				BeamID:                   req.BeamID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
-				AllowedResourceIDs:       allowedResourceIDs,
+				AllowedResourceIDs:       allowedResourceIDs, //nolint:staticcheck // populated for compatibility with older certificates.
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
 				ConnectionDiagnosticID:   req.ConnectionDiagnosticID,
 				PrivateKeyPolicy:         attestedKeyPolicy,
@@ -4100,7 +4100,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		DelegationSessionID:      req.DelegationSessionID,
 		BeamID:                   req.BeamID,
 		JoinToken:                req.JoinToken,
-		AllowedResourceIDs:       allowedResourceIDs,
+		AllowedResourceIDs:       allowedResourceIDs, //nolint:staticcheck // populated for compatibility with older certificates.
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
 		ConnectionDiagnosticID:   req.ConnectionDiagnosticID,

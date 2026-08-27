@@ -872,7 +872,8 @@ Examples:
 			fmt.Println("The embedded session helper is not available in this build.")
 			break
 		}
-		err = reexec.InitEmbeddedReexec()
+		err = reexec.InitEmbeddedReexec() //nolint:staticcheck // SA4023 depends on sessionhelper_embed build tag.
+		//nolint:staticcheck // SA4023. The check appears always-false because InitEmbeddedReexec always returns err in builds without the sessionhelper_embed tag.
 		if err == nil {
 			fmt.Println("The embedded session helper is available in this build.")
 		}
@@ -1318,7 +1319,9 @@ func onSELinuxFileContexts(configPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA4023. FileContexts on non-Linux platforms always returns err.
 	fileContexts, err := selinux.FileContexts(cfg.DataDir, configPath, "")
+	//nolint:staticcheck // SA4023. The check appears always-true because FileContexts on non-Linux platforms always returns err.
 	if err != nil {
 		return trace.Wrap(err)
 	}
