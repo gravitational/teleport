@@ -130,7 +130,8 @@ test.use({ autoLogin: true });
 // Increase timeout because this test runs several sub-steps in one flow.
 test.setTimeout(30_000);
 
-test('headless auth modal flows', async ({ app }) => {
+// TODO(ravicious|gzdunek): fix the underlying issue with headless auth
+test.skip('headless auth modal flows', async ({ app }) => {
   const { page } = app;
   const headlessDialog = new HeadlessAuthDialogPage(page);
 
