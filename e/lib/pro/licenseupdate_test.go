@@ -261,8 +261,6 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 			return &cloudapi.GetUpdatedLicenseResponse{}, nil
 		})
 
-		ctx := t.Context()
-
 		service, err := newLicenseUpdateService(licenseUpdateServiceConfig{
 			Log:         slog.New(slog.DiscardHandler),
 			ServerID:    "ServerID",
@@ -277,7 +275,16 @@ func TestLicenseUpdateServiceRun(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, service)
 
-		go service.Run(ctx)
+		ctx, cancel := context.WithCancel(t.Context())
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			service.Run(ctx)
+		})
+
+		t.Cleanup(func() {
+			cancel()
+			wg.Wait()
+		})
 
 		time.Sleep(2 * time.Second)
 		synctest.Wait()
