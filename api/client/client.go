@@ -2439,6 +2439,18 @@ func (c *Client) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	return resp, nil
 }
 
+// ValidateGithubAuthCallback is called by the proxy to validate the GitHub
+// OAuth2 callback and issue the user's session and certificates.
+func (c *Client) ValidateGithubAuthCallback(
+	ctx context.Context, req *proto.ValidateGithubAuthCallbackRequest,
+) (*proto.ValidateGithubAuthCallbackResponse, error) {
+	resp, err := c.grpc.ValidateGithubAuthCallback(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetGithubAuthRequest gets a GithubAuthRequest by state token.
 func (c *Client) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
 	req := &proto.GetGithubAuthRequestRequest{StateToken: stateToken}
