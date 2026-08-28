@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -202,6 +201,7 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 	)
 	webClient := sut.CreateWebClientForUser(t, "alice-admin")
 	auth := sut.Teleport.Process.GetAuthServer()
+	pluginWatcher := sut.NewResourceWatcher(t, types.KindPlugin)
 
 	resp, err := doPluginsStaticAuth(t, webClient, "connector-that-does-not-exist", types.KindSAML)
 	require.NoError(t, err)
@@ -210,7 +210,11 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 
 	uiPluginResp := installSCIMPlugin(t, webClient, "okta-pre-created-test", types.KindSAML)
 	assertOAuthAccess(t, sut.ProxyAddr, uiPluginResp)
+	common.WaitForPutEvent(t, pluginWatcher, func(p types.Plugin) bool {
+		return p.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+	})
 	checkPluginStatus(t, webClient, types.PluginStatusCode_RUNNING)
+
 	require.NoError(t, auth.Plugins.DeleteAllPlugins(t.Context()))
 
 	t.Run("install should fail due the wrong connector type", func(t *testing.T) {
@@ -330,21 +334,19 @@ func assertOAuthAccess(t *testing.T, proxyAddr string, plugin ui.Plugin) {
 }
 
 func checkPluginStatus(t *testing.T, webClient *helpers.WebClientPack, wantStatus types.PluginStatusCode) {
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		req, err := http.NewRequest(http.MethodGet, webClient.Endpoint("enterprise", "plugin"), nil)
-		require.NoError(t, err)
-		resp, err := webClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		var uiResp []ui.Plugin
-		err = json.NewDecoder(resp.Body).Decode(&uiResp)
-		require.NoError(t, err)
-		require.Len(t, uiResp, 1)
-		scimPlugin := uiResp[0]
-		require.Empty(t, scimPlugin.Credentials)
-		require.Equal(t, wantStatus, scimPlugin.Status.Code)
-	}, time.Second, time.Millisecond*30)
+	req, err := http.NewRequest(http.MethodGet, webClient.Endpoint("enterprise", "plugin"), nil)
+	require.NoError(t, err)
+	resp, err := webClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var uiResp []ui.Plugin
+	err = json.NewDecoder(resp.Body).Decode(&uiResp)
+	require.NoError(t, err)
+	require.Len(t, uiResp, 1)
+	scimPlugin := uiResp[0]
+	require.Empty(t, scimPlugin.Credentials)
+	require.Equal(t, wantStatus, scimPlugin.Status.Code)
 }
 
 func createOIDConnector(t *testing.T, name string) types.OIDCConnector {

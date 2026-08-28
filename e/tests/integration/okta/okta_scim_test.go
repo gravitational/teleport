@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -109,6 +108,7 @@ func testSCIMCRUD(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, clien
 	}
 	scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: startingAttrs}
 	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
+	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
 
 	t.Run("Create SCIM User", func(t *testing.T) {
 		createdUser, err := client.CreateUser(ctx, scimUser)
@@ -205,11 +205,14 @@ func testSCIMCRUD(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, clien
 	})
 
 	t.Run("Get SCIM Group", func(t *testing.T) {
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			got, err := client.GetGroupByDisplayName(ctx, groupName)
-			require.NoError(t, err)
-			require.Equal(t, groupName, got.DisplayName)
-		}, time.Second*3, time.Millisecond*50)
+		// Wait for the group's backing access list to be propagated to the cache.
+		common.WaitForPutEvent(t, accessListWatcher, func(al *accesslist.AccessList) bool {
+			return al.Spec.Title == groupName
+		})
+
+		got, err := client.GetGroupByDisplayName(ctx, groupName)
+		require.NoError(t, err)
+		require.Equal(t, groupName, got.DisplayName)
 	})
 
 	t.Run("Update SCIM Group", func(t *testing.T) {

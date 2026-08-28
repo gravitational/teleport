@@ -38,6 +38,7 @@ func TestSCIMGeneric(t *testing.T) {
 	)
 	authClient := sut.Teleport.Process.GetAuthServer()
 	aclClient := authClient.AccessListsInternal
+	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
 
 	scimToken := createGenericSCIMPlugin(t, sut)
 	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
@@ -164,10 +165,9 @@ func TestSCIMGeneric(t *testing.T) {
 	err = scimClient.DeleteUser(t.Context(), scimUser1.UserName)
 	require.NoError(t, err)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = authClient.GetUser(context.Background(), scimUser1.UserName, false)
-		require.Error(t, err)
-	}, time.Second, 20*time.Millisecond)
+	common.WaitForDeleteEvent(t, userWatcher, func(r types.Resource) bool {
+		return r.GetName() == scimUser1.UserName
+	})
 
 	t.Run("upgrade SSO ephemeral user to SCIM user", func(t *testing.T) {
 		fistUserName := "user-001@exmaple.com"
@@ -184,10 +184,9 @@ func TestSCIMGeneric(t *testing.T) {
 			require.NoError(t, err)
 
 			// Wait for user to be propagated to the cache.
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				_, err := authClient.GetUser(context.Background(), u.GetName(), false)
-				require.NoError(t, err)
-			}, time.Second, 30*time.Millisecond)
+			common.WaitForPutEvent(t, userWatcher, func(user types.User) bool {
+				return user.GetName() == u.GetName()
+			})
 		}
 		_, err := scimClient.CreateUser(context.Background(), &scimsdk.User{
 			ExternalID: fistUserName,
@@ -196,11 +195,9 @@ func TestSCIMGeneric(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			u, err := authClient.GetUser(context.Background(), fistUserName, false)
-			require.NoError(t, err)
-			require.Equal(t, typescommon.OriginSCIM, u.Origin())
-		}, time.Second, time.Millisecond*30)
+		common.WaitForPutEvent(t, userWatcher, func(u types.User) bool {
+			return u.GetName() == fistUserName && u.Origin() == typescommon.OriginSCIM
+		})
 
 		// Attempt to create an SCIM user with a name that already exists in Teleport
 		// but is not managed by SCIM connector. This should fail.

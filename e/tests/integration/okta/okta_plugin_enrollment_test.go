@@ -23,6 +23,7 @@ import (
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktaservice "github.com/gravitational/teleport/e/lib/okta/service"
 	common "github.com/gravitational/teleport/e/tests/common"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestPluginEnrollmentFullIntegration tests the full integration of the Okta plugin.
@@ -239,6 +241,9 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
+	pluginWatcher := sut.NewResourceWatcher(t, types.KindPlugin)
+	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
+	userGroupWatcher := sut.NewResourceWatcher(t, types.KindUserGroup)
 
 	everyoneGroup := fakeOkta.CreateBuiltInGroup("Everyone")
 
@@ -283,13 +288,9 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
-				Name: types.PluginTypeOkta,
-			}.Build())
-			require.NoError(t, err)
-			require.Equal(t, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
-		}, time.Second*2, time.Millisecond*100)
+		common.WaitForPutEvent(t, pluginWatcher, func(p types.Plugin) bool {
+			return p.GetName() == types.PluginTypeOkta && p.GetStatus().GetCode() == types.PluginStatusCode_RUNNING
+		})
 
 		pushSCIMUserCreate(t, sut, fakeOkta.provisionedUsers[0], scimToken)
 	})
@@ -383,14 +384,11 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimePoint(from))
 		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimePoint(from))
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			require.NoError(t, err)
-			require.Empty(t, accessLists)
-			usersGroups, _, err := sut.Teleport.Process.GetAuthServer().ListUserGroups(ctx, 0, "")
-			require.NoError(t, err)
-			require.Len(t, usersGroups, len(fakeOkta.provisionedGroups))
-		}, time.Second*2, time.Millisecond*100)
+		waitForResourceCount(t, userGroupWatcher, len(fakeOkta.provisionedGroups), func(types.UserGroup) bool { return true })
+
+		accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+		require.NoError(t, err)
+		require.Empty(t, accessLists)
 	})
 
 	t.Run("enabled full integration by turning on access list sync", func(t *testing.T) {
@@ -431,11 +429,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			require.NoError(t, err)
-			require.Len(t, accessLists, len(fakeOkta.provisionedGroups))
-		}, time.Second*2, time.Millisecond*100)
+		waitForResourceCount(t, accessListWatcher, len(fakeOkta.provisionedGroups), func(*accesslist.AccessList) bool { return true })
 	})
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
@@ -479,11 +473,26 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(time.Now()))
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
-			require.NoError(t, err)
-			require.Len(t, accessLists, 1)
-		}, time.Second*2, time.Millisecond*100)
+
+		// The group filter now only matches provisionedGroups[0], so the access
+		// lists synced for the other groups should be removed. Both deletions
+		// are awaited by a single predicate (rather than one WaitForDeleteEvent
+		// call per group) because the events can arrive in either order, and a
+		// call waiting on a fixed ID would silently drop the other group's event.
+		remaining := set.New(fakeOkta.provisionedGroups[1].Id, fakeOkta.provisionedGroups[2].Id)
+		for remaining.Len() > 0 {
+			common.WaitForDeleteEvent(t, accessListWatcher, func(r types.Resource) bool {
+				if !remaining.Contains(r.GetName()) {
+					return false
+				}
+				remaining.Remove(r.GetName())
+				return true
+			})
+		}
+
+		accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
+		require.NoError(t, err)
+		require.Len(t, accessLists, 1)
 	})
 }
 
