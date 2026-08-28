@@ -103,15 +103,24 @@ Example of a well-formed finding:
   - Links to pages within this repo use relative `.mdx` paths rather than
     published `https://goteleport.com/docs/...` URLs.
   - `Next steps` sections link to canonical follow-on guides.
-- **Frontmatter completeness**
+- **Frontmatter completeness.** For newly added standalone pages (files outside
+  `includes/`), verify that:
   - `title` and `description` are present and accurate. The `description` is
     one sentence that starts with an active verb (e.g., "Explains how to...",
     "Configures...") and ends with a period.
-  - For newly added standalone pages (files outside `includes/`), verify that
-    `tags` and `sidebar_label` are present.
-  - Canonical tag definitions live in the docs-website repo (`tags.yml`). Do
-    not invent or "correct" tag names; flag unfamiliar tags for human
-    verification. See the "Frontmatter and tags" section of `AGENTS-STYLE.md`.
+  - `tags` is present. Canonical tag definitions live in the docs-website repo
+    (`tags.yml`). Do not invent or "correct" tag names; flag unfamiliar tags for
+    human verification. See the "Frontmatter and tags" section of
+    `AGENTS-STYLE.md`.
+  - `sidebar_label` is present if necessary for this page to have a clear and
+    concise sidebar entry. By default, Docusaurus uses the page's `title` field
+    to render an H1. If other pages in the same docs content directory as a
+    newly added page include the `sidebar_label` frontmatter field, ensure that
+    the new page also includes that field, with a value that has a similar
+    format to the others, so the sidebar renders consistently. Pages with long
+    titles or titles that repeat words from other pages in the same section
+    should use `sidebar_label`. Otherwise, it is okay for new pages to use only
+    the `title` field to specify a title.
 
 ## References
 
