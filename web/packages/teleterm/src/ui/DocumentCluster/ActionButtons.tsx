@@ -45,6 +45,7 @@ import {
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 import { AppSubKind } from 'shared/services';
 import { getAppProtocol } from 'shared/services/apps';
+import { getErrorMessage } from 'shared/utils/error';
 
 import {
   doesMcpAppSupportGateway,
@@ -279,7 +280,7 @@ async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
     // not the most important part of the app.
     appContext.notificationsService.notifyWarning({
       title: 'Could not fetch database usernames',
-      description: e.message,
+      description: getErrorMessage(e),
     });
 
     throw e;

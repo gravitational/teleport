@@ -15,6 +15,7 @@
     "strict": false,
     "strictBindCallApply": true,
     "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
     "noEmitHelpers": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,

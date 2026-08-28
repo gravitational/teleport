@@ -23,7 +23,11 @@ import path from 'node:path';
 import { app, dialog, nativeTheme } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
-import { ensureError } from 'shared/utils/error';
+import {
+  ensureError,
+  getErrorMessage,
+  isErrnoException,
+} from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -366,7 +370,7 @@ function launchDeepLink(
         break;
       }
       case 'malformed-url': {
-        reason = `malformed URL (${result.error.message})`;
+        reason = `malformed URL (${getErrorMessage(result.error)})`;
         break;
       }
       default: {
@@ -429,7 +433,7 @@ async function migrateOldTshHomeOnce(
   try {
     await fs.stat(oldTshHome);
   } catch (err) {
-    if (err.code === 'ENOENT') {
+    if (isErrnoException(err, 'ENOENT')) {
       logger.info(
         'Old tsh directory does not exist, marking migration as processed'
       );

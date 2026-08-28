@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getErrMessage } from 'shared/utils/errorType';
+import { getErrorMessage } from 'shared/utils/error';
 
 import { App } from 'teleport/services/apps/types';
 import {
@@ -121,7 +121,7 @@ export const withUnsupportedOktaPluginUpdateErrorConversion = (
   err: unknown
 ) => {
   if (err instanceof ApiError && err.response.status === 404) {
-    const msg = getErrMessage(err);
+    const msg = getErrorMessage(err);
     throw new Error(
       `Could not update Okta plugin: ${msg}. Your proxy may be behind the minimum required version (v17.3.0) to support Okta plugin updates with this web client.`
     );
@@ -133,7 +133,7 @@ export const withUnsupportedOktaPluginCreateErrorConversion = (
   err: unknown
 ) => {
   if (err instanceof ApiError) {
-    const msg = getErrMessage(err);
+    const msg = getErrorMessage(err);
     if (msg.match(/missing okta (?:organization url|api token)/gi)) {
       throw new Error(
         `Could not create Okta plugin: ${msg}. Your proxy may be behind the minimum required version (v17.3.0) to support Okta plugin creation with this web client.`
@@ -144,7 +144,7 @@ export const withUnsupportedOktaPluginCreateErrorConversion = (
 };
 
 type Base = {
-  err: Error;
+  err: unknown;
 };
 
 type CreateJoinToken = Base & {
@@ -209,7 +209,10 @@ export function useV1Fallback() {
   async function tryV1Fallback(props: CreateJoinToken): Promise<JoinToken>;
 
   async function tryV1Fallback(props: FallbackProps) {
-    if (!props.err.message.includes(ProxyRequiresUpgrade) || hasLabels(props)) {
+    if (
+      !getErrorMessage(props.err).includes(ProxyRequiresUpgrade) ||
+      hasLabels(props)
+    ) {
       throw props.err;
     }
 

@@ -16,16 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ensureError } from 'shared/utils/error';
+
 export type SerializedError = {
   name: string;
   message: string;
   stack?: string;
   cause?: unknown;
   toStringResult?: string;
+  $serializedError?: true;
 };
 
-/** Serializes an Error into a plain object for transport through Electron IPC. */
-export function serializeError(error: Error): SerializedError {
+function isSerialized(error: unknown): error is SerializedError {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    error['$serializedError'] === true &&
+    typeof error['name'] === 'string' &&
+    typeof error['message'] === 'string'
+  );
+}
+
+/** Serializes an error into a plain object for transport through Electron IPC. */
+export function serializeError(error: unknown): SerializedError {
+  if (isSerialized(error)) {
+    return error;
+  }
+
+  const errorInstance = ensureError(error);
   const {
     name,
     cause,
@@ -34,7 +52,7 @@ export function serializeError(error: Error): SerializedError {
     // functions must be skipped, otherwise structuredClone will fail to clone the object
     toString,
     ...enumerableFields
-  } = error;
+  } = errorInstance;
   return {
     name,
     message,
@@ -42,14 +60,23 @@ export function serializeError(error: Error): SerializedError {
     stack,
     // Calling the destructured function directly could result in the following error:
     // Method Error.prototype.toString called on incompatible receiver undefined
-    toStringResult: error.toString?.(),
+    toStringResult: errorInstance.toString?.(),
     ...enumerableFields,
+    $serializedError: true,
   };
 }
 
 /** Deserializes a plain object back into an Error instance. */
 export function deserializeError(serialized: SerializedError): Error {
-  const { name, cause, stack, message, toStringResult, ...rest } = serialized;
+  const {
+    name,
+    cause,
+    stack,
+    message,
+    toStringResult,
+    $serializedError,
+    ...rest
+  } = serialized;
   const error = new Error(message);
   error.name = name;
   error.cause = cause;

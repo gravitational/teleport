@@ -83,3 +83,20 @@ export class AbortError extends DOMException {
     super(message, 'AbortError');
   }
 }
+
+/**
+ * Checks whether an error has the expected Node.js system error code (errno exception).
+ * Works with both Error instances and serialized errors.
+ *
+ * This uses the conventional `error.code` check rather than attempting to
+ * identify the error's runtime class. Callers should pass a known system error
+ * code such as `ENOENT`, `EPERM`, or `ESRCH`.
+ */
+export function isErrnoException(error: unknown, code: string): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === code
+  );
+}

@@ -54,7 +54,7 @@ export async function retryWithRelogin<T>(
   resourceUri: ClusterOrResourceUri,
   actionToRetry: () => Promise<T>
 ): Promise<T> {
-  let retryableErrorFromActionToRetry: Error;
+  let retryableErrorFromActionToRetry: unknown;
   try {
     return await actionToRetry();
   } catch (error) {

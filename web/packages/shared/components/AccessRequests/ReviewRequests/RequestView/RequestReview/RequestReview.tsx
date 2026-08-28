@@ -310,10 +310,7 @@ function makeReviewStateOptions(
       // Connect) means the reviewer can't see the eligible Access Lists, which
       // is distinct from there being none. Detect it by status code rather than
       // message text so it survives across versions; surface other errors as-is.
-      const err = fetchSuggestedAccessListsAttempt.error;
-      const isPermissionError =
-        err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
-      msg = isPermissionError
+      msg = isPermissionDeniedError(fetchSuggestedAccessListsAttempt.error)
         ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."
         : fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {
@@ -394,4 +391,27 @@ const HorizontalLine = styled.div<{ height?: number }>`
 // This was copied from `AccessListManagement`.
 function makeTraitLabel(traitKey: string, traitVals: string[]) {
   return `${traitKey}: ${traitVals.sort().join(', ')}`;
+}
+
+/**
+ * Checks whether an error represents a permission denial from either the Web
+ * API or a gRPC service.
+ *
+ * TODO(gzdunek): Consider passing a permission-error predicate so that Web UI and Connect
+ * can identify their own native error type.
+ */
+function isPermissionDeniedError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  if ('code' in error && error.code === 'PERMISSION_DENIED') {
+    return true;
+  }
+  return (
+    'response' in error &&
+    typeof error.response === 'object' &&
+    error.response !== null &&
+    'status' in error.response &&
+    error.response.status === 403
+  );
 }

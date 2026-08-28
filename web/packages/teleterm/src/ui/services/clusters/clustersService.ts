@@ -26,7 +26,7 @@ import {
   ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
-import { AbortError, isAbortError } from 'shared/utils/error';
+import { AbortError, getErrorMessage, isAbortError } from 'shared/utils/error';
 
 import type { State as ClustersState } from 'teleterm/mainProcess/clusterStore';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
@@ -117,7 +117,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
       const notificationId = this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
-        description: e.message,
+        description: getErrorMessage(e),
         action: {
           content: 'Retry',
           onClick: () => {
@@ -140,7 +140,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
       const notificationId = this.notificationsService.notifyError({
         title: `Could not start headless requests watcher for ${clusterName}`,
-        description: e.message,
+        description: getErrorMessage(e),
         action: {
           content: 'Retry',
           onClick: () => {
@@ -194,7 +194,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       }
       const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
-        description: error.message,
+        description: getErrorMessage(error),
         action: {
           content: 'Retry',
           onClick: () => {
@@ -221,7 +221,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     } catch (error) {
       const notificationId = this.notificationsService.notifyError({
         title: 'Could not synchronize database connections',
-        description: error.message,
+        description: getErrorMessage(error),
         action: {
           content: 'Retry',
           onClick: () => {
@@ -329,7 +329,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
       const notificationId = this.notificationsService.notifyError({
         title,
-        description: error.message,
+        description: getErrorMessage(error),
         action: {
           content: 'Retry',
           onClick: () => {

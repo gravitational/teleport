@@ -20,6 +20,7 @@ import { MutationFunction } from '@tanstack/react-query';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
+import { ApiError } from 'teleport/services/api/parseError';
 import {
   canUseV1Edit,
   canUseV2Edit,
@@ -67,7 +68,7 @@ export async function getBot(
       .then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
-    if (err?.response?.status === 404) {
+    if (err instanceof ApiError && err.response.status === 404) {
       return null;
     }
     throw err;

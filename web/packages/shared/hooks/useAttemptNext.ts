@@ -19,6 +19,7 @@
 import { useCallback, useState } from 'react';
 
 import Logger from 'shared/libs/logger';
+import { getErrorMessage } from 'shared/utils/error';
 
 const logger = Logger.create('shared/hooks/useAttempt');
 
@@ -33,9 +34,9 @@ export default function useAttemptNext(status = '' as Attempt['status']) {
     statusText: '',
   }));
 
-  const handleError = useCallback((err: Error) => {
+  const handleError = useCallback((err: unknown) => {
     logger.error('attempt', err);
-    setAttempt({ status: 'failed', statusText: err.message });
+    setAttempt({ status: 'failed', statusText: getErrorMessage(err) });
   }, []);
 
   const run = useCallback((fn: Callback) => {

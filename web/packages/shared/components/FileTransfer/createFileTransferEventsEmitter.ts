@@ -22,9 +22,7 @@ import { FileTransferListeners } from './FileTransferStateless/types';
 
 export interface FileTransferEventsEmitter extends FileTransferListeners {
   emitProgress(progress: number): void;
-
-  emitError(error: Error): void;
-
+  emitError(error: unknown): void;
   emitComplete(): void;
 }
 

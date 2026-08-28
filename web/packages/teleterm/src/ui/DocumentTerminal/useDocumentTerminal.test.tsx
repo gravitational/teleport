@@ -73,7 +73,7 @@ const getPtyProcessMock = (): IPtyProcess => ({
   onOpen: jest.fn(),
   write: jest.fn(),
   resize: jest.fn(),
-  dispose: jest.fn(),
+  dispose: jest.fn().mockResolvedValue(undefined),
   onData: jest.fn(),
   start: jest.fn(),
   onStartError: jest.fn(),

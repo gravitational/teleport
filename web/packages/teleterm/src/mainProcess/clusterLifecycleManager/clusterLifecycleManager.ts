@@ -20,7 +20,6 @@ import {
   Cluster,
   LoggedInUser,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { ensureError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
@@ -381,7 +380,7 @@ export class ClusterLifecycleManager {
     );
     const serialized: ProfileWatcherError = {
       reason: watcherError.reason,
-      error: serializeError(ensureError(watcherError.error)),
+      error: serializeError(watcherError.error),
     };
     this.windowsManager
       .getWindow()

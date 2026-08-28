@@ -28,6 +28,7 @@ import Dialog, {
 } from 'design/Dialog';
 import Validation, { Validator } from 'shared/components/Validation';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { getErrorMessage } from 'shared/utils/error';
 
 import { CatchError } from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
@@ -417,12 +418,16 @@ const AttemptAlert = ({ attempt }: { attempt?: Attempt<unknown> }) => {
 };
 
 /** Renders an alert if there is an error. */
-const ErrorAlert = ({ error }: { error: Error }) =>
-  error && (
-    <Danger mt={3} dismissible details={error.cause?.toString()}>
-      {error.message}
-    </Danger>
+const ErrorAlert = ({ error }: { error: unknown }) => {
+  const details = error instanceof Error ? error.cause?.toString() : '';
+  return (
+    error && (
+      <Danger mt={3} dismissible details={details}>
+        {getErrorMessage(error)}
+      </Danger>
+    )
   );
+};
 
 const ShowHide = styled(Flex)<{ hidden: boolean }>`
   display: ${props => (props.hidden ? 'none' : '')};

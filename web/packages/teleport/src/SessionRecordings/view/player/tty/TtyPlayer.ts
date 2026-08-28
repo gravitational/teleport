@@ -85,7 +85,7 @@ export class TtyPlayer extends Player<TtyEvent> {
       this.terminal.loadAddon(imageAddon);
       this.addons.push(imageAddon);
     } catch (e) {
-      this.logger.error(`Failed to load image addon: ${e.message}`);
+      this.logger.error('Failed to load image addon', e);
     }
 
     let webglAddon: WebglAddon | undefined;

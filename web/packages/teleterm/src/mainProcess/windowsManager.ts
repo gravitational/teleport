@@ -246,7 +246,8 @@ export class WindowsManager {
       await this.whenFrontendAppIsReady();
     } catch (error) {
       this.logger.error(
-        `Could not send the deep link to the frontend app: ${error.message}`
+        'Could not send the deep link to the frontend app',
+        error
       );
       return;
     }
