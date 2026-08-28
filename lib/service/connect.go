@@ -769,11 +769,6 @@ func (process *TeleportProcess) makeJoinParams(
 			tokenName = qn.String()
 			tokenSecret = secret
 		}
-	} else {
-		if name, secret, ok := joining.DecodeScopedToken(token); ok {
-			tokenName = name
-			tokenSecret = secret
-		}
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
