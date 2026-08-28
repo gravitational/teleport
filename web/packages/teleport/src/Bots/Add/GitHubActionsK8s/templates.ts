@@ -86,6 +86,6 @@ jobs:
 
     # Use kubectl or other compatible tools to interact with your Kubernetes
     # cluster.
-    - name: List pods
+    - name: Check Kubernetes connectivity
       run: kubectl version
 `;
