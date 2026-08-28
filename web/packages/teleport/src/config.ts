@@ -408,7 +408,7 @@ const cfg = {
     // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
     usersPathV2:
-      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?&searchMode=:searchMode?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -1297,6 +1297,7 @@ const cfg = {
       search: params?.search || undefined,
       startKey: params?.startKey || undefined,
       limit: params?.limit || undefined,
+      searchMode: params?.searchMode || undefined,
     });
   },
 
@@ -2194,6 +2195,7 @@ export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;
+  searchMode?: 'identity';
 }
 
 export interface UrlResourcesParams {

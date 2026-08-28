@@ -4868,6 +4868,14 @@ message BoolValue {
   bool Value = 1;
 }
 
+// UserSearchMode controls how user search keywords are matched.
+enum UserSearchMode {
+  // USER_SEARCH_MODE_UNSPECIFIED preserves legacy user search behavior.
+  USER_SEARCH_MODE_UNSPECIFIED = 0;
+  // USER_SEARCH_MODE_IDENTITY restricts matching to user identity values.
+  USER_SEARCH_MODE_IDENTITY = 1;
+}
+
 // UserFilter matches user resources.
 message UserFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
@@ -4880,6 +4888,8 @@ message UserFilter {
     (gogoproto.jsontag) = "traits,omitempty",
     (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
+  // SearchMode controls how SearchKeywords are matched.
+  UserSearchMode SearchMode = 4 [(gogoproto.jsontag) = "search_mode,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user

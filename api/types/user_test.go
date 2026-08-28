@@ -469,6 +469,185 @@ func TestUserMatchSearch(t *testing.T) {
 	}
 }
 
+func TestUserFilterMatchSearchModes(t *testing.T) {
+	const (
+		departmentTrait = "department"
+		managerTrait    = "manager"
+	)
+
+	tests := []struct {
+		name     string
+		username string
+		labels   map[string]string
+		roles    []string
+		traits   map[string][]string
+		filter   UserFilter
+		want     bool
+	}{
+		{
+			name:     "unspecified mode preserves legacy trait matching",
+			username: "alice@example.com",
+			traits:   map[string][]string{managerTrait: {"Tim Rivera"}},
+			filter:   UserFilter{SearchKeywords: []string{"tim"}},
+			want:     true,
+		},
+		{
+			name:     "identity mode matches username",
+			username: "timothy@example.com",
+			filter: UserFilter{
+				SearchKeywords: []string{"TIM"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: true,
+		},
+		{
+			name:     "identity mode matches primary display with multiple keywords",
+			username: "123456",
+			traits: map[string][]string{
+				oktaFirstNameTrait: {"Tim"},
+				oktaLastNameTrait:  {"Rivera"},
+			},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim", "RIVERA"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: true,
+		},
+		{
+			name:     "identity mode matches secondary display",
+			username: "123456",
+			traits: map[string][]string{
+				oktaEmailTrait: {"tim.rivera@example.com"},
+			},
+			filter: UserFilter{
+				SearchKeywords: []string{"RIVERA@EXAMPLE"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: true,
+		},
+		{
+			name:     "identity mode excludes non-identity trait match",
+			username: "alice@example.com",
+			traits:   map[string][]string{managerTrait: {"Tim Rivera"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: false,
+		},
+		{
+			name:     "identity mode excludes labels",
+			username: "alice@example.com",
+			labels:   map[string]string{"environment": "production"},
+			filter: UserFilter{
+				SearchKeywords: []string{"production"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: false,
+		},
+		{
+			name:     "identity mode excludes roles",
+			username: "alice@example.com",
+			roles:    []string{"auditor"},
+			filter: UserFilter{
+				SearchKeywords: []string{"auditor"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: false,
+		},
+		{
+			name:     "identity mode excludes raw display trait keys",
+			username: "alice@example.com",
+			traits:   map[string][]string{oktaFirstNameTrait: {"Alice"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"firstName"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: false,
+		},
+		{
+			name:     "identity mode with no keywords does not filter",
+			username: "alice@example.com",
+			filter:   UserFilter{SearchMode: UserSearchMode_USER_SEARCH_MODE_IDENTITY},
+			want:     true,
+		},
+		{
+			name:     "identity mode matches an empty keyword",
+			username: "alice@example.com",
+			filter: UserFilter{
+				SearchKeywords: []string{""},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+			},
+			want: true,
+		},
+		{
+			name:     "future mode preserves legacy matching",
+			username: "alice@example.com",
+			traits:   map[string][]string{managerTrait: {"Tim Rivera"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim"},
+				SearchMode:     UserSearchMode(2),
+			},
+			want: true,
+		},
+		{
+			name:     "garbage mode preserves legacy matching",
+			username: "alice@example.com",
+			traits:   map[string][]string{managerTrait: {"Tim Rivera"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim"},
+				SearchMode:     UserSearchMode(-1),
+			},
+			want: true,
+		},
+		{
+			name:     "identity mode composes with exact traits",
+			username: "timothy@example.com",
+			traits:   map[string][]string{departmentTrait: {"engineering"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+				Traits:         map[string][]string{departmentTrait: {"engineering"}},
+			},
+			want: true,
+		},
+		{
+			name:     "identity mode rejects an exact trait mismatch",
+			username: "timothy@example.com",
+			traits:   map[string][]string{departmentTrait: {"engineering"}},
+			filter: UserFilter{
+				SearchKeywords: []string{"tim"},
+				SearchMode:     UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+				Traits:         map[string][]string{departmentTrait: {"sales"}},
+			},
+			want: false,
+		},
+		{
+			name:     "identity mode composes with system user filtering",
+			username: "timothy@example.com",
+			labels:   map[string]string{TeleportInternalResourceType: SystemResource},
+			filter: UserFilter{
+				SearchKeywords:  []string{"tim"},
+				SearchMode:      UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+				SkipSystemUsers: true,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user, err := NewUser(tt.username)
+			require.NoError(t, err)
+			user.SetStaticLabels(tt.labels)
+			user.SetRoles(tt.roles)
+			user.SetTraits(tt.traits)
+
+			require.Equal(t, tt.want, tt.filter.Match(user.(*UserV2)))
+		})
+	}
+}
+
 func TestUserMatchTraits(t *testing.T) {
 	u := newUser(t)
 

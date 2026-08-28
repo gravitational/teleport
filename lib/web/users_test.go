@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -179,6 +180,50 @@ func TestCRUDs(t *testing.T) {
 
 	err = deleteUser(req, param, m, "self")
 	require.NoError(t, err)
+}
+
+func TestListUsersSearchMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		searchMode string
+		wantMode   types.UserSearchMode
+	}{
+		{
+			name:     "unspecified",
+			wantMode: types.UserSearchMode_USER_SEARCH_MODE_UNSPECIFIED,
+		},
+		{
+			name:       "identity",
+			searchMode: "identity",
+			wantMode:   types.UserSearchMode_USER_SEARCH_MODE_IDENTITY,
+		},
+		{
+			name:       "unrecognized defaults to unspecified",
+			searchMode: "all",
+			wantMode:   types.UserSearchMode_USER_SEARCH_MODE_UNSPECIFIED,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			m := &mockedUserAPIGetter{
+				mockListUsers: func(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+					called = true
+					require.Equal(t, tt.wantMode, req.GetFilter().SearchMode)
+					return userspb.ListUsersResponse_builder{}.Build(), nil
+				},
+			}
+			query := url.Values{"search": {"tim"}}
+			if tt.searchMode != "" {
+				query.Set("searchMode", tt.searchMode)
+			}
+
+			_, err := listUsers(t.Context(), query, m)
+			require.NoError(t, err)
+			require.True(t, called)
+		})
+	}
 }
 
 func TestUpdateUser_updateUserTraitsPreset(t *testing.T) {

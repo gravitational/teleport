@@ -21,6 +21,7 @@ export function useFetch(): FetchState {
       const usersResult = await ctx.userService.fetchUsersV2({
         search: input,
         limit: 50,
+        searchMode: 'identity',
       });
 
       const options: HybridUserOption[] = usersResult.items.map(user => ({

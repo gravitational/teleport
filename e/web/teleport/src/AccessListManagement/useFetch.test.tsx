@@ -16,17 +16,19 @@ afterEach(() => {
 
 test('fetchUsersOptions preserves user display fields', async () => {
   const ctx = createTeleportContextE();
-  jest.spyOn(ctx.userService, 'fetchUsersV2').mockResolvedValue({
-    items: [
-      {
-        name: 'alice',
-        displayPrimary: 'Alice Liddell',
-        displaySecondary: 'alice@example.com',
-        roles: [],
-      },
-    ],
-    startKey: '',
-  });
+  const fetchUsersV2 = jest
+    .spyOn(ctx.userService, 'fetchUsersV2')
+    .mockResolvedValue({
+      items: [
+        {
+          name: 'alice',
+          displayPrimary: 'Alice Liddell',
+          displaySecondary: 'alice@example.com',
+          roles: [],
+        },
+      ],
+      startKey: '',
+    });
   jest
     .spyOn(accessManagementService, 'fetchAccessListsV2')
     .mockResolvedValue({ agents: [] });
@@ -48,4 +50,9 @@ test('fetchUsersOptions preserves user display fields', async () => {
       },
     },
   ]);
+  expect(fetchUsersV2).toHaveBeenCalledWith({
+    search: 'alice',
+    limit: 50,
+    searchMode: 'identity',
+  });
 });
