@@ -1,0 +1,36 @@
+#
+# Example: Legacy Default Admin Role
+# Tip: Use 'editor' for configuring Teleport
+#
+kind: role
+metadata:
+  name: admin
+spec:
+  allow:
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    logins:
+    - '{{internal.logins}}'
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - '*'
+      verbs:
+      - '*'
+  deny:
+    logins: null
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: true
+    max_session_ttl: 30h0m0s
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
+version: v3

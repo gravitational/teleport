@@ -1,0 +1,24 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name:
+  region:
+  version: "1.29"
+  tags:
+    teleport.dev/creator:
+
+iam:
+  withOIDC: true
+
+addons:
+  - name: aws-ebs-csi-driver
+    attachPolicyARNs:
+      - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+
+managedNodeGroups:
+  - name:
+    instanceType: m5.4xlarge
+    minSize: 3
+    maxSize: 10
+    tags:
+      teleport.dev/creator:

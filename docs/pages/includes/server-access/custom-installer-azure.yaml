@@ -1,0 +1,13 @@
+discovery_service:
+  # ...
+  azure:
+    - types: ["vm"]
+      tags:
+       - "env": "prod"
+      install: # optional section when default-installer is used.
+        script_name: "default-installer"
+    - types: ["vm"]
+      tags:
+       - "env": "devel"
+      install:
+        script_name: "devel-installer"

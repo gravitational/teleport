@@ -1,0 +1,398 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package tdp
+
+import (
+	"bufio"
+	"errors"
+	"io"
+	"net"
+	"slices"
+	"sync"
+
+	"github.com/gravitational/trace"
+)
+
+const (
+	// MaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// the browser (Teleport never receives this message, so won't be decoding it)
+	MaxAlertMessageLength = 10240
+
+	// MaxPathLength is somewhat arbitrary because we weren't able to determine
+	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+	// The limit is kept as an additional defense-in-depth measure.
+	MaxPathLength = 10240
+
+	MaxClipboardDataLength = 1024 * 1024 // 1MB
+	MaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
+
+var (
+	ClipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")
+	StringMaxLenErr        = trace.LimitExceeded("TDP string length exceeds allowable limit")
+	FileReadWriteMaxLenErr = trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
+	MFADataMaxLenErr       = trace.LimitExceeded("MFA challenge data exceeds maximum length")
+)
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, ClipDataMaxLenErr) ||
+		errors.Is(err, StringMaxLenErr) ||
+		errors.Is(err, FileReadWriteMaxLenErr) ||
+		errors.Is(err, MFADataMaxLenErr)
+}
+
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
+}
+
+type Message interface {
+	Encode() ([]byte, error)
+}
+
+type MessageReader interface {
+	ReadMessage() (Message, error)
+}
+
+type MessageWriter interface {
+	WriteMessage(Message) error
+}
+
+type MessageReadWriter interface {
+	MessageReader
+	MessageWriter
+}
+
+type MessageReadWriteCloser interface {
+	MessageReadWriter
+	Close() error
+}
+
+// Conn is a desktop protocol connection.
+// It converts between a stream of bytes (io.ReadWriter) and a stream of
+// Teleport Desktop Protocol (TDP) messages.
+type Conn struct {
+	rwc              io.ReadWriteCloser
+	writeMu          sync.Mutex
+	bufr             *bufio.Reader
+	decode           Decoder
+	closeOnce        sync.Once
+	constructWarning WarningConstructor
+	// localAddr and remoteAddr will be set if rw is
+	// a conn that provides these fields
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+type ByteReader interface {
+	io.Reader
+	io.ByteReader
+}
+
+// Decoder is a function that decodes incoming data
+// into a Message.
+type Decoder func(ByteReader) (Message, error)
+
+// DecoderAdapter adapts a Decoder that works with a standard io.Reader
+func DecoderAdapter(f func(io.Reader) (Message, error)) Decoder {
+	return func(br ByteReader) (Message, error) {
+		return f(br)
+	}
+}
+
+// NewConn creates a new Conn on top of a ReadWriter, for example a TCP
+// connection. If the provided ReadWriter also implements srv.TrackingConn,
+// then its LocalAddr() and RemoteAddr() will apply to this Conn.
+func NewConn(rwc io.ReadWriteCloser, decoder Decoder, wc WarningConstructor) *Conn {
+	br := bufio.NewReader(rwc)
+	c := &Conn{
+		rwc:              rwc,
+		bufr:             br,
+		decode:           decoder,
+		constructWarning: wc,
+	}
+
+	if tc, ok := rwc.(srvTrackingConn); ok {
+		c.localAddr = tc.LocalAddr()
+		c.remoteAddr = tc.RemoteAddr()
+	}
+
+	return c
+}
+
+// srvTrackingConn should be kept in sync with
+// lib/srv.TrackingConn. It is duplicated here
+// to avoid placing a dependency on the lib/srv
+// package, which is incompatible with Windows.
+type srvTrackingConn interface {
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+	Close() error
+}
+
+// Close closes the connection if the underlying reader can be closed.
+func (c *Conn) Close() error {
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.rwc.Close()
+	})
+	return err
+}
+
+// PeekNextByte peeks at the next byte without consuming it.
+func (c *Conn) PeekNextByte() (byte, error) {
+	b, err := c.bufr.ReadByte()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if err := c.bufr.UnreadByte(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return b, nil
+}
+
+// WarningConstructor is a function that constructs a TDP or TDPB
+// alert message with warning severity to be sent to the client.
+type WarningConstructor func(string) Message
+
+func (c *Conn) sendWarning(warning string) error {
+	return c.WriteMessage(c.constructWarning(warning))
+}
+
+// ReadMessage reads the next incoming message from the connection.
+func (c *Conn) ReadMessage() (Message, error) {
+	for {
+		m, err := c.decode(c.bufr)
+		if err != nil && IsNonFatalErr(err) {
+			if warnError := c.sendWarning(err.Error()); warnError != nil {
+				return nil, trace.Wrap(warnError, "error sending alert message in response to decode error: %v", err)
+			}
+			// Warning sent. Try reading the next message
+			continue
+		}
+		// err may still be non-nil
+		return m, trace.Wrap(err)
+	}
+}
+
+// WriteMessage sends a message to the connection.
+func (c *Conn) WriteMessage(m Message) error {
+	buf, err := m.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.writeMu.Lock()
+	_, err = c.rwc.Write(buf)
+	c.writeMu.Unlock()
+
+	return trace.Wrap(err)
+}
+
+// LocalAddr returns local address
+func (c *Conn) LocalAddr() net.Addr {
+	return c.localAddr
+}
+
+// RemoteAddr returns remote address
+func (c *Conn) RemoteAddr() net.Addr {
+	return c.remoteAddr
+}
+
+// Interceptor intercepts messages. It should return
+// the [potentially modified] message(s) in order to pass it on to the
+// other end of the connection, or it may swallow the message by returning
+// a nil or empty slice. Returned slices should not contain nil messages.
+type Interceptor func(message Message) ([]Message, error)
+
+// ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
+// provided interceptor functions in the read and/or write paths. Allows callers
+// to snoop and modify messages as they pass through the 'MessageReadWriteCloser'.
+type ReadWriteInterceptor struct {
+	// The underlying read/writer to intercept messages on
+	src MessageReadWriteCloser
+	// The interceptor to run in the write path
+	writeInterceptor Interceptor
+	// A closure over the interceptor to run in the read path
+	readAdapter func() (Message, error)
+}
+
+// Message slices returned by interceptor functions should not include
+// nil messages, but a little defensive programming can prevent a crash.
+// 'removeNilMessages' will return a subslice of the input slice with
+// nil messages removed.
+func removeNilMessages(msgs []Message) []Message {
+	return slices.DeleteFunc(msgs, func(msg Message) bool {
+		return msg == nil
+	})
+}
+
+// readInterceptorAdapter closes over an internal slice that keeps track of
+// of messages returned by the read interceptor callback (if present).
+func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
+	if i == nil {
+		return src.ReadMessage
+	}
+
+	var msgs []Message
+	return func() (Message, error) {
+		// len(msgs) == 0 - initial case / empty cache
+		// len(msgs) > 0  - Return a cached message
+		for len(msgs) == 0 {
+			// Try reading a message
+			m, err := src.ReadMessage()
+			if err != nil {
+				return nil, err
+			}
+
+			// The interceptor may return an empty slice and nil error
+			// In that case, we'll try again via the loop.
+			msgs, err = i(m)
+			if err != nil {
+				return nil, err
+			}
+			msgs = removeNilMessages(msgs)
+		}
+		msg := msgs[0]
+		msgs = msgs[1:]
+		return msg, nil
+	}
+}
+
+// NewReadWriteInterceptor creates a new 'ReadWriteInterceptor' that intercepts messages on 'src'.
+// The provided interceptor callbacks may be nil.
+func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeInterceptor Interceptor) *ReadWriteInterceptor {
+	return &ReadWriteInterceptor{
+		src:              src,
+		writeInterceptor: writeInterceptor,
+		readAdapter:      readInterceptorAdapter(src, readInterceptor),
+	}
+}
+
+// WriteMessage passes the message to the write interceptor (if provided)
+// for omition or modification before writing the message to the underlying
+// writer.
+func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
+	if i.writeInterceptor == nil {
+		// No interceptor found
+		return i.src.WriteMessage(m)
+	}
+
+	out, err := i.writeInterceptor(m)
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range out {
+		if msg == nil {
+			continue
+		}
+
+		if err = i.src.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReadMessage reads from the underlying reader and passes them to the
+// read interceptor (if provided) for omition or modification before
+// returning the next message.
+func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
+	return i.readAdapter()
+}
+
+// Close closes the underlying 'MessageReadWriteCloser'
+func (i *ReadWriteInterceptor) Close() error {
+	return i.src.Close()
+}
+
+// copyMessages behaves similarly to io.Copy except it deals with Message types.
+// It reads messages from 'src' and writes them to 'dst' until an error is received.
+// It does *not* forward an EOF received from the reader, but returns nil in the happy path.
+func copyMessages(dst MessageWriter, src MessageReader) error {
+	for {
+		msg, err := src.ReadMessage()
+		if errors.Is(err, io.EOF) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if err := dst.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
+}
+
+// ConnProxy handles bi-directional copying of messages from server <-> client.
+type ConnProxy struct {
+	server MessageReadWriteCloser
+	client MessageReadWriteCloser
+}
+
+// NewConnProxy returns a new ConnProxy.
+func NewConnProxy(client, server MessageReadWriteCloser) ConnProxy {
+	return ConnProxy{
+		server: server,
+		client: client,
+	}
+}
+
+// Run handles bi-directional copying of messages from server <-> client until
+// an IO error occurs (or EOF is received from either side). It always calls
+// 'close' on both streams before exiting and returns any errors occurred from
+// reading, writing, or closing both streams.
+func (c *ConnProxy) Run() error {
+	wg := sync.WaitGroup{}
+	// Copy in both directions
+	var clientToServerErr, serverToClientErr error
+	wg.Go(func() {
+		err := copyMessages(c.client, c.server)
+		serverToClientErr = trace.NewAggregate(err, c.client.Close())
+	})
+	wg.Go(func() {
+		err := copyMessages(c.server, c.client)
+		clientToServerErr = trace.NewAggregate(err, c.server.Close())
+	})
+	wg.Wait()
+	return trace.NewAggregate(clientToServerErr, serverToClientErr)
+}
+
+// EncodeTo calls 'Encode' on the given message and writes it to 'w'.
+func EncodeTo(w io.Writer, msg Message) error {
+	data, err := msg.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}

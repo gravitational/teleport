@@ -1,0 +1,245 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package local
+
+import (
+	"cmp"
+	"context"
+	"slices"
+	"strconv"
+	"testing"
+
+	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+)
+
+// TestDatabasesCRUD tests backend operations with database resources.
+func TestDatabasesCRUD(t *testing.T) {
+	ctx := context.Background()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service := NewDatabasesService(backend)
+
+	// Create a couple databases.
+	db1, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db1",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	db2, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db2",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+	require.NoError(t, err)
+
+	// Initially we expect no databases.
+	out, err := service.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, next, err := service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create both databases.
+	err = service.CreateDatabase(ctx, db1)
+	require.NoError(t, err)
+	err = service.CreateDatabase(ctx, db2)
+	require.NoError(t, err)
+
+	// Try to create an invalid database.
+	dbBadURI, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db-missing-port",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost",
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.CreateDatabase(ctx, dbBadURI))
+
+	// Fetch all databases.
+	out, err = service.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Fetch a specific database.
+	db, err := service.GetDatabase(ctx, db2.GetName())
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(db2, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Try to fetch a database that doesn't exist.
+	_, err = service.GetDatabase(ctx, "doesnotexist")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	// Try to create the same database.
+	err = service.CreateDatabase(ctx, db1)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
+
+	// Update a database.
+	db1.Metadata.Description = "description"
+	err = service.UpdateDatabase(ctx, db1)
+	require.NoError(t, err)
+	db, err = service.GetDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(db1, db,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Delete a database.
+	err = service.DeleteDatabase(ctx, db1.GetName())
+	require.NoError(t, err)
+	out, err = service.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Try to delete a database that doesn't exist.
+	err = service.DeleteDatabase(ctx, "doesnotexist")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	// Delete all databases.
+	err = service.DeleteAllDatabases(ctx)
+	require.NoError(t, err)
+	out, err = service.GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, next, err = service.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Test pagination
+	expected := make([]types.Database, 0, 50)
+	for i := range 50 {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: "db" + strconv.Itoa(i+1),
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost",
+		})
+		require.NoError(t, err)
+		require.NoError(t, service.CreateDatabase(t.Context(), db))
+		expected = append(expected, db)
+	}
+	slices.SortFunc(expected, func(a, b types.Database) int {
+		return cmp.Compare(a.GetMetadata().Name, b.GetMetadata().Name)
+	})
+
+	out, err = service.GetDatabases(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := service.ListDatabases(t.Context(), 10, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 10)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := service.ListDatabases(t.Context(), 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-10)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", page2Start))
+	require.NoError(t, err)
+	assert.Len(t, out, len(page1))
+	assert.Empty(t, gocmp.Diff(page1, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(service.RangeDatabases(t.Context(), page2Start, ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected)-10)
+	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+}

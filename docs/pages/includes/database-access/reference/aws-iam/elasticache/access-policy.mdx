@@ -1,0 +1,49 @@
+ElastiCache supports IAM authentication for Redis and Valkey engine version
+7.0 or above.
+This is the recommended way to configure Teleport access to ElastiCache.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ElastiCacheFetchMetadata",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeReplicationGroups",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheDescribeUsers",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeUsers",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheConnect",
+            "Effect": "Allow",
+            "Action": "elasticache:Connect",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| ---------- | ------- |
+|`ElastiCacheFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+|`ElastiCacheDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
+|`ElastiCacheConnect` | Connect using IAM authentication. |
+
+You can reduce the scope of the `ElastiCacheConnect` statement by updating it to
+only allow specific ElastiCache clusters and IAM users. The resource ARN you can
+specify has the following formats:
+
+```code
+arn:aws:elasticache:{Region}:{AccountID}:replicationgroup:{ReplicationGroup}
+arn:aws:elasticache:{Region}:{AccountID}:user:{UserName}
+```
+
+See
+[Authenticating with IAM for
+ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html)
+for more information.

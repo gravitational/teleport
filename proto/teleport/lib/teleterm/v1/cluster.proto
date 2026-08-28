@@ -1,0 +1,180 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// Cluster describes cluster fields.
+message Cluster {
+  // uri is the cluster resource URI.
+  // For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
+  // name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+  // rootClusterId is not equal to the name of the root cluster.
+  //
+  // For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
+  // leafClusterId is equal to the name property of the cluster.
+  string uri = 1;
+  // name is the site name of Teleport cluster.
+  // Only present in root clusters if the user has logged in (the name comes from the certificate).
+  // Always available for leaf clusters.
+  string name = 2;
+  // proxy_host is address of the proxy used to connect to this cluster.
+  // Always includes port number. Present only for root clusters.
+  //
+  // Example: "teleport-14-ent.example.com:3090"
+  string proxy_host = 3;
+  // connected indicates if connection to the cluster can be established, that is if we have a
+  // cert for the cluster that hasn't expired
+  bool connected = 4;
+  // leaf indicates if this is a leaf cluster
+  bool leaf = 5;
+  // logged_in_user is present if the user has logged in to the cluster at least once, even
+  // if the cert has since expired. If the cluster was added to the app but the
+  // user is yet to log in, logged_in_user is not present.
+  LoggedInUser logged_in_user = 7;
+  // features describes the auth servers features.
+  // Only present when detailed information is queried from the auth server.
+  Features features = 8;
+  // auth_cluster_id is the unique cluster ID that is set once
+  // during the first auth server startup.
+  // Only present when detailed information is queried from the auth server.
+  string auth_cluster_id = 9;
+  // ProxyVersion is the cluster proxy's service version.
+  // Only present when detailed information is queried from the proxy server.
+  string proxy_version = 10;
+  // show_resources tells if the cluster can show requestable resources on the resources page.
+  // Controlled by the cluster config.
+  ShowResources show_resources = 11;
+  // profile_status_error is set if there was an error when reading the profile.
+  // This allows the app to be usable, when one or more profiles cannot be read.
+  string profile_status_error = 12;
+  // sso_host is the host of the SSO provider used to log in.
+  string sso_host = 13;
+}
+
+// ShowResources tells if the cluster can show requestable resources on the resources page.
+enum ShowResources {
+  SHOW_RESOURCES_UNSPECIFIED = 0;
+  SHOW_RESOURCES_REQUESTABLE = 1;
+  SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
+}
+
+// LoggedInUser describes a logged-in user
+message LoggedInUser {
+  // name is the user name
+  string name = 1;
+  // roles is the user roles
+  repeated string roles = 2;
+
+  reserved "ssh_logins";
+  reserved 3;
+  // acl is a user access control list.
+  // It is available only after the cluster details are fetched, as it is not stored on disk.
+  ACL acl = 4;
+  // active_requests is an array of request-id strings of active requests
+  repeated string active_requests = 5;
+  // suggested_reviewers for the given user.
+  // Only present when detailed information is queried from the auth server.
+  repeated string suggested_reviewers = 6;
+  // requestable_roles for the given user.
+  // Only present when detailed information is queried from the auth server.
+  repeated string requestable_roles = 7;
+  // UserType indicates whether the user was created through an SSO provider or in Teleport itself.
+  // Only present when detailed information is queried from the auth server.
+  enum UserType {
+    USER_TYPE_UNSPECIFIED = 0;
+    USER_TYPE_LOCAL = 1;
+    USER_TYPE_SSO = 2;
+  }
+  UserType user_type = 8;
+  // Indicates if the profile contains all required device extensions.
+  bool is_device_trusted = 9;
+  // Indicates whether access may be hindered by the lack of a trusted device.
+  types.TrustedDeviceRequirement trusted_device_requirement = 10;
+  // Expiration time of the certificate.
+  google.protobuf.Timestamp valid_until = 11;
+}
+
+// ACL is the access control list of the user
+message ACL {
+  // sessions was replaced by recorded_sessions and active_sessions
+  reserved 1;
+  reserved "sessions";
+  // auth_connectors defines access to auth.connectors
+  ResourceAccess auth_connectors = 2;
+  // Roles defines access to roles
+  ResourceAccess roles = 3;
+  // Users defines access to users.
+  ResourceAccess users = 4;
+  // trusted_clusters defines access to trusted clusters
+  ResourceAccess trusted_clusters = 5;
+  // Events defines access to audit logs
+  ResourceAccess events = 6;
+  // Tokens defines access to tokens.
+  ResourceAccess tokens = 7;
+  // Servers defines access to servers.
+  ResourceAccess servers = 8;
+  // apps defines access to application servers
+  ResourceAccess apps = 9;
+  // dbs defines access to database servers.
+  ResourceAccess dbs = 10;
+  // kubeservers defines access to kubernetes servers.
+  ResourceAccess kubeservers = 11;
+  // access_requests defines access to access requests
+  ResourceAccess access_requests = 12;
+  // recorded_sessions defines access to recorded sessions.
+  ResourceAccess recorded_sessions = 13;
+  // active_sessions defines access to active sessions.
+  ResourceAccess active_sessions = 14;
+  // review_requests defines the ability to review requests
+  bool review_requests = 15;
+  // Indicates whether the user can share a local directory with the remote machine during desktop sessions.
+  bool directory_sharing_enabled = 16;
+  // Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
+  bool clipboard_sharing_enabled = 17;
+}
+
+// ResourceAccess describes access verbs
+message ResourceAccess {
+  // list determines "list" access
+  bool list = 1;
+  // read determines "read" access
+  bool read = 2;
+  // edit determines "edit" access
+  bool edit = 3;
+  // create determines "create" access
+  bool create = 4;
+  // delete determines "delete" access
+  bool delete = 5;
+  // use determines "use" access
+  bool use = 6;
+}
+
+// Features describes the auth servers features
+message Features {
+  // advanced_access_workflows enables search-based access requests
+  bool advanced_access_workflows = 1;
+  // is_usage_based_billing determines if the cloud user subscription is usage-based (pay-as-you-go).
+  bool is_usage_based_billing = 2;
+}

@@ -1,0 +1,6 @@
+If `--db-user` or `--db-name` are required, then default settings
+are chosen from either an active database certificate obtained via a prior use
+of `tsh db login` or from the user's allowed `db_users` or `db_names`.
+
+The database user is always required.
+The database name is required for PostgreSQL, MongoDB, and Oracle databases.

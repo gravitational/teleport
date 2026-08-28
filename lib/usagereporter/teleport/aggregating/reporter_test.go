@@ -1,0 +1,752 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package aggregating
+
+import (
+	"bytes"
+	"context"
+	"slices"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/gravitational/teleport/api/types"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+func TestReporter(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clk := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clk,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	// we set up a watcher to not have to poll the backend for newly added items
+	// we expect
+	w, err := bk.NewWatcher(ctx, backend.Watch{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+	recvBackendEvent := func() backend.Event {
+		select {
+		case e := <-w.Events():
+			return e
+		case <-time.After(time.Second):
+			t.Fatal("failed to get backend event")
+			return backend.Event{}
+		}
+	}
+	require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "clustername",
+	})
+	require.NoError(t, err)
+
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+	require.NoError(t, err)
+
+	r, err := NewReporter(ctx, ReporterConfig{
+		Backend:     bk,
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
+	})
+	require.NoError(t, err)
+
+	svc := reportService{bk}
+
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
+	recvIngested := func() {
+		select {
+		case <-r.ingested:
+		case <-time.After(time.Second):
+			t.Fatal("failed to receive ingested event")
+		}
+	}
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_LOCAL,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: "ssh",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: "ssh",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_UNSPECIFIED,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListReviewCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionSummarySearchEvent{
+		UserName:   "alice",
+		UserKind:   prehogv1a.UserKind_USER_KIND_HUMAN,
+		QueryCount: 3,
+		HasFilters: true,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: usagereporter.SAMLIdPSessionType,
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(userActivityReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	reports, err := svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	require.Len(t, reports[0].Records, 1)
+	record := reports[0].Records[0]
+	require.Equal(t, uint64(2), record.Logins)
+	require.Equal(t, prehogv1.UserOrigin_USER_ORIGIN_LOCAL, record.GetUserOrigin())
+	require.Equal(t, uint64(2), record.SshSessions)
+	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
+	require.Equal(t, uint64(1), record.GetAccessRequestsCreated())
+	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsGrants())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueries())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueriesWithFilters())
+	require.Equal(t, uint64(1), record.SamlIdpSessions)
+
+	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   "srv01",
+		Kind:   prehogv1a.ResourceKind_RESOURCE_KIND_NODE,
+		Static: true,
+	})
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(resourceReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	resReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, resReports, 1)
+	require.Len(t, resReports[0].ResourceKindReports, 1)
+	resRecord := resReports[0].ResourceKindReports[0]
+	require.Equal(t, prehogv1.ResourceKind_RESOURCE_KIND_NODE, resRecord.ResourceKind)
+	require.Len(t, resRecord.ResourceIds, 1)
+
+	require.NoError(t, svc.deleteUserActivityReport(ctx, reports[0]))
+	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+	require.NoError(t, svc.deleteResourcePresenceReport(ctx, resReports[0]))
+	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+
+	// on a GracefulStop there's no need to advance the clock, all processed
+	// data is emitted immediately
+	r.ingested = make(chan usagereporter.Anonymizable, 3)
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName: "bob",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "bob",
+		SessionType: "k8s",
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	r.ingested = nil
+
+	require.NoError(t, r.GracefulStop(ctx))
+	reports, err = svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	require.Len(t, reports[0].Records, 2)
+	rec1, rec2 := reports[0].Records[0], reports[0].Records[1]
+	// record.UserName is alice
+	if !bytes.Equal(record.UserName, rec1.UserName) {
+		rec1, rec2 = rec2, rec1
+	}
+	require.Equal(t, uint64(1), rec1.Logins)
+	require.Equal(t, uint64(1), rec2.Logins)
+	require.Equal(t, uint64(0), rec1.KubeSessions)
+	require.Equal(t, uint64(1), rec2.KubeSessions)
+}
+
+func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clk := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clk,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	// we set up a watcher to not have to poll the backend for newly added items
+	// we expect
+	w, err := bk.NewWatcher(ctx, backend.Watch{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+	recvBackendEvent := func() backend.Event {
+		select {
+		case e := <-w.Events():
+			return e
+		case <-time.After(time.Second):
+			t.Fatal("failed to get backend event")
+			return backend.Event{}
+		}
+	}
+	require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "clustername",
+	})
+	require.NoError(t, err)
+
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+	require.NoError(t, err)
+
+	r, err := NewReporter(ctx, ReporterConfig{
+		Backend:     bk,
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
+	})
+	require.NoError(t, err)
+
+	svc := reportService{bk}
+
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
+	recvIngested := func() {
+		select {
+		case <-r.ingested:
+		case <-time.After(time.Second):
+			t.Fatal("failed to receive ingested event")
+		}
+	}
+
+	r.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		IsBot:         true,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.BotJoinEvent{
+		BotName:       "bob",
+		BotInstanceId: "0000-01",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "jen",
+		UserKind: prehogv1a.UserKind_USER_KIND_HUMAN,
+		SpiffeId: "spiffe://clustername/jen",
+	})
+	// Submit for two different bot instances, we expect a useractivity record
+	// with a value of two, and two bot instance activity records with a single
+	// value of 1.
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob-2",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-02",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(botInstanceActivityReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, userActivityReports, 1)
+	slices.SortFunc(userActivityReports[0].Records, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	want := []*prehogv1.UserActivityRecord{
+		{
+			UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
+			UserKind:           prehogv1.UserKind_USER_KIND_BOT,
+			BotJoins:           1,
+			SpiffeSvidsIssued:  3,
+			CertificatesIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
+					SvidsIssued: 2,
+				},
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+		{
+			UserName:          anonymizer.AnonymizeNonEmpty("jen"),
+			UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
+			SpiffeSvidsIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+	}
+	slices.SortFunc(want, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	diff := cmp.Diff(
+		userActivityReports[0].Records,
+		want,
+		protocmp.Transform(),
+		protocmp.SortRepeated(func(u1, u2 *prehogv1.SPIFFEIDRecord) bool {
+			return bytes.Compare(u1.GetSpiffeId(), u2.GetSpiffeId()) == -1
+		}),
+	)
+	if diff != "" {
+		t.Errorf("UserActivityRecords mismatch (-want +got):\n%s", diff)
+	}
+
+	botUserRecordIndex := slices.IndexFunc(userActivityReports[0].Records, func(record *prehogv1.UserActivityRecord) bool {
+		return bytes.Equal(record.UserName, anonymizer.AnonymizeNonEmpty("bot-bob"))
+	})
+	require.GreaterOrEqual(t, botUserRecordIndex, 0)
+	botUserRecord := userActivityReports[0].Records[botUserRecordIndex]
+
+	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, botInstanceActivityReports, 1)
+	require.Len(t, botInstanceActivityReports[0].Records, 2)
+	for _, record := range botInstanceActivityReports[0].Records {
+		require.Equal(t, botUserRecord.UserName, record.BotUserName)
+	}
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 2
+	}))
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
+	}))
+}
+
+func TestReporterSessionSummariesAccessed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			e := <-w.Events()
+			return e
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      uuid.NewString(),
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		{
+			r.ingested = make(chan usagereporter.Anonymizable, 10)
+			recvIngested := func() {
+				<-r.ingested
+			}
+
+			// Create a user login event so alice has a user record
+			r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+				UserName:   "alice",
+				UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_LOCAL,
+			})
+			recvIngested()
+
+			// Alice accesses a session summary 3 times
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-01",
+			})
+			recvIngested()
+			recvIngested()
+			recvIngested()
+			// Alice accesses a different session summary once
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryAccessEvent{
+				UserName:     "alice",
+				SessionType:  string(types.SSHSessionKind),
+				ResourceName: "server-02",
+			})
+			recvIngested()
+
+			// Wait for the aggregation window to complete
+			time.Sleep(sessionSummaryReportGranularity)
+			synctest.Wait()
+
+			require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+			reports, err := svc.listUserActivityReports(ctx, 10)
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+			require.Len(t, reports[0].Records, 1)
+
+			record := reports[0].Records[0]
+			require.Equal(t, anonymizer.AnonymizeNonEmpty("alice"), record.UserName)
+			require.Len(t, record.SessionSummariesAccessed, 2)
+			require.Equal(t, string(types.SSHSessionKind), record.SessionSummariesAccessed[0].SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-01"), record.SessionSummariesAccessed[0].ResourceName)
+			require.Equal(t, uint64(3), record.SessionSummariesAccessed[0].Count)
+
+			require.Equal(t, string(types.SSHSessionKind), record.SessionSummariesAccessed[1].SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-02"), record.SessionSummariesAccessed[1].ResourceName)
+			require.Equal(t, uint64(1), record.SessionSummariesAccessed[1].Count)
+
+			require.NoError(t, svc.deleteUserActivityReport(ctx, reports[0]))
+			require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+		}
+	})
+}
+
+func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		// Set up a watcher to not have to poll the backend for newly added items
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			e := <-w.Events()
+			return e
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      uuid.NewString(),
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		// Test multiple session summary creation events with token tracking
+		{
+			r.ingested = make(chan usagereporter.Anonymizable, 10)
+			recvIngested := func() {
+				<-r.ingested
+			}
+
+			// Successful SSH session summary generation on server-01 with 100 input and 50 output tokens
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-01",
+				TotalInputTokens:  100,
+				TotalOutputTokens: 50,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Another successful SSH session summary on same server with 150 input and 75 output tokens
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-01",
+				TotalInputTokens:  150,
+				TotalOutputTokens: 75,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Successful Kubernetes session summary on different resource
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.KubernetesSessionKind),
+				Provider:          "openai",
+				ResourceName:      "kube-cluster-01",
+				TotalInputTokens:  200,
+				TotalOutputTokens: 100,
+				Success:           true,
+			})
+			recvIngested()
+
+			// Failed session summary - should NOT be tracked
+			r.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+				SessionType:       string(types.SSHSessionKind),
+				Provider:          "bedrock",
+				ResourceName:      "server-02",
+				TotalInputTokens:  50,
+				TotalOutputTokens: 25,
+				Success:           false,
+			})
+			recvIngested()
+
+			// Wait for the aggregation window to complete
+			time.Sleep(userActivityReportGranularity)
+			synctest.Wait()
+
+			require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+			reports, err := svc.listIdentitySecuritySummariesGeneratedReports(ctx, 10)
+			require.NoError(t, err)
+			require.Len(t, reports, 1)
+			require.Len(t, reports[0].Records, 2) // Only 2 records (failed one not tracked)
+
+			// Verify SSH session summary record (aggregated tokens from both events)
+			var sshRecord *prehogv1.SessionSummariesGeneratedRecord
+			var kubeRecord *prehogv1.SessionSummariesGeneratedRecord
+			for _, record := range reports[0].Records {
+				if record.SessionType == string(types.SSHSessionKind) {
+					sshRecord = record
+				} else if record.SessionType == string(types.KubernetesSessionKind) {
+					kubeRecord = record
+				}
+			}
+
+			require.NotNil(t, sshRecord)
+			require.Equal(t, string(types.SSHSessionKind), sshRecord.SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("server-01"), sshRecord.ResourceName)
+			require.Equal(t, uint64(250), sshRecord.TotalInputTokens)  // 100 + 150
+			require.Equal(t, uint64(125), sshRecord.TotalOutputTokens) // 50 + 75
+			require.Equal(t, uint64(2), sshRecord.SummariesGenerated)  // 2 successful summaries
+
+			require.NotNil(t, kubeRecord)
+			require.Equal(t, string(types.KubernetesSessionKind), kubeRecord.SessionType)
+			require.Equal(t, anonymizer.AnonymizeString("kube-cluster-01"), kubeRecord.ResourceName)
+			require.Equal(t, uint64(200), kubeRecord.TotalInputTokens)
+			require.Equal(t, uint64(100), kubeRecord.TotalOutputTokens)
+			require.Equal(t, uint64(1), kubeRecord.SummariesGenerated)
+
+			require.NoError(t, svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, reports[0]))
+			require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+		}
+	})
+}
+
+func TestReporterIdentitySecurity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clk := clockwork.NewRealClock()
+		bk, err := memory.New(memory.Config{
+			Clock: clk,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+		// Set up a watcher to not have to poll the backend for newly added items
+		w, err := bk.NewWatcher(ctx, backend.Watch{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, w.Close()) })
+		recvBackendEvent := func() backend.Event {
+			return <-w.Events()
+		}
+		require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: "clustername",
+		})
+		require.NoError(t, err)
+
+		anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("0123456789abcdef"))
+		require.NoError(t, err)
+
+		r, err := NewReporter(ctx, ReporterConfig{
+			Backend:     bk,
+			Clock:       clk,
+			ClusterName: clusterName,
+			HostID:      "host-id",
+			Anonymizer:  anonymizer,
+		})
+		require.NoError(t, err)
+
+		svc := reportService{bk}
+
+		r.ingested = make(chan usagereporter.Anonymizable, 10)
+		recvIngested := func() {
+			<-r.ingested
+		}
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 1,
+			TotalResources:  2,
+		})
+		recvIngested()
+
+		// Later size should overwrite earlier size for the same provider.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityGraphSizeEvent{
+			Provider:        "teleport",
+			TotalIdentities: 3,
+			TotalResources:  4,
+		})
+		recvIngested()
+
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 5,
+		})
+		recvIngested()
+
+		// Audit log counts are accumulated.
+		r.AnonymizeAndSubmit(&usagereporter.IdentitySecurityAuditLogsIngestedEvent{
+			Provider:     "teleport",
+			LogsIngested: 7,
+		})
+		recvIngested()
+
+		time.Sleep(identitySecurityReportGranularity)
+
+		for putCount := 0; putCount < 2; {
+			if recvBackendEvent().Type == types.OpPut {
+				putCount++
+			}
+		}
+
+		reports, err := svc.listIdentitySecurityReports(ctx, 10)
+		require.NoError(t, err)
+		require.Len(t, reports, 2)
+
+		expectedCluster := anonymizer.AnonymizeNonEmpty(clusterName.GetClusterName())
+		expectedHostID := anonymizer.AnonymizeNonEmpty("host-id")
+
+		var graphReport *prehogv1.IdentitySecurityReport
+		var auditReport *prehogv1.IdentitySecurityReport
+		for _, report := range reports {
+			require.Equal(t, expectedCluster, report.ClusterName)
+			require.Equal(t, expectedHostID, report.ReporterHostid)
+			if len(report.GraphSizeRecords) > 0 {
+				graphReport = report
+			}
+			if len(report.AuditLogRecords) > 0 {
+				auditReport = report
+			}
+		}
+
+		require.NotNil(t, graphReport)
+		require.Len(t, graphReport.GraphSizeRecords, 1)
+		require.Equal(t, "teleport", graphReport.GraphSizeRecords[0].Provider)
+		require.Equal(t, uint64(3), graphReport.GraphSizeRecords[0].TotalIdentities)
+		require.Equal(t, uint64(4), graphReport.GraphSizeRecords[0].TotalResources)
+
+		require.NotNil(t, auditReport)
+		require.Len(t, auditReport.AuditLogRecords, 1)
+		require.Equal(t, "teleport", auditReport.AuditLogRecords[0].Provider)
+		require.Equal(t, uint64(12), auditReport.AuditLogRecords[0].LogsIngested)
+	})
+}

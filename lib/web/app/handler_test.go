@@ -1,0 +1,1814 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package app
+
+import (
+	"bytes"
+	"context"
+	"crypto"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
+
+func hasAuditEvent(idx int, want apievents.AuditEvent) eventCheckFn {
+	return func(t *testing.T, events []apievents.AuditEvent) {
+		t.Helper()
+		require.Greater(t, len(events), idx)
+		require.Empty(t, cmp.Diff(want, events[idx],
+			cmpopts.IgnoreFields(apievents.AuthAttempt{}, "ConnectionMetadata")))
+	}
+}
+
+func hasAuditEventCount(want int) eventCheckFn {
+	return func(t *testing.T, events []apievents.AuditEvent) {
+		t.Helper()
+		require.Len(t, events, want)
+	}
+}
+
+// TestAuthPOST tests the handler of POST /x-teleport-auth.
+func TestAuthPOST(t *testing.T) {
+	secretToken := "012ac605867e5a7d693cd6f49c7ff0fb"
+	cookieID := "cookie-name"
+	stateValue := fmt.Sprintf("%s_%s", secretToken, cookieID)
+	appCookieValue := "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
+
+	fakeClock := clockwork.NewFakeClock()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	// Generate CA TLS key and cert with the cluster and application DNS.
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc            string
+		sessionError    error
+		outStatusCode   int
+		makeRequestBody func(types.WebSession) fragmentRequest
+		getEventChecks  func(types.WebSession) []eventCheckFn
+		setupServer     func(t *testing.T, p *testServer, appSession types.WebSession)
+	}{
+		{
+			desc: "success",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusOK,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
+			},
+		},
+		{
+			desc: "missing state token in request",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         "",
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User: "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: state token was not in the expected format",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "missing subject session token in request",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User:  "unknown",
+							Login: "testuser",
+						},
+						AppMetadata: apievents.AppMetadata{
+							AppName:       "testapp",
+							AppPublicAddr: publicAddr,
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: subject session token is not set",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "subject session token in request does not match",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "foobar",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							Login: appSession.GetUser(),
+							User:  "unknown",
+						},
+						AppMetadata: apievents.AppMetadata{
+							AppName:       "testapp",
+							AppPublicAddr: publicAddr,
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: subject session token does not match",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "invalid session",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			sessionError:  trace.NotFound("invalid session"),
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp")
+			authClient := &mockAuthClient{
+				sessionError: test.sessionError,
+				appSession:   appSession,
+			}
+			p := setup(t, fakeClock, authClient, nil)
+			if test.setupServer != nil {
+				test.setupServer(t, p, appSession)
+			}
+
+			reqBody := test.makeRequestBody(appSession)
+			req, err := json.Marshal(reqBody)
+			require.NoError(t, err)
+
+			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", req, []http.Cookie{{
+				Name:  fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID),
+				Value: secretToken,
+			}})
+			require.Equal(t, status, test.outStatusCode)
+			for _, check := range test.getEventChecks(appSession) {
+				check(t, authClient.emittedEvents)
+			}
+		})
+	}
+}
+
+func TestHasName(t *testing.T) {
+	for _, test := range []struct {
+		desc        string
+		addrs       []string
+		reqHost     string
+		reqURL      string
+		expectedURL string
+		hasName     bool
+	}{
+		{
+			desc:        "NOK - invalid host",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "badurl.com",
+			expectedURL: "",
+			hasName:     false,
+		},
+		{
+			desc:        "OK - adds path",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "https://app1.proxy.com/foo",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo",
+			hasName:     true,
+		},
+		{
+			desc:        "OK - adds paths with ampersands",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "https://app1.proxy.com/foo/this&/that",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo%2Fthis%26%2Fthat",
+			hasName:     true,
+		},
+		{
+			desc:        "OK - adds root path",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "https://app1.proxy.com/",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2F",
+			hasName:     true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
+			require.NoError(t, err)
+
+			addrs := utils.MustParseAddrList(test.addrs...)
+			u, ok := HasName(req, addrs)
+			require.Equal(t, test.expectedURL, u)
+			require.Equal(t, test.hasName, ok)
+		})
+	}
+}
+
+func TestMatchApplicationServers(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	// Generate CA TLS key and cert with the cluster and application DNS.
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		// Three replicas of the same app, and three that won't match.
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createAppServer(t, "random.example.com"),
+			createAppServer(t, "random2.example.com"),
+			createAppServer(t, "random3.example.com"),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	// Create a httptest server to serve the application requests. It must serve
+	// TLS content with the generated certificate.
+	expectedContent := "Hello application"
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{
+			fakeCluster,
+		},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	status, content := p.makeRequest(t, "GET", "/", []byte{}, []http.Cookie{
+		{
+			Name:  CookieName,
+			Value: "abc",
+		},
+		{
+			Name:  SubjectCookieName,
+			Value: authClient.appSession.GetBearerToken(),
+		},
+	})
+
+	require.Equal(t, http.StatusOK, status)
+	// Cluster should receive only 4 connection requests: 3 from the
+	// MatchHealthy and 1 from the transport.
+	require.Equal(t, int64(4), fakeCluster.DialCount())
+	// Guarantee the request was returned by the httptest server.
+	require.Equal(t, expectedContent, content)
+}
+
+func TestNewSessionRoutesByAppName(t *testing.T) {
+	ctx := t.Context()
+	clusterName := "test-cluster"
+	const sharedAddr = "demoqa.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{sharedAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	// Two app servers share a public address but have different names. The
+	// session certificate is routed to "test-app-1".
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, sharedAddr, "test-app-1"),
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "test-app-1", sharedAddr),
+			createNamedAppServer(t, "test-app-2", sharedAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:                 fakeClock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ClusterGetter:         tunnel,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	// newSession shuffles the matched servers, so run a bunch of iterations
+	// to verify that we're always routed to the app encoded in the cert
+	for range 100 {
+		session, err := appHandler.newSession(ctx, authClient.appSession)
+		require.NoError(t, err)
+
+		var routedNames []string
+		for _, s := range session.tr.c.servers {
+			routedNames = append(routedNames, s.GetApp().GetName())
+		}
+		require.Equal(t, []string{"test-app-1"}, routedNames,
+			"session must only route to the app named in the certificate")
+	}
+}
+
+// TestCrossSiteWebSocketProtection verifies the CSWSH guard is wired into the
+// cookie-authenticated app forward path end-to-end: under block, a cross-origin
+// WebSocket upgrade is rejected with 403, while a non-WebSocket request is still
+// forwarded. The guard's full decision matrix (action modes, origin
+// classification) is unit-tested in TestGuardCrossSiteWebSocket; this test covers
+// the wiring and status propagation through the real handler and middleware.
+//
+// Requests use a realistic handshake (Connection: Upgrade + Origin), matching
+// what a browser actually sends — Chrome attaches no Sec-Fetch-* to a WebSocket
+// upgrade, so Origin is the signal that drives detection.
+func TestCrossSiteWebSocketProtection(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createNamedAppServer(t, "testapp", publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	// Valid victim session cookies. In the real attack the browser attaches
+	// these automatically on cross-site requests because they are SameSite=None.
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+	// A cross-origin WebSocket handshake: the Origin host differs from the app's,
+	// and there is no Sec-Fetch-Site (as on a real browser WebSocket upgrade).
+	crossOriginWS := map[string]string{
+		"Connection": "Upgrade",
+		"Upgrade":    "websocket",
+		"Origin":     "https://attacker.example",
+	}
+
+	for _, tc := range []struct {
+		name       string
+		action     string // TELEPORT_UNSTABLE_APP_CSWSH_ACTION
+		method     string
+		headers    map[string]string
+		wantStatus int
+	}{
+		{
+			name:       "block rejects cross-origin WebSocket",
+			action:     "block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "report-and-block rejects cross-origin WebSocket",
+			action:     "report-and-block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "cross-origin non-WebSocket request is forwarded under block (HTTP CSRF out of scope)",
+			action:     "block",
+			method:     "POST",
+			headers:    map[string]string{"Origin": "https://attacker.example"},
+			wantStatus: http.StatusOK,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(cswshActionEnv, tc.action)
+			p := setup(t, fakeClock, authClient, tunnel)
+			status, _, _ := p.makeRequestWithHeaders(t, tc.method, "/", []byte{}, cookies, tc.headers)
+			require.Equal(t, tc.wantStatus, status)
+		})
+	}
+}
+
+func TestHealthCheckAppServer(t *testing.T) {
+	ctx := context.Background()
+	clusterName := "test-cluster"
+	publicAddr := "valid.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                string
+		publicAddr          string
+		appServersFunc      func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer
+		expectedTunnelCalls int
+		expectErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "match and online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
+				return []types.AppServer{createNamedAppServer(t, "testapp", "valid.example.com")}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.NoError,
+		},
+		{
+			desc:       "match and but no online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer {
+				appServer := createNamedAppServer(t, "testapp", "valid.example.com")
+				cluster.OfflineTunnels = map[string]struct{}{
+					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
+				}
+				return []types.AppServer{appServer}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.Error,
+		},
+		{
+			desc:       "no match",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
+				return []types.AppServer{}
+			},
+			expectedTunnelCalls: 0,
+			expectErr:           require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fakeClock := clockwork.NewFakeClock()
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp")
+			authClient := &mockAuthClient{
+				clusterName: clusterName,
+				appSession:  appSession,
+				caKey:       key,
+				caCert:      cert,
+			}
+
+			fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+			authClient.appServers = tc.appServersFunc(t, fakeCluster)
+
+			tunnel := &reversetunnelclient.FakeServer{
+				FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+			}
+
+			appHandler, err := NewHandler(ctx, &HandlerConfig{
+				Clock:                 fakeClock,
+				AuthClient:            authClient,
+				AccessPoint:           authClient,
+				ClusterGetter:         tunnel,
+				CipherSuites:          utils.DefaultCipherSuites(),
+				IntegrationAppHandler: &mockIntegrationAppHandler{},
+			})
+			require.NoError(t, err)
+
+			err = appHandler.HealthCheckAppServer(ctx, "testapp", tc.publicAddr, clusterName)
+			tc.expectErr(t, err)
+			require.Equal(t, int64(tc.expectedTunnelCalls), fakeCluster.DialCount())
+		})
+	}
+}
+
+type testServer struct {
+	serverURL *url.URL
+
+	// serverConnContext provides ConnContext to the HTTP server if not nil.
+	serverConnContext atomic.Pointer[func(context.Context, net.Conn) context.Context]
+}
+
+func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
+	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
+		Clock:                 clock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ClusterGetter:         clusterGetter,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	ts := &testServer{}
+	server := httptest.NewUnstartedServer(appHandler)
+	server.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+		if fn := ts.serverConnContext.Load(); fn != nil {
+			return (*fn)(ctx, c)
+		}
+		return ctx
+	}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	url, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	ts.serverURL = url
+	return ts
+}
+
+func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody []byte, cookies []http.Cookie) (int, string) {
+	status, body, _ := p.makeRequestWithHeaders(t, method, endpoint, reqBody, cookies, nil)
+	return status, body
+}
+
+func (p *testServer) makeRequestWithHeaders(t *testing.T, method, endpoint string, reqBody []byte, cookies []http.Cookie, headers map[string]string) (int, string, http.Header) {
+	u := url.URL{
+		Scheme: p.serverURL.Scheme,
+		Host:   p.serverURL.Host,
+		Path:   endpoint,
+	}
+	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(reqBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Attach the cookie.
+	for _, c := range cookies {
+		req.AddCookie(&c)
+	}
+
+	// Issue request.
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	content, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.NoError(t, resp.Body.Close())
+	return resp.StatusCode, string(content), resp.Header
+}
+
+type mockAuthClient struct {
+	authclient.ClientI
+	clusterName   string
+	appSession    types.WebSession
+	sessionError  error
+	appServers    []types.AppServer
+	caKey         []byte
+	caCert        []byte
+	emittedEvents []apievents.AuditEvent
+	jwtSigner     crypto.Signer
+	mtx           sync.Mutex
+}
+
+type mockClusterName struct {
+	types.ClusterName
+	name string
+}
+
+func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.emittedEvents = append(c.emittedEvents, event)
+	return nil
+}
+
+func (c *mockAuthClient) lastEmittedEvent() apievents.AuditEvent {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if len(c.emittedEvents) == 0 {
+		return nil
+	}
+	return c.emittedEvents[len(c.emittedEvents)-1]
+}
+
+func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteAppSessionRequest) error {
+	return nil
+}
+
+func (c *mockAuthClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
+	return mockClusterName{name: c.clusterName}, nil
+}
+
+func (n mockClusterName) GetClusterName() string {
+	if n.name != "" {
+		return n.name
+	}
+
+	return "local-cluster"
+}
+
+func (c *mockAuthClient) GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error) {
+	return c.appSession, c.sessionError
+}
+
+func (c *mockAuthClient) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+	return c.appServers, nil
+}
+
+func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	if id.Type == types.JWTSigner {
+		var jwtKeys []*types.JWTKeyPair
+		if c.jwtSigner != nil {
+			privateKey, err := keys.MarshalPrivateKey(c.jwtSigner)
+			if err != nil {
+				return nil, err
+			}
+			publicKey, err := keys.MarshalPublicKey(c.jwtSigner.Public())
+			if err != nil {
+				return nil, err
+			}
+			jwtKeys = []*types.JWTKeyPair{{
+				PublicKey:      publicKey,
+				PrivateKey:     privateKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			}}
+		}
+
+		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.JWTSigner,
+			ClusterName: c.clusterName,
+			ActiveKeys: types.CAKeySet{
+				JWT: jwtKeys,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		return ca, nil
+	}
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: c.clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: c.caCert,
+				Key:  c.caKey,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return ca, nil
+}
+
+func (c *mockAuthClient) SignDBSCChallenge(_ context.Context, sessionID string) (string, error) {
+	key, err := jwt.New(&jwt.Config{
+		Clock:       clockwork.NewRealClock(),
+		PrivateKey:  c.jwtSigner,
+		ClusterName: c.clusterName,
+	})
+	if err != nil {
+		return "", err
+	}
+	return key.SignDBSCChallenge(sessionID)
+}
+
+func (c *mockAuthClient) SetAppSessionDBSCPublicKey(_ context.Context, sessionID string, responseJWT []byte) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.appSession == nil {
+		return trace.NotFound("app session %q not found", sessionID)
+	}
+	if c.appSession.GetName() != sessionID {
+		return trace.NotFound("app session %q not found", sessionID)
+	}
+	if len(responseJWT) == 0 {
+		return trace.BadParameter("missing DBSC response JWT")
+	}
+
+	c.appSession.SetDBSCPublicKey(responseJWT)
+	return nil
+}
+
+func (c *mockAuthClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
+	return []types.Server{}, nil
+}
+
+func (c *mockAuthClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return []types.Server{}, "", nil
+}
+
+// fakeClusterListener Implements a `net.Listener` that return `net.Conn` from
+// the `FakeCluster`.
+type fakeClusterListener struct {
+	fakeCluster *reversetunnelclient.FakeCluster
+}
+
+func (r *fakeClusterListener) Accept() (net.Conn, error) {
+	conn, ok := <-r.fakeCluster.ProxyConn()
+	if !ok {
+		return nil, fmt.Errorf("cluster closed")
+	}
+
+	return conn, nil
+}
+
+func (r *fakeClusterListener) Close() error {
+	return nil
+}
+
+func (r *fakeClusterListener) Addr() net.Addr {
+	return &net.IPAddr{}
+}
+
+// createAppSession generates a WebSession for an application.
+func createAppSession(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr, appName string) types.WebSession {
+	key, cert := createAppKeyCertPair(t, clock, caKey, caCert, clusterName, publicAddr, appName)
+	keyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
+		User:        "testuser",
+		TLSPriv:     keyPEM,
+		TLSCert:     cert,
+		Expires:     clock.Now().Add(5 * time.Minute),
+		BearerToken: "abc123",
+	})
+	require.NoError(t, err)
+
+	return appSession
+}
+
+// createAppKeyCertPair creates and a client key and signed app cert for the client key
+func createAppKeyCertPair(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr, appName string) (crypto.Signer, []byte) {
+	tlsCA, err := tlsca.FromKeys(caCert, caKey)
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// Generate the identity with a `RouteToApp` option.
+	subj, err := (&tlsca.Identity{
+		Username: "testuser",
+		Groups:   []string{"access"},
+		RouteToApp: tlsca.RouteToApp{
+			PublicAddr:  publicAddr,
+			ClusterName: clusterName,
+			Name:        appName,
+		},
+	}).Subject()
+	require.NoError(t, err)
+
+	cert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  clock.Now().Add(5 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	return privateKey, cert
+}
+
+// createNamedAppServer is like createAppServer but lets the caller pick the app
+// name, which is required to exercise routing between multiple apps that share a
+// public address.
+func createNamedAppServer(t *testing.T, appName, publicAddr string) types.AppServer {
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:   appName,
+					Labels: map[string]string{"app_name": appName},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func createAppServer(t *testing.T, publicAddr string) types.AppServer {
+	appName := uuid.New().String()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func TestMakeAppRedirectURL(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		reqURL           string
+		expectedURL      string
+		launderURLParams launcherURLParams
+	}{
+		// with launcherURLParams empty (will be empty if user did not launch app from our web UI)
+		{
+			name:        "OK - no path",
+			reqURL:      "https://grafana.localhost",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=",
+		},
+		{
+			name:        "OK - add root path",
+			reqURL:      "https://grafana.localhost/",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F",
+		},
+		{
+			name:        "OK - add multi path",
+			reqURL:      "https://grafana.localhost/foo/bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fbar",
+		},
+		{
+			name:        "OK - add paths with ampersands",
+			reqURL:      "https://grafana.localhost/foo/this&/that",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fthis%26%2Fthat",
+		},
+		{
+			name:        "OK - add only query",
+			reqURL:      "https://grafana.localhost?foo=bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar",
+		},
+		{
+			name:        "OK - add query with same keys used to store the original path and query",
+			reqURL:      "https://grafana.localhost?foo=bar&query=test1&path=test",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest",
+		},
+		{
+			name:        "OK - adds query with root path",
+			reqURL:      "https://grafana.localhost/?foo=bar&baz=qux&fruit=apple",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple",
+		},
+		{
+			name:        "OK - real grafana query example (encoded spaces)",
+			reqURL:      "https://grafana.localhost/alerting/list?search=state:inactive%20type:alerting%20health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata",
+		},
+		{
+			name:        "OK - query with non-encoded spaces",
+			reqURL:      "https://grafana.localhost/alerting /list?search=state:inactive type:alerting health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata",
+		},
+
+		// with launcherURLParams (defined if user used the "launcher" button from our web UI)
+		{
+			name: "OK - with clusterId and publicAddr",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, and arn",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn and path",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+				path:        "/foo/bar?qux=qex",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn, path, and required-apps",
+			launderURLParams: launcherURLParams{
+				stateToken:       "abc123",
+				clusterName:      "im-a-cluster-name",
+				publicAddr:       "grafana.localhost",
+				arn:              "arn:aws:iam::123456789012:role%2Frole-name",
+				path:             "/foo/bar?qux=qex",
+				requiredAppFQDNs: "api.example.com,grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
+			require.NoError(t, err)
+
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost", test.launderURLParams)
+			require.Equal(t, test.expectedURL, urlStr)
+		})
+	}
+}
+
+func startFakeAppServerOnCluster(t *testing.T, clusterName string, accessPoint authclient.RemoteProxyAccessPoint, cert, key []byte) *reversetunnelclient.FakeCluster {
+	t.Helper()
+
+	tlsCert, err := tls.X509KeyPair(cert, key)
+	require.NoError(t, err)
+
+	fakeCluster := reversetunnelclient.NewFakeCluster(clusterName, accessPoint)
+	server := &httptest.Server{
+		TLS: &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		},
+		Listener: &fakeClusterListener{
+			fakeCluster: fakeCluster,
+		},
+		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, "Hello application")
+		})},
+	}
+	server.StartTLS()
+	t.Cleanup(func() {
+		// Close fake cluster first to make sure fake listener quits.
+		fakeCluster.Close()
+		server.Close()
+	})
+	return fakeCluster
+}
+
+func TestDBSCRefresh(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	deviceJWK := jose.JSONWebKey{Key: deviceKey.Public()}
+	deviceJWKJSON, err := deviceJWK.Public().MarshalJSON()
+	require.NoError(t, err)
+	session.SetDBSCPublicKey(deviceJWKJSON)
+
+	jwtSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  session,
+		jwtSigner:   jwtSigner,
+	}
+	p := setup(t, fakeClock, authClient, nil)
+
+	headers := map[string]string{
+		secureSessionIDHeader: session.GetName(),
+	}
+	status, _, responseHeaders := p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
+	require.Equal(t, http.StatusForbidden, status)
+
+	challengeHeader := responseHeaders.Get(secureSessionChallengeHeader)
+	require.NotEmpty(t, challengeHeader)
+	challengeValue, sessionParam, ok := strings.Cut(challengeHeader, ";id=")
+	require.True(t, ok)
+	require.Equal(t, strconv.Quote(session.GetName()), sessionParam)
+	challenge, err := strconv.Unquote(challengeValue)
+	require.NoError(t, err)
+
+	proofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
+		challenge: challenge,
+	})
+	require.NoError(t, err)
+
+	headers[secureSessionResponseHeader] = proofJWT
+	status, body, responseHeaders := p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
+	require.Equal(t, http.StatusOK, status)
+	setCookies := responseHeaders.Values("Set-Cookie")
+	require.Len(t, setCookies, 2)
+	require.Contains(t, setCookies[0], CookieName+"="+session.GetName())
+	require.Contains(t, setCookies[0], "Max-Age=600")
+	require.Contains(t, setCookies[1], SubjectCookieName+"="+session.GetBearerToken())
+	require.Contains(t, setCookies[1], "Max-Age=600")
+
+	var got dbscSessionConfig
+	require.NoError(t, json.Unmarshal([]byte(body), &got))
+	require.Equal(t, session.GetName(), got.SessionIdentifier)
+	require.Equal(t, dbscRefreshPath, got.RefreshURL)
+	require.False(t, got.Scope.IncludeSite)
+	require.Len(t, got.Credentials, 2)
+	require.Equal(t, CookieName, got.Credentials[0].Name)
+	require.Equal(t, SubjectCookieName, got.Credentials[1].Name)
+}
+
+func TestDBSCRegistration(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
+
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	jwtSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  session,
+		jwtSigner:   jwtSigner,
+	}
+	p := setup(t, fakeClock, authClient, nil)
+
+	challenge, err := authClient.SignDBSCChallenge(t.Context(), session.GetName())
+	require.NoError(t, err)
+
+	proofJWT, err := makeDBSCProofJWT(deviceKey, dbscProofJWTParams{
+		challenge: challenge,
+		sessionID: session.GetName(),
+	})
+	require.NoError(t, err)
+
+	headers := map[string]string{
+		secureSessionResponseHeader: proofJWT,
+	}
+
+	t.Run("missing subject session cookie", func(t *testing.T) {
+		cookies := []http.Cookie{
+			{Name: CookieName, Value: session.GetName()},
+		}
+		status, _, _ := p.makeRequestWithHeaders(t, http.MethodPost, dbscRegistrationPath, nil, cookies, headers)
+		require.Equal(t, http.StatusForbidden, status)
+	})
+
+	t.Run("subject session cookie mismatch", func(t *testing.T) {
+		cookies := []http.Cookie{
+			{Name: CookieName, Value: session.GetName()},
+			{Name: SubjectCookieName, Value: "wrong-token"},
+		}
+		status, _, _ := p.makeRequestWithHeaders(t, http.MethodPost, dbscRegistrationPath, nil, cookies, headers)
+		require.Equal(t, http.StatusForbidden, status)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		cookies := []http.Cookie{
+			{Name: CookieName, Value: session.GetName()},
+			{Name: SubjectCookieName, Value: session.GetBearerToken()},
+		}
+
+		status, body, responseHeaders := p.makeRequestWithHeaders(t, http.MethodPost, dbscRegistrationPath, nil, cookies, headers)
+		require.Equal(t, http.StatusOK, status)
+
+		setCookies := responseHeaders.Values("Set-Cookie")
+		require.Len(t, setCookies, 2)
+		require.Contains(t, setCookies[0], CookieName+"="+session.GetName())
+		require.Contains(t, setCookies[0], "Max-Age=600")
+		require.Contains(t, setCookies[1], SubjectCookieName+"="+session.GetBearerToken())
+		require.Contains(t, setCookies[1], "Max-Age=600")
+
+		var got dbscSessionConfig
+		require.NoError(t, json.Unmarshal([]byte(body), &got))
+		require.Equal(t, session.GetName(), got.SessionIdentifier)
+		require.Equal(t, dbscRefreshPath, got.RefreshURL)
+		require.False(t, got.Scope.IncludeSite)
+		require.Len(t, got.Credentials, 2)
+		require.Equal(t, CookieName, got.Credentials[0].Name)
+		require.Equal(t, SubjectCookieName, got.Credentials[1].Name)
+
+		authClient.mtx.Lock()
+		defer authClient.mtx.Unlock()
+		require.NotEmpty(t, authClient.appSession.GetDBSCPublicKey())
+	})
+}
+
+func TestDBSCDisabled(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_DISABLE_DBSC", "1")
+
+	fakeClock := clockwork.NewFakeClock()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	deviceJWK := jose.JSONWebKey{Key: deviceKey.Public()}
+	deviceJWKJSON, err := deviceJWK.Public().MarshalJSON()
+	require.NoError(t, err)
+	session.SetDBSCPublicKey(deviceJWKJSON)
+
+	jwtSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  session,
+		jwtSigner:   jwtSigner,
+	}
+	p := setup(t, fakeClock, authClient, nil)
+
+	t.Run("registration returns not found", func(t *testing.T) {
+		cookies := []http.Cookie{
+			{Name: CookieName, Value: session.GetName()},
+			{Name: SubjectCookieName, Value: session.GetBearerToken()},
+		}
+		headers := map[string]string{
+			secureSessionResponseHeader: "proof",
+		}
+		status, _, _ := p.makeRequestWithHeaders(t, http.MethodPost, dbscRegistrationPath, nil, cookies, headers)
+		require.Equal(t, http.StatusNotFound, status)
+	})
+
+	t.Run("refresh returns not found", func(t *testing.T) {
+		headers := map[string]string{
+			secureSessionIDHeader: session.GetName(),
+		}
+		status, _, responseHeaders := p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
+		require.Equal(t, http.StatusNotFound, status)
+		require.Empty(t, responseHeaders.Get(secureSessionChallengeHeader))
+	})
+
+	t.Run("registration header not set", func(t *testing.T) {
+		handler, err := NewHandler(t.Context(), &HandlerConfig{
+			Clock:                 fakeClock,
+			AuthClient:            authClient,
+			AccessPoint:           authClient,
+			CipherSuites:          utils.DefaultCipherSuites(),
+			IntegrationAppHandler: &mockIntegrationAppHandler{},
+		})
+		require.NoError(t, err)
+
+		rec := httptest.NewRecorder()
+		require.NoError(t, handler.setDBSCRegistrationHeader(t.Context(), rec, session.GetName()))
+		require.Empty(t, rec.Header().Get(secureSessionRegistrationHeader))
+	})
+}
+
+type dbscProofJWTParams struct {
+	challenge string
+	sessionID string
+}
+
+func makeDBSCProofJWT(deviceKey crypto.Signer, params dbscProofJWTParams) (string, error) {
+	jwk := jose.JSONWebKey{Key: deviceKey.Public()}
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       deviceKey,
+	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", jwk.Public()))
+	if err != nil {
+		return "", err
+	}
+
+	return josejwt.Signed(signer).Claims(struct {
+		josejwt.Claims
+		Key jose.JSONWebKey `json:"key"`
+	}{
+		Claims: josejwt.Claims{
+			ID:      params.challenge,
+			Subject: params.sessionID,
+		},
+		Key: jwk.Public(),
+	}).CompactSerialize()
+}
+
+func TestHandlerAuthenticate(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+	fakeClock := clockwork.NewFakeClock()
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "testapp", publicAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:       fakeClock,
+		AuthClient:  authClient,
+		AccessPoint: authClient,
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+		},
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	t.Run("with cookie", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with client cert", func(t *testing.T) {
+		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
+		require.NoError(t, err)
+		require.NotEmpty(t, clientCert.Certificate)
+		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
+		require.NoError(t, err)
+
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with HTTPS tunnel conn", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with HTTPS tunnel conn from browser is rejected", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.Header.Set("Sec-Fetch-Site", "same-origin")
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("with HTTPS tunnel conn and mismatched client cert", func(t *testing.T) {
+		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
+		require.NoError(t, err)
+		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
+		require.NoError(t, err)
+
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, t.Name())
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		lastEvent, ok := authClient.lastEmittedEvent().(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, events.AuthAttemptEvent, lastEvent.GetType())
+		require.Contains(t, lastEvent.Status.Error, t.Name())
+	})
+
+	t.Run("without cookie or client cert", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("with cookie subject mismatch", func(t *testing.T) {
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request.AddCookie(&http.Cookie{Name: CookieName, Value: authClient.appSession.GetName()})
+		request.AddCookie(&http.Cookie{Name: SubjectCookieName, Value: "wrong-token"})
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		event := authClient.lastEmittedEvent()
+		require.NotNil(t, event)
+		attempt, ok := event.(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, "unknown", attempt.UserMetadata.User)
+		require.Equal(t, "testuser", attempt.UserMetadata.Login)
+	})
+
+	t.Run("session expired", func(t *testing.T) {
+		fakeClock.Advance(authClient.appSession.Expiry().Sub(fakeClock.Now()) + time.Minute)
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+}
+
+func TestRedirectToLauncherClusterFallback(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clusterName := "tp.test"
+	appFQDN := "greeting.tp.test"
+	authClient := &mockAuthClient{clusterName: clusterName}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	t.Run("redirects using cluster name when ProxyPublicAddrs is empty", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusFound, w.Code)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":443/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
+	})
+
+	t.Run("rejects app addr matching cluster name", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+clusterName+"/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok", publicAddr: clusterName})
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("preserves request port in fallback redirect", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "https://"+appFQDN+":3080/", nil)
+		err := appHandler.redirectToLauncher(w, r, launcherURLParams{stateToken: "tok"})
+		require.NoError(t, err)
+		loc := w.Header().Get("Location")
+		want := "https://" + clusterName + ":3080/web/launch/" + appFQDN
+		require.True(t, strings.HasPrefix(loc, want), "got %s, want prefix %s", loc, want)
+	})
+}
+
+func addValidSessionCookiesToRequest(appSession types.WebSession, r *http.Request) {
+	r.AddCookie(&http.Cookie{
+		Name:  CookieName,
+		Value: appSession.GetName(),
+	})
+	r.AddCookie(&http.Cookie{
+		Name:  SubjectCookieName,
+		Value: appSession.GetBearerToken(),
+	})
+}
+
+func Test_checkForDualCredentialMismatch(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	clock := clockwork.NewFakeClock()
+
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appSession := createAppSession(t, clock, caKey, caCert, clusterName, publicAddr, "testapp")
+	appSessionIdentity, err := getIdentityFromWebSession(appSession)
+	require.NoError(t, err)
+	require.NotNil(t, appSessionIdentity)
+
+	// appSessionNoName simulates a session whose cert has no RouteToApp.Name,
+	// e.g. created via the web cookie flow before app name was encoded.
+	appSessionNoName := createAppSession(t, clock, caKey, caCert, clusterName, publicAddr, "")
+
+	tests := []struct {
+		name          string
+		innerSession  types.WebSession
+		outerIdentity tlsca.Identity
+		wantErr       bool
+	}{
+		{
+			name:          "match",
+			innerSession:  appSession,
+			outerIdentity: *appSessionIdentity,
+		},
+		{
+			name:         "username mismatch",
+			innerSession: appSession,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.Username = "different-user"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			name:         "cluster name mismatch",
+			innerSession: appSession,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.ClusterName = "different-cluster"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			name:         "app name mismatch",
+			innerSession: appSession,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.Name = "different-app"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			name:         "public addr mismatch",
+			innerSession: appSession,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.PublicAddr = "other-app.example.com"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			// Session has no RouteToApp.Name (web cookie flow); falls back to
+			// public addr comparison which matches.
+			name:          "no app name in session, public addr matches",
+			innerSession:  appSessionNoName,
+			outerIdentity: *appSessionIdentity,
+		},
+		{
+			// Session has no RouteToApp.Name; public addr mismatch should still fail.
+			name:         "no app name in session, public addr mismatch",
+			innerSession: appSessionNoName,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.PublicAddr = "other-app.example.com"
+				return id
+			}(),
+			wantErr: true,
+		},
+	}
+
+	h := &Handler{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := h.checkForDualCredentialMismatch(&tt.outerIdentity, tt.innerSession)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func makeHTTPSTunnelConnFromAppSession(session types.WebSession, appName string) *httpsTunnelConn {
+	return &httpsTunnelConn{
+		TLSConn: &mockTLSConn{},
+		user: authz.LocalUser{
+			Username: session.GetUser(),
+			Identity: tlsca.Identity{
+				Username:        session.GetUser(),
+				TeleportCluster: "test-cluster",
+				RouteToApp: tlsca.RouteToApp{
+					SessionID:   session.GetName(),
+					Name:        appName,
+					ClusterName: "test-cluster",
+					PublicAddr:  "app.example.com",
+				},
+				Expires: session.Expiry(),
+			},
+		},
+	}
+}
+
+func makeHTTPSTunnelConnWithExpiry(t *testing.T, publicAddr string, expiry time.Time) *httpsTunnelConn {
+	t.Helper()
+
+	return &httpsTunnelConn{
+		TLSConn: &mockTLSConn{},
+		user: authz.LocalUser{
+			Username: "testuser",
+			Identity: tlsca.Identity{
+				Username:        "testuser",
+				TeleportCluster: "test-cluster",
+				RouteToApp: tlsca.RouteToApp{
+					SessionID:   "test-session-id",
+					Name:        "testapp",
+					ClusterName: "test-cluster",
+					PublicAddr:  publicAddr,
+				},
+				Expires: expiry,
+			},
+		},
+	}
+}
+
+// newClientCertRequest builds a request authenticated with a client certificate
+// for the given user, whose credential expires at notAfter.
+// appAuthCertificateIdentities only reads the certificate Subject and NotAfter,
+// so the certificate need not be signed.
+func newClientCertRequest(t *testing.T, publicAddr, username string, notAfter time.Time) *http.Request {
+	t.Helper()
+	subject, err := (&tlsca.Identity{
+		Username: username,
+		Groups:   []string{"access"},
+		RouteToApp: tlsca.RouteToApp{
+			PublicAddr:  publicAddr,
+			ClusterName: "test-cluster",
+			Name:        "testapp",
+		},
+	}).Subject()
+	require.NoError(t, err)
+
+	r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+	r.TLS.PeerCertificates = []*x509.Certificate{{Subject: subject, NotAfter: notAfter}}
+	return r
+}
+
+func TestConnectionCredentialExpired(t *testing.T) {
+	const publicAddr = "app.example.com"
+	now := time.Now()
+
+	t.Run("cookie/browser client has no certificate identity", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		require.Empty(t, appAuthCertificateIdentities(r))
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("valid certificate is not expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		require.Len(t, appAuthCertificateIdentities(r), 1)
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("expired certificate is reported expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with valid outer identity and expired inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(time.Minute))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with expired outer identity and valid inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(-time.Second))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+}
+
+// newExpiryTestHandler builds an app Handler backed by a mock auth client whose
+// app session expires 5 minutes from the fake clock's current time.
+func newExpiryTestHandler(t *testing.T, ctx context.Context, fakeClock *clockwork.FakeClock) (*Handler, *mockAuthClient, string) {
+	t.Helper()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createAppServer(t, publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:       fakeClock,
+		AuthClient:  authClient,
+		AccessPoint: authClient,
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+		},
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+	return appHandler, authClient, publicAddr
+}
+
+func TestWithAuthExpiredConnectionClose(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	t.Run("expired session on a client cert asks the client to reconnect", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, authClient, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// The certificate and its app session expire together. Advance past
+		// expiry to reproduce a long-lived connection whose credential lapsed.
+		certExpiry := authClient.appSession.Expiry()
+		fakeClock.Advance(certExpiry.Sub(fakeClock.Now()) + time.Minute)
+
+		r := newClientCertRequest(t, publicAddr, "testuser", certExpiry)
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Equal(t, "close", w.Header().Get("Connection"))
+	})
+
+	t.Run("denial on a still-valid client cert is left intact", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, _, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// Owner mismatch is a genuine denial. The certificate is still valid, so
+		// reconnecting would not help: we must not mislabel it as expired or ask
+		// the client to close the connection.
+		r := newClientCertRequest(t, publicAddr, "wronguser", fakeClock.Now().Add(time.Hour))
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Empty(t, w.Header().Get("Connection"))
+	})
+}

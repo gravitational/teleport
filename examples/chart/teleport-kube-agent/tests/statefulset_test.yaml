@@ -1,0 +1,1098 @@
+suite: StatefulSet
+templates:
+  - statefulset.yaml
+  - config.yaml
+tests:
+  - it: creates a StatefulSet
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    release:
+      upgrade: true
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - hasDocuments:
+          count: 1
+
+  - it: sets StatefulSet labels when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: deployment
+      - matchSnapshot: {}
+
+  - it: sets Pod labels when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: spec.template.metadata.labels.resource
+          value: pod
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: sets StatefulSet annotations when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+
+  - it: sets Pod annotations when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/annotations.yaml
+      - ../.lint/stateful.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have one replica when replicaCount is not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set affinity when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/affinity.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set required affinity when highAvailability.requireAntiAffinity is set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      highAvailability:
+        replicaCount: 2
+        requireAntiAffinity: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set preferred affinity when more than one replica is used
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: sets topology spread constraints by default
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app: RELEASE-NAME
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app: RELEASE-NAME
+
+  - it: removes topology spread constraints when disabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      disableTopologySpreadConstraints: true
+    asserts:
+      - isEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+
+  - it: removes topology spread constraints when running on antique kubernetes
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    capabilities:
+      majorVersion: 1
+      minorVersion: 17
+    asserts:
+      - isEmpty:
+          path: spec.template.spec.topologySpreadConstraints
+
+  - it: uses custom topology spread constraints when set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: foobar
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: baz
+    # helm unit-test has a bug where capabilities are not reset between tests, we must set back to 1.18 after the 1.17 test.
+    capabilities:
+      majorVersion: 1
+      minorVersion: 18
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints
+          value:
+            - maxSkew: 2
+              topologyKey: foobar
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app: baz
+
+  - it: should set tolerations when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/tolerations.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.tolerations
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set resources when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set a restricted-friendly SecurityContext by default
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should set image and tag correctly
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportVersionOverride: 12.2.1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have only one container when no `extraContainers` is set in values
+    template: statefulset.yaml
+    set:
+      extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
+  - it: should mount extraVolumes and extraVolumeMounts
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount auth token if token is provided
+    template: statefulset.yaml
+    values:
+      - ../.lint/join-params-token.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: auth-token
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+
+  - it: should set imagePullPolicy when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set environment when extraEnv set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      extraEnv:
+        - name: HTTPS_PROXY
+          value: "http://username:password@my.proxy.host:3128"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: "http://username:password@my.proxy.host:3128"
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should provision initContainer correctly when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add insecureSkipProxyTLSVerify to args when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      insecureSkipProxyTLSVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--insecure"
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should expose diag port
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: diag
+            containerPort: 3000
+            protocol: TCP
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set nodeSelector if set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/node-selector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            gravitational.io/k8s-role: node
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add emptyDir for data when using StatefulSet
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    set:
+      unitTestUpgrade: true
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add volumeMount for data volume when using StatefulSet
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: RELEASE-NAME-teleport-data
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    release:
+      upgrade: true
+    asserts:
+      - isNotNull:
+          path: spec.volumeClaimTemplates[0].spec
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    release:
+      isupgrade: false
+    asserts:
+      - isNotNull:
+          path: spec.volumeClaimTemplates
+      - matchSnapshot: {}
+
+  - it: should set storage.storageClassName when set in values and action is an Upgrade
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    release:
+      upgrade: true
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      storage:
+        storageClassName: helm-lint-storage-class
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: helm-lint-storage-class
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set storage.requests when set in values and action is an Upgrade
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    release:
+      upgrade: true
+    set:
+      storage:
+        requests: 256Mi
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 256Mi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret.name when role is jamf
+    template: statefulset.yaml
+    values:
+      - ../.lint/jamf-service.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: teleport-jamf-api-credentials
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret if it already exists and when role is jamf
+    template: statefulset.yaml
+    values:
+      - ../.lint/jamf-service-existing-secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: existing-teleport-jamf-secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://username:password@my.proxy.host:3128
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set serviceAccountName when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/service-account-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: teleport-kube-agent-sa
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set default serviceAccountName when not set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set probeTimeoutSeconds when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/probe-timeout-seconds.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set dnsConfig when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
+  - it: should install Statefulset when storage is disabled and mode is a Fresh Install
+    template: statefulset.yaml
+    release:
+      isupgrade: false
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      storage:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: RELEASE-NAME-teleport-data
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should generate Statefulset when storage is disabled and mode is a Upgrade
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      unitTestUpgrade: true
+      storage:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: RELEASE-NAME-teleport-data
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: sets by default a container security context
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null
+
+  - it: should enable maintenance schedule export when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/updater.yaml
+    set:
+      teleportVersionOverride: 13.4.5
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER
+            value: kube
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER_VERSION
+            value: 13.4.5
+
+  - it: should mount the update.yaml configmap when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_UPDATE_CONFIG_FILE
+            value: /etc/updater-config/update.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/updater-config
+            name: updater-config
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: updater-config
+            configMap:
+              name: RELEASE-NAME-updater
+
+  - it: should not mount the update.yaml configmap when updater is disabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_UPDATE_CONFIG_FILE
+            value: /etc/updater-config/update.yaml
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/updater-config
+            name: updater-config
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: updater-config
+            configMap:
+              name: RELEASE-NAME-updater
+
+  - it: should set the installation method environment variable
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
+
+  - it: should set the hostAliases when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/host-aliases.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases
+          value:
+            - ip: "127.0.0.1"
+              hostnames:
+                - "foo.local"
+                - "bar.local"
+            - ip: "10.1.2.3"
+              hostnames:
+                - "foo.remote"
+                - "bar.remote"
+  - it: should set the terminationGracePeriodSeconds when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      terminationGracePeriodSeconds: 3600
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 3600
+
+  - it: should mount a projected SA token when teleportClusterName is set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: join-sa-token
+                    expirationSeconds: 600
+                    audience: teleport.example.com
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+              mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+              readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+
+  - it: should not mount a projected SA token when teleportClusterName is not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: join-sa-token
+                    expirationSeconds: 600
+                    audience: ""
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/tokens
+            name: join-sa-token
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+
+  - it: sets GOMEMLIMIT by default (SI unit)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: sets GOMEMLIMIT by default (IEC unit)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5Gi"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "10146860237"
+
+  - it: sets GOMEMLIMIT by default (scientific notation)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5e9"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: honours existing GOMEMLIMIT
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+      extraEnv:
+        - name: FOO
+          value: bar
+        - name: GOMEMLIMIT
+          value: "5GB"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "5GB"
+
+  - it: does not set GOMEMLIMIT if ratio is 0
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+      goMemLimitRatio: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: does not set GOMEMLIMIT if resources are not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+          any: true

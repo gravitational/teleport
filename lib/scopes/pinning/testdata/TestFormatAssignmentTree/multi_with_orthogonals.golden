@@ -1,0 +1,12 @@
+├── / (root)
+│   ├── /dev - /::dev-global
+│   ├── /prod - /::prod-global
+│   ├── /prod/east - /::prod-east
+│   ├── /staging - /::staging-global
+│   └── /staging/west - /::staging-west
+├── /prod
+│   ├── /prod/eu - /prod::eu-admin
+│   └── /prod/us - /prod::us-admin
+└── /staging
+    ├── /staging/east - /staging::east-admin
+    └── /staging/west - /staging::west-admin

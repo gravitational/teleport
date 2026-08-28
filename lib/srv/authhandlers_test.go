@@ -1,0 +1,1923 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package srv
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"net"
+	"testing"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+type mockCAandAuthPrefGetter struct {
+	AccessPoint
+
+	authPref types.AuthPreference
+	cas      map[types.CertAuthType][]types.CertAuthority
+}
+
+func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (types.AuthPreference, error) {
+	return m.authPref, nil
+}
+
+func (m mockCAandAuthPrefGetter) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
+	cas, ok := m.cas[caType]
+	if !ok {
+		return nil, trace.NotFound("CA not found")
+	}
+
+	return cas, nil
+}
+
+type mockScopedRoleReaderGetter struct {
+	AccessPoint
+	scopedRoles []*scopedaccessv1.ScopedRole
+}
+
+func (m mockScopedRoleReaderGetter) ScopedRoleReader() services.ScopedRoleReader {
+	return mockScopedRoleGetter{
+		scopedRoles: m.scopedRoles,
+	}
+}
+
+// mockScopedRoleGetter is a mock implementation of ScopedRoleGetter for testing. It implements the entire
+// [services.ScopedRoleReader] interface, but calls to other methods will panic. user key auth should only ever
+// invoke GetScopedRole.
+type mockScopedRoleGetter struct {
+	services.ScopedRoleReader
+	scopedRoles []*scopedaccessv1.ScopedRole
+}
+
+func (m mockScopedRoleGetter) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	for _, role := range m.scopedRoles {
+		if role.Metadata.Name == req.Name {
+			return &scopedaccessv1.GetScopedRoleResponse{
+				Role: role,
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("scoped role %q not found", req.Name)
+}
+
+type mockLoginChecker struct {
+	rbacChecked          bool
+	returnScopedIdentity bool
+}
+
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
+	m.rbacChecked = true
+	if m.returnScopedIdentity {
+		return nil, services.ErrScopedIdentity
+	}
+	return nil, nil
+}
+
+type mockGitForwardingChecker struct {
+	rbacChecked bool
+}
+
+func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server) (*GitForwardingPermit, error) {
+	m.rbacChecked = true
+	return nil, nil
+}
+
+type mockConnMetadata struct{}
+
+func (m mockConnMetadata) User() string {
+	return "testuser"
+}
+
+func (m mockConnMetadata) SessionID() []byte {
+	return nil
+}
+
+func (m mockConnMetadata) ClientVersion() []byte {
+	return nil
+}
+
+func (m mockConnMetadata) ServerVersion() []byte {
+	return nil
+}
+
+func (m mockConnMetadata) LocalAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.ParseIP("1.2.3.4"),
+		Port: 22,
+	}
+}
+
+func (m mockConnMetadata) RemoteAddr() net.Addr {
+	return &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 9001,
+	}
+}
+
+func TestRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const nodeScope = "/test/scope"
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+	}, map[string]string{"test": "node"})
+	require.NoError(t, err)
+	node.(*types.ServerV2).Scope = nodeScope
+
+	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "openssh",
+	}, map[string]string{"test": "node"})
+	require.NoError(t, err)
+	openSSHNode.(*types.ServerV2).Scope = nodeScope
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		component      string
+		targetServer   types.Server
+		scoped         bool
+		loginRBACCheck require.BoolAssertionFunc
+		gitRBACCheck   require.BoolAssertionFunc
+	}{
+		{
+			name:           "teleport node, regular server",
+			component:      teleport.ComponentNode,
+			targetServer:   node,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "teleport node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   node,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "registered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   openSSHNode,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "unregistered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   nil,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "forwarding git",
+			component:      teleport.ComponentForwardingGit,
+			targetServer:   gitServer,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.True,
+		},
+		// Scope checking
+		{
+			name:           "scoped - teleport node, regular server",
+			component:      teleport.ComponentNode,
+			targetServer:   node,
+			scoped:         true,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "scoped - registered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   openSSHNode,
+			scoped:         true,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "scoped - teleport node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   node,
+			scoped:         true,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
+		},
+	}
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	server.setInfo(node)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"testuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, nodeAccessRole)
+	require.NoError(t, err)
+
+	scopedRole := &scopedaccessv1.ScopedRole{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    nodeScope,
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{nodeScope},
+			Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Logins: []string{"testuser"},
+				Labels: []*labelv1.Label{
+					{Name: "test", Values: []string{"node"}},
+				},
+			},
+		},
+		Version: types.V1,
+	}
+	scopePin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: "/test",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			nodeScope: {nodeScope: {scopes.QualifiedName{Scope: nodeScope, Name: scopedRole.GetMetadata().GetName()}.String()}},
+		}),
+	}
+
+	accessPoint := mockScopedRoleReaderGetter{
+		AccessPoint: mockCAandAuthPrefGetter{
+			AccessPoint: server.auth,
+			authPref:    types.DefaultAuthPreference(),
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {userCA},
+			},
+		},
+		scopedRoles: []*scopedaccessv1.ScopedRole{scopedRole},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &AuthHandlerConfig{
+				Server:       server,
+				Component:    tt.component,
+				Emitter:      &eventstest.MockRecorderEmitter{},
+				AccessPoint:  accessPoint,
+				TargetServer: tt.targetServer,
+			}
+			ah, err := NewAuthHandlers(config)
+			require.NoError(t, err)
+
+			lc := mockLoginChecker{returnScopedIdentity: tt.scoped}
+			ah.loginChecker = &lc
+
+			gc := mockGitForwardingChecker{}
+			ah.gitForwardingChecker = &gc
+
+			// create SSH certificate
+			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+			require.NoError(t, err)
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+
+			ident := sshca.Identity{
+				Username:   "testuser",
+				Principals: []string{"testuser"},
+			}
+			if tt.scoped {
+				ident.ScopePin = scopePin
+			} else {
+				ident.Roles = []string{nodeAccessRole.GetName()}
+			}
+
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+				CertificateFormat: constants.CertificateFormatStandard,
+				Identity:          ident,
+			})
+			require.NoError(t, err)
+
+			cert, err := sshutils.ParseCertificate(c)
+			require.NoError(t, err)
+
+			// perform public key authentication
+			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+			require.NoError(t, err)
+
+			tt.loginRBACCheck(t, lc.rbacChecked)
+			tt.gitRBACCheck(t, gc.rbacChecked)
+		})
+	}
+}
+
+// TestScopedRBAC verifies that scoped RBAC checks are performed correctly.
+func TestScopedRBAC(t *testing.T) {
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"team": "red",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-red",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-blue",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"blue"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-east-red",
+			},
+			Scope: "/staging/east",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/east"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "prod-west-red",
+			},
+			Scope: "/prod/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/prod/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-no-labels",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-wrong-login",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"wronguser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, types.DefaultClusterNetworkingConfig())
+
+	tts := []struct {
+		name    string
+		pin     *scopesv1.Pin
+		allowed bool
+	}{
+		{
+			name: "basic allow",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
+				}),
+			},
+			allowed: true,
+		},
+		{
+			name: "too narrow scope",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging/west/narrow",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
+				}),
+			},
+			allowed: false,
+		},
+		{
+			name: "label mismatch",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-blue"}},
+				}),
+			},
+			allowed: false,
+		},
+		{
+			name: "scope permission mismatch",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/east": {"/staging/east": {"/staging/east::staging-east-red"}},
+				}),
+			},
+			allowed: false,
+		},
+		{
+			name: "orthogonal scope",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/prod",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/prod/west": {"/prod/west": {"/prod/west::prod-west-red"}},
+				}),
+			},
+			allowed: false,
+		},
+		{
+			name: "no labels",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-no-labels"}},
+				}),
+			},
+			allowed: false,
+		},
+		{
+			name: "wrong login",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-wrong-login"}},
+				}),
+			},
+			allowed: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+
+			if tt.allowed {
+				require.NoError(t, err)
+				require.NotNil(t, permit)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
+	}
+}
+
+// TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
+// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
+func TestForwardingGitLocalOnly(t *testing.T) {
+	t.Parallel()
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
+	// create local User CA
+	localCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	localCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      localCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     localCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create remote User CA
+	remoteCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	remoteCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "remotehost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      remoteCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     remoteCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {remoteCA, localCA},
+		},
+	}
+
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentForwardingGit,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: gitServer,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	gc := mockGitForwardingChecker{}
+	ah.gitForwardingChecker = &gc
+
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// create local SSH certificate
+	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
+	require.NoError(t, err)
+
+	localCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      localCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	localCert, err := sshutils.ParseCertificate(localCertRaw)
+	require.NoError(t, err)
+
+	// create remote SSH certificate
+	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
+	require.NoError(t, err)
+
+	remoteCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      remoteCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	remoteCert, err := sshutils.ParseCertificate(remoteCertRaw)
+	require.NoError(t, err)
+
+	// verify that authentication succeeds for local cert but is rejected categorically for remote
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
+	require.NoError(t, err)
+	require.True(t, gc.rbacChecked)
+
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
+}
+
+func TestCheckAgentForward(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		component      string
+		accessPermit   *decisionpb.SSHAccessPermit
+		proxyingPermit *proxyingPermit
+		expectAllowed  bool
+	}{
+		{
+			name:          "access permit allows agent forwarding",
+			component:     teleport.ComponentNode,
+			accessPermit:  &decisionpb.SSHAccessPermit{ForwardAgent: true},
+			expectAllowed: true,
+		},
+		{
+			name:           "proxy allows proxying permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
+		{
+			name:           "forwarding node allows proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
+		{
+			name:           "non-proxy component denies proxying permit",
+			component:      teleport.ComponentNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  false,
+		},
+		{
+			name:           "proxy denies without permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: nil,
+			expectAllowed:  false,
+		},
+		{
+			name:           "forwarding node denies without proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: nil,
+			expectAllowed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ah := &AuthHandlers{c: &AuthHandlerConfig{
+				Component: tt.component,
+			}}
+			ctx := &ServerContext{
+				Identity: IdentityContext{
+					AccessPermit:   tt.accessPermit,
+					ProxyingPermit: tt.proxyingPermit,
+				},
+			}
+
+			err := ah.CheckAgentForward(ctx)
+			if tt.expectAllowed {
+				require.NoError(t, err)
+				return
+			}
+
+			var accessDenied *trace.AccessDeniedError
+			require.ErrorAs(t, err, &accessDenied)
+		})
+	}
+}
+
+// TestRBACJoinMFA tests that MFA is enforced correctly when joining
+// sessions depending on the cluster auth preference and roles presented.
+func TestRBACJoinMFA(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const clusterName = "localhost"
+	const username = "testuser"
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(cn)
+	require.NoError(t, err)
+
+	accessPoint := &mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
+		},
+	}
+
+	// create auth handler and dummy node
+	config := &AuthHandlerConfig{
+		Server:      server,
+		Emitter:     &eventstest.MockRecorderEmitter{},
+		AccessPoint: accessPoint,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	node, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+		Version:  types.V2,
+	})
+	require.NoError(t, err)
+
+	mfaAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	require.NoError(t, err)
+
+	noMFAAuthPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_OFF,
+	})
+	require.NoError(t, err)
+
+	// create roles
+	joinMFARole, err := types.NewRole("joinMFA", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, joinMFARole)
+	require.NoError(t, err)
+
+	joinRole, err := types.NewRole("join", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, joinRole)
+	require.NoError(t, err)
+
+	pinJoinRole, err := types.NewRole("pinJoin", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, pinJoinRole)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		authPref          types.AuthPreference
+		role              string
+		expectPinSourceIP bool
+		testError         func(t *testing.T, err error)
+	}{
+		{
+			name:     "MFA cluster auth, MFA role",
+			authPref: mfaAuthPref,
+			role:     joinMFARole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:     "MFA cluster auth, no MFA role",
+			authPref: mfaAuthPref,
+			role:     joinRole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:     "no MFA cluster auth, MFA role",
+			authPref: noMFAAuthPref,
+			role:     joinMFARole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:     "no MFA cluster auth, no MFA role",
+			authPref: noMFAAuthPref,
+			role:     joinRole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:              "no MFA cluster auth, pin source IP role",
+			authPref:          noMFAAuthPref,
+			role:              pinJoinRole.GetName(),
+			expectPinSourceIP: true,
+			testError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessPoint.authPref = tt.authPref
+
+			// create SSH certificate
+			caSigner, err := ssh.NewSignerFromSigner(userCAPriv.Signer)
+			require.NoError(t, err)
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
+				CertificateFormat: constants.CertificateFormatStandard,
+				Identity: sshca.Identity{
+					Username:   username,
+					Principals: []string{username},
+					Traits: wrappers.Traits{
+						teleport.TraitInternalPrefix: []string{""},
+					},
+					Roles: []string{tt.role},
+				},
+			})
+			require.NoError(t, err)
+
+			cert, err := sshutils.ParseCertificate(c)
+			require.NoError(t, err)
+
+			ident, err := sshca.DecodeIdentity(cert)
+			require.NoError(t, err)
+
+			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			tt.testError(t, err)
+			if err == nil && tt.expectPinSourceIP {
+				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+				})
+			}
+		})
+	}
+}
+
+func TestAuthorityForCert(t *testing.T) {
+	rawCA1, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca1, err := ssh.NewPublicKey(rawCA1)
+	require.NoError(t, err)
+
+	rawCA2, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca2, err := ssh.NewPublicKey(rawCA2)
+	require.NoError(t, err)
+
+	rawCA3, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca3, err := ssh.NewPublicKey(rawCA3)
+	require.NoError(t, err)
+
+	ah := &AuthHandlers{c: &AuthHandlerConfig{
+		Server: (*mockServer)(nil),
+		AccessPoint: mockCAandAuthPrefGetter{
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {&types.CertAuthorityV2{
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							SSH: []*types.SSHKeyPair{
+								{PublicKey: ssh.MarshalAuthorizedKey(ca1)},
+								{PublicKey: ssh.MarshalAuthorizedKey(ca2)},
+							},
+						},
+					},
+				}},
+			},
+		},
+	}}
+
+	cert1 := &ssh.Certificate{
+		Key:          ca1,
+		SignatureKey: ca1,
+	}
+
+	_, err = ah.authorityForCert(types.UserCA, ca1)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca2)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca3)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = ah.authorityForCert(types.UserCA, cert1)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
+}
+
+// TestAuthAttemptAuditEvent tests that AuthAttempt audit event returns host id
+// and hostname of target node.
+func TestAuthAttemptAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// create dummy node
+	node, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+		Version:  types.V2,
+	})
+	require.NoError(t, err)
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
+		},
+	}
+
+	// create mock emitter
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	// create auth handler
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      emitter,
+		AccessPoint:  accessPoint,
+		TargetServer: node,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	// create SSH certificate
+	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+	require.NoError(t, err)
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(c)
+	require.NoError(t, err)
+
+	// perform public key authentication, should fail because no login checker set
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	require.Error(t, err)
+
+	// audit event (AuthAttempt) should include node's host id and hostname
+	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
+	require.Equal(t, node.GetName(), authEvent.ServerID)
+	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
+}
+
+// scopedAccessAuthzPack is a helper intended to simplify testing scoped authz logic.
+type scopedAccessAuthzPack struct {
+	node       *types.ServerV2
+	userCAPriv *keys.PrivateKey
+	authConfig *AuthHandlerConfig
+}
+
+// newScopedAccessAuthzPack creates a new scopedAccessAuthPack set up with the provided node as the target of the authz decision,
+// and the provided scoped roles available in the access point. Subsequent calls to scopedAccessAuthzPack.UserKeyAuthFromPin
+// with various pins assigning the supplied roles can then be used to test decision logic.
+func newScopedAccessAuthzPack(t *testing.T, node *types.ServerV2, roles []*scopedaccessv1.ScopedRole, netConfig types.ClusterNetworkingConfig) *scopedAccessAuthzPack {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+
+	// set the mock SSH server's view of itself when performing RBAC
+	// checks in `ComponentNode` mode
+	server.setInfo(node)
+
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	// use caller-provided cluster networking config (cnc affects various access parameters
+	// and is relevant for some test scenarios)
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, netConfig)
+	require.NoError(t, err)
+
+	accessPoint := mockScopedRoleReaderGetter{
+		AccessPoint: mockCAandAuthPrefGetter{
+			AccessPoint: server.auth,
+			authPref:    types.DefaultAuthPreference(),
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {userCA},
+			},
+		},
+		scopedRoles: roles,
+	}
+
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: node,
+	}
+
+	return &scopedAccessAuthzPack{
+		node:       node,
+		userCAPriv: userCAPriv,
+		authConfig: config,
+	}
+}
+
+// UserKeyAuthFromPin wraps the AuthHandlers.UserKeyAuth method to allow for easily testing calls with various scope pins
+// and examining the resulting permits. Helpful for table driven tests that want to validate that authz decisions for scoped
+// identities. If an error is returned, it is the error from UserKeyAuth specifically.
+func (h *scopedAccessAuthzPack) UserKeyAuthFromPin(t *testing.T, pin *scopesv1.Pin) (*decisionpb.SSHAccessPermit, error) {
+	ah, err := NewAuthHandlers(h.authConfig)
+	require.NoError(t, err)
+
+	// create SSH certificate
+	caSigner, err := ssh.NewSignerFromKey(h.userCAPriv)
+	require.NoError(t, err)
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+			ScopePin:   pin,
+		},
+	})
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(c)
+	require.NoError(t, err)
+
+	// perform public key authentication
+	perms, err := ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// extract and return the AccessPermit (always present when authhandlers are in ComponentNode mode)
+	permitJSON, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	require.True(t, ok, "expected AccessPermit in permissions extensions")
+
+	var permit decisionpb.SSHAccessPermit
+	require.NoError(t, (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(permitJSON), &permit))
+
+	return &permit, nil
+}
+
+// TestScopedClientIdleTimeout tests various scenarios/combinations of scoped roles with different client idle
+// timeout values.
+func TestScopedClientIdleTimeout(t *testing.T) {
+	// set up a fake node with scoping and labels to act as the subject of access
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"env": "test",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	// set up networking config with a specific timeout.
+	netConfig := types.DefaultClusterNetworkingConfig()
+	netConfig.SetClientIdleTimeout(30 * time.Minute)
+
+	// set up various scoped roles with different scoping, labels, and logins. Note that this test relies on
+	// the each role, and the above cnc, using unique timeout values so that we can tell which policy "won".
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "no-timeout",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "10m-timeout",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "10m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "1h-timeout",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "1h",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "25m-timeout",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "25m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "22m-timeout-general",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "22m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "15m-timeout-specific",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "15m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "12m-timeout-team-blue",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"blue"},
+						},
+					},
+					ClientIdleTimeout: "12m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "16m-timeout",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"testuser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "16m",
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "18m-timeout-wrong-login",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"wronguser"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "env",
+							Values: []string{"test"},
+						},
+					},
+					ClientIdleTimeout: "18m",
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, netConfig)
+
+	tts := []struct {
+		name            string
+		pin             *scopesv1.Pin
+		expectTimeout   time.Duration
+		expectAccessErr bool
+	}{
+		{
+			name: "no role timeout uses global default",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::no-timeout"}},
+				}),
+			},
+			expectTimeout: 30 * time.Minute, // global default from cnc
+		},
+		{
+			name: "role timeout more restrictive than global",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
+				}),
+			},
+			expectTimeout: 10 * time.Minute, // role timeout from the only applicable role
+		},
+		{
+			name: "role timeout less restrictive than global",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"/staging/west::1h-timeout"}},
+				}),
+			},
+			expectTimeout: 30 * time.Minute, // global default due to being more restrictive than role timeout
+		},
+		{
+			name: "winning role determines timeout (single-role evaluation)",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging":      {"/staging/west": {"/staging::25m-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
+				}),
+			},
+			expectTimeout: 25 * time.Minute, // role assigned *from* a more ancestral/authoritative scope of origin wins
+		},
+		{
+			name: "more specific scope of effect wins (same origin)",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {
+						"/staging":      {"/staging::22m-timeout-general"},
+						"/staging/west": {"/staging::15m-timeout-specific"},
+					},
+				}),
+			},
+			expectTimeout: 15 * time.Minute, // role assigned *to* a more specific scope of effect wins
+		},
+		{
+			name: "label selector mismatch causes fallback to next role",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging":      {"/staging/west": {"/staging::12m-timeout-team-blue"}},
+					"/staging/west": {"/staging/west": {"/staging/west::16m-timeout"}},
+				}),
+			},
+			expectTimeout: 16 * time.Minute, // role with child scope of origin wins due to label selector mismatch
+		},
+		{
+			name: "login mismatch causes fallback to next role",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging":      {"/staging/west": {"/staging::18m-timeout-wrong-login"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
+				}),
+			},
+			expectTimeout: 10 * time.Minute, // role with child scope of origin wins due to login mismatch
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+
+			if tt.expectAccessErr {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, permit)
+
+			actualTimeout := permit.ClientIdleTimeout.AsDuration()
+			require.Equal(t, tt.expectTimeout, actualTimeout,
+				"ClientIdleTimeout should be %v but got %v", tt.expectTimeout, actualTimeout)
+		})
+	}
+}
+
+// newScopedSSHPermitTestPack is a helper to create newScopedAccessAuthzPack
+func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole) *scopedAccessAuthzPack {
+	t.Helper()
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"env": "test",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	// add standard logins and labels to each role so they match the test node
+	for _, role := range roles {
+		if role.Spec.Ssh.Logins == nil {
+			role.Spec.Ssh.Logins = []string{"testuser"}
+		}
+		if role.Spec.Ssh.Labels == nil {
+			role.Spec.Ssh.Labels = []*labelv1.Label{
+				{Name: "env", Values: []string{"test"}},
+			}
+		}
+	}
+
+	return newScopedAccessAuthzPack(t, serverV2, roles, types.DefaultClusterNetworkingConfig())
+}
+
+func pinForRole(roleName string) *scopesv1.Pin {
+	return &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: "/staging",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/staging/west": {"/staging/west": {scopes.QualifiedName{Scope: "/staging/west", Name: roleName}.String()}},
+		}),
+	}
+}
+
+func baseScopedRoleForAuthz(name string) *scopedaccessv1.ScopedRole {
+	return &scopedaccessv1.ScopedRole{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: name},
+		Scope:    "/staging/west",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/staging/west"},
+			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+		},
+		Version: types.V1,
+	}
+}
+
+func TestScopedX11Forwarding(t *testing.T) {
+	const x11enabled = "x11-enabled"
+	const x11disabled = "x11-disabled"
+	const x11unset = "x11-unset"
+	enabled := baseScopedRoleForAuthz(x11enabled)
+	enabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(x11disabled)
+	disabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(x11unset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(x11enabled), true},
+		{"disabled", pinForRole(x11disabled), false},
+		{"unset defaults to false", pinForRole(x11unset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.X11Forwarding)
+		})
+	}
+}
+
+func TestScopedForwardAgent(t *testing.T) {
+	const agentEnabled = "agent-enabled"
+	const agentDisabled = "agent-disabled"
+	const agentUnset = "agent-unset"
+
+	enabled := baseScopedRoleForAuthz(agentEnabled)
+	enabled.Spec.Ssh.ForwardAgent = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(agentDisabled)
+	disabled.Spec.Ssh.ForwardAgent = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(agentUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(agentEnabled), true},
+		{"disabled", pinForRole(agentDisabled), false},
+		{"unset defaults to false", pinForRole(agentUnset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.ForwardAgent)
+		})
+	}
+}
+
+func TestScopedSSHFileCopy(t *testing.T) {
+	const copyEnabled = "copy-enabled"
+	const copyDisabled = "copy-disabled"
+	const copyUnset = "copy-unset"
+
+	enabled := baseScopedRoleForAuthz(copyEnabled)
+	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(copyDisabled)
+	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(copyUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(copyEnabled), true},
+		{"disabled", pinForRole(copyDisabled), false},
+		{"unset defaults to true", pinForRole(copyUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.SshFileCopy)
+		})
+	}
+}
+
+func TestScopedSSHPortForwarding(t *testing.T) {
+	const pfBothOn = "pf-both-on"
+	const pfBothOff = "pf-both-off"
+	const pfLocalOnly = "pf-local-only"
+	const pfUnset = "pf-unset"
+
+	bothOn := baseScopedRoleForAuthz(pfBothOn)
+	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+	}
+
+	bothOff := baseScopedRoleForAuthz(pfBothOff)
+	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
+	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	unset := baseScopedRoleForAuthz(pfUnset)
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{bothOn, bothOff, localOnly, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect decisionpb.SSHPortForwardMode
+	}{
+		{"both on", pinForRole(pfBothOn), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+		{"both off", pinForRole(pfBothOff), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF},
+		{"local only", pinForRole(pfLocalOnly), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL},
+		{"unset defaults to on", pinForRole(pfUnset), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.PortForwardMode)
+		})
+	}
+}
+
+func TestScopedMaxSessions(t *testing.T) {
+	const sessions5 = "sessions-5"
+	const sessions1 = "sessions-1"
+	const sessionsUnset = "sessions-unset"
+
+	five := baseScopedRoleForAuthz(sessions5)
+	five.Spec.Ssh.MaxSessions = proto.Int64(5)
+
+	one := baseScopedRoleForAuthz(sessions1)
+	one.Spec.Ssh.MaxSessions = proto.Int64(1)
+
+	unset := baseScopedRoleForAuthz(sessionsUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{five, one, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect int64
+	}{
+		{"set to 5", pinForRole(sessions5), 5},
+		{"set to 1", pinForRole(sessions1), 1},
+		{"unset defaults to 0", pinForRole(sessionsUnset), 0},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.MaxSessions)
+		})
+	}
+}
+
+func TestScopedHostUserCreation(t *testing.T) {
+	const hostUserKeep = "host-user-keep"
+	const hostUserOff = "host-user-off"
+	const hostUserUnset = "host-user-unset"
+
+	keep := baseScopedRoleForAuthz(hostUserKeep)
+	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode:   "keep",
+		Groups: []string{"wheel"},
+		Shell:  "/bin/bash",
+	}
+
+	off := baseScopedRoleForAuthz(hostUserOff)
+	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode: "off",
+	}
+
+	unset := baseScopedRoleForAuthz(hostUserUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{keep, off, unset})
+
+	tts := []struct {
+		name      string
+		pin       *scopesv1.Pin
+		expectNil bool
+	}{
+		{"mode keep", pinForRole(hostUserKeep), false},
+		{"mode off", pinForRole(hostUserOff), true},
+		{"unset defaults to denied", pinForRole(hostUserUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			if tt.expectNil {
+				require.Nil(t, permit.HostUsersInfo)
+			} else {
+				require.NotNil(t, permit.HostUsersInfo)
+			}
+		})
+	}
+}
+
+func TestHostSudoers(t *testing.T) {
+	const sudoersPresent = "sudoers-present"
+	const sudoersUnset = "sudoers-unset"
+
+	present := baseScopedRoleForAuthz(sudoersPresent)
+	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
+	present.Spec.Ssh.HostSudoers = expectedSudoers
+	unset := baseScopedRoleForAuthz(sudoersUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect []string
+	}{
+		{"enabled", pinForRole(sudoersPresent), expectedSudoers},
+		{"unset defaults to false", pinForRole(sudoersUnset), nil},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.HostSudoers)
+		})
+	}
+}

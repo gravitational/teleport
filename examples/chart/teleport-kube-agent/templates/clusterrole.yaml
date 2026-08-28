@@ -1,0 +1,39 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.clusterRoleName | default .Release.Name }}
+{{- if .Values.extraLabels.clusterRole }}
+  labels:
+  {{- toYaml .Values.extraLabels.clusterRole | nindent 4 }}
+{{- end }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+{{- if contains "discovery" (.Values.roles | toString) }}
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - list
+{{- end}}
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
+{{- end -}}

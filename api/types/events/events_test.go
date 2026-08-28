@@ -1,0 +1,499 @@
+/*
+Copyright 2022 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package events
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/gogo/protobuf/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
+)
+
+// TestTrimToMaxSize tests TrimToMaxSize implementation of several events.
+// It also tests trimEventToMaxSize used by these events.
+func TestTrimToMaxSize(t *testing.T) {
+	type messageSizeTrimmer interface {
+		TrimToMaxSize(int) AuditEvent
+	}
+
+	testCases := []struct {
+		name    string
+		maxSize int
+		in      AuditEvent
+		want    AuditEvent
+		cmpOpts []cmp.Option
+	}{
+		// DatabaseSessionQuery
+		{
+			name:    "Query exceeds max limit size",
+			maxSize: 6000,
+			in: &DatabaseSessionQuery{
+				DatabaseQuery: strings.Repeat("A", 7000),
+			},
+			want: &DatabaseSessionQuery{
+				DatabaseQuery: strings.Repeat("A", 5373),
+			},
+		},
+		{
+			name:    "Query with query params exceeds max size",
+			maxSize: 2000,
+			in: &DatabaseSessionQuery{
+				DatabaseQuery: strings.Repeat("A", 2000),
+				DatabaseQueryParameters: []string{
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
+				},
+			},
+			want: &DatabaseSessionQuery{
+				DatabaseQuery: strings.Repeat("A", 589),
+				DatabaseQueryParameters: []string{
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
+				},
+			},
+		},
+		{
+			name:    "with metadata",
+			maxSize: 3000,
+			in: &DatabaseSessionQuery{
+				Metadata: Metadata{
+					ClusterName: strings.Repeat("A", 2000),
+					Index:       1,
+				},
+				DatabaseQuery: strings.Repeat("A", 2000),
+				DatabaseQueryParameters: []string{
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
+				},
+			},
+			want: &DatabaseSessionQuery{
+				Metadata: Metadata{
+					ClusterName: strings.Repeat("A", 2000),
+					Index:       1,
+				},
+				DatabaseQuery: strings.Repeat("A", 221),
+				DatabaseQueryParameters: []string{
+					strings.Repeat("A", 89),
+					strings.Repeat("A", 89),
+				},
+			},
+		},
+		{
+			name:    "Query requires heavy escaping",
+			maxSize: 50,
+			in: &DatabaseSessionQuery{
+				DatabaseQuery: `{` + strings.Repeat(`"a": "b",`, 100) + "}",
+			},
+			want: &DatabaseSessionQuery{
+				DatabaseQuery: `{"a": "b","a"`,
+			},
+		},
+		// UserLogin
+		{
+			name:    "UserLogin event with error",
+			maxSize: 3000,
+			in: &UserLogin{
+				Status: Status{
+					Error:       strings.Repeat("A", 2000),
+					UserMessage: strings.Repeat("A", 2000),
+				},
+			},
+			want: &UserLogin{
+				Status: Status{
+					Error:       strings.Repeat("A", 1335),
+					UserMessage: strings.Repeat("A", 1335),
+				},
+			},
+			cmpOpts: []cmp.Option{
+				// UserLogin.IdentityAttributes has an Equal method which gets used
+				// by cmp.Diff but fails whether nil or an empty struct is supplied.
+				cmpopts.IgnoreFields(UserLogin{}, "IdentityAttributes"),
+			},
+		},
+		{
+			name:    "MCPSessionInvalidHTTPRequest trimmed",
+			maxSize: 200,
+			in: &MCPSessionInvalidHTTPRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: strings.Repeat("/path", 10),
+				Body: bytes.Repeat([]byte("body"), 10),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 20)},
+					"B": {strings.Repeat("b", 20)},
+				},
+			},
+			want: &MCPSessionInvalidHTTPRequest{
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: "/path/path/path/",
+				Body: []byte("bodybodybodybody"),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 16)},
+					"B": {strings.Repeat("b", 16)},
+				},
+			},
+		},
+		{
+			name:    "AzureRun fields trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 500),
+				StandardError:  strings.Repeat("B", 500),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 60),
+				StandardError:  strings.Repeat("B", 60),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
+			name:    "AzureRun one field trimmed",
+			maxSize: 300,
+			in: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 500),
+			},
+			want: &AzureRun{
+				Metadata: Metadata{
+					Type: "azure.run",
+					Code: "TDA00W",
+				},
+				AzureMetadata: AzureMetadata{
+					SubscriptionID: "sub-1",
+					ResourceGroup:  "rg-1",
+					Region:         "eastus",
+				},
+				AzureVMMetadata: AzureVMMetadata{
+					VMID:   "vm-id-1",
+					VMName: "vm-1",
+				},
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardOutput: strings.Repeat("A", 10),
+				StandardError:  strings.Repeat("B", 10),
+				APIError:       strings.Repeat("E", 60),
+			},
+		},
+		{
+			name:    "SCIM Resource Event trimmed",
+			maxSize: 200,
+			in: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am the very model of a modern Major General",
+					UserMessage: "I have information animal, vegetable and mineral",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+					ResourceType: "ttttttttttttttttttttttttttttttttttttttttttt",
+					Request: &SCIMRequest{
+						ID:            "idididididididididididididididididididididid",
+						SourceAddress: "srcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrc",
+						UserAgent:     "agentagentagentagentagentagentagentagentagent",
+						Method:        "PATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCH",
+						Path:          "/Users/teleport-user-with-a-long-name",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggggggggggggggggggggggggggggggggggggggg",
+						}),
+					},
+				},
+			},
+			want: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am t",
+					UserMessage: "I have",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiii",
+					ResourceType: "tttttt",
+					Request: &SCIMRequest{
+						ID:            "ididid",
+						SourceAddress: "srcsrc",
+						UserAgent:     "agenta",
+						Method:        "PATCHP",
+						Path:          "/Users",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggg",
+						}),
+					},
+				},
+			},
+			cmpOpts: []cmp.Option{
+				cmp.Transformer("struct", func(s *Struct) map[string]any {
+					result, err := DecodeToMap(s)
+					require.NoError(t, err)
+					return result
+				}),
+			},
+		},
+		{
+			name:    "CertAuthorityOverrideEvent trimmed",
+			maxSize: 200,
+			in: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
+			},
+			want: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 70),
+					UserMessage: strings.Repeat("B", 70),
+				},
+			},
+		},
+		{
+			name:    "AppSessionLLMRequest trimmed",
+			maxSize: 200,
+			in: &AppSessionLLMRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
+				Path:           strings.Repeat("/path", 20),
+				Method:         strings.Repeat("POST", 20),
+				RequestedModel: strings.Repeat("requested-model", 20),
+				Model:          strings.Repeat("model", 20),
+				// Provider comes from the app config and should not be trimmed.
+				Provider: "a-long-provider-name-not-trimmed",
+			},
+			want: &AppSessionLLMRequest{
+				Metadata: Metadata{
+					Code: "T2014I",
+					Type: "app.session.llm.request.success",
+				},
+				Status: Status{
+					Error:       "AAAAAAAAAAAA",
+					UserMessage: "BBBBBBBBBBBB",
+				},
+				Path:           "/path/path/p",
+				Method:         "POSTPOSTPOST",
+				RequestedModel: "requested-mo",
+				Model:          "modelmodelmo",
+				Provider:       "a-long-provider-name-not-trimmed",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sr, ok := tc.in.(messageSizeTrimmer)
+			require.True(t, ok)
+
+			got := sr.TrimToMaxSize(tc.maxSize)
+
+			require.Empty(t, cmp.Diff(got, tc.want, tc.cmpOpts...))
+			require.Less(t, got.Size(), tc.maxSize)
+		})
+	}
+}
+
+func TestTrimStr(t *testing.T) {
+	tests := []struct {
+		have string
+		want string
+	}{
+		{strings.Repeat("A", 17) + `\n`, strings.Repeat("A", 17) + `\`},
+		{strings.Repeat(`A\n`, 200), `A\nA\nA\nA\nA\`},
+		{strings.Repeat(`A\a`, 200), `A\aA\aA\aA\aA\`},
+		{strings.Repeat(`A\t`, 200), `A\tA\tA\tA\tA\`},
+		{`{` + strings.Repeat(`"a": "b",`, 100) + "}", `{"a": "b","a"`},
+	}
+
+	const maxLen = 20
+	for _, test := range tests {
+		require.Equal(t, test.want, trimStr(test.have, maxLen))
+	}
+}
+
+func TestStructTrimToMaxSize(t *testing.T) {
+	testCases := []struct {
+		name    string
+		maxSize int
+		in      *Struct
+		want    *Struct
+	}{
+		{
+			name:    "Field key exceeds max limit size",
+			maxSize: 10,
+			in: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 100): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+			want: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.in.trimToMaxFieldSize(tc.maxSize)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestTrimMCPJSONRPCMessage(t *testing.T) {
+	m := MCPJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      "some-id",
+		Method:  "tools/call",
+		Params: &Struct{
+			Struct: types.Struct{
+				Fields: map[string]*types.Value{
+					strings.Repeat("A", 100): {
+						Kind: &types.Value_StringValue{
+							StringValue: "A",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	orgSize := m.Size()
+	t.Run("not trimmed", func(t *testing.T) {
+		notTrimmed := m.trimToMaxFieldSize(10000)
+		require.Equal(t, orgSize, m.Size())
+		require.Equal(t, notTrimmed, m)
+	})
+
+	t.Run("trimmed", func(t *testing.T) {
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
+		require.Equal(t, orgSize, m.Size())
+		require.Less(t, trimmed.Size(), 50)
+		require.Equal(t, MCPJSONRPCMessage{
+			JSONRPC: "2.0",
+			ID:      "some-id",
+			Method:  "tools/ca",
+			Params: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		}, trimmed)
+	})
+}

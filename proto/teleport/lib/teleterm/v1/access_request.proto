@@ -1,0 +1,103 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/resources.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+message AccessRequest {
+  string id = 1;
+  // the request state of Access Request. option of PENDING, APPROVED, DENIED, PROMOTED, NONE
+  string state = 2;
+  string resolve_reason = 3;
+  string request_reason = 4;
+  // user is the user who submitted the Access Request
+  string user = 5;
+  // a list of roles requested
+  repeated string roles = 6;
+  google.protobuf.Timestamp created = 7;
+  google.protobuf.Timestamp expires = 8;
+  repeated AccessRequestReview reviews = 9;
+  repeated string suggested_reviewers = 10;
+  // thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
+  repeated string threshold_names = 11;
+  reserved "resource_ids";
+  reserved 12;
+  // List of requested resources.
+  repeated Resource resources = 13;
+  // promoted_access_list_title is the title of the access
+  // list that this access request was promoted to.
+  string promoted_access_list_title = 14;
+  // assume_start_time is the time after which the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 15;
+  // max_duration is the maximum duration for which the request is valid.
+  google.protobuf.Timestamp max_duration = 16;
+  // request_ttl is the expiration time of the request (how long it will await
+  // approval).
+  google.protobuf.Timestamp request_ttl = 17;
+  // session_ttl indicates how long a certificate for a session should be valid for.
+  google.protobuf.Timestamp session_ttl = 18;
+  // reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+  // "required". It's only added in response to a dry run request.
+  string reason_mode = 19;
+  // reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+  // It's only added in response to a dry run request.
+  repeated string reason_prompts = 20;
+}
+
+message AccessRequestReview {
+  // author is the creator of the AccessRequestReview.
+  string author = 1;
+  // list of roles approved
+  repeated string roles = 2;
+  // the state of the review, either APPROVED or DENIED
+  string state = 3;
+  // reason is why the request was approved or denied
+  string reason = 4;
+  google.protobuf.Timestamp created = 5;
+  // promoted_access_list_title is the title of the access
+  // list that the access request was promoted to.
+  string promoted_access_list_title = 6;
+  // if not a nil value, this reviewer overwrote
+  // the requested start time.
+  google.protobuf.Timestamp assume_start_time = 7;
+}
+
+message ResourceID {
+  string kind = 1;
+  string name = 2;
+  string cluster_name = 3;
+  string sub_resource_name = 4;
+}
+
+message ResourceDetails {
+  string hostname = 1;
+  string friendly_name = 2;
+}
+
+message Resource {
+  ResourceID id = 1;
+  ResourceDetails details = 2;
+  // constraints holds optional resource-specific constraints (e.g., AWS role ARNs).
+  types.ResourceConstraints constraints = 3;
+}

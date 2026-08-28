@@ -1,0 +1,8 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
+log:
+  format: json
+  level: DEBUG
+  output: /var/lib/teleport/test.log
+  extraFields: ["level", "timestamp", "component", "caller"]

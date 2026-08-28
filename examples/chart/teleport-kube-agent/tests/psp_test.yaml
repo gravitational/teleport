@@ -1,0 +1,55 @@
+suite: PodSecurityPolicy
+templates:
+  - psp.yaml
+tests:
+  - it: creates a PodSecurityPolicy when enabled in values and supported
+    capabilities:
+      majorVersion: 1
+      minorVersion: 22
+    set:
+      podSecurityPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        isKind:
+          of: PodSecurityPolicy
+      - documentIndex: 1
+        isKind:
+          of: Role
+      - documentIndex: 2
+        isKind:
+          of: RoleBinding
+      - matchSnapshot: {}
+
+  - it: sets PodSecurityPolicy labels when specified
+    capabilities:
+      majorVersion: 1
+      minorVersion: 22
+    values:
+      - ../.lint/extra-labels.yaml
+    set:
+      podSecurityPolicy:
+        enabled: true
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - documentIndex: 0
+        equal:
+          path: metadata.labels.resource
+          value: podsecuritypolicy
+      - matchSnapshot: {}
+
+  - it: does not create a PodSecurityPolicy when enabled in values but not supported
+    capabilities:
+      majorVersion: 1
+      minorVersion: 25
+    set:
+      podSecurityPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

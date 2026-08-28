@@ -1,0 +1,76 @@
+# This example connector uses SAML to authenticate against
+# Active Directory Federation Services (ADFS)
+kind: saml
+version: v2
+metadata:
+  name: adfs_connector
+spec:
+  # display allows to set the caption of the "login" button
+  # in the Web interface
+  # Using the work 'Microsoft' will show the windows symbol in the UI.
+  display: Microsoft
+
+  # "adfs" provider setting tells Teleport that this SAML connector uses ADFS
+  # as a provider
+  provider: adfs
+
+  # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
+  allow_idp_initiated: false
+
+  # entity_descriptor XML can either be copied into connector or fetched from a URL
+  entity_descriptor: |
+    <EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
+    ...
+    </md:EntityDescriptor>
+  # entity_descriptor_url is commented out, as only one is required to setup adfs.
+  # if you're running Teleport in FIPS mode entity_descriptor_url with Azure AD may
+  # fail
+  #entity_descriptor_url: "https://example.com"
+
+  # issuer typically comes from the "entity_descriptor" but can be overridden here
+  issuer: "foo"
+  # sso typically comes from the "entity_descriptor" but can be overridden here
+  sso: "bar"
+  # cert typically comes from the "entity_descriptor" but can be overridden here
+  cert: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+
+  acs: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+  # if "service_provider_issuer" is not set, comes from "acs"
+  service_provider_issuer: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+  # if "audience" is not set, comes from "acs"
+  audience: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+
+  # if "signing_key_pair" is not set, teleport will generate a self signed
+  # signing key pair
+  signing_key_pair:
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+    cert:
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+
+  attributes_to_roles:
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "Administrators"
+      roles: ["editor"]
+    - name: "http://schemas.xmlsoap.org/claims/Group"
+      value: "Users"
+      roles: ["access"]
+
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'

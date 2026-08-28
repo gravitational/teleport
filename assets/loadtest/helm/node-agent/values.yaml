@@ -1,0 +1,42 @@
+replicaCount: 1
+agentsPerPod: 10
+proxyServer: ""
+authServer: ""
+
+minReadySeconds: 0
+
+image:
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
+  pullPolicy: IfNotPresent
+  tag: ""
+
+serviceAccount:
+  create: true
+
+joinParams:
+  # the kubernetes join method is not currently suited for joining a large amount of nodes in a short time
+  method: token
+  # DO NOT USE THIS IN PRODUCTION
+  token_name: ""
+
+# pod tolerations
+# array of https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#toleration-v1-core
+tolerations: []
+
+# pod affinity rules
+# https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#affinity-v1-core
+affinity: {}
+
+tls:
+  existingCASecretName: ""
+
+# envvars set in each container
+# array of https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#envvar-v1-core
+extraEnv: []
+
+# resource requirements for each container
+# https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#resourcerequirements-v1-core
+resources: {}
+
+# Teleport labels
+labels: {}

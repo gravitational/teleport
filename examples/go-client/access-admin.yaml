@@ -1,0 +1,14 @@
+kind: role
+metadata:
+  name: access-admin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['create', 'update', 'delete']
+    request:
+      roles: ['admin']
+  deny:
+    node_labels:
+      '*': '*'
+version: v3

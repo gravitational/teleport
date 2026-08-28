@@ -1,0 +1,377 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { ipcRenderer } from 'electron';
+
+import { ensureError } from 'shared/utils/error';
+
+import Logger from 'teleterm/logger';
+import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { serializeError } from 'teleterm/mainProcess/ipcSerializer';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
+import { createFileStorageClient } from 'teleterm/services/fileStorage';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { createConfigServiceClient } from '../services/config';
+import { openTabContextMenu } from './contextMenus/tabContextMenu';
+import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
+import {
+  AgentProcessState,
+  ChildProcessAddresses,
+  MainProcessClient,
+  MainProcessIpc,
+  RendererIpc,
+  WindowsManagerIpc,
+} from './types';
+
+const logger = new Logger('MainProcessClient');
+
+export default function createMainProcessClient(): MainProcessClient {
+  return {
+    /*
+     * Listeners for messages received by the renderer from the main process.
+     */
+
+    subscribeToNativeThemeUpdate: listener => {
+      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
+        listener(value);
+      ipcRenderer.addListener(RendererIpc.NativeThemeUpdate, onThemeChange);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.NativeThemeUpdate,
+            onThemeChange
+          ),
+      };
+    },
+    subscribeToAgentUpdate: (rootClusterUri, listener) => {
+      const onChange = (
+        _,
+        eventRootClusterUri: RootClusterUri,
+        eventState: AgentProcessState
+      ) => {
+        if (eventRootClusterUri === rootClusterUri) {
+          listener(eventState);
+        }
+      };
+      ipcRenderer.addListener(
+        RendererIpc.ConnectMyComputerAgentUpdate,
+        onChange
+      );
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ConnectMyComputerAgentUpdate,
+            onChange
+          ),
+      };
+    },
+    subscribeToDeepLinkLaunch: listener => {
+      const ipcListener = (event, args) => {
+        listener(args);
+      };
+
+      ipcRenderer.addListener(RendererIpc.DeepLinkLaunch, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.DeepLinkLaunch, ipcListener),
+      };
+    },
+
+    /*
+     * Messages sent from the renderer to the main process.
+     */
+
+    getRuntimeSettings() {
+      return ipcRenderer.sendSync(MainProcessIpc.GetRuntimeSettings);
+    },
+    // TODO(ravicious): Convert the rest of IPC channels to use enums defined in types.ts such as
+    // MainProcessIpc rather than hardcoded strings.
+    getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses> {
+      return ipcInvoke('main-process-get-resolved-child-process-addresses');
+    },
+    showFileSaveDialog(filePath: string) {
+      return ipcInvoke('main-process-show-file-save-dialog', filePath);
+    },
+    saveTextToFile(args) {
+      return ipcInvoke(MainProcessIpc.SaveTextToFile, args);
+    },
+    openTerminalContextMenu,
+    openTabContextMenu,
+    configService: createConfigServiceClient(),
+    fileStorage: createFileStorageClient(),
+    forceFocusWindow(args) {
+      return ipcInvoke(MainProcessIpc.ForceFocusWindow, args);
+    },
+    symlinkTshMacOs() {
+      return ipcInvoke('main-process-symlink-tsh-macos');
+    },
+    removeTshSymlinkMacOs() {
+      return ipcInvoke('main-process-remove-tsh-symlink-macos');
+    },
+    openConfigFile() {
+      return ipcInvoke('main-process-open-config-file');
+    },
+    shouldUseDarkColors() {
+      return ipcRenderer.sendSync('main-process-should-use-dark-colors');
+    },
+    downloadAgent() {
+      return ipcInvoke(MainProcessIpc.DownloadConnectMyComputerAgent);
+    },
+    verifyAgent() {
+      return ipcInvoke(MainProcessIpc.VerifyConnectMyComputerAgent);
+    },
+    createAgentConfigFile(args: CreateAgentConfigFileArgs) {
+      return ipcInvoke(
+        'main-process-connect-my-computer-create-agent-config-file',
+        args
+      );
+    },
+    isAgentConfigFileCreated(args: { rootClusterUri: RootClusterUri }) {
+      return ipcInvoke(
+        'main-process-connect-my-computer-is-agent-config-file-created',
+        args
+      );
+    },
+    removeAgentDirectory(args: { rootClusterUri: RootClusterUri }) {
+      return ipcInvoke(
+        'main-process-connect-my-computer-remove-agent-directory',
+        args
+      );
+    },
+    tryRemoveConnectMyComputerAgentBinary() {
+      return ipcInvoke(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary);
+    },
+    openAgentLogsDirectory(args: { rootClusterUri: RootClusterUri }) {
+      return ipcInvoke('main-process-open-agent-logs-directory', args);
+    },
+    killAgent(args: { rootClusterUri: RootClusterUri }) {
+      return ipcInvoke('main-process-connect-my-computer-kill-agent', args);
+    },
+    runAgent(args: { rootClusterUri: RootClusterUri }) {
+      return ipcInvoke('main-process-connect-my-computer-run-agent', args);
+    },
+    getAgentState(args: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.sendSync(
+        'main-process-connect-my-computer-get-agent-state',
+        args
+      );
+    },
+    getAgentLogs(args: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.sendSync(
+        'main-process-connect-my-computer-get-agent-logs',
+        args
+      );
+    },
+    signalUserInterfaceReadiness(args: { success: boolean }) {
+      ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
+    },
+    selectDirectoryForDesktopSession(args: {
+      desktopUri: string;
+      login: string;
+      directoryId: number;
+    }) {
+      return ipcInvoke(MainProcessIpc.SelectDirectoryForDesktopSession, args);
+    },
+    supportsAppUpdates() {
+      return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
+    },
+    checkForAppUpdates() {
+      return ipcInvoke(MainProcessIpc.CheckForAppUpdates);
+    },
+    downloadAppUpdate() {
+      return ipcInvoke(MainProcessIpc.DownloadAppUpdate);
+    },
+    cancelAppUpdateDownload() {
+      return ipcInvoke(MainProcessIpc.CancelAppUpdateDownload);
+    },
+    quitAndInstallAppUpdate() {
+      return ipcInvoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+    },
+    changeAppUpdatesManagingCluster(clusterUri) {
+      return ipcInvoke(MainProcessIpc.ChangeAppUpdatesManagingCluster, {
+        clusterUri,
+      });
+    },
+    subscribeToAppUpdateEvents: listener => {
+      const ipcListener = (_, updateEvent: AppUpdateEvent) => {
+        listener(updateEvent);
+      };
+
+      ipcRenderer.addListener(RendererIpc.AppUpdateEvent, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.AppUpdateEvent, ipcListener),
+      };
+    },
+    subscribeToOpenAppUpdateDialog: listener => {
+      ipcRenderer.addListener(RendererIpc.OpenAppUpdateDialog, listener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
+      };
+    },
+    subscribeToIsInBackgroundMode: listener => {
+      const ipcListener = (_, { isInBackgroundMode }) => {
+        listener({ isInBackgroundMode });
+      };
+
+      ipcRenderer.addListener(RendererIpc.IsInBackgroundMode, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.IsInBackgroundMode,
+            ipcListener
+          ),
+      };
+    },
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.InitClusterStoreSubscription,
+        listener
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcInvoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async () => {
+      return await ipcInvoke(MainProcessIpc.SyncRootClusters);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logout: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.Logout, { clusterUri });
+    },
+    forgetCluster: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.ForgetCluster, { clusterUri });
+    },
+    registerClusterLifecycleHandler(listener): {
+      cleanup: () => void;
+    } {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.RegisterClusterLifecycleHandler,
+        listener
+      );
+
+      return { cleanup: close };
+    },
+    subscribeToProfileWatcherErrors: listener => {
+      const ipcListener = (_, error) => {
+        listener(error);
+      };
+
+      ipcRenderer.addListener(RendererIpc.ProfileWatcherError, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ProfileWatcherError,
+            ipcListener
+          ),
+      };
+    },
+  };
+}
+
+/**
+ * Sets up a `MessagePort` listener in the renderer process and transfers
+ * the port to the main process via the specified IPC `channel`.
+ *
+ * The main process is expected to create an `AwaitableSender` using the received port,
+ * enabling it to send messages that require acknowledgments from the renderer.
+ */
+function startAwaitableSenderListener<T>(
+  channel: string,
+  listener: (value: T) => void | Promise<void>
+): {
+  close: () => void;
+} {
+  const { port1: localPort, port2: transferablePort } = new MessageChannel();
+
+  localPort.onmessage = async (event: MessageEvent<Message>) => {
+    const msg = event.data;
+    if (msg?.type !== 'data') {
+      logger.warn('Received non-data message on awaitable sender listener', {
+        message: msg,
+      });
+      return;
+    }
+    logger.info('Received message on awaitable sender listener', {
+      messageId: msg.id,
+      messageType: msg.type,
+    });
+    const ack: MessageAck = { type: 'ack', id: msg.id };
+
+    try {
+      await listener(msg.payload as T);
+    } catch (e) {
+      ack.error = serializeError(ensureError(e));
+    }
+
+    try {
+      localPort.postMessage(ack);
+      logger.info('Sent awaitable sender ack', {
+        messageId: msg.id,
+        ackError: ack.error,
+      });
+    } catch (e) {
+      logger.error('Failed to send awaitable sender ack', {
+        messageId: msg.id,
+        ackError: ack.error,
+        sendError: e,
+      });
+    }
+  };
+
+  localPort.start();
+  ipcRenderer.postMessage(channel, undefined, [transferablePort]);
+
+  return {
+    close: () => {
+      localPort.onmessage = undefined;
+      localPort.close();
+      transferablePort.close();
+    },
+  };
+}
+
+/**
+ * Resolves with the response from the main process.
+ * The main process must register the handler using `ipcHandle` (not `ipcMain.handle`).
+ *
+ * Use this instead of `ipcRenderer.invoke`.
+ */
+async function ipcInvoke(channel: string, ...args: any[]): Promise<any> {
+  const { error, result } = await ipcRenderer.invoke(channel, ...args);
+  if (error) {
+    logger.error(`Error invoking remote method ${channel}`, error);
+
+    // IMPORTANT: Throw the plain serialized object instead of an Error instance.
+    // When errors cross Electron's context bridge (preload → renderer), custom
+    // properties on Error instances are stripped. By throwing a plain object,
+    // all properties are preserved.
+    // The renderer code (isTshdRpcError, retryWithRelogin) handles plain objects.
+    throw error;
+  }
+  return result;
+}

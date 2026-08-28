@@ -1,0 +1,762 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
+import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/legacy/types/resources.proto";
+import "teleport/lib/teleterm/v1/access_request.proto";
+import "teleport/lib/teleterm/v1/app.proto";
+import "teleport/lib/teleterm/v1/auth_settings.proto";
+import "teleport/lib/teleterm/v1/cluster.proto";
+import "teleport/lib/teleterm/v1/database.proto";
+import "teleport/lib/teleterm/v1/gateway.proto";
+import "teleport/lib/teleterm/v1/kube.proto";
+import "teleport/lib/teleterm/v1/server.proto";
+import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/windows_desktop.proto";
+import "teleport/userpreferences/v1/cluster_preferences.proto";
+import "teleport/userpreferences/v1/unified_resource_preferences.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// TerminalService is used by the Electron app to communicate with the tsh daemon.
+//
+// While we aim to preserve backwards compatibility in order to satisfy CI checks and follow the
+// proto practices used within the company, this service is not guaranteed to be stable across
+// versions. The packaging process of Teleport Connect ensures that the server and the client use
+// the same version of the service.
+service TerminalService {
+  // UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
+  // supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
+  // before any other from this service.
+  //
+  // The service is supposed to return a response from this call only after the client is ready.
+  rpc UpdateTshdEventsServerAddress(UpdateTshdEventsServerAddressRequest) returns (UpdateTshdEventsServerAddressResponse);
+
+  // ListRootClusters lists root clusters
+  // Does not include detailed cluster information that would require a network request.
+  rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
+  // ListLeafClusters lists leaf clusters
+  // Does not include detailed cluster information that would require a network request.
+  rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
+  // StartHeadlessWatcher starts a headless watcher.
+  // If the watcher is already running, it is restarted.
+  rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
+  // ListDatabaseUsers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
+  // ListDatabaseServers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
+  // GetAccessRequests lists filtered AccessRequests
+  rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
+  // GetAccessRequest retreives a single Access Request
+  rpc GetAccessRequest(GetAccessRequestRequest) returns (GetAccessRequestResponse);
+  // DeleteAccessRequest deletes the access request by id
+  rpc DeleteAccessRequest(DeleteAccessRequestRequest) returns (EmptyResponse);
+  // CreateAccessRequest creates an access request
+  rpc CreateAccessRequest(CreateAccessRequestRequest) returns (CreateAccessRequestResponse);
+  // ReviewAccessRequest submits a review for an Access Request
+  rpc ReviewAccessRequest(ReviewAccessRequestRequest) returns (ReviewAccessRequestResponse);
+  // GetRequestableRoles gets all requestable roles
+  rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
+  // AssumeRole assumes the role of the given access request
+  rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
+  // PromoteAccessRequest promotes an access request to an access list.
+  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+  rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+  // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+  // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+  rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
+  // Lists Kubernetes servers.
+  rpc ListKubernetesServers(ListKubernetesServersRequest) returns (ListKubernetesServersResponse);
+  // AddCluster adds a cluster to profile
+  rpc AddCluster(AddClusterRequest) returns (Cluster);
+
+  // ListGateways lists gateways
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
+  // CreateGateway creates a gateway
+  rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
+  // RemoveGateway removes a gateway
+  rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
+  // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
+  // and returns the updated version of gateway.Gateway.
+  //
+  // In Connect this is used to update the db name of a db connection along with the CLI command.
+  rpc SetGatewayTargetSubresourceName(SetGatewayTargetSubresourceNameRequest) returns (Gateway);
+  // SetGatewayLocalPort starts a new gateway on the new port, stops the old gateway and then
+  // assigns the URI of the old gateway to the new one. It does so without fetching a new db cert.
+  rpc SetGatewayLocalPort(SetGatewayLocalPortRequest) returns (Gateway);
+
+  // GetAuthSettings returns cluster auth settigns
+  rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
+  // GetCluster returns cluster. Makes a network request and includes detailed
+  // information about enterprise features availabed on the connected auth server
+  rpc GetCluster(GetClusterRequest) returns (Cluster);
+  // Login logs in a user to a cluster
+  rpc Login(LoginRequest) returns (EmptyResponse);
+  // LoginPasswordless logs in a user to a cluster passwordlessly.
+  //
+  // The RPC is streaming both ways and the message sequence example for hardware keys are:
+  // (-> means client-to-server, <- means server-to-client)
+  //
+  // Hardware keys:
+  // -> Init
+  // <- Send PasswordlessPrompt enum TAP to choose a device
+  // -> Receive TAP device response
+  // <- Send PasswordlessPrompt enum PIN
+  // -> Receive PIN response
+  // <- Send PasswordlessPrompt enum RETAP to confirm
+  // -> Receive RETAP device response
+  // <- Send list of credentials (e.g. usernames) associated with device
+  // -> Receive the index number associated with the selected credential in list
+  // <- End
+  rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
+  // Logs the user out of the cluster and cleans up associated resources.
+  // Optionally removes the profile.
+  // This operation is idempotent and can be safely invoked multiple times.
+  rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // Closes root and leaf cluster clients that use outdated TLS certificates.
+  rpc ClearStaleClusterClients(ClearStaleClusterClientsRequest) returns (ClearStaleClusterClientsResponse);
+  // TransferFile sends a request to download/upload a file
+  rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
+  // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
+  rpc ReportUsageEvent(ReportUsageEventRequest) returns (EmptyResponse);
+
+  // UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
+  // An MFA challenge will be prompted when approving a headless authentication.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (UpdateHeadlessAuthenticationStateResponse);
+
+  // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+  // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+  // the current system user.
+  rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
+  // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
+  rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
+  // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
+  // that the Connect My Computer node for the particular cluster has joined the cluster (the
+  // OpPut event).
+  //
+  // This RPC times out by itself after a minute to prevent the request from hanging forever, in
+  // case the client didn't set a deadline or doesn't abort the request.
+  rpc WaitForConnectMyComputerNodeJoin(WaitForConnectMyComputerNodeJoinRequest) returns (WaitForConnectMyComputerNodeJoinResponse);
+  // DeleteConnectMyComputerNode deletes the Connect My Computer node.
+  rpc DeleteConnectMyComputerNode(DeleteConnectMyComputerNodeRequest) returns (DeleteConnectMyComputerNodeResponse);
+  // GetConnectMyComputerNodeName reads the Connect My Computer node name (UUID) from a disk.
+  rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
+  // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
+  rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+  // GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+  // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
+  // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
+
+  // AuthenticateWebDevice blesses a web session with device trust by performing
+  // the on-behalf-of device authentication ceremony.
+  //
+  // See
+  // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+  rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
+
+  // ConnectToDesktop is a bidirectional stream for the desktop connection.
+  rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
+  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+  // If there is no active desktop session associated with the specified desktop_uri and login,
+  // the RPC returns an error.
+  //
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
+}
+
+message EmptyResponse {}
+
+// GetClusterRequest describes GetClusterRequest
+message GetClusterRequest {
+  string cluster_uri = 1;
+}
+
+message LogoutRequest {
+  string cluster_uri = 1;
+  // Whether to remove the associated YAML profile after logout.
+  bool remove_profile = 2;
+}
+
+message ClearStaleClusterClientsRequest {
+  string root_cluster_uri = 1;
+}
+
+message ClearStaleClusterClientsResponse {}
+
+message StartHeadlessWatcherRequest {
+  string root_cluster_uri = 1;
+}
+
+message StartHeadlessWatcherResponse {}
+
+// PasswordlessPrompt describes different prompts we need from users
+// during the passwordless login flow.
+enum PasswordlessPrompt {
+  PASSWORDLESS_PROMPT_UNSPECIFIED = 0;
+
+  // PASSWORDLESS_PROMPT_PIN is used when we need a user's pin.
+  PASSWORDLESS_PROMPT_PIN = 1;
+
+  // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
+  PASSWORDLESS_PROMPT_TAP = 2;
+
+  // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
+  // associated with their account.
+  PASSWORDLESS_PROMPT_CREDENTIAL = 3;
+}
+
+message GetAccessRequestRequest {
+  string cluster_uri = 1;
+  // specifcies a specific request id
+  string access_request_id = 2;
+}
+
+message GetAccessRequestsRequest {
+  // cluster_uri is the cluster uri
+  string cluster_uri = 1;
+}
+
+message GetAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message GetAccessRequestsResponse {
+  repeated AccessRequest requests = 1;
+}
+
+message DeleteAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string access_request_id = 2;
+}
+
+message CreateAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string reason = 2;
+  // a list of roles requested
+  repeated string roles = 3;
+  // suggested_reviewers is a suggested list of reviewers that can review a request.
+  repeated string suggested_reviewers = 4;
+  // List of resources to which access is being requested.
+  repeated ResourceID resource_ids = 5;
+  // assume_start_time is the time after which the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 6;
+  // dry_run is a flag that indicates whether the request is a dry run to check and set defaults,
+  // and return before actually creating the request in the backend.
+  bool dry_run = 7;
+  // max_duration is the maximum duration for which the request is valid.
+  google.protobuf.Timestamp max_duration = 8;
+  // request_ttl is the expiration time of the request (how long it will await
+  // approval).
+  google.protobuf.Timestamp request_ttl = 9;
+  // resource_access_ids is the set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from resource_ids, which only identify resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, resource_access_ids should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated types.ResourceAccessID resource_access_ids = 10;
+}
+
+message CreateAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message AssumeRoleRequest {
+  string root_cluster_uri = 1;
+  repeated string access_request_ids = 2;
+  repeated string drop_request_ids = 3;
+}
+
+message GetRequestableRolesRequest {
+  string cluster_uri = 1;
+  repeated ResourceID resource_ids = 2;
+}
+
+message GetRequestableRolesResponse {
+  repeated string roles = 1;
+  repeated string applicable_roles = 2;
+}
+
+message ReviewAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string state = 2;
+  string reason = 3;
+  repeated string roles = 4;
+  string access_request_id = 5;
+  // Overwrites the requested start time (optional).
+  google.protobuf.Timestamp assume_start_time = 6;
+}
+
+message ReviewAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message PromoteAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string access_list_id = 2;
+  string reason = 3;
+  string access_request_id = 4;
+}
+
+message PromoteAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message GetSuggestedAccessListsRequest {
+  string root_cluster_uri = 1;
+  string access_request_id = 2;
+}
+
+message GetSuggestedAccessListsResponse {
+  repeated accesslist.v1.AccessList access_lists = 1;
+}
+
+message ListKubernetesResourcesRequest {
+  string cluster_uri = 1;
+  // ResourceType is the Kubernetes resource that is going to be retrieved.
+  string resource_type = 2;
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 3;
+  // NextKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string next_key = 4;
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string predicate_expression = 5;
+  // SearchKeywords is a string containing search keywords to match against resource field values.
+  string search_keywords = 6;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 7;
+  // Cluster is the Kubernetes Cluster to request the resources.
+  string kubernetes_cluster = 8;
+  // Namespace is the Kubernetes namespace where the resources must be located.
+  // To search on every Kubernetes Namespace, do not define the value.
+  string kubernetes_namespace = 9;
+}
+
+message ListKubernetesResourcesResponse {
+  repeated KubeResource resources = 1;
+  reserved 2;
+  reserved "next_key";
+}
+
+// Lists Kubernetes servers request.
+message ListKubernetesServersRequest {
+  // Maximum number of servers to return per page.
+  int32 page_size = 1;
+
+  // Pagination token from a previous response.
+  string page_token = 2;
+
+  // Target Kubernetes cluster URI.
+  string cluster_uri = 3;
+
+  // Additional filters and sorting options.
+  ListResourcesParams params = 4;
+}
+
+// Lists Kubernetes servers response.
+message ListKubernetesServersResponse {
+  // Resources in this page of results.
+  repeated KubeServer resources = 1;
+
+  // Pagination token for the next page.
+  string next_page_token = 2;
+}
+
+// CredentialInfo holds fields related to a user's WebAuthn credential.
+message CredentialInfo {
+  string username = 1;
+}
+
+// LoginPasswordlessResponse is a message sent by the server during the
+// passwordless login flow.
+message LoginPasswordlessResponse {
+  PasswordlessPrompt prompt = 1;
+  repeated CredentialInfo credentials = 2;
+}
+
+// LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
+message LoginPasswordlessRequest {
+  oneof request {
+    LoginPasswordlessRequestInit init = 1;
+    LoginPasswordlessPINResponse pin = 2;
+    LoginPasswordlessCredentialResponse credential = 3;
+  }
+
+  // LoginPasswordlessRequestInit contains fields needed to init the stream request.
+  message LoginPasswordlessRequestInit {
+    // cluster_uri is needed to resolve cluster by its uri.
+    string cluster_uri = 1;
+  }
+
+  // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
+  message LoginPasswordlessPINResponse {
+    // pin is the user's device's pin.
+    string pin = 1;
+  }
+
+  // LoginPasswordlessPINResponse contains fields related to request from
+  // webauthncli.PromptCredential.
+  message LoginPasswordlessCredentialResponse {
+    // index is the associated number in the list of credentials that the user selected to log
+    // in as.
+    int64 index = 1;
+  }
+}
+
+message FileTransferRequest {
+  reserved 1, 3;
+  // login is the SSH username to use for the transfer.
+  string login = 2;
+  // source path of the transferred file.
+  string source = 4;
+  // destination path of the transferred file.
+  string destination = 5;
+  // direction indicates whether the file is uploaded/downloaded.
+  FileTransferDirection direction = 6;
+  string server_uri = 7;
+}
+
+// FileTransferDirection describes directions of a file transfer
+enum FileTransferDirection {
+  FILE_TRANSFER_DIRECTION_UNSPECIFIED = 0;
+  FILE_TRANSFER_DIRECTION_DOWNLOAD = 1;
+  FILE_TRANSFER_DIRECTION_UPLOAD = 2;
+}
+
+message FileTransferProgress {
+  uint32 percentage = 1;
+}
+
+// LoginRequest describes cluster login request
+message LoginRequest {
+  // cluster_uri is the cluster uri
+  string cluster_uri = 1;
+
+  oneof params {
+    // local holds parameters for local logins
+    LocalParams local = 2;
+    // sso holds parameters for sso logins
+    SsoParams sso = 3;
+  }
+
+  // LocalParams describes parameters for local user logins
+  message LocalParams {
+    // user is the user name
+    string user = 1;
+    // password is the user password
+    string password = 2;
+    // token is the 2FA token
+    string token = 3;
+  }
+
+  // SsoParams describes SSO parameters
+  message SsoParams {
+    // provider_type is the provider type
+    string provider_type = 1;
+    // provider_name is the provider name
+    string provider_name = 2;
+  }
+}
+
+message AddClusterRequest {
+  string name = 1;
+}
+
+message ListClustersRequest {}
+
+message ListClustersResponse {
+  repeated Cluster clusters = 1;
+}
+
+message ListLeafClustersRequest {
+  string cluster_uri = 1;
+}
+
+message ListDatabaseUsersRequest {
+  string db_uri = 1;
+}
+
+message ListDatabaseUsersResponse {
+  repeated string users = 1;
+}
+
+// ListResourcesParams describes different types of params
+// that can be applied when sending a request to a method that
+// uses the ListResources API underneath.
+message ListResourcesParams {
+  string start_key = 1;
+  int32 limit = 2;
+  string predicate_expression = 3;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 4;
+}
+
+message ListDatabaseServersRequest {
+  string cluster_uri = 1;
+  ListResourcesParams params = 2;
+}
+
+message ListDatabaseServersResponse {
+  repeated DatabaseServer resources = 1;
+  string next_key = 2;
+}
+
+message CreateGatewayRequest {
+  string target_uri = 1;
+  string target_user = 2;
+  string local_port = 3;
+  string target_subresource_name = 4;
+}
+
+message ListGatewaysRequest {}
+
+message ListGatewaysResponse {
+  repeated Gateway gateways = 1;
+}
+
+message RemoveGatewayRequest {
+  string gateway_uri = 1;
+}
+
+message SetGatewayTargetSubresourceNameRequest {
+  string gateway_uri = 1;
+  string target_subresource_name = 2;
+}
+
+message SetGatewayLocalPortRequest {
+  string gateway_uri = 1;
+  string local_port = 2;
+}
+
+message GetAuthSettingsRequest {
+  string cluster_uri = 1;
+}
+
+message UpdateTshdEventsServerAddressRequest {
+  string address = 1;
+}
+message UpdateTshdEventsServerAddressResponse {}
+
+message UpdateHeadlessAuthenticationStateRequest {
+  string root_cluster_uri = 1;
+  string headless_authentication_id = 2;
+  HeadlessAuthenticationState state = 3;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+message UpdateHeadlessAuthenticationStateResponse {}
+
+message CreateConnectMyComputerRoleRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerRoleResponse {
+  // certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
+  // the role list. The Electron app should refresh the details from the user cert as well.
+  bool certs_reloaded = 1;
+}
+
+message CreateConnectMyComputerNodeTokenRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerNodeTokenResponse {
+  string token = 1;
+  reserved 2;
+  reserved "labels";
+}
+
+message WaitForConnectMyComputerNodeJoinRequest {
+  string root_cluster_uri = 1;
+}
+message WaitForConnectMyComputerNodeJoinResponse {
+  Server server = 1;
+}
+
+message DeleteConnectMyComputerNodeRequest {
+  string root_cluster_uri = 1;
+}
+
+message DeleteConnectMyComputerNodeResponse {}
+
+message GetConnectMyComputerNodeNameRequest {
+  string root_cluster_uri = 1;
+}
+
+message GetConnectMyComputerNodeNameResponse {
+  string name = 1;
+}
+
+message ListUnifiedResourcesRequest {
+  string cluster_uri = 1;
+  // A list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string kinds = 2;
+  // The maximum number of resources to retrieve.
+  int32 limit = 3;
+  // Starts listing resources from a specific spot.
+  // It should be set to the next_key from ListUnifiedResourcesResponse if
+  // using pagination, or left empty.
+  string start_key = 4;
+  // If defined, the advanced search is used. The search field should be left empty.
+  string query = 5;
+  // If defined, the regular search is used. The query field should be left empty.
+  string search = 6;
+  // SortBy describes which resource field and which direction to sort by.
+  SortBy sort_by = 7;
+  // When true, all resources that the user can request access to are returned.
+  bool search_as_roles = 8;
+  // Only the pinned resources will be returned for the requesting user.
+  bool pinned_only = 9;
+  // include_requestable indicates that the response should include resources that the user must request access to.
+  bool include_requestable = 10;
+}
+
+message SortBy {
+  // A sort direction flag where if true the direction is descending, else ascending.
+  bool is_desc = 1;
+  // Name of an object's field to sort by. Resources can be sorted by name and kind.
+  string field = 2;
+}
+
+message ListUnifiedResourcesResponse {
+  repeated PaginatedResource resources = 1;
+  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
+  // the next pages. If it is empty, there are no more pages.
+  string next_key = 2;
+}
+
+message PaginatedResource {
+  oneof resource {
+    Database database = 1;
+    Server server = 2;
+    Kube kube = 3;
+    App app = 4;
+    WindowsDesktop windows_desktop = 6;
+  }
+  bool requires_request = 5;
+}
+
+message GetUserPreferencesRequest {
+  string cluster_uri = 1;
+}
+
+message GetUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
+}
+
+message UpdateUserPreferencesRequest {
+  string cluster_uri = 1;
+  UserPreferences user_preferences = 2;
+}
+
+message UpdateUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
+}
+
+// UserPreferences is a subset of teleport.userpreferences.v1.UserPreferences.
+// It contains preferences that are relevant to Connect.
+message UserPreferences {
+  teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
+  teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
+}
+
+// Request for AuthenticateWebDevice.
+message AuthenticateWebDeviceRequest {
+  // Device web token to be spent in exchange for the device authentication
+  // attempt.
+  teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
+  string root_cluster_uri = 2;
+}
+
+// Response for AuthenticateWebDevice.
+message AuthenticateWebDeviceResponse {
+  // Device confirmation token to be sent to the browser that originated the
+  // authentication attempt.
+  teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
+}
+
+// TargetDesktop contains information about the destination desktop.
+message TargetDesktop {
+  // URI of the desktop to connect to.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+}
+
+// Request for ConnectToDesktop.
+message ConnectToDesktopRequest {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+  // Must be empty in the first message and nonempty in subsequent messages.
+  bytes data = 1;
+  // Target desktop and login. Must be set in the first message and unset in subsequent messages.
+  TargetDesktop target_desktop = 2;
+}
+
+// Response for ConnectToDesktop.
+message ConnectToDesktopResponse {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
+  bytes data = 1;
+}
+
+// Request for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Path to share with a remote machine. Must be a directory.
+  string path = 3;
+  // DirectoryId assigned to this directory.
+  uint32 directory_id = 4;
+}
+
+// Response for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionResponse {}

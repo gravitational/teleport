@@ -1,0 +1,161 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import React from 'react';
+import styled from 'styled-components';
+
+import { Flex, Indicator } from 'design';
+import { ButtonWarningBorder } from 'design/Button/Button';
+import { Cell, DateCell } from 'design/DataTable';
+import Table from 'design/DataTable/Table';
+import * as Icon from 'design/Icon';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { IconTooltip } from 'design/Tooltip';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { MfaDevice } from 'teleport/services/mfa';
+
+export interface AuthDeviceListProps {
+  header: React.ReactNode;
+  devices: MfaDevice[];
+  onRemove?: (device: MfaDevice) => void;
+  attempt: Attempt;
+  passkeysEnabled: boolean;
+}
+
+/**
+ * Renders a table with authentication devices, preceded by a header, all inside
+ * a border.
+ */
+export function AuthDeviceList({
+  devices,
+  attempt,
+  header,
+  onRemove,
+  passkeysEnabled,
+}: AuthDeviceListProps) {
+  return (
+    <MultiRowBox>
+      <Row>{header}</Row>
+      {attempt.status == 'processing' && (
+        <Row data-testid="device-list-loading">
+          <Flex justifyContent="center">
+            <Indicator size={40} delay="none" />
+          </Flex>
+        </Row>
+      )}
+      {devices.length > 0 && (
+        <Row>
+          <StyledTable
+            columns={[
+              {
+                key: 'description',
+                headerText: 'Device Type',
+                isSortable: true,
+                render: device => {
+                  switch (device.usage) {
+                    case 'mfa':
+                      return <Cell>{device.description}</Cell>;
+                    case 'passwordless':
+                      return (
+                        <Cell>
+                          {passkeysEnabled ? (
+                            device.description
+                          ) : (
+                            <Flex alignItems="center" gap={1}>
+                              {device.description}
+                              <IconTooltip>
+                                This device can be a passkey, but passwordless
+                                authentication is disabled
+                              </IconTooltip>
+                            </Flex>
+                          )}
+                        </Cell>
+                      );
+                    default:
+                      return device.usage;
+                  }
+                },
+              },
+              { key: 'name', headerText: 'Nickname', isSortable: true },
+              {
+                key: 'registeredDate',
+                headerText: 'Added',
+                isSortable: true,
+                render: device => <DateCell data={device.registeredDate} />,
+              },
+              {
+                key: 'lastUsedDate',
+                headerText: 'Last Used',
+                isSortable: true,
+                render: device => <DateCell data={device.lastUsedDate} />,
+              },
+              {
+                altKey: 'remove-btn',
+                headerText: 'Actions',
+                render: device => {
+                  return (
+                    <RemoveCell
+                      isSsoDevice={device.type === 'sso'}
+                      onRemove={() => onRemove(device)}
+                    />
+                  );
+                },
+              },
+            ]}
+            data={devices}
+            emptyText=""
+            isSearchable={false}
+            initialSort={{
+              key: 'registeredDate',
+              dir: 'DESC',
+            }}
+          />
+        </Row>
+      )}
+    </MultiRowBox>
+  );
+}
+
+interface RemoveCellProps {
+  onRemove?: () => void;
+  isSsoDevice?: boolean;
+}
+
+function RemoveCell({ onRemove, isSsoDevice }: RemoveCellProps) {
+  return (
+    <Cell data-testid="delete-device">
+      <ButtonWarningBorder
+        disabled={isSsoDevice}
+        title={isSsoDevice ? 'SSO device cannot be deleted' : 'Delete'}
+        p={2}
+        onClick={onRemove}
+      >
+        <Icon.Trash size="small" />
+      </ButtonWarningBorder>
+    </Cell>
+  );
+}
+
+const StyledTable = styled(Table<MfaDevice>)`
+  & > tbody > tr > td,
+  thead > tr > th {
+    font-weight: 300;
+    padding-bottom: ${props => props.theme.space[2]}px;
+  }
+`;

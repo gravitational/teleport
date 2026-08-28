@@ -1,0 +1,65 @@
+{
+  "identities": [
+    {
+      "identity": {
+        "id": "f7777777-7777-4777-8777-777777777777",
+        "name": "frank@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "57a91d00-1111-4111-8111-111111111111",
+            "name": "staging-db",
+            "kind": "resource",
+            "sub_kind": "database",
+            "source": "TELEPORT",
+            "origin": "teleport_database"
+          },
+          "level": "standing",
+          "grant_counts": {"standing": 2, "impersonate": 0, "request": 1},
+          "granted_by": [
+            {
+              "node": {
+                "id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                "name": "platform-admins",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_role"
+              },
+              "level": "standing"
+            },
+            {
+              "node": {
+                "id": "2477c76d-d681-4b32-9055-51638cd285d9",
+                "name": "ar_user_group_019fc969-3cb3-77d5-b04a-7beb1a6ec1b1",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_access_request",
+                "temporary": true
+              },
+              "level": "standing"
+            },
+            {
+              "node": {
+                "id": "5f4e3d2c-1b0a-4987-8654-3210fedcba98",
+                "name": "staging-db-jit",
+                "alias": "Staging DB (just-in-time request)",
+                "kind": "identity_group",
+                "sub_kind": "access_list",
+                "source": "TELEPORT",
+                "origin": "teleport_access_list"
+              },
+              "level": "request"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

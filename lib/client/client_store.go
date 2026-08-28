@@ -1,0 +1,417 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package client
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/url"
+	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+// Store is a storage interface for client data. Store is made up of three
+// partial data stores; KeyStore, TrustedCertsStore, and ProfileStore.
+//
+// A Store can be made up of partial data stores with different backends. For example,
+// when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
+// key store and an FS (~/.tsh) profile and trusted certs store.
+type Store struct {
+	StoreConfig
+	KeyStore
+	TrustedCertsStore
+	ProfileStore
+}
+
+// StoreConfig contains shared config options for Store.
+type StoreConfig struct {
+	log                *slog.Logger
+	HardwareKeyService hardwarekey.Service
+}
+
+// StoreConfigOpt applies configuration options.
+type StoreConfigOpt func(o *StoreConfig)
+
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
+	return func(o *StoreConfig) {
+		o.HardwareKeyService = hwKeyService
+	}
+}
+
+// NewFSClientStore initializes an FS backed client store with the given base dir.
+//
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewFSClientStore(dirPath string, opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewFSKeyStore(dirPath),
+		NewFSTrustedCertsStore(dirPath),
+		NewFSProfileStore(dirPath),
+		opts...,
+	)
+}
+
+// NewMemClientStore initializes a new in-memory client store.
+//
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewMemClientStore(opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewMemKeyStore(),
+		NewMemTrustedCertsStore(),
+		NewMemProfileStore(),
+		opts...,
+	)
+}
+
+func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
+	// Start with default config
+	config := StoreConfig{
+		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+	}
+
+	// Apply opts
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return &Store{
+		StoreConfig:       config,
+		KeyStore:          ks,
+		TrustedCertsStore: tcs,
+		ProfileStore:      ps,
+	}
+}
+
+// NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
+	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
+}
+
+// KnownHardwareKey returns whether the given hardware key ref and info corresponds to a hardware key known
+// to this client store.
+func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
+	keyRing, err := s.GetKeyRing(KeyRingIndex{
+		ProxyHost:   keyInfo.ProxyHost,
+		Username:    keyInfo.Username,
+		ClusterName: keyInfo.ClusterName,
+	})
+	if trace.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// There is a known key matching the key info from the agent client, now check
+	// if it is the same key, with the same hardware key reference.
+	hwSigner, ok := keyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer)
+	if !ok {
+		return false, nil
+	}
+
+	// We only need to compare the serial number and slot key. Other values, like the
+	// public key and prompt policy, will be validated against the hardware key directly
+	// when needed.
+	sameKeyRef := hwSigner.Ref.SerialNumber == ref.SerialNumber && hwSigner.Ref.SlotKey == ref.SlotKey
+
+	return sameKeyRef, nil
+}
+
+// AddKeyRing adds the given key ring to the key store. The key's trusted certificates are
+// added to the trusted certs store.
+func (s *Store) AddKeyRing(keyRing *KeyRing) error {
+	if err := s.KeyStore.AddKeyRing(keyRing); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.TrustedCertsStore.SaveTrustedCerts(keyRing.ProxyHost, keyRing.TrustedCerts); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// ErrNoProfile is returned by the client store when a specific profile is not found.
+var ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
+
+// noCredentialsError is returned by the client store when a specific key is not found.
+// It unwraps to the original error to allow checks for underlying error types.
+// Use [IsNoCredentialsError] instead of checking for this type directly.
+type noCredentialsError struct {
+	wrappedError error
+}
+
+func newNoCredentialsError(wrappedError error) *noCredentialsError {
+	return &noCredentialsError{wrappedError}
+}
+
+func (e *noCredentialsError) Error() string {
+	return fmt.Sprintf("no credentials: %v", e.wrappedError)
+}
+
+func (e *noCredentialsError) Unwrap() error {
+	return e.wrappedError
+}
+
+// IsNoCredentialsError returns whether the given error implies that the user should retrieve new credentials.
+func IsNoCredentialsError(err error) bool {
+	return errors.As(err, new(*noCredentialsError)) || errors.Is(err, ErrNoProfile)
+}
+
+// GetKeyRing gets the requested key ring with trusted the requested
+// certificates. The key ring's trusted certs will be retrieved from the trusted
+// certs store. If the key ring is not found or is missing data (certificates, etc.),
+// then an ErrNoCredentials error is returned.
+func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
+	keyRing, err := s.KeyStore.GetKeyRing(idx, s.HardwareKeyService, opts...)
+	if trace.IsNotFound(err) {
+		return nil, newNoCredentialsError(err)
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// verify that the key ring has a TLS certificate
+	_, err = keyRing.TeleportTLSCertValidBefore()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// if the key ring has an Access Graph TLS certificate, verify it as well
+	if len(keyRing.AccessGraphTLSCert) > 0 {
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Validate the SSH certificate.
+	if keyRing.Cert != nil {
+		if err := keyRing.CheckCert(); err != nil {
+			if !utils.IsCertExpiredError(err) {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	trustedCerts, err := s.TrustedCertsStore.GetTrustedCerts(idx.ProxyHost)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyRing.TrustedCerts = trustedCerts
+	return keyRing, nil
+}
+
+// AddTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
+func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKeys ...ssh.PublicKey) error {
+	var authorizedKeys [][]byte
+	for _, hostKey := range hostKeys {
+		authorizedKeys = append(authorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
+	}
+	err := s.SaveTrustedCerts(proxyHost, []authclient.TrustedCerts{
+		{
+			ClusterName:    clusterName,
+			AuthorizedKeys: authorizedKeys,
+		},
+	})
+	return trace.Wrap(err)
+}
+
+// ReadProfileStatus returns the profile status for the given profile name.
+// If no profile name is provided, return the current profile.
+func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
+	var err error
+	var profileName string
+	if proxyAddressOrProfile == "" {
+		profileName, err = s.CurrentProfile()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// remove ports from proxy host, because profile name is stored by host name
+		profileName, err = utils.Host(proxyAddressOrProfile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	profile, err := s.GetProfile(profileName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.Wrap(ErrNoProfile, err.Error())
+		}
+		return nil, trace.Wrap(err)
+	}
+	idx := KeyRingIndex{
+		ProxyHost:   profileName,
+		ClusterName: profile.SiteName,
+		Username:    profile.Username,
+	}
+
+	var scopePin *scopesv1.Pin
+	if profile.Scope != "" {
+		scopePin = &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: profile.Scope}
+	}
+
+	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
+	// or read the full profile status, return a partial status.
+	// This is used for some superficial functions `tsh logout` and `tsh status`.
+	partialStatus := &ProfileStatus{
+		Name: profileName,
+		Dir:  profile.Dir,
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   profile.WebProxyAddr,
+		},
+		Username:    profile.Username,
+		Cluster:     profile.SiteName,
+		KubeEnabled: profile.KubeProxyAddr != "",
+		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+		ValidUntil:              time.Now(),
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+		ScopePin:                scopePin,
+	}
+
+	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
+	if err != nil {
+		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
+			partialStatus.GetKeyRingError = err
+			return partialStatus, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	_, onDisk := s.KeyStore.(*FSKeyStore)
+
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+		ProfileName:             profileName,
+		ProfileDir:              profile.Dir,
+		WebProxyAddr:            profile.WebProxyAddr,
+		RelayAddr:               profile.RelayAddr,
+		DefaultRelayAddr:        profile.DefaultRelayAddr,
+		Username:                profile.Username,
+		SiteName:                profile.SiteName,
+		KubeProxyAddr:           profile.KubeProxyAddr,
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+		IsVirtual:               !onDisk,
+		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
+	})
+	if trace.IsNotFound(err) {
+		return partialStatus, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profileStatus, nil
+}
+
+// FullProfileStatus returns the status of the active profile along with the
+// statuses of all profiles.
+//
+// The active profile status is determined from the provided profile if given;
+// otherwise, it is read from the current profile.
+//
+// The active profile status is nil if there is no active profile.
+func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
+	var currentProfileName string
+	if proxyAddressOrProfile == "" {
+		profileName, err := s.CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
+	} else {
+		// Remove ports from proxy host, profile name is stored by host name.
+		profileName, err := utils.Host(proxyAddressOrProfile)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
+	}
+
+	var currentProfile *ProfileStatus
+	if currentProfileName != "" {
+		profileStatus, err := s.ReadProfileStatus(currentProfileName)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfile = profileStatus
+	}
+
+	profileNames, err := s.ListProfiles()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var profiles []*ProfileStatus
+	for _, profileName := range profileNames {
+		if profileName == currentProfileName {
+			// already loaded this one
+			continue
+		}
+		status, err := s.ReadProfileStatus(profileName)
+		if err != nil {
+			s.log.WarnContext(context.Background(), "skipping profile due to error",
+				"profile_name", profileName,
+				"error", err,
+			)
+			continue
+		}
+		profiles = append(profiles, status)
+	}
+
+	return currentProfile, profiles, nil
+}
+
+// LoadKeysToKubeFromStore loads the keys for a given teleport cluster and kube cluster from the store.
+// It returns the certificate and private key to be used for the kube cluster.
+// If the keys are not found, it returns an error.
+// This function is used to speed up the credentials loading process since Teleport
+// Store transverses the entire store to find the keys. This operation takes a long time
+// when the store has a lot of keys and when we call the function multiple times in
+// parallel.
+// This function speeds up the process since it removes all transversals, and
+// only reads 1 file:
+// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.cred
+func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) (keyPEM, certPEM []byte, err error) {
+	fsKeyStore := NewFSKeyStore(dirPath)
+
+	credPath := fsKeyStore.kubeCredPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
+	keyPEM, certPEM, err = readKubeCredentialFile(credPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if err := keys.AssertSoftwarePrivateKey(keyPEM); err != nil {
+		return nil, nil, trace.Wrap(err, "unsupported private key type")
+	}
+	return keyPEM, certPEM, nil
+}

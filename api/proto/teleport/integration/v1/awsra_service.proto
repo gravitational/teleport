@@ -1,0 +1,128 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.integration.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1";
+
+// AWSRolesAnywhereService provides access to AWS APIs using the AWS Roles Anywhere Integration.
+service AWSRolesAnywhereService {
+  // AWSRolesAnywherePing does an health check for the integration.
+  // Returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
+  // It uses the following APIs:
+  // https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+  // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
+  rpc AWSRolesAnywherePing(AWSRolesAnywherePingRequest) returns (AWSRolesAnywherePingResponse);
+
+  // ListRolesAnywhereProfiles lists the AWS Roles Anywhere Profiles that are configured in the integration.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
+  // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
+  //
+  // The number of profiles returned is always between 0 and page_size.
+  // If the number of elements is 0, then there are no more profiles to return and the next page token is empty.
+  rpc ListRolesAnywhereProfiles(ListRolesAnywhereProfilesRequest) returns (ListRolesAnywhereProfilesResponse);
+}
+
+// AWSRolesAnywherePingRequest is a request for doing an health check against the configured integration.
+message AWSRolesAnywherePingRequest {
+  oneof mode {
+    // Use an integration to perform the Ping operation.
+    string integration = 1;
+    // Use a Trust Anchor, Profile and Role to perform the Ping operation.
+    // This is useful when the integration is not configured.
+    AWSRolesAnywherePingRequestWithoutIntegration custom = 2;
+  }
+}
+
+// Identifies the Trust Anchor, Profile and Role to use for the Ping operation.
+message AWSRolesAnywherePingRequestWithoutIntegration {
+  // The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
+  string trust_anchor_arn = 1;
+
+  // The AWS Roles Anywhere Profile ARN to be used when generating the token.
+  string profile_arn = 3;
+
+  // The AWS Role ARN to be used when generating the token.
+  string role_arn = 4;
+}
+
+// AWSRolesAnywherePingResponse contains the response for the Ping operation.
+message AWSRolesAnywherePingResponse {
+  // The AWS account ID number of the account that owns or contains the calling entity.
+  string account_id = 1;
+  // The AWS ARN associated with the calling entity.
+  string arn = 2;
+  // The unique identifier of the calling entity.
+  string user_id = 3;
+  // The number of AWS Roles Anywhere Profiles that are active and have at least one associated Role.
+  int32 profile_count = 4;
+}
+
+// ListRolesAnywhereProfilesRequest is a request to list AWS Roles Anywhere Profiles.
+message ListRolesAnywhereProfilesRequest {
+  // Integration is the AWS Roles Anywhere Integration name.
+  string integration = 1;
+  // page_size is the max size of the page to request.
+  // Depending on the filters, the actual number of profiles returned may be less than this value.
+  int32 page_size = 2;
+  // next_page_token is the page token.
+  string next_page_token = 3;
+  // ProfileNameFilters is a list of filters applied to the profile name.
+  // Only matching profiles will be returned.
+  // If empty, no filtering is applied.
+  //
+  // Filters can be globs, for example:
+  //
+  //	profile*
+  //	*name*
+  //
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //
+  //	^profile.*$
+  //	^.*name.*$
+  repeated string profile_name_filters = 4;
+}
+
+// ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
+message ListRolesAnywhereProfilesResponse {
+  // Profiles is a list of AWS Roles Anywhere Profiles.
+  repeated RolesAnywhereProfile profiles = 1;
+
+  // NextPageToken is used to paginate the results.
+  string next_page_token = 2;
+}
+
+// RolesAnywhereProfile represents an AWS Roles Anywhere Profile.
+message RolesAnywhereProfile {
+  // The AWS Roles Anywhere Profile ARN.
+  string arn = 1;
+
+  // Whether the AWS Roles Anywhere Profile is enabled.
+  bool enabled = 2;
+
+  // The name of the AWS Roles Anywhere Profile.
+  string name = 3;
+
+  // Whether the profile accepts role session names.
+  bool accept_role_session_name = 4;
+
+  // The tags associated with the AWS Roles Anywhere Profile.
+  map<string, string> tags = 5;
+
+  // The roles accessible from this AWS Roles Anywhere Profile.
+  repeated string roles = 6;
+}

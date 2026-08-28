@@ -1,0 +1,715 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package webclient
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"testing"
+	"testing/iotest"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
+)
+
+func newPingHandler(path string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.RequestURI != path {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(PingResponse{ServerVersion: "test"})
+	})
+}
+
+func TestPlainHttpFallback(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc            string
+		handler         http.Handler
+		actionUnderTest func(addr string, insecure bool) error
+	}{
+		{
+			desc:    "Ping",
+			handler: newPingHandler("/webapi/ping"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Ping(
+					&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
+				return err
+			},
+		}, {
+			desc:    "Find",
+			handler: newPingHandler("/webapi/find"),
+			actionUnderTest: func(addr string, insecure bool) error {
+				_, err := Find(&Config{Context: context.Background(), ProxyAddr: addr, Insecure: insecure})
+				return err
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			t.Run("Allowed on insecure & loopback", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
+
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), true /* insecure */)
+				require.NoError(t, err)
+			})
+
+			t.Run("Denied on secure", func(t *testing.T) {
+				httpSvr := httptest.NewServer(testCase.handler)
+				defer httpSvr.Close()
+
+				err := testCase.actionUnderTest(httpSvr.Listener.Addr().String(), false /* secure */)
+				require.Error(t, err)
+			})
+
+			t.Run("Denied on non-loopback", func(t *testing.T) {
+				nonLoopbackSvr := httptest.NewUnstartedServer(testCase.handler)
+
+				// replace the test-supplied loopback listener with the first available
+				// non-loopback address
+				nonLoopbackSvr.Listener.Close()
+				l, err := net.Listen("tcp", "0.0.0.0:0")
+				require.NoError(t, err)
+				nonLoopbackSvr.Listener = l
+				nonLoopbackSvr.Start()
+				defer nonLoopbackSvr.Close()
+
+				err = testCase.actionUnderTest(nonLoopbackSvr.Listener.Addr().String(), true /* insecure */)
+				require.Error(t, err)
+			})
+		})
+	}
+}
+
+func TestErrorFromUnsuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	const (
+		endpoint  = "/webapi/ping"
+		proxyAddr = "proxy.example.com:443"
+	)
+
+	cases := []struct {
+		desc        string
+		statusCode  int
+		contentType string
+		body        string
+		bodyReadErr bool
+		errContains []string
+		errExcludes []string
+	}{
+		{
+			desc:        "structured error message",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":"something went wrong"}}`,
+			errContains: []string{"something went wrong", "returned HTTP 500"},
+		},
+		{
+			desc:        "control sequences in server message are escaped",
+			statusCode:  http.StatusBadGateway,
+			contentType: "application/json",
+			body:        "{\"error\":{\"message\":\"evil\\u001b[2Jspoof\"}}",
+			errContains: []string{"returned HTTP 502", `evil\x1b[2Jspoof`},
+			errExcludes: []string{"\x1b"},
+		},
+		{
+			desc:        "long server message is truncated",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":"` + strings.Repeat("a", 300) + `"}}`,
+			errContains: []string{"returned HTTP 500", strings.Repeat("a", 256) + "…"},
+			errExcludes: []string{strings.Repeat("a", 257)},
+		},
+		{
+			desc:        "structured error without message",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":""}}`,
+			errContains: []string{"HTTP 500 JSON response with no error message", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "unparseable JSON body",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        "mangled",
+			errContains: []string{"unparseable HTTP 500 JSON response", `"mangled"`, "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "oversized JSON body is bounded and unparseable",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":"` + strings.Repeat("a", maxErrorResponseBodyBytes) + `"}}`,
+			errContains: []string{"unparseable HTTP 500 JSON response"},
+			errExcludes: []string{strings.Repeat("a", maxErrorResponseBodyBytes)},
+		},
+		{
+			desc:        "non-JSON content type",
+			statusCode:  http.StatusBadGateway,
+			contentType: "text/html; charset=utf-8",
+			body:        "<html><body>error 502 from load balancer</body></html>",
+			errContains: []string{"returned HTTP 502", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "missing content type",
+			statusCode:  http.StatusBadGateway,
+			contentType: "",
+			body:        "bad gateway",
+			errContains: []string{"returned HTTP 502", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "non-JSON 404",
+			statusCode:  http.StatusNotFound,
+			contentType: "text/html; charset=utf-8",
+			body:        "<html><body>not found</body></html>",
+			errContains: []string{"returned HTTP 404", `is "https://` + proxyAddr + `" a Teleport proxy?`},
+		},
+		{
+			desc:        "unparseable JSON 404",
+			statusCode:  http.StatusNotFound,
+			contentType: "application/json",
+			body:        "mangled",
+			errContains: []string{"unparseable HTTP 404 JSON response", `a Teleport proxy?`},
+		},
+		{
+			desc:        "rate limited",
+			statusCode:  http.StatusTooManyRequests,
+			contentType: "text/html; charset=utf-8",
+			body:        "slow down",
+			errContains: []string{"returned HTTP 429", "rate-limiting"},
+		},
+		{
+			desc:        "body read error",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			bodyReadErr: true,
+			errContains: []string{"HTTP 500", "could not be fully read"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			header := http.Header{}
+			if tc.contentType != "" {
+				header.Set("Content-Type", tc.contentType)
+			}
+			var body io.Reader = strings.NewReader(tc.body)
+			if tc.bodyReadErr {
+				body = iotest.ErrReader(io.ErrUnexpectedEOF)
+			}
+			resp := &http.Response{
+				StatusCode: tc.statusCode,
+				Header:     header,
+				Body:       io.NopCloser(body),
+			}
+			err := errorFromUnsuccessfulResponse(context.Background(), endpoint, proxyAddr, resp)
+			for _, want := range tc.errContains {
+				require.ErrorContains(t, err, want)
+			}
+			for _, unwanted := range tc.errExcludes {
+				require.NotContains(t, err.Error(), unwanted)
+			}
+		})
+	}
+}
+
+func TestPingUnsuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("routes non-200 to helper", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/ping", http.StatusInternalServerError, "application/json", "mangled")
+		_, err := Ping(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "/webapi/ping returned an unparseable HTTP 500 JSON response")
+	})
+
+	t.Run("unparseable 200 response", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/ping", http.StatusOK, "application/json", "mangled")
+		_, err := Ping(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "cannot parse server ping response")
+	})
+}
+
+func TestFindUnsuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("routes non-200 to helper", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/find", http.StatusInternalServerError, "application/json", "mangled")
+		_, err := Find(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "/webapi/find returned an unparseable HTTP 500 JSON response")
+	})
+
+	t.Run("unparseable 200 response", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/find", http.StatusOK, "application/json", "mangled")
+		_, err := Find(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "cannot parse server find response")
+	})
+}
+
+func startProxy(t *testing.T, wantPath string, status int, contentType, body string) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != wantPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.Listener.Addr().String()
+}
+
+func TestTunnelAddr(t *testing.T) {
+	cases := []struct {
+		name               string
+		settings           ProxySettings
+		expectedTunnelAddr string
+		setup              func(t *testing.T)
+	}{
+		{
+			name: "should use TunnelPublicAddr",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					TunnelPublicAddr: "tunnel.example.com:4024",
+					PublicAddr:       "public.example.com",
+					SSHPublicAddr:    "ssh.example.com",
+					TunnelListenAddr: "[::]:5024",
+					WebListenAddr:    "proxy.example.com",
+				},
+			},
+			expectedTunnelAddr: "tunnel.example.com:4024",
+		},
+		{
+			name: "should use SSHPublicAddr and TunnelListenAddr",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					SSHPublicAddr:    "ssh.example.com",
+					PublicAddr:       "public.example.com",
+					TunnelListenAddr: "[::]:5024",
+					WebListenAddr:    "proxy.example.com",
+				},
+			},
+			expectedTunnelAddr: "ssh.example.com:5024",
+		},
+		{
+			name: "should use PublicAddr and TunnelListenAddr",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:       "public.example.com",
+					TunnelListenAddr: "[::]:5024",
+					WebListenAddr:    "proxy.example.com",
+				},
+			},
+			expectedTunnelAddr: "public.example.com:5024",
+		},
+		{
+			name: "should use PublicAddr and SSHProxyTunnelListenPort",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:    "public.example.com",
+					WebListenAddr: "proxy.example.com",
+				},
+			},
+			expectedTunnelAddr: "public.example.com:3024",
+		},
+		{
+			name: "should use WebListenAddr and SSHProxyTunnelListenPort",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					WebListenAddr: "proxy.example.com",
+				},
+			},
+			expectedTunnelAddr: "proxy.example.com:3024",
+		},
+		{
+			name: "should use PublicAddr with ProxyWebPort if TLSRoutingEnabled was enabled",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:       "public.example.com",
+					TunnelListenAddr: "[::]:5024",
+					TunnelPublicAddr: "tpa.example.com:3032",
+					WebListenAddr:    "proxy.example.com:443",
+				},
+				TLSRoutingEnabled: true,
+			},
+			expectedTunnelAddr: "public.example.com:443",
+		},
+		{
+			name: "should use PublicAddr with custom port if TLSRoutingEnabled was enabled",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:       "public.example.com:443",
+					TunnelListenAddr: "[::]:5024",
+					TunnelPublicAddr: "tpa.example.com:3032",
+					WebListenAddr:    "proxy.example.com:443",
+				},
+				TLSRoutingEnabled: true,
+			},
+			expectedTunnelAddr: "public.example.com:443",
+		},
+		{
+			name: "should use WebListenAddr with custom ProxyWebPort if TLSRoutingEnabled was enabled",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					TunnelListenAddr: "[::]:5024",
+					TunnelPublicAddr: "tpa.example.com:3032",
+					WebListenAddr:    "proxy.example.com:443",
+				},
+				TLSRoutingEnabled: true,
+			},
+			expectedTunnelAddr: "proxy.example.com:443",
+		},
+		{
+			name: "should use WebListenAddr with default https port if TLSRoutingEnabled was enabled",
+			settings: ProxySettings{
+				SSH: SSHProxySettings{
+					TunnelListenAddr: "[::]:5024",
+					TunnelPublicAddr: "tpa.example.com:3032",
+					WebListenAddr:    "proxy.example.com",
+				},
+				TLSRoutingEnabled: true,
+			},
+			expectedTunnelAddr: "proxy.example.com:443",
+		},
+		{
+			name:               "TELEPORT_TUNNEL_PUBLIC_ADDR overrides tunnel address",
+			settings:           ProxySettings{},
+			expectedTunnelAddr: "tunnel.example.com:4024",
+			setup: func(t *testing.T) {
+				t.Setenv(defaults.TunnelPublicAddrEnvar, "tunnel.example.com:4024")
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+			tunnelAddr, err := tt.settings.TunnelAddr()
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedTunnelAddr, tunnelAddr)
+		})
+	}
+}
+
+func TestParse(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		addr     string
+		hostPort string
+		host     string
+		port     int
+	}{
+		{
+			addr:     "example.com",
+			hostPort: "example.com",
+			host:     "example.com",
+			port:     0,
+		}, {
+			addr:     "example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     443,
+		}, {
+			addr:     "http://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     443,
+		}, {
+			addr:     "https://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     443,
+		}, {
+			addr:     "tcp://example.com:443",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     443,
+		}, {
+			addr:     "file://host/path",
+			hostPort: "",
+			host:     "",
+			port:     0,
+		}, {
+			addr:     "[::]:443",
+			hostPort: "[::]:443",
+			host:     "::",
+			port:     443,
+		}, {
+			addr:     "https://example.com:443/path?query=query#fragment",
+			hostPort: "example.com:443",
+			host:     "example.com",
+			port:     443,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.addr, func(t *testing.T) {
+			hostPort, err := parseAndJoinHostPort(tc.addr)
+			if tc.hostPort == "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.hostPort, hostPort)
+			}
+
+			host, _, err := ParseHostPort(tc.addr)
+			if tc.host == "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.host, host)
+			}
+
+			port, err := parsePort(tc.addr)
+			if tc.port == 0 {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.port, port)
+			}
+		})
+	}
+}
+
+func TestNewWebClientHTTPProxy(t *testing.T) {
+	proxyHandler := &apihelpers.ProxyHandler{}
+	proxyServer := httptest.NewServer(proxyHandler)
+	t.Cleanup(proxyServer.Close)
+
+	localIP, err := apihelpers.GetLocalIP()
+	require.NoError(t, err)
+	server := apihelpers.MakeTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("hello"))
+	}), apihelpers.WithTestServerAddress(localIP))
+	_, serverPort, err := net.SplitHostPort(server.Listener.Addr().String())
+	require.NoError(t, err)
+	serverAddr := net.JoinHostPort(localIP, serverPort)
+	tests := []struct {
+		name               string
+		env                map[string]string
+		expectedProxyCount int
+	}{
+		{
+			name: "use http proxy",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyServer.URL,
+			},
+			expectedProxyCount: 1,
+		},
+		{
+			name: "ignore proxy when no_proxy is set",
+			env: map[string]string{
+				"HTTPS_PROXY": proxyServer.URL,
+				"NO_PROXY":    "*",
+			},
+			expectedProxyCount: 0,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(proxyHandler.Reset)
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			client, err := newWebClient(&Config{
+				Context:   ctx,
+				ProxyAddr: "localhost:3080", // addr doesn't matter, it won't be used
+				Insecure:  true,
+			})
+			require.NoError(t, err)
+
+			resp, err := client.Get("https://" + serverAddr)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, tc.expectedProxyCount, proxyHandler.Count())
+		})
+	}
+}
+
+func TestSSHProxyHostPort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		testName        string
+		inProxySettings ProxySettings
+		outHost         string
+		outPort         string
+	}{
+		{
+			testName: "TLS routing enabled, web public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:    "proxy.example.com:443",
+					WebListenAddr: "127.0.0.1:3080",
+				},
+				TLSRoutingEnabled: true,
+			},
+			outHost: "proxy.example.com",
+			outPort: "443",
+		},
+		{
+			testName: "TLS routing enabled, web public addr with listen addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr:    "proxy.example.com",
+					WebListenAddr: "127.0.0.1:443",
+				},
+				TLSRoutingEnabled: true,
+			},
+			outHost: "proxy.example.com",
+			outPort: "443",
+		},
+		{
+			testName: "TLS routing enabled, web listen addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					WebListenAddr: "127.0.0.1:3080",
+				},
+				TLSRoutingEnabled: true,
+			},
+			outHost: "127.0.0.1",
+			outPort: "3080",
+		},
+		{
+			testName: "TLS routing disabled, SSH public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					SSHPublicAddr: "ssh.example.com:3023",
+					PublicAddr:    "proxy.example.com:443",
+					ListenAddr:    "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "ssh.example.com",
+			outPort: "3023",
+		},
+		{
+			testName: "TLS routing disabled, web public addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					PublicAddr: "proxy.example.com:443",
+					ListenAddr: "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "proxy.example.com",
+			outPort: "3023",
+		},
+		{
+			testName: "TLS routing disabled, SSH listen addr",
+			inProxySettings: ProxySettings{
+				SSH: SSHProxySettings{
+					ListenAddr: "127.0.0.1:3023",
+				},
+				TLSRoutingEnabled: false,
+			},
+			outHost: "127.0.0.1",
+			outPort: "3023",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			host, port, err := test.inProxySettings.SSHProxyHostPort()
+			require.NoError(t, err)
+			require.Equal(t, test.outHost, host)
+			require.Equal(t, test.outPort, port)
+		})
+	}
+}
+
+// TestWebClientClosesIdleConnections verifies that all http connections
+// are closed when the http.Client created by newWebClient is no longer
+// being used.
+func TestWebClientClosesIdleConnections(t *testing.T) {
+	expectedResponse := &PingResponse{
+		Proxy: ProxySettings{
+			TLSRoutingEnabled: true,
+		},
+		ServerVersion:    "1.2.3",
+		MinClientVersion: "0.1.2",
+		ClusterName:      "test",
+	}
+
+	expectedStates := []string{
+		http.StateNew.String(), http.StateActive.String(), http.StateClosed.String(), // the https request will fail and cause us to fallback to http
+		http.StateNew.String(), http.StateActive.String(), http.StateIdle.String(), http.StateClosed.String(), // the http request should be processed and closed
+	}
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/webapi/find":
+			json.NewEncoder(w).Encode(expectedResponse)
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+
+	stateChange := make(chan string, len(expectedStates))
+	srv.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		stateChange <- state.String()
+	}
+
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	resp, err := Find(&Config{
+		Context:   context.Background(),
+		ProxyAddr: strings.TrimPrefix(srv.URL, "http://"),
+		Insecure:  true,
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedResponse, resp))
+
+	var got []string
+	for i := range expectedStates {
+		select {
+		case state := <-stateChange:
+			got = append(got, state)
+		case <-time.After(3 * time.Second):
+			t.Fatalf("timeout waiting for expected connection state %d", i)
+		}
+	}
+
+	slices.Sort(expectedStates)
+	slices.Sort(got)
+
+	require.Equal(t, expectedStates, got)
+}

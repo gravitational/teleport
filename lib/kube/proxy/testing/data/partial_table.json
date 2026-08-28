@@ -1,0 +1,403 @@
+{
+  "kind": "Table",
+  "apiVersion": "meta.k8s.io/v1",
+  "metadata": {
+    "resourceVersion": "1306304"
+  },
+  "columnDefinitions": [
+    {
+      "name": "Name",
+      "type": "string",
+      "format": "name",
+      "description": "Name must be unique within a namespace. Is required when creating resources, although some resources may allow a client to request the generation of an appropriate name automatically. Name is primarily intended for creation idempotence and configuration definition. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/identifiers#names",
+      "priority": 0
+    },
+    {
+      "name": "Type",
+      "type": "string",
+      "format": "",
+      "description": "type determines how the Service is exposed. Defaults to ClusterIP. Valid options are ExternalName, ClusterIP, NodePort, and LoadBalancer. \"ClusterIP\" allocates a cluster-internal IP address for load-balancing to endpoints. Endpoints are determined by the selector or if that is not specified, by manual construction of an Endpoints object or EndpointSlice objects. If clusterIP is \"None\", no virtual IP is allocated and the endpoints are published as a set of endpoints rather than a virtual IP. \"NodePort\" builds on ClusterIP and allocates a port on every node which routes to the same endpoints as the clusterIP. \"LoadBalancer\" builds on NodePort and creates an external load-balancer (if supported in the current cloud) which routes to the same endpoints as the clusterIP. \"ExternalName\" aliases this service to the specified externalName. Several other fields do not apply to ExternalName services. More info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types",
+      "priority": 0
+    },
+    {
+      "name": "Cluster-IP",
+      "type": "string",
+      "format": "",
+      "description": "clusterIP is the IP address of the service and is usually assigned randomly. If an address is specified manually, is in-range (as per system configuration), and is not in use, it will be allocated to the service; otherwise creation of the service will fail. This field may not be changed through updates unless the type field is also being changed to ExternalName (which requires this field to be blank) or the type field is being changed from ExternalName (in which case this field may optionally be specified, as describe above).  Valid values are \"None\", empty string (\"\"), or a valid IP address. Setting this to \"None\" makes a \"headless service\" (no virtual IP), which is useful when direct endpoint connections are preferred and proxying is not required.  Only applies to types ClusterIP, NodePort, and LoadBalancer. If this field is specified when creating a Service of type ExternalName, creation will fail. This field will be wiped when updating a Service to type ExternalName. More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies",
+      "priority": 0
+    },
+    {
+      "name": "External-IP",
+      "type": "string",
+      "format": "",
+      "description": "externalIPs is a list of IP addresses for which nodes in the cluster will also accept traffic for this service.  These IPs are not managed by Kubernetes.  The user is responsible for ensuring that traffic arrives at a node with this IP.  A common example is external load-balancers that are not part of the Kubernetes system.",
+      "priority": 0
+    },
+    {
+      "name": "Port(s)",
+      "type": "string",
+      "format": "",
+      "description": "The list of ports that are exposed by this service. More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies",
+      "priority": 0
+    },
+    {
+      "name": "Age",
+      "type": "string",
+      "format": "",
+      "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+      "priority": 0
+    },
+    {
+      "name": "Selector",
+      "type": "string",
+      "format": "",
+      "description": "Route service traffic to pods with label keys and values matching this selector. If empty or not present, the service is assumed to have an external process managing its endpoints, which Kubernetes will not modify. Only applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if type is ExternalName. More info: https://kubernetes.io/docs/concepts/services-networking/service/",
+      "priority": 1
+    }
+  ],
+  "rows": [
+    {
+      "cells": [
+        "kubernetes",
+        "ClusterIP",
+        "10.43.0.1",
+        "\u003cnone\u003e",
+        "443/TCP",
+        "104d",
+        "\u003cnone\u003e"
+      ],
+      "object": {
+        "kind": "PartialObjectMetadata",
+        "apiVersion": "meta.k8s.io/v1",
+        "metadata": {
+          "name": "kubernetes",
+          "namespace": "default",
+          "uid": "ac504cf9-ee0b-46c9-b999-776a3c81416c",
+          "resourceVersion": "191",
+          "creationTimestamp": "2023-02-10T16:00:11Z",
+          "labels": {
+            "component": "apiserver",
+            "provider": "kubernetes"
+          },
+          "managedFields": [
+            {
+              "manager": "k3s",
+              "operation": "Update",
+              "apiVersion": "v1",
+              "time": "2023-02-10T16:00:11Z",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:labels": {
+                    ".": {},
+                    "f:component": {},
+                    "f:provider": {}
+                  }
+                },
+                "f:spec": {
+                  "f:clusterIP": {},
+                  "f:internalTrafficPolicy": {},
+                  "f:ipFamilyPolicy": {},
+                  "f:ports": {
+                    ".": {},
+                    "k:{\"port\":443,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    }
+                  },
+                  "f:sessionAffinity": {},
+                  "f:type": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "cells": [
+        "kube-dns",
+        "ClusterIP",
+        "10.43.0.10",
+        "\u003cnone\u003e",
+        "53/UDP,53/TCP,9153/TCP",
+        "104d",
+        "k8s-app=kube-dns"
+      ],
+      "object": {
+        "kind": "PartialObjectMetadata",
+        "apiVersion": "meta.k8s.io/v1",
+        "metadata": {
+          "name": "kube-dns",
+          "namespace": "kube-system",
+          "uid": "cf3250e0-a75b-472e-bc61-1da279f30c93",
+          "resourceVersion": "257",
+          "creationTimestamp": "2023-02-10T16:00:14Z",
+          "labels": {
+            "k8s-app": "kube-dns",
+            "kubernetes.io/cluster-service": "true",
+            "kubernetes.io/name": "CoreDNS",
+            "objectset.rio.cattle.io/hash": "bce283298811743a0386ab510f2f67ef74240c57"
+          },
+          "annotations": {
+            "objectset.rio.cattle.io/applied": "H4sIAAAAAAAA/4yRwY7TMBCGXwXN2Qlx026zljig3QtCQistcEEcHGdKTRKP5ZkWoSrvjtxmRWEV2Fui+fzpn39OYKP/jIk9BTBw1KCg96EDA4+Yjt4hKBhRbGfFgjmBDYHEiqfA+Zfa7+iEUcrkqXRWZMDS02ufDaAW5/QjYCq+HXsw0Nd8NTlq9eq9D92bt11H4b+KYEcEA44SdoFfhHO0Lr/pDy0W/JMFR1AQE40oezxwpiMlAQO3elM/m7FLNmaBpAPCpGCwLQ7nOvqGCxvjk/ySKH+mgILn1244sGAqeK531vyNzXvdUcL7D4//2GtveQ8GWoerpl7dNo3W23Vtq7q5se1GV7vV7maLu+16ta7cZpvzzu6riEu1TAo4osurzbnfPYABXZXruqxKXeVyKAmD+XJ68l6UlwY39bk9IUcDGPh0/wCTuiYLcXGJ/nj3Bz2iJO9+u/NxnvNfFTAO6ITSwkWmafoVAAD//yO4Hor3AgAA",
+            "objectset.rio.cattle.io/id": "",
+            "objectset.rio.cattle.io/owner-gvk": "k3s.cattle.io/v1, Kind=Addon",
+            "objectset.rio.cattle.io/owner-name": "coredns",
+            "objectset.rio.cattle.io/owner-namespace": "kube-system",
+            "prometheus.io/port": "9153",
+            "prometheus.io/scrape": "true"
+          },
+          "managedFields": [
+            {
+              "manager": "deploy@tiago-linux",
+              "operation": "Update",
+              "apiVersion": "v1",
+              "time": "2023-02-10T16:00:14Z",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:annotations": {
+                    ".": {},
+                    "f:objectset.rio.cattle.io/applied": {},
+                    "f:objectset.rio.cattle.io/id": {},
+                    "f:objectset.rio.cattle.io/owner-gvk": {},
+                    "f:objectset.rio.cattle.io/owner-name": {},
+                    "f:objectset.rio.cattle.io/owner-namespace": {},
+                    "f:prometheus.io/port": {},
+                    "f:prometheus.io/scrape": {}
+                  },
+                  "f:labels": {
+                    ".": {},
+                    "f:k8s-app": {},
+                    "f:kubernetes.io/cluster-service": {},
+                    "f:kubernetes.io/name": {},
+                    "f:objectset.rio.cattle.io/hash": {}
+                  }
+                },
+                "f:spec": {
+                  "f:clusterIP": {},
+                  "f:internalTrafficPolicy": {},
+                  "f:ports": {
+                    ".": {},
+                    "k:{\"port\":53,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    },
+                    "k:{\"port\":53,\"protocol\":\"UDP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    },
+                    "k:{\"port\":9153,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    }
+                  },
+                  "f:selector": {},
+                  "f:sessionAffinity": {},
+                  "f:type": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "cells": [
+        "metrics-server",
+        "ClusterIP",
+        "10.43.238.253",
+        "\u003cnone\u003e",
+        "443/TCP",
+        "104d",
+        "k8s-app=metrics-server"
+      ],
+      "object": {
+        "kind": "PartialObjectMetadata",
+        "apiVersion": "meta.k8s.io/v1",
+        "metadata": {
+          "name": "metrics-server",
+          "namespace": "kube-system",
+          "uid": "e973a7cd-5aed-4db0-abb6-4a9f9936b6b4",
+          "resourceVersion": "299",
+          "creationTimestamp": "2023-02-10T16:00:15Z",
+          "labels": {
+            "kubernetes.io/cluster-service": "true",
+            "kubernetes.io/name": "Metrics-server",
+            "objectset.rio.cattle.io/hash": "a5d3bc601c871e123fa32b27f549b6ea770bcf4a"
+          },
+          "annotations": {
+            "objectset.rio.cattle.io/applied": "H4sIAAAAAAAA/4SQQWvjMBCF/8oyZzkbx06cFexh2WMpBFp6KT2M5Umi2pGEZuJSgv97kZNCQpvmJKQ37833dAAM9okiW+9AQ5+Dgta6BjQ8UOytIVCwI8EGBUEfAJ3zgmK943T19SsZYZJJtH5iUKSjifW/bUoAdVX3b45itulb0NAWfKb0ufp1Z13z91/TeHczwuGOQCfEaA1nTLGnOB5H9ttuDmhSRLuvKeN3FtrBoKDDmrqxYxKiIyFORtPtWc5WaJC4T5sux05c9xdcP/BskbegAedNUZvFNDfLKqd8VqyxmNWzaj0v/9QLwqqa1mZdYiL8tjoc36+U4kAmVQo+CoN+PnyGbEUCgxoF0GVZKAjRize+Aw2P/1egQDBuSFbjxMkwvChg6siIj+NXLTnDEL5SDcPwEQAA//8Uey7TawIAAA",
+            "objectset.rio.cattle.io/id": "",
+            "objectset.rio.cattle.io/owner-gvk": "k3s.cattle.io/v1, Kind=Addon",
+            "objectset.rio.cattle.io/owner-name": "metrics-server-service",
+            "objectset.rio.cattle.io/owner-namespace": "kube-system"
+          },
+          "managedFields": [
+            {
+              "manager": "deploy@tiago-linux",
+              "operation": "Update",
+              "apiVersion": "v1",
+              "time": "2023-02-10T16:00:15Z",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:annotations": {
+                    ".": {},
+                    "f:objectset.rio.cattle.io/applied": {},
+                    "f:objectset.rio.cattle.io/id": {},
+                    "f:objectset.rio.cattle.io/owner-gvk": {},
+                    "f:objectset.rio.cattle.io/owner-name": {},
+                    "f:objectset.rio.cattle.io/owner-namespace": {}
+                  },
+                  "f:labels": {
+                    ".": {},
+                    "f:kubernetes.io/cluster-service": {},
+                    "f:kubernetes.io/name": {},
+                    "f:objectset.rio.cattle.io/hash": {}
+                  }
+                },
+                "f:spec": {
+                  "f:internalTrafficPolicy": {},
+                  "f:ports": {
+                    ".": {},
+                    "k:{\"port\":443,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    }
+                  },
+                  "f:selector": {},
+                  "f:sessionAffinity": {},
+                  "f:type": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "cells": [
+        "traefik",
+        "LoadBalancer",
+        "10.43.175.231",
+        "192.168.1.219",
+        "80:31715/TCP,443:30989/TCP",
+        "104d",
+        "app.kubernetes.io/instance=traefik-kube-system,app.kubernetes.io/name=traefik"
+      ],
+      "object": {
+        "kind": "PartialObjectMetadata",
+        "apiVersion": "meta.k8s.io/v1",
+        "metadata": {
+          "name": "traefik",
+          "namespace": "kube-system",
+          "uid": "50917fa4-2961-4098-b6c1-c4aa0a49e2ec",
+          "resourceVersion": "997771",
+          "creationTimestamp": "2023-02-10T16:00:40Z",
+          "labels": {
+            "app.kubernetes.io/instance": "traefik-kube-system",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/name": "traefik",
+            "helm.sh/chart": "traefik-20.3.1_up20.3.0"
+          },
+          "annotations": {
+            "meta.helm.sh/release-name": "traefik",
+            "meta.helm.sh/release-namespace": "kube-system"
+          },
+          "finalizers": [
+            "service.kubernetes.io/load-balancer-cleanup"
+          ],
+          "managedFields": [
+            {
+              "manager": "helm",
+              "operation": "Update",
+              "apiVersion": "v1",
+              "time": "2023-02-10T16:00:40Z",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:annotations": {
+                    ".": {},
+                    "f:meta.helm.sh/release-name": {},
+                    "f:meta.helm.sh/release-namespace": {}
+                  },
+                  "f:labels": {
+                    ".": {},
+                    "f:app.kubernetes.io/instance": {},
+                    "f:app.kubernetes.io/managed-by": {},
+                    "f:app.kubernetes.io/name": {},
+                    "f:helm.sh/chart": {}
+                  }
+                },
+                "f:spec": {
+                  "f:allocateLoadBalancerNodePorts": {},
+                  "f:externalTrafficPolicy": {},
+                  "f:internalTrafficPolicy": {},
+                  "f:ipFamilyPolicy": {},
+                  "f:ports": {
+                    ".": {},
+                    "k:{\"port\":80,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    },
+                    "k:{\"port\":443,\"protocol\":\"TCP\"}": {
+                      ".": {},
+                      "f:name": {},
+                      "f:port": {},
+                      "f:protocol": {},
+                      "f:targetPort": {}
+                    }
+                  },
+                  "f:selector": {},
+                  "f:sessionAffinity": {},
+                  "f:type": {}
+                }
+              }
+            },
+            {
+              "manager": "k3s",
+              "operation": "Update",
+              "apiVersion": "v1",
+              "time": "2023-05-06T14:07:15Z",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:finalizers": {
+                    ".": {},
+                    "v:\"service.kubernetes.io/load-balancer-cleanup\"": {}
+                  }
+                },
+                "f:status": {
+                  "f:loadBalancer": {
+                    "f:ingress": {}
+                  }
+                }
+              },
+              "subresource": "status"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

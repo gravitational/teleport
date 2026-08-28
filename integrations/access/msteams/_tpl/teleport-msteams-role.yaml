@@ -1,0 +1,16 @@
+kind: role
+metadata:
+  name: teleport-msteams
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read', 'update']
+version: v6
+---
+kind: user
+metadata:
+  name: teleport-msteams
+spec:
+  roles: ['teleport-msteams']
+version: v2

@@ -1,0 +1,4 @@
+  ├── / (root)
+  │   └── /staging - /::reader
+  └── /staging
+      └── /staging - /staging::admin

@@ -1,0 +1,29 @@
+teleport:
+  address: ""              # e.g., example.teleport.sh:443 
+  identitySecretName: ""   # e.g., teleport-plugin-email-identity
+  identitySecretPath: ""   # e.g., identity
+
+mailgun:
+  enabled: false
+  domain: ""
+  privateKey: ""
+  privateKeyFromSecret: ""
+  privateKeySecretPath: "" # e.g., mailgunPrivateKey
+
+smtp:
+  enabled: false
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  passwordFromSecret: ""
+  passwordSecretPath: ""   # e.g., smtpPassword
+  starttlsPolicy: ""       # e.g., mandatory
+
+delivery:
+  sender: ""
+  recipients: []
+
+roleToRecipients: {}
+
+secretVolumeName: ""       # e.g., password-file

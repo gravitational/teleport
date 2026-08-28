@@ -1,153 +1,163 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"net"
-	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gravitational/trace"
 )
 
-// ListenTLS sets up TLS listener for the http handler, starts listening
-// on a TCP socket and returns the socket which is ready to be used
-// for http.Serve
-func ListenTLS(address string, certFile, keyFile string) (net.Listener, error) {
-	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tls.Listen("tcp", address, tlsConfig)
+// TLSConfig returns default TLS configuration strong defaults.
+func TLSConfig(cipherSuites []uint16) *tls.Config {
+	config := &tls.Config{}
+	SetupTLSConfig(config, cipherSuites)
+	return config
 }
 
-// CreateTLSConfiguration sets up default TLS configuration
-func CreateTLSConfiguration(certFile, keyFile string) (*tls.Config, error) {
-	config := &tls.Config{}
-
-	if _, err := os.Stat(certFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
-	}
-	if _, err := os.Stat(keyFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+// SetupTLSConfig sets up cipher suites in existing TLS config
+func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
+	// If ciphers suites were passed in, use them. Otherwise use the
+	// Go defaults.
+	if len(cipherSuites) > 0 {
+		config.CipherSuites = cipherSuites
 	}
 
-	log.Infof("[PROXY] TLS cert=%v key=%v", certFile, keyFile)
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	config.Certificates = []tls.Certificate{cert}
-
-	config.CipherSuites = []uint16{
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-	}
+	// pre-v17 Teleport uses a client ticket cache, which doesn't play well with
+	// verification (both client- and server-side) when using dynamic
+	// credentials and CAs (in v17+ Teleport)
+	config.SessionTicketsDisabled = true
 
 	config.MinVersion = tls.VersionTLS12
-	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(
-		DefaultLRUCapacity)
-
-	return config, nil
 }
 
-// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
-type TLSCredentials struct {
-	// PublicKey in PEM format
-	PublicKey []byte
-	// PrivateKey in PEM format
-	PrivateKey []byte
-	Cert       []byte
+// CipherSuiteMapping transforms Teleport formatted cipher suites strings
+// into uint16 IDs.
+func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
+	out := make([]uint16, 0, len(cipherSuites))
+
+	for _, cs := range cipherSuites {
+		c, ok := cipherSuiteMapping[cs]
+		if !ok {
+			return nil, trace.BadParameter("cipher suite not supported: %v", cs)
+		}
+
+		out = append(out, c)
+	}
+
+	return out, nil
 }
 
-// GenerateSelfSignedCert generates a self signed certificate that
-// is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Hour * 24 * 365 * 10) // 10 years
+// VerifyConnectionWithRoots returns a [tls.Config.VerifyConnection] function
+// that uses the provided function to generate a [*x509.CertPool] that's used as
+// the source of root CAs for verification. Use of this function requires a
+// modicum of care: the [*tls.Config] using the returned callback should be
+// generated as close to its point of use as possible. An example use for this
+// would be something like:
+//
+//	c := utils.TLSConfig(cfg.cipherSuites)
+//	c.GetClientCertificate = func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+//		return cfg.getCert()
+//	}
+//	c.ServerName = apiutils.EncodeClusterName(cfg.clusterName)
+//	c.InsecureSkipVerify = true
+//	c.VerifyConnection = VerifyConnectionWithRoots(cfg.getRoots)
+//	httpTransport.TLSClientConfig = c
+//	clientConn := grpc.NewClient(target, grpc.WithTransportCredentials(credentials.NewTLS(c)))
+//
+// The necessity of using InsecureSkipVerify is the reason why this construction
+// is deliberately not packaged into a utility function, as the stakes must be
+// clear to whoever is interacting with the constructed [*tls.Config]. The
+// recommended approach is to push the getter functions as close to the point of
+// use as possible.
+func VerifyConnectionWithRoots(getRoots func() (*x509.CertPool, error)) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		if cs.ServerName == "" {
+			return trace.BadParameter("TLS verification requires a server name")
+		}
+		roots, err := getRoots()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		opts := x509.VerifyOptions{
+			Roots:         roots,
+			Intermediates: nil,
 
-	entity := pkix.Name{
-		CommonName:   "localhost",
-		Country:      []string{"US"},
-		Organization: []string{"localhost"},
-	}
+			DNSName: cs.ServerName,
+		}
+		if len(cs.PeerCertificates) > 1 {
+			opts.Intermediates = x509.NewCertPool()
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+		}
+		if _, err := cs.PeerCertificates[0].Verify(opts); err != nil {
+			return trace.Wrap(err)
+		}
 
-	template := x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                entity,
-		Subject:               entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		IsCA: true,
+		return nil
 	}
+}
 
-	// collect IP addresses localhost resolves to and add them to the cert. template:
-	template.DNSNames = append(hostNames, "localhost.local")
-	ips, _ := net.LookupIP("localhost")
-	if ips != nil {
-		template.IPAddresses = ips
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+type (
+	GetCertificateFunc = func() (*tls.Certificate, error)
+	GetRootsFunc       = func() (*x509.CertPool, error)
+)
 
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
+// TLSConn is a `net.Conn` that implements some of the functions defined by the
+// `tls.Conn` struct. This interface can be used where it could receive a
+// `tls.Conn` wrapped in another connection. For example, in the ALPN Proxy,
+// some TLS Connections can be wrapped with ping protocol.
+type TLSConn interface {
+	net.Conn
 
-	return &TLSCredentials{
-		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
-		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
-		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
-	}, nil
+	// ConnectionState returns basic TLS details about the connection.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.ConnectionState
+	ConnectionState() tls.ConnectionState
+	// Handshake runs the client or server handshake protocol if it has not yet
+	// been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.Handshake
+	Handshake() error
+	// HandshakeContext runs the client or server handshake protocol if it has
+	// not yet been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.HandshakeContext
+	HandshakeContext(context.Context) error
+}
+
+// cipherSuiteMapping is the mapping between Teleport formatted cipher
+// suites strings and uint16 IDs.
+var cipherSuiteMapping = map[string]uint16{
+	"tls-ecdhe-ecdsa-with-aes-128-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+	"tls-ecdhe-ecdsa-with-aes-256-cbc-sha":    tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+	"tls-ecdhe-rsa-with-aes-128-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+	"tls-ecdhe-rsa-with-aes-256-cbc-sha":      tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+	"tls-ecdhe-rsa-with-aes-128-gcm-sha256":   tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	"tls-ecdhe-ecdsa-with-aes-128-gcm-sha256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	"tls-ecdhe-rsa-with-aes-256-gcm-sha384":   tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	"tls-ecdhe-ecdsa-with-aes-256-gcm-sha384": tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	"tls-ecdhe-rsa-with-chacha20-poly1305":    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+	"tls-ecdhe-ecdsa-with-chacha20-poly1305":  tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
 }
 
 const (
@@ -156,3 +166,32 @@ const (
 	// DefaultCertTTL sets the TTL of the self-signed certificate (1 year)
 	DefaultCertTTL = (24 * time.Hour) * 365
 )
+
+// DefaultCipherSuites returns the default list of cipher suites that
+// Teleport supports. By default Teleport only support modern ciphers
+// (Chacha20 and AES GCM) and key exchanges which support perfect forward
+// secrecy (ECDHE).
+//
+// Note that TLS_RSA_WITH_AES_128_GCM_SHA{256,384} have been dropped due to
+// being banned by HTTP2 which breaks gRPC clients. For more information see:
+// https://tools.ietf.org/html/rfc7540#appendix-A. These two can still be
+// manually added if needed.
+func DefaultCipherSuites() []uint16 {
+	return []uint16{
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	}
+}
+
+// RefreshTLSConfigTickets should be called right before cloning a [tls.Config]
+// for a one-off use to not break TLS session resumption, as a workaround for
+// https://github.com/golang/go/issues/60506 .
+func RefreshTLSConfigTickets(c *tls.Config) {
+	_, _ = c.DecryptTicket(nil, tls.ConnectionState{})
+}

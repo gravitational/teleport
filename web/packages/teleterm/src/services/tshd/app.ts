@@ -1,0 +1,178 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import {
+  App,
+  PortRange,
+  RouteToApp,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { AppSubKind } from 'shared/services';
+import { getAppUriScheme } from 'shared/services/apps';
+
+/** Returns a URL that opens the web app in the browser. */
+export function getWebAppLaunchUrl({
+  app,
+  cluster,
+  rootCluster,
+}: {
+  app: App;
+  rootCluster: Cluster;
+  cluster: Cluster;
+}): string {
+  if (!isWebApp(app)) {
+    return '';
+  }
+
+  const { fqdn, publicAddr } = app;
+  return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
+}
+
+/** Returns a URL that opens the AWS app in the browser. */
+export function getAwsAppLaunchUrl({
+  app,
+  cluster,
+  rootCluster,
+  arn,
+}: {
+  app: App;
+  rootCluster: Cluster;
+  cluster: Cluster;
+  arn: string;
+}): string {
+  if (!app.awsConsole) {
+    return '';
+  }
+
+  const { fqdn, publicAddr } = app;
+  return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${
+    cluster.name
+  }/${publicAddr}/${encodeURIComponent(arn)}`;
+}
+
+/** Returns a URL that opens the AWS IAM IC app in the browser. */
+export function getAwsIcLaunchUrl({
+  app,
+  roleName,
+}: {
+  app: App;
+  roleName: string;
+}) {
+  const { publicAddr, subKind } = app;
+  if (subKind !== AppSubKind.AwsIcAccount) {
+    return '';
+  }
+  return `${publicAddr}&role_name=${roleName}`;
+}
+
+/** Returns a URL that triggers IdP-initiated SSO for SAML Application. */
+export function getSamlAppSsoUrl({
+  app,
+  rootCluster,
+}: {
+  app: App;
+  rootCluster: Cluster;
+}): string {
+  if (!app.samlApp) {
+    return '';
+  }
+  return `https://${
+    rootCluster.proxyHost
+  }/enterprise/saml-idp/login/${encodeURIComponent(app.name)}`;
+}
+
+export function isWebApp(app: App): boolean {
+  if (app.samlApp || app.awsConsole) {
+    return false;
+  }
+  return (
+    app.endpointUri.startsWith('http://') ||
+    app.endpointUri.startsWith('https://')
+  );
+}
+
+export function isMcp(app: App): boolean {
+  return app.endpointUri.startsWith('mcp+');
+}
+
+export function isLLM(app: App): boolean {
+  return app.endpointUri.startsWith('llm://');
+}
+
+/**
+ * isTcp returns true for both `tcp://` and `tls://` apps. From the client's
+ * perspective both are accessed through `tsh proxy app`; the `tls://` variant
+ * only differs in how the app service connects to the upstream target.
+ */
+function isTcp(app: App): boolean {
+  return (
+    app.endpointUri.startsWith('tcp://') || app.endpointUri.startsWith('tls://')
+  );
+}
+
+/**
+ * doesMcpAppSupportGateway returns true for MCP servers that supports local
+ * proxy gateway. Currently only MCP servers with streamable HTTP transport
+ * support the gateway.
+ */
+export function doesMcpAppSupportGateway(app: App): boolean {
+  return (
+    app.endpointUri.startsWith('mcp+http://') ||
+    app.endpointUri.startsWith('mcp+https://')
+  );
+}
+
+/**
+ * Returns address with protocol which is an app protocol + a public address.
+ * If the public address is empty, it falls back to the endpoint URI.
+ *
+ * Always empty for SAML applications.
+ */
+export function getAppAddrWithProtocol(source: App): string {
+  const { publicAddr, endpointUri } = source;
+  const isCloud = endpointUri.startsWith('cloud://');
+
+  const scheme = getAppUriScheme(endpointUri);
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp(source) || isMcp(source) || isLLM(source)) {
+      addrWithProtocol = `${scheme}://${publicAddr}`;
+    } else {
+      // publicAddr for Identity Center account app is a URL with scheme.
+      addrWithProtocol = publicAddr.startsWith('https://')
+        ? publicAddr
+        : `https://${publicAddr}`;
+    }
+  }
+
+  return addrWithProtocol;
+}
+
+export const portRangeSeparator = '-';
+
+export const formatPortRange = (portRange: PortRange): string =>
+  portRange.endPort === 0
+    ? portRange.port.toString()
+    : `${portRange.port}${portRangeSeparator}${portRange.endPort}`;
+
+export const publicAddrWithTargetPort = (routeToApp: RouteToApp): string =>
+  routeToApp.targetPort
+    ? `${routeToApp.publicAddr}:${routeToApp.targetPort}`
+    : routeToApp.publicAddr;

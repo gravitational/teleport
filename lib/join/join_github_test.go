@@ -1,0 +1,928 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package join_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/tlsca"
+)
+
+type mockIDTokenValidator struct {
+	tokens                   map[string]githubactions.IDTokenClaims
+	lastCalledGHESHost       string
+	lastCalledEnterpriseSlug string
+	lastCalledJWKS           string
+}
+
+var errMockInvalidToken = errors.New("invalid token")
+
+func (m *mockIDTokenValidator) Validate(
+	_ context.Context, ghes, enterpriseSlug, token string,
+) (*githubactions.IDTokenClaims, error) {
+	m.lastCalledGHESHost = ghes
+	m.lastCalledEnterpriseSlug = enterpriseSlug
+	claims, ok := m.tokens[token]
+	if !ok {
+		return nil, errMockInvalidToken
+	}
+
+	return &claims, nil
+}
+
+func (m *mockIDTokenValidator) reset() {
+	m.lastCalledGHESHost = ""
+	m.lastCalledEnterpriseSlug = ""
+	m.lastCalledJWKS = ""
+}
+
+func (m *mockIDTokenValidator) ValidateJWKS(
+	_ time.Time, jwks []byte, token string,
+) (*githubactions.IDTokenClaims, error) {
+	m.lastCalledJWKS = string(jwks)
+	claims, ok := m.tokens[token]
+	if !ok {
+		return nil, errMockInvalidToken
+	}
+	return &claims, nil
+}
+
+func checkMockGithubValidatorState(t *testing.T, validator *mockIDTokenValidator, spec types.ProvisionTokenSpecV2) {
+	t.Helper()
+
+	require.Equal(
+		t,
+		spec.GitHub.EnterpriseServerHost,
+		validator.lastCalledGHESHost,
+	)
+	require.Equal(
+		t,
+		spec.GitHub.EnterpriseSlug,
+		validator.lastCalledEnterpriseSlug,
+	)
+	require.Equal(
+		t,
+		spec.GitHub.StaticJWKS,
+		validator.lastCalledJWKS,
+	)
+}
+
+func TestJoinGHA(t *testing.T) {
+	validIDToken := "test.fake.jwt"
+	idTokenValidator := &mockIDTokenValidator{
+		tokens: map[string]githubactions.IDTokenClaims{
+			validIDToken: {
+				Sub:             "repo:octo-org/octo-repo:environment:prod",
+				Repository:      "octo-org/octo-repo",
+				RepositoryOwner: "octo-org",
+				Workflow:        "example-workflow",
+				Environment:     "prod",
+				Actor:           "octocat",
+				Ref:             "refs/heads/main",
+				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
+			},
+		},
+	}
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+
+	authServer.Auth().SetGHAIDTokenValidator(idTokenValidator)
+	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
+
+	// helper for creating RegisterUsingTokenRequest
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
+	require.NoError(t, err)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	require.NoError(t, err)
+	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
+		return &types.RegisterUsingTokenRequest{
+			HostID:       "host-id",
+			Role:         types.RoleNode,
+			IDToken:      idToken,
+			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: sshPublicKey,
+		}
+	}
+
+	allowRule := func(modifier func(*types.ProvisionTokenSpecV2GitHub_Rule)) *types.ProvisionTokenSpecV2GitHub_Rule {
+		rule := &types.ProvisionTokenSpecV2GitHub_Rule{
+			Sub:             "repo:octo-org/octo-repo:environment:prod",
+			Repository:      "octo-org/octo-repo",
+			RepositoryOwner: "octo-org",
+			Workflow:        "example-workflow",
+			Environment:     "prod",
+			Actor:           "octocat",
+			Ref:             "refs/heads/main",
+			RefType:         "branch",
+			Enterprise:      "my-enterprise",
+			EnterpriseID:    "123456",
+		}
+		if modifier != nil {
+			modifier(rule)
+		}
+		return rule
+	}
+
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+		require.ErrorContains(t, err, "id token claims did not match any allow rules")
+		require.True(t, trace.IsAccessDenied(err))
+	})
+	tests := []struct {
+		name          string
+		request       *types.RegisterUsingTokenRequest
+		tokenSpec     types.ProvisionTokenSpecV2
+		assertError   require.ErrorAssertionFunc
+		setEnterprise bool
+	}{
+		{
+			name: "success",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "success-with-jwks",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "my-jwks",
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "failure-with-jwks",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+					StaticJWKS: "my-jwks",
+				},
+			},
+			request:     newRequest("invalid"),
+			assertError: require.Error,
+		},
+		{
+			name: "ghes-override",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseServerHost: "my.ghes.instance",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request:       newRequest(validIDToken),
+			assertError:   require.NoError,
+			setEnterprise: true,
+		},
+		{
+			name: "enterprise-slug",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseSlug: "slug",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			setEnterprise: true,
+			request:       newRequest(validIDToken),
+			assertError:   require.NoError,
+		},
+		{
+			name: "ghes-override-requires-enterprise-license",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseServerHost: "my.ghes.instance",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+				// Note: testing over the network does not perfectly map errors
+				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
+				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
+			}),
+		},
+		{
+			name: "enterprise-slug-requires-enterprise-license",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseSlug: "slug",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+				// Note: testing over the network does not perfectly map errors
+				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
+				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
+			}),
+		},
+		{
+			name: "multiple-allow-rules",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "not matching"
+						}),
+						allowRule(nil),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "sub-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "repo:octo-org/octo-repo:environment:*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-sub-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "repo:octo-org/octo-repo:environment:dev*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-sub",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Sub = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "repository-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Repository = "octo-org/octo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-repository-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Repository = "octo-org/octoo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-repository",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Repository = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "repository-owner-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RepositoryOwner = "octo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-repository-owner-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RepositoryOwner = "octoo-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-repository-owner",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RepositoryOwner = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "workflow-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Workflow = "example-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-workflow-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Workflow = "examplee-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-workflow",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Workflow = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "environment-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Environment = "pr*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-environment-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Environment = "prr*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-environment",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Environment = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "actor-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Actor = "octo*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-actor-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Actor = "octoo*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-actor",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Actor = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "ref-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Ref = "refs/heads/*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name: "incorrect-ref-with-wildcard",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Ref = "refs/tags/*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-ref",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Ref = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-ref-type",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.RefType = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.Enterprise = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name: "incorrect-enterprise-id",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2GitHub_Rule) {
+							rule.EnterpriseID = "not matching"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(idTokenValidator.reset)
+			if tt.setEnterprise {
+				modulestest.SetTestModules(
+					t,
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
+				)
+			}
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("scoped joinclient", func(t *testing.T) {
+				scopedToken := CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
+				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+				RequireScopedHostResult(t, result, scopedToken)
+			})
+
+			token, err := types.NewProvisionTokenFromSpec(
+				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
+			)
+			require.NoError(t, err)
+			require.NoError(t, authServer.Auth().CreateToken(t.Context(), token))
+			tt.request.Token = tt.name
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+			})
+			t.Run("legacy", func(t *testing.T) {
+				_, err = authServer.Auth().RegisterUsingToken(t.Context(), tt.request)
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+			})
+		})
+	}
+}
+
+func TestJoinGHABot(t *testing.T) {
+	validIDToken := "test.fake.jwt"
+	idTokenValidator := &mockIDTokenValidator{
+		tokens: map[string]githubactions.IDTokenClaims{
+			validIDToken: {
+				Sub:             "repo:octo-org/octo-repo:environment:prod",
+				Repository:      "octo-org/octo-repo",
+				RepositoryOwner: "octo-org",
+				Workflow:        "example-workflow",
+				Environment:     "prod",
+				Actor:           "octocat",
+				Ref:             "refs/heads/main",
+				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
+			},
+		},
+	}
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+
+	authServer.Auth().SetGHAIDTokenValidator(idTokenValidator)
+	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
+
+	// Create a scoped bot.
+	qualifiedBotName := CreateScopedBot(t, authServer.Auth(), "gha-bot")
+
+	// Create the scoped token for bot joining.
+	tokenSpec := types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodGitHub,
+		Roles:      []types.SystemRole{types.RoleBot},
+		GitHub: &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Sub:             "repo:octo-org/octo-repo:environment:prod",
+					Repository:      "octo-org/octo-repo",
+					RepositoryOwner: "octo-org",
+				},
+			},
+		},
+	}
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tokenSpec, joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Metadata: headerv1.Metadata_builder{
+			Name: "github-bot-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			UsageMode: joining.TokenUsageModeBot,
+			Bot:       qualifiedBotName,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+		Token: scopedToken,
+	}.Build())
+	require.NoError(t, err)
+
+	nopClient, err := authServer.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		JoinMethod: types.JoinMethodGitHub,
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		IDToken:    validIDToken,
+		AuthClient: nopClient,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Certs)
+
+	// Parse the TLS certificate and verify bot identity.
+	cert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, "gha-bot", identity.BotName)
+	require.NotEmpty(t, identity.BotInstanceID)
+	require.NotNil(t, identity.ScopePin)
+	require.Equal(t, "/test", identity.ScopePin.GetScope())
+	require.Equal(t, "/test", identity.BotScope)
+	require.True(t, identity.BotInternal)
+
+	// Bot results should not contain immutable labels (host-only).
+	require.Nil(t, result.ImmutableLabels)
+
+	t.Run("must fail when claims do not match allow rules", func(t *testing.T) {
+		nonMatchingToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodGitHub,
+			Roles:      []types.SystemRole{types.RoleBot},
+			GitHub: &types.ProvisionTokenSpecV2GitHub{
+				Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+					{
+						Repository:      "other-org/other-repo",
+						RepositoryOwner: "other-org",
+					},
+				},
+			},
+		}, joiningv1.ScopedToken_builder{
+			Scope: "/test",
+			Metadata: headerv1.Metadata_builder{
+				Name: "github-bot-token-no-match",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				UsageMode: joining.TokenUsageModeBot,
+				Bot:       qualifiedBotName,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		_, err = authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			Token: nonMatchingToken,
+		}.Build())
+		require.NoError(t, err)
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token:      scopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
+			JoinMethod: types.JoinMethodGitHub,
+			ID: state.IdentityID{
+				Role: types.RoleBot,
+			},
+			IDToken:    validIDToken,
+			AuthClient: nopClient,
+		})
+		require.ErrorContains(t, err, "id token claims did not match any allow rules")
+		require.True(t, trace.IsAccessDenied(err))
+	})
+}

@@ -1,0 +1,17 @@
+clusterName: helm-lint
+annotations:
+  config:
+    kubernetes.io/config: "test-annotation"
+    kubernetes.io/config-different: 2
+  deployment:
+    kubernetes.io/deployment: "test-annotation"
+    kubernetes.io/deployment-different: 3
+  pod:
+    kubernetes.io/pod: "test-annotation"
+    kubernetes.io/pod-different: 4
+  service:
+    kubernetes.io/service: "test-annotation"
+    kubernetes.io/service-different: 5
+  serviceAccount:
+    kubernetes.io/serviceaccount: "test-annotation"
+    kubernetes.io/serviceaccount-different: 6

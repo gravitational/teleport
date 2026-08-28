@@ -1,0 +1,492 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package proxy
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"log/slog"
+	"mime"
+	"net/http"
+
+	"github.com/gravitational/trace"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+)
+
+// needsFiltering returns true if RBAC filtering is required for the given rules.
+func needsFiltering(allowedResources, deniedResources []types.KubernetesResource) bool {
+	return !containsWildcard(allowedResources) || len(deniedResources) != 0
+}
+
+// newResourceFilterer creates a wrapper function that once executed creates
+// a runtime filter for kubernetes resources.
+// The filter exclusion criteria is:
+// - deniedResources: excluded if (namespace,name) matches an entry even if it matches
+// the allowedResources's list.
+// - allowedResources: excluded if (namespace,name) not match a single entry.
+func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, matcher resourceMatcher, log *slog.Logger) responsewriters.FilterWrapper {
+	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
+		negotiator := newClientNegotiator(codecs)
+		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &resourceFilterer{
+			encoder:      encoder,
+			decoder:      decoder,
+			contentType:  contentType,
+			responseCode: responseCode,
+			negotiator:   negotiator,
+			log:          log,
+			metaResource: mr,
+			matcher:      matcher,
+		}, nil
+	}
+}
+
+// wildcardFilter is a filter that matches all pods.
+var wildcardFilter = types.KubernetesResource{
+	Kind:      types.Wildcard,
+	APIGroup:  types.Wildcard,
+	Namespace: types.Wildcard,
+	Name:      types.Wildcard,
+	Verbs:     []string{types.Wildcard},
+}
+
+// containsWildcard returns true if the list of resources contains a wildcard filter.
+func containsWildcard(resources []types.KubernetesResource) bool {
+	for _, r := range resources {
+		if r.Kind == wildcardFilter.Kind &&
+			r.APIGroup == wildcardFilter.APIGroup &&
+			r.Name == wildcardFilter.Name &&
+			r.Namespace == wildcardFilter.Namespace &&
+			len(r.Verbs) == 1 && r.Verbs[0] == wildcardFilter.Verbs[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// resourceFilterer is a resource filterer instance.
+type resourceFilterer struct {
+	encoder runtime.Encoder
+	decoder runtime.Decoder
+
+	// contentType is the response "Content-Type" header.
+	contentType string
+	// responseCode is the response status code.
+	responseCode int
+	// negotiator is an instance of a client negotiator.
+	negotiator runtime.ClientNegotiator
+
+	// log is the logger.
+	log *slog.Logger
+
+	// metaResource contains the information about the resource being filtered.
+	metaResource metaResource
+
+	// matcher is the per-item RBAC matcher (either fast precompiled or fallback per-item).
+	matcher resourceMatcher
+}
+
+// resourceMatcher matches a Kubernetes resource by name and namespace.
+//
+// A Teleport RBAC rule has five fields: kind, verb, apiGroup, namespace, and name.
+// Only name and namespace vary per item in a list response.
+// The rest are constant for the entire request (determined by the URL and HTTP method),
+// so can be resolved once when the matcher is constructed.
+type resourceMatcher interface {
+	Match(name, namespace string) (bool, error)
+}
+
+func newMatcher(mr metaResource, allowed, denied []types.KubernetesResource, log *slog.Logger) resourceMatcher {
+	// The fast matcher cannot handle namespace special cases in KubeResourceMatchesRegex
+	// (read-only namespace visibility, namespace kind matching with different target selection).
+	if mr.requestedResource.resourceKind != "namespaces" {
+		fm, err := newFastMatcher(mr, allowed, denied)
+		if err != nil {
+			log.DebugContext(context.Background(), "Failed to compile fast matcher, falling back to per-item matching", "error", err)
+		} else {
+			return fm
+		}
+	}
+	return &defaultMatcher{
+		kind:             mr.requestedResource.resourceKind,
+		verb:             mr.verb,
+		apiGroup:         mr.requestedResource.apiGroup,
+		isClusterWide:    mr.isClusterWideResource(),
+		allowedResources: allowed,
+		deniedResources:  denied,
+	}
+}
+
+// FilterBuffer receives a byte array, decodes the response into the appropriate
+// type and filters the resources based on allowed and denied rules configured.
+// After filtering them, it serializes the response and dumps it into output buffer.
+// If any error occurs, the call returns an error.
+func (d *resourceFilterer) FilterBuffer(buf []byte, output io.Writer) error {
+	// decode the response into the appropriate Kubernetes API type.
+	obj, bf, err := d.decode(buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// if bf is not empty, it means that response does not contain any valid response
+	// and it should be safe to write it back into the buffer.
+	if len(bf) > 0 {
+		_, err = output.Write(buf)
+		return trace.Wrap(err)
+	}
+
+	if allowed, isList, err := d.FilterObj(obj); err != nil {
+		return trace.Wrap(err)
+	} else if !isList && !allowed {
+		// if the object is not a list and it's not allowed, then we should
+		// return an error.
+		return trace.AccessDenied("access denied")
+	}
+
+	// encode the filterer response back to the user.
+	return d.encode(obj, output)
+}
+
+// FilterObj receives a runtime.Object type and filters the resources on it
+// based on allowed and denied rules.
+// After filtering them, the obj is manipulated to hold the filtered information.
+// The isAllowed boolean returned indicates if the client is allowed to receive the event
+// with the object.
+// The isListObj boolean returned indicates if the object is a list of resources.
+func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList bool, err error) {
+	ctx := context.Background()
+
+	switch o := obj.(type) {
+	case *metav1.Status:
+		// Status object is returned when the Kubernetes API returns an error and
+		// should be forwarded to the user.
+		return true, false, nil
+
+	case *unstructured.Unstructured:
+		if o.IsList() {
+			hasElemts := d.filterUnstructuredList(o)
+			return hasElemts, true, nil
+		}
+
+		result, err := d.matcher.Match(o.GetName(), o.GetNamespace())
+		if err != nil {
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+
+	case *metav1.Table:
+		_, err := d.filterMetaV1Table(o)
+		if err != nil {
+			return false, false, trace.Wrap(err)
+		}
+		return len(o.Rows) > 0, true, nil
+
+	default:
+		if _, ok := obj.(metav1.ListInterface); ok {
+			output, err := getItemsUsingReflection(obj)
+			if err != nil {
+				return false, false, trace.Wrap(err, "failed to get items from list object")
+			}
+			if len(output.items) > 0 {
+				output.items = filterResourceList(d, output.items)
+				setItemsUsingReflection(output.underlyingValue, output.underlyingType, output.items)
+			}
+			return len(output.items) > 0, true, nil
+		} else if kubeObj, ok := o.(kubeObjectInterface); ok {
+			result, err := d.filterResource(kubeObj)
+			if err != nil {
+				d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
+			}
+			// if err is not nil or result is false, we should not include it.
+			return result, false, nil
+		}
+
+		// It's important default types are never blindly forwarded or protocol
+		// extensions could result in information disclosures.
+		return false, false, trace.BadParameter("unexpected type received; got %T", obj)
+	}
+}
+
+// decode decodes the buffer into the appropriate type if the responseCode
+// belongs to the range 200(OK)-206(PartialContent).
+// If it does not belong, it returns the buffer unchanged since it contains
+// an error message from the Kubernetes API server and it's safe to return
+// it back to the user.
+func (d *resourceFilterer) decode(buffer []byte) (runtime.Object, []byte, error) {
+	switch {
+	case d.responseCode == http.StatusSwitchingProtocols:
+		// no-op, we've been upgraded
+		return nil, buffer, nil
+	case d.responseCode < http.StatusOK /* 200 */ || d.responseCode > http.StatusPartialContent /* 206 */ :
+		// calculate an unstructured error from the response which the Result object may use if the caller
+		// did not return a structured error.
+		// Logic from: https://github.com/kubernetes/client-go/blob/58ff029093df37cad9fa28778a37f11fa495d9cf/rest/request.go#L1040
+		return nil, buffer, nil
+	default:
+		// We are reading an API request and API honors the GVK in the request so we don't
+		// need to set it.
+		out, err := decodeAndSetGVK(d.decoder, buffer, nil /* defaults GVK */)
+		return out, nil, trace.Wrap(err)
+	}
+}
+
+// decodePartialObjectMetadata decodes the metav1.PartialObjectMetadata present
+// in the metav1.TableRow entry. This information comes from server side and
+// includes the resource name and namespace as a structured object.
+func (d *resourceFilterer) decodePartialObjectMetadata(row *metav1.TableRow) error {
+	if row.Object.Object != nil {
+		return nil
+	}
+	var err error
+	// decode only if row.Object.Object was not decoded before.
+	// We are reading an API request and API honors the GVK in the request so we don't
+	// need to set it.
+	row.Object.Object, err = decodeAndSetGVK(d.decoder, row.Object.Raw, nil /* defaults GVK */)
+	return trace.Wrap(err)
+}
+
+// encode encodes the filtered object into the io.Writer using the same
+// content-type.
+func (d *resourceFilterer) encode(obj runtime.Object, w io.Writer) error {
+	return trace.Wrap(d.encoder.Encode(obj, w))
+}
+
+// filterResourceList excludes resources the user should not have access to.
+func filterResourceList[T kubeObjectInterface](d *resourceFilterer, originalList []T) []T {
+	filteredList := make([]T, 0, len(originalList))
+	for _, resource := range originalList {
+		if result, err := d.filterResource(resource); err == nil && result {
+			filteredList = append(filteredList, resource)
+		} else if err != nil {
+			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		}
+	}
+	return filteredList
+}
+
+// kubeObjectInterface is an interface that all Kubernetes objects must
+// implement to be able to filter them. It is used to extract the kind of the
+// object from the GroupVersionKind object, the namespace and the name.
+type kubeObjectInterface interface {
+	GroupVersionKind() schema.GroupVersionKind
+	GetNamespace() string
+	GetName() string
+}
+
+// filterResource validates if the user should access the current resource.
+func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
+	return d.matcher.Match(resource.GetName(), resource.GetNamespace())
+}
+
+func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.KubernetesResource {
+	return types.KubernetesResource{
+		Kind:      kind,
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+		Verbs:     []string{verb},
+		APIGroup:  group,
+	}
+}
+
+// filterMetaV1Table filters the serverside printed table to exclude resources
+// that the user must not have access to.
+func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table) (*metav1.Table, error) {
+	resources := make([]metav1.TableRow, 0, len(table.Rows))
+	for i := range table.Rows {
+		row := &(table.Rows[i])
+		if err := d.decodePartialObjectMetadata(row); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resource, err := getKubeResourcePartialMetadataObject(d.metaResource.requestedResource.resourceKind, d.metaResource.requestedResource.apiGroup, d.metaResource.verb, row.Object.Object)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if result, err := d.matcher.Match(resource.Name, resource.Namespace); err != nil {
+			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
+		} else if result {
+			resources = append(resources, *row)
+		}
+	}
+	table.Rows = resources
+	return table, nil
+}
+
+// getKubeResourcePartialMetadataObject checks if obj satisfies namespaceNamer or namer interfaces
+// otherwise returns an error.
+func getKubeResourcePartialMetadataObject(kind, group, verb string, obj runtime.Object) (types.KubernetesResource, error) {
+	type namer interface {
+		GetName() string
+	}
+	type namespaceNamer interface {
+		GetNamespace() string
+		namer
+	}
+	switch o := obj.(type) {
+	case namespaceNamer:
+		return types.KubernetesResource{
+			Namespace: o.GetNamespace(),
+			Name:      o.GetName(),
+			Kind:      kind,
+			Verbs:     []string{verb},
+			APIGroup:  group,
+		}, nil
+	case namer:
+		return types.KubernetesResource{
+			Name:     o.GetName(),
+			Kind:     kind,
+			Verbs:    []string{verb},
+			APIGroup: group,
+		}, nil
+	default:
+		return types.KubernetesResource{}, trace.BadParameter("unexpected %T type", obj)
+	}
+}
+
+// newEncoderAndDecoderForContentType creates a new encoder and decoder instances
+// for the given contentType.
+// If the contentType is invalid or not supported this function returns an error.
+// Supported content types:
+// - "application/json"
+// - "application/yaml"
+// - "application/vnd.kubernetes.protobuf"
+func newEncoderAndDecoderForContentType(contentType string, negotiator runtime.ClientNegotiator) (runtime.Encoder, runtime.Decoder, error) {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, nil, trace.WrapWithMessage(err, "unable to parse %q header %q", responsewriters.ContentTypeHeader, contentType)
+	}
+	dec, err := negotiator.Decoder(mediaType, params)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	enc, err := negotiator.Encoder(mediaType, params)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return enc, dec, nil
+}
+
+// decodeAndSetGVK decodes the payload into the appropriate type using the decoder
+// provider and sets the GVK if available.
+// defaults is the fallback GVK used by the decoder if the payload doesn't set their
+// own GVK.
+func decodeAndSetGVK(decoder runtime.Decoder, payload []byte, defaults *schema.GroupVersionKind) (runtime.Object, error) {
+	obj, gvk, err := decoder.Decode(payload, defaults, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gvk != nil {
+		// objects from decode do not contain GroupVersionKind.
+		// We force it to be present for later encoding.
+		obj.GetObjectKind().SetGroupVersionKind(*gvk)
+	}
+	return obj, nil
+}
+
+// filterBuffer filters the response buffer before writing it into the original
+// MemoryResponseWriter.
+func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewriters.MemoryResponseWriter) error {
+	if filterWrapper == nil {
+		return nil
+	}
+
+	filter, err := filterWrapper(responsewriters.GetContentTypeHeader(src.Header()), src.Status())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// copy body into another slice so we can manipulate it.
+	b := bytes.NewBuffer(make([]byte, 0, src.Buffer().Len()))
+
+	// get the compressor and decompressor for the response based on the content type.
+	compressor, decompressor, err := getResponseCompressorDecompressor(src.Header())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// decompress the response body into b.
+	if err := decompressor(b, src.Buffer()); err != nil {
+		return trace.Wrap(err)
+	}
+	// filter.FilterBuffer encodes the filtered payload into src.Buffer, so we need to
+	// reset it to discard the old payload.
+	src.Buffer().Reset()
+	// creates a compressor that writes the filtered payload into src.Buffer.
+	comp := compressor(src.Buffer())
+	// Close is a no-op operation into src but it's required to put the gzip writer
+	// into the sync.Pool.
+	defer comp.Close()
+	return trace.Wrap(filter.FilterBuffer(b.Bytes(), comp))
+}
+
+// filterUnstructuredList filters the unstructured list object to exclude resources
+// that the user must not have access to.
+// The filtered list is re-assigned to `obj.Object["items"]`.
+func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured) (hasElems bool) {
+	const itemsKey = "items"
+	if obj == nil || obj.Object == nil {
+		return false
+	}
+	objList, err := obj.ToList()
+	if err != nil {
+		// This should never happen, but if it does, we should log it.
+		slog.WarnContext(context.Background(), "Unable to convert unstructured object to list", "error", err)
+		return false
+	}
+
+	filteredList := make([]any, 0, len(objList.Items))
+	for _, resource := range objList.Items {
+		if result, err := d.matcher.Match(resource.GetName(), resource.GetNamespace()); err != nil {
+			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		} else if result {
+			filteredList = append(filteredList, resource.Object)
+		}
+	}
+	obj.Object[itemsKey] = filteredList
+	return len(filteredList) > 0
+}
+
+// defaultMatcher uses the existing matchKubernetesResource path for per-item matching.
+type defaultMatcher struct {
+	kind             string
+	verb             string
+	apiGroup         string
+	isClusterWide    bool
+	allowedResources []types.KubernetesResource
+	deniedResources  []types.KubernetesResource
+}
+
+func (m *defaultMatcher) Match(name, namespace string) (bool, error) {
+	resource := types.KubernetesResource{
+		Kind:      m.kind,
+		Namespace: namespace,
+		Name:      name,
+		Verbs:     []string{m.verb},
+		APIGroup:  m.apiGroup,
+	}
+	return matchKubernetesResource(resource, m.isClusterWide, m.allowedResources, m.deniedResources)
+}

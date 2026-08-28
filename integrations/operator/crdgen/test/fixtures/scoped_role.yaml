@@ -1,0 +1,15 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportScopedRoleV1
+metadata:
+  name: example-scoped-role2
+  namespace: test
+scope: "/staging"
+spec:
+  assignable_scopes:
+    - "/staging/aa"
+  rules:
+    - resources:
+        - "scoped_token"
+      verbs:
+        - "read"
+        - "list"

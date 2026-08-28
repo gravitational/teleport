@@ -1,0 +1,53 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package iterutils
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
+
+func ExampleMap() {
+	inputs := []string{
+		"hello world",
+		"foo",
+	}
+
+	for mapped := range Map(strings.ToUpper, slices.Values(inputs)) {
+		fmt.Println(mapped)
+	}
+	// Output:
+	// HELLO WORLD
+	// FOO
+}
+
+func ExampleFilter() {
+	inputs := []string{
+		"a",
+		"bb",
+		"ccc",
+		"dddd",
+	}
+	isOddLen := func(s string) bool {
+		return len(s)%2 == 1
+	}
+	for filtered := range Filter(isOddLen, slices.Values(inputs)) {
+		fmt.Println(filtered)
+	}
+	// Output:
+	// a
+	// ccc
+}

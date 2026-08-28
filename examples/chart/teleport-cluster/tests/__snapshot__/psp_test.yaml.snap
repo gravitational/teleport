@@ -1,0 +1,62 @@
+creates a PodSecurityPolicy when enabled in values and supported:
+  1: |
+    apiVersion: policy/v1beta1
+    kind: PodSecurityPolicy
+    metadata:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: docker/default,runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      name: RELEASE-NAME
+    spec:
+      allowPrivilegeEscalation: false
+      fsGroup:
+        ranges:
+        - max: 65535
+          min: 1
+        rule: MustRunAs
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      privileged: false
+      readOnlyRootFilesystem: true
+      requiredDropCapabilities:
+      - ALL
+      runAsUser:
+        rule: MustRunAsNonRoot
+      seLinux:
+        rule: RunAsAny
+      supplementalGroups:
+        ranges:
+        - max: 65535
+          min: 1
+        rule: MustRunAs
+      volumes:
+      - '*'
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-psp
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - policy
+      resourceNames:
+      - RELEASE-NAME
+      resources:
+      - podsecuritypolicies
+      verbs:
+      - use
+  3: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: RELEASE-NAME-psp
+      namespace: NAMESPACE
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: RELEASE-NAME-psp
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME

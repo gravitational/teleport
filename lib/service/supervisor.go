@@ -1,41 +1,57 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package service
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"sync"
+	"time"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Supervisor implements the simple service logic - registering
 // service functions and de-registering the service goroutines
 type Supervisor interface {
 	// Register adds the service to the pool, if supervisor is in
-	// the started state, the service will be started immediatelly
+	// the started state, the service will be started immediately
 	// otherwise, it will be started after Start() has been called
 	Register(srv Service)
 
 	// RegisterFunc creates a service from function spec and registers
 	// it within the system
-	RegisterFunc(fn ServiceFunc)
+	RegisterFunc(name string, fn Func)
+
+	// RegisterCriticalFunc creates a critical service from function spec and registers
+	// it within the system, if this service exits with error,
+	// the process shuts down.
+	RegisterCriticalFunc(name string, fn Func)
 
 	// ServiceCount returns the number of registered and actively running
 	// services
@@ -51,40 +67,169 @@ type Supervisor interface {
 	// it's a combinatioin Start() and Wait()
 	Run() error
 
+	// Services returns list of running services
+	Services() []string
+
 	// BroadcastEvent generates event and broadcasts it to all
-	// interested parties
+	// subscribed parties.
 	BroadcastEvent(Event)
 
-	// WaitForEvent waits for event to be broadcasted, if the event
-	// was already broadcasted, payloadC will receive current event immediately
-	// CLose 'cancelC' channel to force WaitForEvent to return prematurely
-	WaitForEvent(name string, eventC chan Event, cancelC chan struct{})
+	// WaitForEvent waits for one event with the specified name (returns the
+	// latest such event if at least one has been broadcasted already, ignoring
+	// the context). Returns an error if the context is canceled before an event
+	// is received.
+	WaitForEvent(ctx context.Context, name string) (Event, error)
+
+	// WaitForEventTimeout waits for one event with the specified name (returns the
+	// latest such event if at least one has been broadcasted already). Returns
+	// an error if the timeout triggers before an event is received.
+	WaitForEventTimeout(timeout time.Duration, name string) (Event, error)
+
+	// ListenForEvents arranges for eventC to receive events with the specified
+	// name; if the event was already broadcasted, eventC will receive the latest
+	// value immediately. The broadcasting will stop when the context is done.
+	ListenForEvents(ctx context.Context, name string, eventC chan<- Event)
+
+	// ListenForNewEvents arranges for eventC to receive new events with the
+	// specified name. The broadcasting will stop when the context is done.
+	ListenForNewEvents(ctx context.Context, name string, eventC chan<- Event)
+
+	// RegisterEventMapping registers event mapping -
+	// when the sequence in the event mapping triggers, the
+	// outbound event will be generated.
+	RegisterEventMapping(EventMapping)
+
+	// ExitContext returns context that will be closed when
+	// a hard TeleportExitEvent is broadcasted.
+	ExitContext() context.Context
+
+	// GracefulExitContext returns context that will be closed when
+	// a graceful or hard TeleportExitEvent is broadcast.
+	GracefulExitContext() context.Context
+
+	// HandleReadiness is the HTTP handler for "/readyz".
+	HandleReadiness(http.ResponseWriter, *http.Request)
+
+	// RegisterProcessStateCallback registers a function which is called immediately
+	// upon registering and then each time the health of the process state changes.
+	// The function must not call back into the supervisor or block in any way.
+	RegisterProcessStateCallback(func(healthy bool))
 }
 
+// EventMapping maps a sequence of incoming
+// events and if triggered, generates an out event.
+type EventMapping struct {
+	// In is the incoming event sequence.
+	In []string
+	// Out is the outbound event to generate.
+	Out string
+}
+
+// String returns user-friendly representation of the mapping.
+func (e EventMapping) String() string {
+	return fmt.Sprintf("EventMapping(in=%v, out=%v)", e.In, e.Out)
+}
+
+// matches indicates whether the event mapping has been satisfied.
+// If returns an error only if the mapping is unsatisified because
+// we are still waiting on one or more events.
+func (e EventMapping) matches(currentEvent string, m map[string]Event) (bool, error) {
+	// existing events that have been fired should match
+	for _, in := range e.In {
+		if _, ok := m[in]; !ok {
+			return false, fmt.Errorf("still waiting for %v", in)
+		}
+	}
+	// current event that is firing should match one of the expected events
+	for _, in := range e.In {
+		if currentEvent == in {
+			return true, nil
+		}
+	}
+
+	// mapping not satisfied, and this event is not part of the mapping
+	return false, nil
+}
+
+// LocalSupervisor is a Teleport's implementation of the Supervisor interface.
 type LocalSupervisor struct {
 	state int
 	sync.Mutex
 	wg           *sync.WaitGroup
-	services     []*Service
-	errors       []error
+	services     []Service
 	events       map[string]Event
 	eventsC      chan Event
 	eventWaiters map[string][]*waiter
-	closer       *utils.CloseBroadcaster
+
+	closeContext context.Context
+	signalClose  context.CancelFunc
+
+	// exitContext is closed when someone emits a hard Exit event
+	exitContext context.Context
+	signalExit  context.CancelFunc
+
+	// gracefulExitContext is closed when someone emits a graceful or hard Exit event
+	gracefulExitContext context.Context
+	signalGracefulExit  context.CancelFunc
+
+	eventMappings []EventMapping
+	id            string
+
+	// log specifies the logger
+	log *slog.Logger
+
+	// clock is used as a source of time, to support fake clocks in tests.
+	clock clockwork.Clock
+
+	// processState is the process state machine tracking if the process is
+	// healthy or not.
+	processState processState
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor() Supervisor {
+func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*LocalSupervisor, error) {
+	// used by processState
+	if err := metrics.RegisterPrometheusCollectors(stateGauge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx := context.TODO()
+
+	closeContext, cancel := context.WithCancel(ctx)
+
+	exitContext, signalExit := context.WithCancel(ctx)
+
+	// graceful exit context is a subcontext of exit context since any work that terminates
+	// in the event of graceful exit must also terminate in the event of an immediate exit.
+	gracefulExitContext, signalGracefulExit := context.WithCancel(exitContext)
+
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	srv := &LocalSupervisor{
-		services:     []*Service{},
+		state:        stateCreated,
+		id:           id,
+		services:     []Service{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
-		eventsC:      make(chan Event, 100),
+		eventsC:      make(chan Event, 1024),
 		eventWaiters: make(map[string][]*waiter),
-		closer:       utils.NewCloseBroadcaster(),
+		closeContext: closeContext,
+		signalClose:  cancel,
+
+		exitContext:         exitContext,
+		signalExit:          signalExit,
+		gracefulExitContext: gracefulExitContext,
+		signalGracefulExit:  signalGracefulExit,
+
+		log: parentLog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+
+		clock: clock,
 	}
+
 	go srv.fanOut()
-	return srv
+	return srv, nil
 }
 
 // Event is a special service event that can be generated
@@ -95,18 +240,17 @@ type Event struct {
 }
 
 func (e *Event) String() string {
-	return fmt.Sprintf("event(%v)", e.Name)
+	return e.Name
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
+	s.log.DebugContext(s.closeContext, "Adding service to supervisor", "service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
-	s.services = append(s.services, &srv)
-
-	log.Debugf("[SUPERVISOR] Service %v added (%v)", srv, len(s.services))
+	s.services = append(s.services, srv)
 
 	if s.state == stateStarted {
-		s.serve(&srv)
+		s.serve(srv)
 	}
 }
 
@@ -117,33 +261,114 @@ func (s *LocalSupervisor) ServiceCount() int {
 	return len(s.services)
 }
 
-func (s *LocalSupervisor) RegisterFunc(fn ServiceFunc) {
-	s.Register(fn)
+// RegisterFunc creates a service from function spec and registers
+// it within the system
+func (s *LocalSupervisor) RegisterFunc(name string, fn Func) {
+	s.Register(&LocalService{Function: fn, ServiceName: name})
 }
 
-func (s *LocalSupervisor) serve(srv *Service) {
-	// this func will be called _after_ a service stops running:
-	removeService := func() {
-		s.Lock()
-		defer s.Unlock()
-		for i, el := range s.services {
-			if el == srv {
-				s.services = append(s.services[:i], s.services[i+1:]...)
-				break
-			}
-		}
-		log.Debugf("[SUPERVISOR] Service %v is done (%v)", *srv, len(s.services))
-	}
+// RegisterCriticalFunc creates a critical service from function spec and registers
+// it within the system, if this service exits with error,
+// the process shuts down.
+func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func) {
+	s.Register(&LocalService{Function: fn, ServiceName: name, Critical: true})
+}
 
+// RemoveService removes service from supervisor tracking list
+func (s *LocalSupervisor) RemoveService(srv Service) error {
+	l := s.log.With("service", srv.Name())
+	s.Lock()
+	defer s.Unlock()
+	for i, el := range s.services {
+		if el == srv {
+			s.services = append(s.services[:i], s.services[i+1:]...)
+			l.DebugContext(s.closeContext, "Service is completed and removed")
+			return nil
+		}
+	}
+	l.WarnContext(s.closeContext, "Service is completed but not found")
+	return trace.NotFound("service %v is not found", srv)
+}
+
+// ExitEventPayload contains information about service
+// name, and service error if it exited with error
+type ExitEventPayload struct {
+	// Service is the service that exited
+	Service Service
+	// Error is the error of the service exit
+	Error error
+}
+
+var metricsServicesRunning = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricTeleportServices,
+		Help:      "Teleport services currently enabled and running",
+	},
+	[]string{teleport.TagServiceName},
+)
+
+var metricsServicesRunningMap = map[string]string{
+	"discovery.init":       "discovery_service",
+	"ssh.node":             "ssh_service",
+	"auth.tls":             "auth_service",
+	"proxy.web":            "proxy_service",
+	"relay.run":            "relay_service",
+	"kube.init":            "kubernetes_service",
+	"apps.start":           "application_service",
+	"db.init":              "database_service",
+	"windows_desktop.init": "windows_desktop_service",
+	"linux_desktop.init":   "linux_desktop_service",
+	"okta.init":            "okta_service",
+	"jamf.init":            "jamf_service",
+}
+
+// isShuttingDown returns true if the supervisor is in the process of shutting down
+// either gracefully or immediately.
+// Should be called with the lock held to make sure the state doesn't change
+func (s *LocalSupervisor) isShuttingDown() bool {
+	select {
+	case <-s.exitContext.Done():
+		return true
+	case <-s.gracefulExitContext.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// server starts the service in a separate goroutine.
+// Should be called with the lock held.
+func (s *LocalSupervisor) serve(srv Service) {
+	if s.isShuttingDown() {
+		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
+		return
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer removeService()
+		defer s.RemoveService(srv)
 
-		log.Debugf("[SUPERVISOR] Service %v started (%v)", *srv, s.ServiceCount())
-		err := (*srv).Serve()
+		if label, ok := metricsServicesRunningMap[srv.Name()]; ok {
+			metricsServicesRunning.WithLabelValues(label).Inc()
+			defer metricsServicesRunning.WithLabelValues(label).Dec()
+		}
+
+		l := s.log.With("service", srv.Name())
+		l.DebugContext(s.closeContext, "Service has started")
+		err := srv.Serve()
 		if err != nil {
-			utils.FatalError(err)
+			if errors.Is(err, ErrTeleportExited) {
+				l.InfoContext(s.closeContext, "Teleport process has shut down")
+			} else {
+				if s.ExitContext().Err() == nil {
+					l.WarnContext(s.closeContext, "Teleport process has exited with error", "error", err)
+				}
+				s.BroadcastEvent(Event{
+					Name:    ServiceExitedWithErrorEvent,
+					Payload: ExitEventPayload{Service: srv, Error: err},
+				})
+			}
 		}
 	}()
 }
@@ -154,8 +379,12 @@ func (s *LocalSupervisor) Start() error {
 	s.state = stateStarted
 
 	if len(s.services) == 0 {
-		log.Warning("supervisor.Start(): nothing to run")
+		s.log.WarnContext(s.closeContext, "Supervisor has no services to run - exiting")
 		return nil
+	}
+
+	if err := metrics.RegisterPrometheusCollectors(metricsServicesRunning); err != nil {
+		return trace.Wrap(err)
 	}
 
 	for _, srv := range s.services {
@@ -165,8 +394,23 @@ func (s *LocalSupervisor) Start() error {
 	return nil
 }
 
+func (s *LocalSupervisor) Services() []string {
+	s.Lock()
+	defer s.Unlock()
+
+	out := make([]string, len(s.services))
+
+	for i, srv := range s.services {
+		out[i] = srv.Name()
+	}
+	return out
+}
+
+// Wait blocks until all registered services have exited.
+// It is invoked during process shutdown to ensure
+// that all registered services have exited.
 func (s *LocalSupervisor) Wait() error {
-	defer s.closer.Close()
+	defer s.signalClose()
 	s.wg.Wait()
 	return nil
 }
@@ -178,79 +422,270 @@ func (s *LocalSupervisor) Run() error {
 	return s.Wait()
 }
 
+// ExitContext returns context that will be closed when
+// a hard TeleportExitEvent is broadcasted.
+func (s *LocalSupervisor) ExitContext() context.Context {
+	return s.exitContext
+}
+
+// GracefulExitContext returns context that will be closed when
+// a hard or graceful TeleportExitEvent is broadcasted.
+func (s *LocalSupervisor) GracefulExitContext() context.Context {
+	return s.gracefulExitContext
+}
+
+// HandleReadiness implements [Supervisor].
+func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request) {
+	s.processState.handleReadiness(w, r)
+}
+
+// BroadcastEvent generates event and broadcasts it to all
+// subscribed parties.
 func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
+
+	// some events have additional handling here because they affect the
+	// behavior or status of the process as a whole: Exit begins the shutdown by
+	// causing contexts to be closed, and Degraded/OK/Starting update the
+	// process' health.
+	switch event.Name {
+	case TeleportExitEvent:
+		// if exit event includes a context payload, it is a "graceful" exit, and
+		// we need to hold off closing the supervisor's exit context until after
+		// the graceful context has closed.  If not, it is an immediate exit.
+		if ctx, ok := event.Payload.(context.Context); ok {
+			s.signalGracefulExit()
+			go func() {
+				select {
+				case <-s.exitContext.Done():
+				case <-ctx.Done():
+					s.signalExit()
+				}
+			}()
+		} else {
+			s.signalExit()
+		}
+	case TeleportDegradedEvent, TeleportOKEvent, TeleportStartingEvent:
+		componentName, ok := event.Payload.(string)
+		if !ok {
+			s.log.ErrorContext(s.closeContext, "Received event broadcast without component name, this is a bug!", "event", event.Name)
+			break
+		}
+		updateResult := s.processState.update(s.clock.Now(), event.Name, componentName)
+		switch updateResult {
+		case updateStarting:
+			s.log.DebugContext(s.closeContext, "Teleport component is starting", "component", componentName)
+		case updateStarted:
+			s.log.DebugContext(s.closeContext, "Teleport component has started.", "component", componentName)
+		case updateDegraded:
+			s.log.InfoContext(s.closeContext, "Detected Teleport component is running in a degraded state.", "component", componentName)
+		case updateRecovering:
+			s.log.InfoContext(s.closeContext, "Teleport component is recovering from a degraded state.", "component", componentName)
+		case updateRecovered:
+			s.log.InfoContext(s.closeContext, "Teleport component has recovered from a degraded state.", "component", componentName)
+		}
+	}
+
 	s.events[event.Name] = event
-	log.Debugf("BroadcastEvent: %v", &event)
+
+	// Log all events other than recovered events to prevent the logs from
+	// being flooded.
+	if event.String() != TeleportOKEvent {
+		s.log.DebugContext(s.closeContext, "Broadcasting event", "event", logutils.StringerAttr(&event))
+	}
 
 	go func() {
-		s.eventsC <- event
+		select {
+		case s.eventsC <- event:
+		case <-s.closeContext.Done():
+			return
+		}
 	}()
+
+	for _, m := range s.eventMappings {
+		if matches, err := m.matches(event.Name, s.events); matches && err == nil {
+			mappedEvent := Event{Name: m.Out}
+			s.events[mappedEvent.Name] = mappedEvent
+			go func(e Event) {
+				select {
+				case s.eventsC <- e:
+				case <-s.closeContext.Done():
+					return
+				}
+			}(mappedEvent)
+			s.log.DebugContext(s.closeContext, "Broadcasting mapped event",
+				"in", logutils.StringerAttr(&event),
+				"out", logutils.StringerAttr(m),
+			)
+		} else if err != nil {
+			s.log.DebugContext(s.closeContext, "Teleport not yet ready", "error", err)
+		}
+	}
 }
 
-func (s *LocalSupervisor) WaitForEvent(name string, eventC chan Event, cancelC chan struct{}) {
+// RegisterProcessStateCallback registers a function which is called immediately
+// upon registering and then each time the health of the process state changes.
+// The function must not call back into the supervisor or block in any way.
+func (s *LocalSupervisor) RegisterProcessStateCallback(fn func(healthy bool)) {
+	s.processState.registerCallback(fn)
+}
+
+// RegisterEventMapping registers event mapping -
+// when the sequence in the event mapping triggers, the
+// outbound event will be generated.
+func (s *LocalSupervisor) RegisterEventMapping(m EventMapping) {
 	s.Lock()
 	defer s.Unlock()
 
-	waiter := &waiter{eventC: eventC, cancelC: cancelC}
+	s.eventMappings = append(s.eventMappings, m)
+}
+
+func (s *LocalSupervisor) WaitForEvent(ctx context.Context, name string) (Event, error) {
+	s.Lock()
+
+	if event, ok := s.events[name]; ok {
+		s.Unlock()
+		return event, nil
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	eventC := make(chan Event)
+	waiter := &waiter{eventC: eventC, context: ctx}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+	s.Unlock()
+
+	select {
+	case event := <-eventC:
+		return event, nil
+	case <-ctx.Done():
+		return Event{}, trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *LocalSupervisor) WaitForEventTimeout(timeout time.Duration, name string) (Event, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	event, err := s.WaitForEvent(ctx, name)
+	if err != nil && ctx.Err() != nil {
+		return event, trace.Errorf("timeout waiting for event %q (%s)", name, timeout)
+	}
+	return event, trace.Wrap(err)
+}
+
+func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, eventC chan<- Event) {
+	s.Lock()
+	defer s.Unlock()
+
+	waiter := &waiter{eventC: eventC, context: ctx}
 	event, ok := s.events[name]
 	if ok {
-		go s.notifyWaiter(waiter, event)
-		return
+		go waiter.notify(event)
 	}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
 }
 
-func (s *LocalSupervisor) getWaiters(name string) []*waiter {
+func (s *LocalSupervisor) ListenForNewEvents(ctx context.Context, name string, eventC chan<- Event) {
 	s.Lock()
 	defer s.Unlock()
 
-	waiters := s.eventWaiters[name]
-	out := make([]*waiter, len(waiters))
-	for i := range waiters {
-		out[i] = waiters[i]
-	}
-	return out
-}
-
-func (s *LocalSupervisor) notifyWaiter(w *waiter, event Event) {
-	select {
-	case w.eventC <- event:
-	case <-w.cancelC:
-	}
+	waiter := &waiter{eventC: eventC, context: ctx}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
 }
 
 func (s *LocalSupervisor) fanOut() {
 	for {
 		select {
 		case event := <-s.eventsC:
-			waiters := s.getWaiters(event.Name)
-			for _, waiter := range waiters {
-				go s.notifyWaiter(waiter, event)
+			s.Lock()
+			waiters, ok := s.eventWaiters[event.Name]
+			if !ok {
+				s.Unlock()
+				continue
 			}
-		case <-s.closer.C:
+			aliveWaiters := waiters[:0]
+			for _, waiter := range waiters {
+				if waiter.context.Err() == nil {
+					aliveWaiters = append(aliveWaiters, waiter)
+					go waiter.notify(event)
+				}
+			}
+			if len(aliveWaiters) == 0 {
+				delete(s.eventWaiters, event.Name)
+			} else {
+				s.eventWaiters[event.Name] = aliveWaiters
+			}
+			s.Unlock()
+		case <-s.closeContext.Done():
 			return
 		}
 	}
 }
 
 type waiter struct {
-	eventC  chan Event
-	cancelC chan struct{}
+	eventC  chan<- Event
+	context context.Context
 }
 
+func (w *waiter) notify(event Event) {
+	select {
+	case w.eventC <- event:
+	case <-w.context.Done():
+	}
+}
+
+// Service is a running teleport service function
 type Service interface {
+	// Serve starts the function
 	Serve() error
+	// String returns user-friendly description of service
+	String() string
+	// Name returns service name
+	Name() string
+	// IsCritical returns true if the service is critical
+	// and program can't continue without it
+	IsCritical() bool
 }
 
-type ServiceFunc func() error
-
-func (s ServiceFunc) Serve() error {
-	return s()
+// LocalService is a locally defined service
+type LocalService struct {
+	// Function is a function to call
+	Function Func
+	// ServiceName is a service name
+	ServiceName string
+	// Critical is set to true
+	// when the service is critical and program can't continue
+	// without it
+	Critical bool
 }
+
+// IsCritical returns true if the service is critical
+// and program can't continue without it
+func (l *LocalService) IsCritical() bool {
+	return l.Critical
+}
+
+// Serve starts the function
+func (l *LocalService) Serve() error {
+	return l.Function()
+}
+
+// String returns user-friendly service name
+func (l *LocalService) String() string {
+	return l.ServiceName
+}
+
+// Name returns unique service name
+func (l *LocalService) Name() string {
+	return l.ServiceName
+}
+
+// Func is a service function
+type Func func() error
 
 const (
 	stateCreated = iota
-	stateStarted = iota
+	stateStarted
 )

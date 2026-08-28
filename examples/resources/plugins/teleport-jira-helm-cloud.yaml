@@ -1,0 +1,27 @@
+teleport:
+  # Teleport Proxy Service domain name and HTTPS port. If you are using Teleport
+  # Enterprise Cloud, this should be in the form "your-account.teleport.sh:443"
+  address: ""
+  # Secret containing a Teleport identity document, e.g., teleport-plugin-jira-identity
+  identityFromSecret: ""
+  # Path within the secret containing the identity file.
+  identitySecretPath: ""
+
+jira:
+  url: ""       # URL of the Jira instance
+  username: ""  # Email of the bot user
+  apiToken: ""  # Token of the bot user
+  project: ""   # Project where issues will be created
+
+http:
+  publicAddress: "" 
+  # Secret containing the TLS certificate, e.g., teleport-plugin-jira-tls
+  tlsFromSecret: ""
+  # tlsKeySecretPath:  tls.key                # Name of the key inside the secret
+  # tlsCertSecretPath: tls.crt                # Name of the certificate inside the secret
+
+log:
+  output: stderr  # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
+  severity: INFO  # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+
+serviceType: ClusterIP

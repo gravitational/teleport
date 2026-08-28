@@ -1,0 +1,483 @@
+---
+title: Teleport Networking Reference
+description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+sidebar_label: Networking
+tags:
+ - conceptual
+ - platform-wide
+---
+
+A Teleport cluster is a distributed system that may comprise a number of
+networks. On Teleport Enterprise (Cloud), for example, the Auth Service and
+Proxy Service run in Teleport-managed infrastructure, while Teleport users
+manage Agents and `tbot` instances.
+
+This reference guide describes the networking requirements of a Teleport
+cluster.
+
+## Architecture overview
+
+A Teleport cluster is a distributed system consisting of components that can run
+in both public and private networks. Teleport also supports fully air-gapped
+environments.
+
+The **Teleport Auth Service**, which manages backend data and issues
+certificates, typically runs in a private network. The **Teleport Proxy
+Service** should be the only component of your Teleport cluster that is
+addressable from the public internet, and can run in a private network as long
+as end-users can dial it.
+
+We expect all other components, including Teleport Agents and Machine & Workload
+ID Bots, to run in private networks. Components in private networks connect to
+the Teleport Proxy Service and establish reverse tunnels that the Proxy Service
+uses to communicate with them.
+
+For a comprehensive explanation of how a Teleport cluster works, see [Teleport
+Architecture](../architecture/architecture.mdx). For a glossary of terms, see
+[Core Concepts](../../core-concepts.mdx).
+
+```mermaid
+architecture-beta
+
+%%%%%%%%%%%
+%% Groups %
+%%%%%%%%%%%
+
+group public_net(carbon-network-public)[Public Internet]
+group dmz_net(carbon-network-public)[DMZ or Public Subnet]
+group private_net2(carbon-virtual-private-cloud)[Private Network]
+
+%% private_net contains Teleport Agents and protected resources.
+group private_net(carbon-virtual-private-cloud)[Private Network]
+group k8s_net(logos-kubernetes)[Kubernetes Cluster] in private_net
+group k8s_net2(logos-kubernetes)[Kubernetes Cluster] in private_net
+
+
+%%%%%%%%%%%%%
+%% Services %
+%%%%%%%%%%%%%
+
+service user(carbon-user)[User] in public_net
+
+%% Teleport control plane
+service proxy(teleport-logo-purple)[Proxy Service] in dmz_net
+service auth(teleport-logo-purple)[Auth Service] in private_net2
+
+%% Agents and a protected server in the private network
+service agent(teleport-logo-purple)[Teleport Agents] in private_net
+service ssh_node(teleport-logo-purple)[Protected Server] in private_net
+
+%% Resources that Teleport Agents protect
+service db(carbon-db2-database)[Databases] in private_net
+service windows(carbon-virtual-desktop)[Desktops] in private_net
+service webapp(carbon-code)[Web Apps] in private_net
+
+%% Protected Kubernetes clusters representing two enrollment methods:
+%% running in the same cluster as the protected API server and using a
+%% kubeconfig to protect a remote cluster.
+%%   k8s_agent runs as a Pod inside the cluster it manages
+%%   k8s_agent_external runs outside its target cluster and connects via kubeconfig
+service k8s_agent(teleport-logo-purple)[Teleport Agent Pod] in k8s_net
+service k8s_pods(logos-kubernetes)[Kubernetes API Server] in k8s_net
+service k8s_agent_external(teleport-logo-purple)[External Teleport Agent with Kubeconfig] in private_net
+service k8s_pods2(logos-kubernetes)[Kubernetes API Server] in k8s_net2
+
+%%%%%%%%%%%%%%
+%% Junctions %
+%%%%%%%%%%%%%%
+
+%% p_conn: collects the external Kubernetes agent's reverse-tunnel wire
+%% connection routing it into the Proxy Service from below.
+junction p_conn in private_net
+
+%% j_mid / j_top / j_bot form a vertical spine for connections from the Teleport
+%% Agents service: 
+%%   j_mid is the center junction, and connects to Desktops and branches to j_top/j_bot
+%%   j_top sits above j_mid and connects to Databases
+%%   j_bot sits below j_mid and connects to Web Apps
+junction j_mid in private_net
+junction j_top in private_net
+junction j_bot in private_net
+
+%% j_proxy_auth_bend: L-bend that routes the User connection above the
+%% Proxy Service so that the Public Internet group appears at the top of
+%% the diagram.
+junction j_proxy_auth_bend
+
+%% j_ssh_proxy / j_ssh_proxy_buf: connects Protected Server reverse-tunnel to
+%% the Proxy Service. j_ssh_proxy also serves as part of the connection between
+%% Teleport Agents and Proxy Service.
+junction j_ssh_proxy
+junction j_ssh_proxy_buf
+
+%% j_agents_buf1 / j_agents_buf2: extend the Teleport Agents reverse tunnel %%
+%% vertically until it meets j_ssh_proxy at the private_net boundary.
+junction j_agents_buf1
+junction j_agents_buf2
+
+%%%%%%%%%%%%%%%%
+%% Connections %
+%%%%%%%%%%%%%%%%
+
+%% Proxy Service to Auth Service
+proxy:L --> R:auth
+j_proxy_auth_bend:L -- R:user
+j_proxy_auth_bend:B --> T:proxy
+
+%% Kubernetes Agent Pod to Proxy Service and Kubernetes API server
+k8s_agent:L --> R:proxy
+k8s_agent:R --> L:k8s_pods
+
+%% External Kubernetes agent to Proxy Service and the remote Kubernetes
+%% cluster's API server
+k8s_agent_external:L -- R:p_conn
+k8s_agent_external:R --> L:k8s_pods2
+p_conn:L --> B:proxy
+
+%% Protected Server and Teleport Agents to the Proxy Service via reverse
+%% tunnel
+ssh_node:L -- R:j_ssh_proxy
+j_ssh_proxy:T -- B:j_ssh_proxy_buf
+j_ssh_proxy_buf:T --> B:proxy
+
+%% Vertical spine connecting the Proxy Service to Teleport Agents in the private
+%% network
+j_ssh_proxy:B -- T:j_agents_buf1
+j_agents_buf1:B -- T:j_agents_buf2
+j_agents_buf2:R -- L:agent
+agent:R -- L:j_mid
+j_mid:B -- T:j_top
+j_mid:T -- B:j_bot
+
+%% Agents to protected databases, desktops, and web apps
+j_top:R --> L:db
+j_mid:R --> L:windows
+j_bot:R --> L:webapp
+```
+
+## Public addresses
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+All Teleport services (e.g., the Proxy Service, Auth Service, and agents) have an
+optional `public_addr` property that you can modify in each service's
+configuration file. The public address can take an IP or a DNS name. It can also
+be a list of values:
+
+```yaml
+public_addr: ["service1.example.com", "service2.example.com"]
+```
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  Only a single Proxy Service `public_addr` should be configured. Attempting
+  to have multiple addresses can result in redirects to the first listed address
+  that may not be available to the client.
+</Admonition>
+
+Specifying a public address for a Teleport service may be useful in the
+following use cases:
+
+- You have multiple identical services, e.g., Proxy Service instances, behind a
+  load balancer.
+- You want Teleport to issue an SSH certificate for the service with additional
+  principals, e.g., host names.
+</TabItem>
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+On Teleport Enterprise (Cloud) the Teleport Agent services always
+connect using reverse tunnels so there is no need to set a public address for an Agent.
+
+</TabItem>
+</Tabs>
+
+## HTTP CONNECT proxies
+
+Some networks funnel all connections through a proxy server where they can be
+audited and access control rules can be applied. For these scenarios, Teleport
+supports HTTP CONNECT tunneling. HTTP CONNECT applies to:
+
+- `tsh` in all cases.
+- Teleport services, such as the SSH Service and Database Service, that dial back to the Teleport Proxy Service.
+
+To use HTTP CONNECT tunneling, set the `HTTPS_PROXY` and `HTTP_PROXY`
+environment variables when running Teleport. You can also optionally set the
+`NO_PROXY` environment variable to avoid use of the proxy when accessing
+specified hosts/netmasks/ports.
+
+By default, Teleport installations based on package managers (such as `apt` and
+`yum`) configure the `teleport` systemd unit to read environment variables from
+the file `/etc/default/teleport` by using the `EnvironmentFile` field:
+
+```ini
+(!/examples/systemd/teleport.service!)
+```
+
+To configure HTTP CONNECT tunneling, you can assign these environment variables
+within `/etc/default/teleport` on machines that run Teleport binaries. Use the
+following example, replacing `proxy.example.com` with the address of your proxy:
+
+```
+HTTP_PROXY=http://proxy.example.com:8080/
+HTTPS_PROXY=http://proxy.example.com:8080/
+NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
+```
+
+When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+If you don't want to proxy some of this traffic (for example, proxying HTTPS but not SSH), assign `NO_PROXY` to the address of the Teleport Proxy Service endpoint you want to exclude from HTTP_CONNECT tunneling in `host:port` format.
+
+For example, you can modify the environment file at `/etc/default/teleport` on
+each machine that runs a Teleport binary to resemble the following:
+
+```
+HTTP_PROXY=http://httpproxy.example.com:8080/
+HTTPS_PROXY=http://httpproxy.example.com:8080/
+NO_PROXY=teleportproxy.example.com:3024
+```
+
+The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
+`scheme://[user[:password]@]host:port` where scheme is either `https` or `http` . If the value is
+`host:port` , Teleport will prepend `http` .
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  `localhost` and `127.0.0.1` are invalid values for the proxy host. If for some reason your proxy runs locally, you'll need to provide some other DNS name or a private IP address for it.
+</Admonition>
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  The Proxy Service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local Kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
+</Admonition>
+
+## Ports
+
+This section describes the ports you should open on your Teleport instances.
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+### Proxy Service ports
+
+<Admonition
+  type="tip"
+  title="Note"
+>
+
+  To get a listing of the assigned ports for an instance of the Teleport Proxy
+  Service, use the following command:
+
+  ```code
+  $ curl https://teleport.example.com:443/webapi/ping | jq
+  ```
+
+  Note that if `auth_service.proxy_listener_mode` is set to `multiplex` in your
+  Teleport configuration, that means only a single port is used for
+  multiple services through the Proxy.
+
+</Admonition>
+
+#### Ports with TLS routing
+
+TLS routing is enabled by default. In this mode, all connections to a Teleport
+service (e.g., the Teleport SSH Service or Kubernetes) are routed through the
+Proxy Service's public web address.
+
+Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
+
+| Port | Downstream Service | Description |
+| - | - | - |
+| 443 | Proxy Service | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
+| 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+
+#### Ports without TLS routing
+
+In some cases, administrators may want to use separate ports for different services.
+In those cases, they can set up separate listeners in the config file.
+
+| Port | Downstream Service | Description |
+| - | - | - |
+| 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service or use a reverse tunnel connection. |
+| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. All Teleport services (e.g., the SSH Service and Database Service) connecting through the Proxy Service will use this port to form their reverse tunnel connections.|
+| 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3036 | Database Service | Traffic to MySQL databases.|
+| 5432 | Database Service | Traffic to Postgres databases.|
+| 27017 | Database Service | Traffic to MongoDB instances.|
+| 6379 | Database Service | Traffic to Redis instances.|
+
+### Auth Service ports
+
+| Port | Downstream Service | Description |
+| - | - | - |
+| 3025 | All Teleport services | TLS port used by the Auth Service to serve its gRPC API to other Teleport services in a cluster.|
+
+</TabItem>
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+### Proxy Service ports
+
+Cloud-hosted Teleport deployments allocate a different set of ports to each
+tenant's Proxy Service. To see which ports are available for your Teleport
+tenant, run a command similar to the following, replacing `example.teleport.sh`
+with your tenant domain:
+
+```code
+$ curl https://example.teleport.sh/webapi/ping | jq '.proxy'
+```
+
+The output should resemble the following, including the unique ports assigned to
+your tenant:
+
+```json
+{
+  "kube": {
+    "enabled": true,
+    "listen_addr": "0.0.0.0:3080"
+  },
+  "ssh": {
+    "listen_addr": "0.0.0.0:3080",
+    "tunnel_listen_addr": "0.0.0.0:3080",
+    "web_listen_addr": "0.0.0.0:3080",
+    "public_addr": "example.teleport.sh:443",
+    "dial_timeout": 30000000000
+  },
+  "db": {
+    "postgres_listen_addr": "0.0.0.0:3080",
+    "mysql_listen_addr": "0.0.0.0:3080"
+  },
+  "tls_routing_enabled": true
+}
+```
+
+This output also indicates whether TLS routing is enabled for your tenant. When
+TLS routing is enabled, connections to a Teleport service (e.g., the Teleport
+SSH Service) are routed through the Proxy Service's public web address, rather
+than through a port allocated to that service.
+
+In this case, you can see that TLS routing is enabled, and that the Proxy
+Service's public web address (`ssh.public_addr`) is `mytenant.teleport.sh:443`.
+
+Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
+
+</TabItem>
+</Tabs>
+
+### Agent ports
+
+Teleport Agents dial the Teleport Proxy Service to establish a reverse tunnel.
+Client traffic flows via the Proxy Service to the agent, and the agent forwards
+traffic to resources in your infrastructure.
+
+As a result, for Teleport processes running agents, e.g., instances of the SSH
+Service, Kubernetes Service, and other services that protect resources in your
+infrastructure, there is no need to open ports on the machines running the
+agents to the public internet. 
+
+### Direct connections to agents
+
+If you run a self-hosted Teleport cluster, you can join an agent [directly to
+the Teleport Auth Service](../../installation/agents/join-token.mdx).
+In this setup, certain Teleport services open their own listeners rather than
+accepting connections via reverse tunnel. The Proxy Service connects to these
+agent services by dialing them directly.
+
+The table below describes the ports that each Teleport service opens for proxied
+traffic:
+
+| Port | Service | Traffic Type |
+| - | - | - |
+| 3022 | SSH Service | Incoming SSH connections.|
+| 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
+| 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
+
+You can only access enrolled applications and desktops through the Teleport
+Proxy Service. The Teleport Application Service and Teleport Database Service
+use reverse tunnel connections through the Teleport Proxy Service and cannot
+expose ports directly.
+
+<Admonition type="important">
+Direct Auth Service joining is only supported for Teleport Agents running the Teleport SSH Service, Kubernetes Service, and Windows Desktop Service. Using Auth Service joining to enroll applications, databases, and for other discovery-based features, is not supported.
+</Admonition>
+
+## Troubleshooting
+
+Logs emitted by a Teleport process can include the following messages if you
+have set up your Teleport cluster network incorrectly.
+
+### Connection reset by peer
+
+If you see the message, `connection reset by peer`, it means that the remote
+server (usually the Teleport control plane) closed the client's connection.
+
+There is a variety of reasons why an upstream server may reset the connection,
+and they may or may not have to do with the components of a Teleport cluster.
+For example, a `tsh` client can emit a `connection reset by peer` message if it
+is behind the Teleport Proxy Service, which closes a connection if it receives
+traffic from an outdated `tsh` client. It could also be that a Teleport Agent
+proxying a connection exited without closing the connection. A device between
+the Teleport component and the other side of the connection, such as a load
+balancer, may also be closing the connection.
+
+To investigate:
+
+1. If the connection involves two Teleport components, make sure their versions
+   abide by the Teleport [version compatibility
+   guarantees](../../upgrading/overview.mdx).
+1. Examine the logs of the remote Teleport process and check whether the process
+   was healthy at the time you saw the error.
+
+### First record does not look like a TLS handshake
+
+You may see an error similar to the following, indicating an issue with a TLS
+handshake:
+
+```
+transport: authentication handshake failed: tls: first record does not look like a TLS handshake
+```
+
+The library that Teleport uses for TLS prints this error if the server and
+client have not negotiated a TLS version and the TLS record in question is not a
+handshake. In other words, the Teleport process that printed the log was
+expecting a TLS handshake from the other side of the connection and did not
+receive one. This can happen if the other side was replying to the Teleport
+process in a different protocol.
+
+In this case, check the address of the upstream host and make sure it is one
+that is configured to use TLS, rather than (for example) HTTP or unencrypted
+TCP.
+
+### Authentication handshake failed
+
+Your `teleport` or `tbot` logs may report a certificate with a subject that does
+not match the expected domain name, a subdomain of `teleport.cluster.local`.
+The following example assumes your cluster's address is `example.teleport.sh`:
+
+```
+transport: authentication handshake failed: tls: failed to verify certificate: x509: certificate is valid for *.example.teleport.sh, example.teleport.sh, not 6578616d706c652e74656c65706f72742e7368.teleport.cluster.local
+```
+
+As explained in
+[Troubleshooting](../../zero-trust-access/management/diagnostics/troubleshooting.mdx#teleportclusterlocal),
+Teleport issues certificates with `teleport.cluster.local` as a Subject
+Alternative Name (SAN) for the Teleport Auth Service. In this case, the
+certificate your Teleport component received does not include the intended SAN.
+
+One reason this situation could take place is that the cluster is configured to
+use [TLS
+multiplexing](../../zero-trust-access/management/tls-routing.mdx), but you
+are running the Teleport Proxy Service behind a Layer 7 load balancer that only
+returns the load balancer's main certificate instead of allowing the Teleport
+internal certificate. Your infrastructure may be interfering with TLS
+connections by altering the certificate that your Teleport instance presents.
+
+Investigate whether the certificate your client receives is signed by, for
+example, a corporate TLS proxy, or has otherwise been transformed between the
+time the Teleport Auth Service issued it and it reached your client during the
+attempted TLS handshake.

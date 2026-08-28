@@ -1,0 +1,121 @@
+---
+title: Desktop Access
+description: Protect Windows and Linux desktop resources with Teleport's passwordless access and other features.
+sidebar_position: 7
+template: doc-page
+page_type: landing
+tags:
+ - zero-trust
+ - infrastructure-identity
+---
+
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import slidersHorizontalSvg from "@site/src/components/Icon/svg/sliders-horizontal.svg";
+import keyholeSvg from "@site/src/components/Icon/svg/keyhole.svg";
+import activeDirectorySvg from "@site/src/components/Icon/svg/active-directory.svg";
+import windowsSvg from "@site/src/components/Icon/svg/windows2.svg";
+import linuxSvg from "@site/src/components/Icon/svg/linux.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import folderNotchOpenSvg from "@site/src/components/Icon/svg/folder-notch-open.svg";
+
+<DocHero
+  title="Configure access for Windows and Linux desktops"
+  youtubeVideoId={
+    // cspell:disable-next-line
+    "n2h0GisWdss"
+  }
+  ctaLinks={[
+    {
+      title: "Get started with Windows access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+    {
+      title: "Get started with Linux access",
+      href: "./linux-desktop/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  linksDesktopColumnCount={3}
+  links={[
+    {
+      title: "Desktop RBAC",
+      description: "Set up granular access policies for desktops connected to Teleport.",
+      href: "./rbac/",
+      icon: userCheckSvg,
+    }, 
+    {
+      title: "Desktop config options",
+      description: "Configure access, audit events, sessions recordings, user creation and more.",
+      href: "../../reference/agent-services/desktop-access-reference/",
+      icon: slidersHorizontalSvg,
+    },
+    {
+      title: "Troubleshooting",
+      description: "Common desktop access issues with Teleport and their solutions.",
+      href: "./troubleshooting/",
+      icon: questionSvg,
+    },
+  ]}
+>
+Provide secure, passwordless access to Windows and Linux desktops, backed by short-lived certificates, role-based access controls, clipboard and directory sharing, session recordings, and detailed audit logs.
+</DocHero>
+{/*vale messaging.protocol-products = NO*/}
+<Resources
+  title="Access guides"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Intro to desktop access",
+      description: "Windows and Linux desktop access with clipboard and file sharing, session recording, and audit logs.",
+      iconComponent: keyholeSvg,
+      href: "./introduction/"
+    },
+    {
+      title: "Active Directory",
+      description: "Connect an Active Directory domain and log into a Windows Desktop from the connected domain.",
+      iconComponent: activeDirectorySvg,
+      href: "./active-directory/"
+    },
+    {
+      title: "Local Windows users",
+      description: "Provide secure, passwordless access to Microsoft Windows desktops for local Windows users.",
+      iconComponent: windowsSvg,
+      href: "./getting-started/"
+    },
+    {
+      title: "Linux desktops",
+      description: "Provide secure, audited access to Linux desktops running X11 desktop environments.",
+      iconComponent: linuxSvg,
+      href: "./linux-desktop/"
+    },
+  ]}
+/>
+{/*vale messaging.protocol-products = YES*/}
+<Resources
+  title="Common tasks and config settings"
+  variant="doc"
+  desktopColumnsCount={2}
+  resources={[
+    {
+      title: "Dynamic Windows desktop registration",
+      description: "Add, update or remove desktops without changing the static configuration files used for Teleport Windows Desktop Service instances.",
+      iconComponent: windowsDesktopsSvg,
+      href: "./dynamic-registration/"
+    },
+    {
+      title: "Directory sharing",
+      description: "Securely move files between your local machine and a remote desktop, and apply file changes without extra steps and without compromising security.",
+      iconComponent: folderNotchOpenSvg,
+      href: "./directory-sharing/"
+    },
+  ]}
+/>

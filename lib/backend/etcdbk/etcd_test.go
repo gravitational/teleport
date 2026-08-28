@@ -1,102 +1,289 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package etcdbk
 
 import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"maps"
 	"os"
 	"testing"
+	"time"
 
-	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/etcd/client"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/context"
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestEtcd(t *testing.T) { TestingT(t) }
+const (
+	examplePrefix = "/teleport.secrets/"
+	customPrefix  = "/custom/"
+)
 
-type EtcdSuite struct {
-	bk           *bk
-	suite        test.BackendSuite
-	configString string
-	api          client.KeysAPI
-	changesC     chan interface{}
-	key          string
-	stopC        chan bool
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
 }
 
-var _ = Suite(&EtcdSuite{})
-
-func (s *EtcdSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-	configString := os.Getenv("TELEPORT_TEST_ETCD_CONFIG")
-	if configString == "" {
-		// Skips the entire suite
-		c.Skip("This test requires etcd, provide comma separated nodes in TELEPORT_TEST_ETCD_CONFIG environment variable")
-		return
-	}
-	s.configString = configString
+// commonEtcdParams holds the common etcd configuration for all tests.
+var commonEtcdParams = backend.Params{
+	"peers":         []string{etcdTestEndpoint()},
+	"prefix":        examplePrefix,
+	"tls_key_file":  "../../../fixtures/etcdcerts/client-key.pem",
+	"tls_cert_file": "../../../fixtures/etcdcerts/client-cert.pem",
+	"tls_ca_file":   "../../../fixtures/etcdcerts/ca-cert.pem",
 }
 
-func (s *EtcdSuite) SetUpTest(c *C) {
-	// Initiate a backend with a registry
-	b, err := FromJSON(s.configString)
-	c.Assert(err, IsNil)
-	s.bk = b.(*bk)
-	s.api = client.NewKeysAPI(s.bk.client)
+var commonEtcdOptions = []Option{
+	LeaseBucket(time.Second), // tests are more picky about expiry granularity
+}
 
-	s.changesC = make(chan interface{})
-	s.stopC = make(chan bool)
-
-	// Delete all values under the given prefix
-	_, err = s.api.Delete(context.Background(), s.bk.cfg.Key, &client.DeleteOptions{Recursive: true, Dir: true})
-	err = convertErr(err)
-	if err != nil && !trace.IsNotFound(err) {
-		c.Assert(err, IsNil)
+func TestEtcd(t *testing.T) {
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	// Set up suite
-	s.suite.ChangesC = s.changesC
-	s.suite.B = b
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+		opts, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if opts.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		// No need to check target backend - all Etcd backends create by this test
+		// point to the same datastore.
+
+		bk, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// we can't fiddle with clocks inside the etcd client, so instead of creating
+		// and returning a fake clock, we wrap the real clock used by the etcd client
+		// in a FakeClock interface that sleeps instead of instantly advancing.
+		sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
+
+		return bk, sleepingClock, nil
+	}
+
+	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func (s *EtcdSuite) TearDownTest(c *C) {
-	close(s.stopC)
-	c.Assert(s.bk.Close(), IsNil)
+func TestPrefix(t *testing.T) {
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+	}
+
+	ctx := context.Background()
+
+	// Given an etcd backend with a minimal configuration...
+	unprefixedUut, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+	require.NoError(t, err)
+	defer unprefixedUut.Close()
+
+	// ...and an etcd backend configured to use a custom prefix
+	cfg := make(backend.Params)
+	maps.Copy(cfg, commonEtcdParams)
+	cfg["prefix"] = customPrefix
+
+	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)
+	require.NoError(t, err)
+	defer prefixedUut.Close()
+
+	// When I push an item with a key starting with "/" into etcd via the
+	// _prefixed_ client...
+	item := backend.Item{
+		Key:   backend.NewKey("foo"),
+		Value: []byte("bar"),
+	}
+	_, err = prefixedUut.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Expect that I can retrieve it from the _un_prefixed client by
+	// manually prepending a prefix to the key and asking for it.
+	wantKey := prefixedUut.cfg.Key + item.Key.String()
+	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
+	got, err := prefixedUut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
+
+	// When I push an item with a key that does _not_ start with a separator
+	// char (i.e. "/") into etcd via the _prefixed_ client...
+	item = backend.Item{
+		Key:   backend.NewKey("foo"),
+		Value: []byte("bar"),
+	}
+	_, err = prefixedUut.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Expect, again, that I can retrieve it from the _un_prefixed client
+	// by manually prepending a prefix to the key and asking for it.
+	wantKey = prefixedUut.cfg.Key + item.Key.String()
+	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
+	got, err = prefixedUut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, got.Key)
+	require.Equal(t, item.Value, got.Value)
 }
 
-func (s *EtcdSuite) TestBasicCRUD(c *C) {
-	s.suite.BasicCRUD(c)
+func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val string) {
+	t.Logf("assert that key %q contains value %q", key, val)
+
+	resp, err := bk.clients.Next().Get(ctx, key)
+	require.NoError(t, err)
+	require.Len(t, resp.Kvs, 1)
+	require.Equal(t, key, string(resp.Kvs[0].Key))
+
+	// Note: EtcdBackend stores all values base64-encoded.
+	gotValue, err := base64.StdEncoding.DecodeString(string(resp.Kvs[0].Value))
+	require.NoError(t, err)
+	require.Equal(t, val, string(gotValue))
 }
 
-func (s *EtcdSuite) TestCompareAndSwap(c *C) {
-	s.suite.CompareAndSwap(c)
+// TestCompareAndSwapOversizedValue ensures that the backend reacts with a proper
+// error message if client sends a message exceeding the configured size maximum
+// See https://github.com/gravitational/teleport/issues/4786
+func TestCompareAndSwapOversizedValue(t *testing.T) {
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+	}
+	// setup
+	const maxClientMsgSize = 128
+	bk, err := New(context.Background(), backend.Params{
+		"peers":                          []string{etcdTestEndpoint()},
+		"prefix":                         "/teleport",
+		"tls_key_file":                   "../../../fixtures/etcdcerts/client-key.pem",
+		"tls_cert_file":                  "../../../fixtures/etcdcerts/client-cert.pem",
+		"tls_ca_file":                    "../../../fixtures/etcdcerts/ca-cert.pem",
+		"dial_timeout":                   500 * time.Millisecond,
+		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
+	}, commonEtcdOptions...)
+	require.NoError(t, err)
+	defer bk.Close()
+	prefix := test.MakePrefix()
+	// Explicitly exceed the message size
+	value := make([]byte, maxClientMsgSize+1)
+
+	// verify
+	_, err = bk.CompareAndSwap(context.Background(),
+		backend.Item{Key: prefix("one"), Value: []byte("1")},
+		backend.Item{Key: prefix("one"), Value: value},
+	)
+	require.True(t, trace.IsLimitExceeded(err))
+	require.Regexp(t, ".*ResourceExhausted.*", err)
 }
 
-func (s *EtcdSuite) TestExpiration(c *C) {
-	s.suite.Expiration(c)
+func TestLeaseBucketing(t *testing.T) {
+	const pfx = "lease-bucket-test"
+	const count = 40
+
+	if !etcdTestEnabled() {
+		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var opts []Option
+	opts = append(opts, commonEtcdOptions...)
+	opts = append(opts, LeaseBucket(time.Second*2))
+
+	bk, err := New(ctx, commonEtcdParams, opts...)
+	require.NoError(t, err)
+	defer bk.Close()
+
+	// Stagger expiry times so items land in different lease buckets.
+	baseExpiry := time.Now().Add(time.Minute)
+
+	buckets := make(map[int64]struct{})
+	for i := 0; i < count; i++ {
+		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
+		_, err := bk.Put(ctx, backend.Item{
+			Key:     key,
+			Value:   []byte(fmt.Sprintf("val-%d", i)),
+			Expires: baseExpiry.Add(time.Duration(i) * 200 * time.Millisecond),
+		})
+		require.NoError(t, err)
+
+		item, err := bk.Get(ctx, key)
+		require.NoError(t, err)
+
+		buckets[item.Expires.Unix()] = struct{}{}
+	}
+
+	start := backend.NewKey(pfx, "")
+
+	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
+	require.NoError(t, err)
+	require.Len(t, rslt.Items, count)
+
+	// ensure that we averaged more than 1 item per lease, but
+	// also spanned more than one bucket.
+	require.NotEmpty(t, buckets)
+	require.Less(t, len(buckets), count/2)
 }
 
-func (s *EtcdSuite) TestLock(c *C) {
-	s.suite.Locking(c)
+func etcdTestEnabled() bool {
+	return os.Getenv("TELEPORT_ETCD_TEST") != ""
 }
 
-func (s *EtcdSuite) TestValueAndTTL(c *C) {
-	s.suite.ValueAndTTl(c)
+// Returns etcd host used in tests
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
+}
+
+func TestKeyPrefix(t *testing.T) {
+	prefixes := []string{"teleport", "/teleport", "/teleport/"}
+
+	for _, prefix := range prefixes {
+		t.Run("prefix="+prefix, func(t *testing.T) {
+			bk := EtcdBackend{cfg: &Config{Key: prefix}}
+
+			t.Run("leading separator in key", func(t *testing.T) {
+				prefixed := bk.prependPrefix(backend.NewKey("test", "llama"))
+				assert.Equal(t, prefix+"/test/llama", prefixed)
+
+				key := bk.trimPrefix([]byte(prefixed))
+				assert.Equal(t, "/test/llama", key.String())
+			})
+
+			t.Run("no leading separator in key", func(t *testing.T) {
+				prefixed := bk.prependPrefix(backend.KeyFromString(".locks/test/llama"))
+				assert.Equal(t, prefix+".locks/test/llama", prefixed)
+
+				key := bk.trimPrefix([]byte(prefixed))
+				assert.Equal(t, ".locks/test/llama", key.String())
+			})
+		})
+	}
 }

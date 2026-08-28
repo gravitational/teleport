@@ -1,0 +1,289 @@
+suite: ConfigMap
+templates:
+  - proxy/config.yaml
+tests:
+  - it: matches snapshot for log-basic.yaml
+    values:
+      - ../.lint/log-basic.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for log-extra.yaml
+    values:
+      - ../.lint/log-extra.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for public-addresses.yaml
+    values:
+      - ../.lint/public-addresses.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: wears annotations (annotations.yaml)
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config-different
+          value: 2
+
+  - it: matches snapshot for proxy-listener-mode-multiplex.yaml
+    values:
+      - ../.lint/proxy-listener-mode-multiplex.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for proxy-listener-mode-separate.yaml
+    values:
+      - ../.lint/proxy-listener-mode-separate.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-mongo-listener.yaml
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-postgres-listener.yaml
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha-acme.yaml
+    values:
+      - ../.lint/aws-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for existing-tls-secret.yaml
+    values:
+      - ../.lint/existing-tls-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-on.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-uri-staging.yaml
+    values:
+      - ../.lint/acme-uri-staging.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config with a clusterName containing a regular string
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: fails when clusterName contains a regular string and a colon
+    set:
+      clusterName: "helm-test:cluster-1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: fails when clusterName contains a port
+    set:
+      clusterName: "helm-test.example.com:443"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: generates a config with proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled=true
+    chart:
+      version: 14.0.0
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true
+    chart:
+      version: "14.0.0-rc.1"
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set
+    chart:
+      version: 14.0.0
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true
+    chart:
+      version: 13.1.5
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set
+    chart:
+      version: 14.0.0
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+  - it: sets "proxy_protocol" to "on"
+    set:
+      proxyProtocol: "on"
+      clusterName: teleport.example.com
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'proxy_protocol: "on"'
+  - it: sets "proxy_protocol" to "off"
+    set:
+      proxyProtocol: "off"
+      clusterName: teleport.example.com
+    asserts:
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'proxy_protocol: "off"'
+  - it: does not set "proxy_protocol"
+    set:
+      clusterName: teleport.example.com
+    asserts:
+      - notMatchRegex:
+          path: data.teleport\.yaml
+          pattern: 'proxy_protocol:'
+
+  - it: sets extraLabels on Configmap
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          config:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: sets clusterDomain on Configmap
+    set:
+      clusterName: teleport.example.com
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'svc.test.com:3025'

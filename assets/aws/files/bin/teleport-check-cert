@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# This script is called hourly to check if the certificate
+# has been renewed on S3 and if it has been renewed, restart teleport proxies
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
+
+# Source variables from user-data
+. /etc/teleport.d/conf
+
+if [ ! -f /etc/teleport.d/role.proxy ] && [ ! -f /etc/teleport.d/role.all ]; then
+    echo "Not running 'proxy' or 'all' role, exiting with success"
+    exit 0
+fi
+
+TMPDIR=$(mktemp -d)
+# shellcheck disable=SC2064
+trap "{ rm -rf $TMPDIR; }" EXIT
+
+aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} $TMPDIR
+
+# Check if the file has been updated in S3 compared to the copy in use
+if cmp --silent /var/lib/teleport/fullchain.pem $TMPDIR/fullchain.pem > /dev/null; then
+    echo "Certificates are equal, nothing to do"
+else
+    echo "Certificates are different, going to update and restart proxy"
+    SYNC_COMMAND="aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport"
+    # handle proxy role
+    if [ -f /etc/teleport.d/role.proxy ]; then
+        su teleport -c "${SYNC_COMMAND}"
+        systemctl reload teleport-proxy.service
+    else
+        ${SYNC_COMMAND}
+        systemctl reload teleport.service
+    fi
+fi

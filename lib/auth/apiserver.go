@@ -1,900 +1,688 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	log "github.com/Sirupsen/logrus"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 type APIConfig struct {
-	AuthServer        *AuthServer
-	SessionService    session.Service
-	PermissionChecker PermissionChecker
-	AuditLog          events.IAuditLog
+	PluginRegistry   plugin.Registry
+	AuthServer       *Server
+	AuditLog         events.AuditLogSessionStreamer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Emitter          apievents.Emitter
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies amount of missed keep alives
+	// to wait for until declaring connection as broken
+	KeepAliveCount int
+	// MetadataGetter retrieves additional metadata about session uploads.
+	// Will be nil if audit logging is not enabled.
+	MetadataGetter events.UploadMetadataGetter
+	// AccessGraph contains the configuration about the access graph service
+	AccessGraph AccessGraphConfig
+	// MutateRevocationsServiceConfig is a function that allows to mutate
+	// the revocation service configuration for testing.
+	MutateRevocationsServiceConfig func(config *workloadidentityv1.RevocationServiceConfig)
+	// OracleHTTPClient (optional) overrides the HTTP client used to make
+	// requests to the Oracle API for the Oracle join method.
+	OracleHTTPClient utils.HTTPDoClient
+	// DisableJoinV1 disables registration of the new join gRPC service.
+	// Intended for tests that need to exercise legacy join fallback paths.
+	DisableJoinV1 bool
+	// CreateAuditStreamInflightLimit, if set, is the maximum amount of allowed
+	// in-flight CreateAuditStream rpc calls. Calls beyond the limit will
+	// immediately return with an error. A non-positive limit means that no
+	// calls will be allowed.
+	CreateAuditStreamInflightLimit *int
+	// ResolveSSHTargetRateLimit, if set, is the (server-wide) rate limit for
+	// the ResolveSSHTarget rpc (i.e. the number of allowed calls per second),
+	// with an allowed burst rate equal to the rate per second (rounded up).
+	// Calls beyond the limit will block and wait for their turn.
+	ResolveSSHTargetRateLimit *float64
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (a *APIConfig) CheckAndSetDefaults() error {
+	if a.KeepAlivePeriod == 0 {
+		a.KeepAlivePeriod = defaults.ServerKeepAliveTTL()
+	}
+	if a.KeepAliveCount == 0 {
+		a.KeepAliveCount = defaults.KeepAliveCountMax
+	}
+	if a.Authorizer == nil {
+		return trace.BadParameter("authorizer is missing")
+	}
+	return nil
+}
+
+// AccessGraphConfig contains the configuration about the access graph service
+// and whether it is enabled or not.
+type AccessGraphConfig struct {
+	// Enabled is a flag that indicates whether the access graph service is enabled.
+	Enabled bool
+	// Address is the address of the access graph service. The address is in the
+	// form of "host:port".
+	Address string
+	// CA is the PEM-encoded CA certificate of the access graph service.
+	CA []byte
+	// Insecure is a flag that indicates whether the access graph service should
+	// skip verifying the server's certificate chain and host name.
+	Insecure bool
 }
 
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
+	APIConfig
 	httprouter.Router
-	a AuthWithRoles
+	clockwork.Clock
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig, role teleport.Role) APIServer {
+func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv := APIServer{
-		a: AuthWithRoles{
-			authServer:  config.AuthServer,
-			permChecker: config.PermissionChecker,
-			sessions:    config.SessionService,
-			alog:        config.AuditLog,
-			role:        role,
-		},
+		APIConfig: *config,
+		Clock:     clockwork.NewRealClock(),
 	}
 	srv.Router = *httprouter.New()
-
-	// Operations on certificate authorities
-	srv.GET("/v1/domain", httplib.MakeHandler(srv.getDomainName))
-	srv.POST("/v1/authorities/:type", httplib.MakeHandler(srv.upsertCertAuthority))
-	srv.DELETE("/v1/authorities/:type/:domain", httplib.MakeHandler(srv.deleteCertAuthority))
-	srv.GET("/v1/authorities/:type", httplib.MakeHandler(srv.getCertAuthorities))
-
-	// Generating certificates for user and host authorities
-	srv.POST("/v1/ca/host/certs", httplib.MakeHandler(srv.generateHostCert))
-	srv.POST("/v1/ca/user/certs", httplib.MakeHandler(srv.generateUserCert))
-
-	// Operations on users
-	srv.GET("/v1/users", httplib.MakeHandler(srv.getUsers))
-	srv.GET("/v1/users/:user", httplib.MakeHandler(srv.getUser))
-	srv.DELETE("/v1/users/:user", httplib.MakeHandler(srv.deleteUser))
-
-	// Generating keypairs
-	srv.POST("/v1/keypair", httplib.MakeHandler(srv.generateKeyPair))
+	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/v1/users", httplib.MakeHandler(srv.upsertUser))
-	srv.POST("/v1/users/:user/web/password", httplib.MakeHandler(srv.upsertPassword))
-	srv.POST("/v1/users/:user/web/password/check", httplib.MakeHandler(srv.checkPassword))
-	srv.POST("/v1/users/:user/web/signin", httplib.MakeHandler(srv.signIn))
-	srv.POST("/v1/users/:user/web/sessions", httplib.MakeHandler(srv.createWebSession))
-	srv.GET("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.getWebSession))
-	srv.DELETE("/v1/users/:user/web/sessions/:sid", httplib.MakeHandler(srv.deleteWebSession))
-	srv.GET("/v1/signuptokens/:token", httplib.MakeHandler(srv.getSignupTokenData))
-	srv.POST("/v1/signuptokens/users", httplib.MakeHandler(srv.createUserWithToken))
-	srv.POST("/v1/signuptokens", httplib.MakeHandler(srv.createSignupToken))
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
+	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
+	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
+	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
+	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.deleteWebSession))
 
 	// Servers and presence heartbeat
-	srv.POST("/v1/nodes", httplib.MakeHandler(srv.upsertNode))
-	srv.GET("/v1/nodes", httplib.MakeHandler(srv.getNodes))
-	srv.POST("/v1/authservers", httplib.MakeHandler(srv.upsertAuthServer))
-	srv.GET("/v1/authservers", httplib.MakeHandler(srv.getAuthServers))
-	srv.POST("/v1/proxies", httplib.MakeHandler(srv.upsertProxy))
-	srv.GET("/v1/proxies", httplib.MakeHandler(srv.getProxies))
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
+	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
+	// TODO(kiosion) DELETE IN 21.0.0
+	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
+	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
+	// TODO(kiosion) DELETE IN 21.0.0
+	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
+	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
+	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
+	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
+	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
+	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
+	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
+	srv.DELETE("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.deleteTunnelConnections))
+	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
-	// Reverse tunnels
-	srv.POST("/v1/reversetunnels", httplib.MakeHandler(srv.upsertReverseTunnel))
-	srv.GET("/v1/reversetunnels", httplib.MakeHandler(srv.getReverseTunnels))
-	srv.DELETE("/v1/reversetunnels/:domain", httplib.MakeHandler(srv.deleteReverseTunnel))
+	// trusted clusters
+	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
-	// Tokens
-	srv.POST("/v1/tokens", httplib.MakeHandler(srv.generateToken))
-	srv.POST("/v1/tokens/register", httplib.MakeHandler(srv.registerUsingToken))
-	srv.POST("/v1/tokens/register/auth", httplib.MakeHandler(srv.registerNewAuthServer))
+	// these endpoints are still in use by v17 agents since they cache
+	// KindNamespace
+	//
+	// TODO(espadolini): REMOVE IN v19
+	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
+	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
 
-	// Sesssions
-	srv.POST("/v1/sessions", httplib.MakeHandler(srv.createSession))
-	srv.PUT("/v1/sessions/:id", httplib.MakeHandler(srv.updateSession))
-	srv.GET("/v1/sessions", httplib.MakeHandler(srv.getSessions))
-	srv.GET("/v1/sessions/:id", httplib.MakeHandler(srv.getSession))
-	srv.POST("/v1/sessions/:id/stream", httplib.MakeHandler(srv.postSessionChunk))
-	srv.GET("/v1/sessions/:id/stream", srv.getSessionChunk)
-	srv.GET("/v1/sessions/:id/events", httplib.MakeHandler(srv.getSessionEvents))
+	// cluster configuration
+	// TODO(noah): DELETE IN v19.0.0 - from v18 we switched to a gRPC equiv.
+	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 
-	// OIDC stuff
-	srv.POST("/v1/oidc/connectors", httplib.MakeHandler(srv.upsertOIDCConnector))
-	srv.GET("/v1/oidc/connectors", httplib.MakeHandler(srv.getOIDCConnectors))
-	srv.GET("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.getOIDCConnector))
-	srv.DELETE("/v1/oidc/connectors/:id", httplib.MakeHandler(srv.deleteOIDCConnector))
-	srv.POST("/v1/oidc/requests/create", httplib.MakeHandler(srv.createOIDCAuthRequest))
-	srv.POST("/v1/oidc/requests/validate", httplib.MakeHandler(srv.validateOIDCAuthCallback))
+	// SSO validation handlers
+	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
-	// Provisioning tokens
-	srv.GET("/v1/tokens", httplib.MakeHandler(srv.getTokens))
-	srv.DELETE("/v1/tokens/:token", httplib.MakeHandler(srv.deleteToken))
+	// Migrated/deleted endpoints with 501 Not Implemented handlers.
+	srv.POST("/:version/reversetunnels", httpMigratedHandler)
+	srv.GET("/:version/reversetunnels", httpMigratedHandler)
+	srv.DELETE("/:version/reversetunnels/:domain", httpMigratedHandler)
 
-	// Audit logs AKA events
-	srv.POST("/v1/events", httplib.MakeHandler(srv.emitAuditEvent))
-	srv.GET("/v1/events", httplib.MakeHandler(srv.searchEvents))
+	// Return an explicit "too old" error rather than a 404, so that outdated clients
+	// using the deprecated legacy join endpoint get an actionable message.
+	srv.POST("/:version/tokens/register", httplib.MakeHandler(func(
+		w http.ResponseWriter, r *http.Request, p httprouter.Params,
+	) (any, error) {
+		return nil, trace.AccessDenied(
+			"this client is too old to join the cluster, please upgrade to at least v%d.0.0",
+			teleport.MinClientSemVer().Major,
+		)
+	}))
 
-	return srv
+	if config.PluginRegistry != nil {
+		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return httplib.RewritePaths(&srv.Router,
+		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
+		httplib.Rewrite("/v1/sessions", "/v1/namespaces/default/sessions"),
+		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
+	), nil
 }
 
-type upsertServerReq struct {
-	Server services.Server `json:"server"`
+// httpMigratedHandler returns a 501 Not Implemented error. This is used when
+// removing a HTTP handler that has been migrated to gRPC, where, a 404 NotFound
+// could be misinterpreted as the resource not existing, rather than the RPC
+// no longer existing.
+var httpMigratedHandler = httplib.MakeHandler(func(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params,
+) (any, error) {
+	return nil, trace.NotImplemented("HTTP RPC migrated to gRPC, check client version")
+})
+
+// HandlerWithAuthFunc is http handler with passed auth context
+type HandlerWithAuthFunc func(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
+
+func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		// HTTPS server expects auth context to be set by the auth middleware
+		authContext, err := s.Authorizer.Authorize(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		auth := &ServerWithRoles{
+			serverBase: serverBase{authServer: s.AuthServer, alog: s.AuthServer},
+			context:    *authContext,
+		}
+		version := p.ByName("version")
+		if version == "" {
+			return nil, trace.BadParameter("missing version")
+		}
+		return handler(auth, w, r, p, version)
+	})
+}
+
+// ScopedHandlerWithAuthFunc is an HTTP handler with a scoped auth context.
+type ScopedHandlerWithAuthFunc func(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error)
+
+func (s *APIServer) WithScopedAuth(handler ScopedHandlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// HTTPS server expects auth context to be set by the auth middleware
+		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		auth := &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: s.AuthServer, alog: s.AuthServer},
+			scopedContext: scopedContext,
+		}
+		version := p.ByName("version")
+		if version == "" {
+			return nil, trace.BadParameter("missing version")
+		}
+		return handler(auth, w, r, p, version)
+	})
+}
+
+type upsertServerRawReq struct {
+	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// upsertNode is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertServer(role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req upsertServerReq
+// presenceForAPIServer is a subset of [services.Presence].
+type presenceForAPIServer interface {
+	UpsertAuthServer(ctx context.Context, s types.Server) error
+	UpsertProxy(ctx context.Context, s types.Server) error
+}
+
+// upsertServer is a common utility function
+func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var kind string
+	switch role {
+	case types.RoleAuth:
+		kind = types.KindAuthServer
+	case types.RoleProxy:
+		kind = types.KindProxy
+	default:
+		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
+	}
+	// UnmarshalServer forces s.Kind = kind, ignoring the Kind in the payload.
+	// This is retained for backwards compatibility: prior to v19, proxy
+	// heartbeats sent the resource with Kind=KindNode over the wire (see
+	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
+	// send the correct kind; the override remains so older proxies in mixed
+	// clusters continue to work.
+	server, err := services.UnmarshalServer(req.Server, kind)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// if server sent "local" IP address to us, replace the ip/host part with the remote address we see
 	// on the socket, but keep the original port:
-	req.Server.Addr = utils.ReplaceLocalhost(req.Server.Addr, r.RemoteAddr)
+	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
+	if req.TTL != 0 {
+		server.SetExpiry(s.Now().UTC().Add(req.TTL))
+	}
 
 	switch role {
-	case teleport.RoleNode:
-		if err := s.a.UpsertNode(req.Server, req.TTL); err != nil {
+	case types.RoleAuth:
+		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.RoleAuth:
-		if err := s.a.UpsertAuthServer(req.Server, req.TTL); err != nil {
+	case types.RoleProxy:
+		if err := auth.UpsertProxy(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.RoleProxy:
-		if err := s.a.UpsertProxy(req.Server, req.TTL); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	default:
+		return nil, trace.BadParameter("unknown server role %q", role)
 	}
 	return message("ok"), nil
 }
 
-// upsertNode is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertNode(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return s.upsertServer(teleport.RoleNode, w, r, p)
-}
-
-// getNodes returns registered SSH nodes
-func (s *APIServer) getNodes(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	servers, err := s.a.GetNodes()
-	if err != nil {
+// keepAliveNode updates node TTL in the backend
+func (s *APIServer) keepAliveNode(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var handle types.KeepAlive
+	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
-// upsertProxy is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertProxy(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return s.upsertServer(teleport.RoleProxy, w, r, p)
+// upsertProxy registers a proxy server heartbeat sent via the legacy HTTP endpoint.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
+func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
-func (s *APIServer) getProxies(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	servers, err := s.a.GetProxies()
+//
+// TODO(kiosion) DELETE IN 21.0.0
+func (s *APIServer) getProxies(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+	servers, err := auth.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	return marshalServers(servers, version)
+}
+
+// deleteAllProxies deletes all proxies
+func (s *APIServer) deleteAllProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteAllProxies()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// deleteProxy deletes proxy
+func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("missing proxy name")
+	}
+	err := auth.DeleteProxy(r.Context(), name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
-func (s *APIServer) upsertAuthServer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return s.upsertServer(teleport.RoleAuth, w, r, p)
+func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	return s.upsertServer(auth, types.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
-func (s *APIServer) getAuthServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	servers, err := s.a.GetAuthServers()
+//
+// TODO(kiosion) DELETE IN 21.0.0
+func (s *APIServer) getAuthServers(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+	servers, err := auth.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return servers, nil
+	return marshalServers(servers, version)
 }
 
-type upsertReverseTunnelReq struct {
-	ReverseTunnel services.ReverseTunnel `json:"reverse_tunnel"`
-	TTL           time.Duration          `json:"ttl"`
-}
-
-// upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
-func (s *APIServer) upsertReverseTunnel(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req upsertReverseTunnelReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.UpsertReverseTunnel(req.ReverseTunnel, req.TTL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// getReverseTunnels returns a list of reverse tunnels
-func (s *APIServer) getReverseTunnels(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	reverseTunnels, err := s.a.GetReverseTunnels()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return reverseTunnels, nil
-}
-
-// deleteReverseTunnel deletes reverse tunnel
-func (s *APIServer) deleteReverseTunnel(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	domainName := p[0].Value
-	err := s.a.DeleteReverseTunnel(domainName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
-}
-
-// getTokens returns a list of active provisioning tokens. expired (inactive) tokens are not returned
-func (s *APIServer) getTokens(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	tokens, err := s.a.GetTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tokens, nil
-}
-
-// deleteToken deletes (revokes) a token by its value
-func (s *APIServer) deleteToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p.ByName("token")
-	if err := s.a.DeleteToken(token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("Token %v deleted", token)), nil
-}
-
-func (s *APIServer) deleteWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	user, sid := p[0].Value, p[1].Value
-	err := s.a.DeleteWebSession(user, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
-}
-
-func (s *APIServer) getWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	user, sid := p[0].Value, p[1].Value
-	sess, err := s.a.GetWebSessionInfo(user, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-type signInReq struct {
-	Password string `json:"password"`
-}
-
-func (s *APIServer) signIn(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *signInReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user := p[0].Value
-	sess, err := s.a.SignIn(user, []byte(req.Password))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-type createWebSessionReq struct {
-	PrevSessionID string `json:"prev_session_id"`
-}
-
-func (s *APIServer) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createWebSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user := p[0].Value
-	if req.PrevSessionID != "" {
-		sess, err := s.a.ExtendWebSession(user, req.PrevSessionID)
+func marshalServers(servers []types.Server, version string) (interface{}, error) {
+	items := make([]json.RawMessage, len(servers))
+	for i, server := range servers {
+		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveRevision())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return sess, nil
+		items[i] = data
 	}
-	sess, err := s.a.CreateWebSession(user)
+	return items, nil
+}
+
+func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var validateRequestRaw authclient.ValidateTrustedClusterRequestRaw
+	if err := httplib.ReadJSON(r, &validateRequestRaw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateRequest, err := validateRequestRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := auth.ValidateTrustedCluster(r.Context(), validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponseRaw, err := validateResponse.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponseRaw, nil
+}
+
+func (s *APIServer) deleteWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	user, sessionID := p.ByName("user"), p.ByName("sid")
+	err := auth.WebSessions().Delete(r.Context(), types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message(fmt.Sprintf("session %q for user %q deleted", sessionID, user)), nil
+}
+
+func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	user, sid := p.ByName("user"), p.ByName("sid")
+	sess, err := auth.GetWebSessionInfo(r.Context(), user, sid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+}
+
+func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	// nb(strideynet): Historically this handler/endpoint provided both
+	// Create and Extend WebSession functionality, and was known as
+	// CreateWebSession. The web session creation functionality was unused for
+	// a long time and hence removed and this handler "renamed".
+
+	var req authclient.WebSessionReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Requires that PrevSessionID is set. Historically, the lack of this field
+	// indicated that the caller wanted to create (rather than extend) a web
+	// session.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
+	}
+
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
 }
 
-type upsertPasswordReq struct {
-	Password string `json:"password"`
-}
-
-type upsertPasswordResponse struct {
-	HotpURL string `json:"hotp_url"`
-	HotpQR  []byte `json:"hotp_qr"`
-}
-
-func (s *APIServer) upsertPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertPasswordReq
+func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req authclient.AuthenticateUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := p[0].Value
-	hotpURL, hotpQR, err := s.a.UpsertPassword(user, []byte(req.Password))
+	req.Username = p.ByName("user")
+	sess, err := auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &upsertPasswordResponse{HotpURL: hotpURL, HotpQR: hotpQR}, nil
+	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-type upsertUserReq struct {
-	User services.User `json:"user"`
-}
-
-type upsertUserReqRaw struct {
-	User json.RawMessage `json:"user"`
-}
-
-func (s *APIServer) upsertUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertUserReqRaw
+func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req authclient.AuthenticateSSHRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := services.GetUserUnmarshaler()(req.User)
+	req.Username = p.ByName("user")
+	return auth.AuthenticateSSHUser(r.Context(), req)
+}
+
+func rawMessage(data []byte, err error) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.a.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
+	m := json.RawMessage(data)
+	return &m, nil
 }
 
-type checkPasswordReq struct {
-	Password  string `json:"password"`
-	HOTPToken string `json:"hotp_token"`
-}
-
-func (s *APIServer) checkPassword(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req checkPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user := p[0].Value
-	if err := s.a.CheckPassword(user, []byte(req.Password), req.HOTPToken); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user password matches", user)), nil
-}
-
-func (s *APIServer) getUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	user, err := s.a.GetUser(p[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return user, nil
-}
-
-func (s *APIServer) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	users, err := s.a.GetUsers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return users, nil
-}
-
-func (s *APIServer) deleteUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	user := p[0].Value
-	if err := s.a.DeleteUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("user '%v' deleted", user)), nil
-}
-
-type generateKeyPairReq struct {
-	Password string `json:"password"`
-}
-
-type generateKeyPairResponse struct {
-	PrivKey []byte `json:"privkey"`
-	PubKey  string `json:"pubkey"`
-}
-
-func (s *APIServer) generateKeyPair(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *generateKeyPairReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, pub, err := s.a.GenerateKeyPair(req.Password)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &generateKeyPairResponse{PrivKey: priv, PubKey: string(pub)}, nil
-}
-
-type generateHostCertReq struct {
-	Key        []byte         `json:"key"`
-	Hostname   string         `json:"hostname"`
-	AuthDomain string         `json:"auth_domain"`
-	Roles      teleport.Roles `json:"roles"`
-	TTL        time.Duration  `json:"ttl"`
-}
-
-func (s *APIServer) generateHostCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *generateHostCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := s.a.GenerateHostCert(req.Key, req.Hostname, req.AuthDomain, req.Roles, req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(cert), nil
-}
-
-type generateUserCertReq struct {
-	Key  []byte        `json:"key"`
-	User string        `json:"user"`
-	TTL  time.Duration `json:"ttl"`
-}
-
-func (s *APIServer) generateUserCert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		log.Errorf("failed parsing JSON request. %v", err)
-		return nil, trace.Wrap(err)
-	}
-	// SSH-to-HTTP gateway (tun server) sets HTTP basic auth to SSH cert principal
-	// This allows us to make sure that users can only request new certificates
-	// only for themselves, except admin users
-	caller, _, ok := r.BasicAuth()
-	if !ok {
-		return nil, trace.AccessDenied("missing username or password")
-	}
-	if req.User != caller && s.a.role != teleport.RoleAdmin {
-		return nil, trace.AccessDenied("user %s cannot request a certificate for %s",
-			caller, req.User)
-	}
-	cert, err := s.a.GenerateUserCert(req.Key, req.User, req.TTL)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	return string(cert), nil
-}
-
-type generateTokenReq struct {
-	Roles teleport.Roles `json:"roles"`
-	TTL   time.Duration  `json:"ttl"`
-}
-
-func (s *APIServer) generateToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *generateTokenReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := s.a.GenerateToken(req.Roles, req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(token), nil
-}
-
-type registerUsingTokenReq struct {
-	HostID string        `json:"hostID"`
-	Role   teleport.Role `json:"role"`
-	Token  string        `json:"token"`
-}
-
-func (s *APIServer) registerUsingToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *registerUsingTokenReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keys, err := s.a.RegisterUsingToken(req.Token, req.HostID, req.Role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keys, nil
-}
-
-type registerNewAuthServerReq struct {
-	Token string `json:"token"`
-}
-
-func (s *APIServer) registerNewAuthServer(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	var req *registerNewAuthServerReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err := s.a.RegisterNewAuthServer(req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type upsertCertAuthorityReq struct {
-	CA  services.CertAuthority `json:"ca"`
-	TTL time.Duration          `json:"ttl"`
-}
-
-func (s *APIServer) upsertCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertCertAuthorityReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.UpsertCertAuthority(req.CA, req.TTL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getCertAuthorities(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := s.a.GetCertAuthorities(services.CertAuthType(p[0].Value), loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return certs, nil
-}
-
-func (s *APIServer) getDomainName(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	domain, err := s.a.GetDomainName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return domain, nil
-}
-
-func (s *APIServer) deleteCertAuthority(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	id := services.CertAuthID{
-		DomainName: p[1].Value,
-		Type:       services.CertAuthType(p[0].Value),
-	}
-	if err := s.a.DeleteCertAuthority(id); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
-}
-
-type createSessionReq struct {
-	Session session.Session `json:"session"`
-}
-
-func (s *APIServer) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.CreateSession(req.Session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type updateSessionReq struct {
-	Update session.UpdateRequest `json:"update"`
-}
-
-func (s *APIServer) updateSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *updateSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := s.a.UpdateSession(req.Update); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getSessions(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sessions, err := s.a.GetSessions()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
-}
-
-func (s *APIServer) getSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid, err := session.ParseID(p[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	se, err := s.a.GetSession(*sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return se, nil
-}
-
-type getSignupTokenDataResponse struct {
-	User            string   `json:"user"`
-	QRImg           []byte   `json:"qrimg"`
-	HotpFirstValues []string `json:"hotp_first_values"`
-}
-
-// getSignupTokenData auth API method creates a new sign-up token for adding a new user
-func (s *APIServer) getSignupTokenData(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p[0].Value
-
-	user, QRImg, hotpFirstValues, err := s.a.GetSignupTokenData(token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &getSignupTokenDataResponse{
-		User:            user,
-		QRImg:           QRImg,
-		HotpFirstValues: hotpFirstValues,
-	}, nil
-}
-
-type createSignupTokenReq struct {
-	User services.User `json:"user"`
-}
-
-type createSignupTokenReqRaw struct {
-	User json.RawMessage `json:"user"`
-}
-
-func (s *APIServer) createSignupToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSignupTokenReqRaw
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := services.GetUserUnmarshaler()(req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	token, err := s.a.CreateSignupToken(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return token, nil
-}
-
-type createUserWithTokenReq struct {
-	Token     string `json:"token"`
-	Password  string `json:"password"`
-	HOTPToken string `json:"hotp_token"`
-}
-
-func (s *APIServer) createUserWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createUserWithTokenReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := s.a.CreateUserWithToken(req.Token, req.Password, req.HOTPToken)
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-type upsertOIDCConnectorReq struct {
-	Connector services.OIDCConnector `json:"connector"`
-	TTL       time.Duration          `json:"ttl"`
-}
-
-func (s *APIServer) upsertOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *upsertOIDCConnectorReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err := s.a.UpsertOIDCConnector(req.Connector, req.TTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connector, err := s.a.GetOIDCConnector(p[0].Value, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
-}
-
-func (s *APIServer) deleteOIDCConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	err := s.a.DeleteOIDCConnector(p[0].Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getOIDCConnectors(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	withSecrets, _, err := httplib.ParseBool(r.URL.Query(), "with_secrets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	connectors, err := s.a.GetOIDCConnectors(withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connectors, nil
-}
-
-type createOIDCAuthRequestReq struct {
-	Req services.OIDCAuthRequest `json:"req"`
-}
-
-func (s *APIServer) createOIDCAuthRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createOIDCAuthRequestReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := s.a.CreateOIDCAuthRequest(req.Req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-type validateOIDCAuthCallbackReq struct {
+// validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
+type validateGithubAuthCallbackReq struct {
+	// Query is the callback query string
 	Query url.Values `json:"query"`
 }
 
-func (s *APIServer) validateOIDCAuthCallback(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *validateOIDCAuthCallbackReq
+// githubAuthRawResponse is returned when auth server validated callback
+// parameters returned from Github during OAuth2 flow
+type githubAuthRawResponse struct {
+	// Username is authenticated teleport username
+	Username string `json:"username"`
+	// Identity contains validated OIDC identity
+	Identity types.ExternalIdentity `json:"identity"`
+	// Web session will be generated by auth server if requested in OIDCAuthRequest
+	Session json.RawMessage `json:"session,omitempty"`
+	// Cert will be generated by certificate authority
+	Cert []byte `json:"cert,omitempty"`
+	// TLSCert is PEM encoded TLS certificate
+	TLSCert []byte `json:"tls_cert,omitempty"`
+	// Req is original oidc auth request
+	Req authclient.GithubAuthRequest `json:"req"`
+	// HostSigners is a list of signing host public keys
+	// trusted by proxy, used in console login
+	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions `json:"client_options"`
+}
+
+/*
+validateGithubAuthRequest validates Github auth callback redirect
+
+	POST /:version/github/requests/validate
+
+	Success response: githubAuthRawResponse
+*/
+func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req validateGithubAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := s.a.ValidateOIDCAuthCallback(req.Query)
+	response, err := auth.ValidateGithubAuthCallback(r.Context(), req.Query)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return response, nil
+	raw := githubAuthRawResponse{
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		Req:           response.Req,
+		ClientOptions: response.ClientOptions,
+	}
+	if response.Session != nil {
+		rawSession, err := services.MarshalWebSession(
+			response.Session, services.WithVersion(version), services.PreserveRevision())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.Session = rawSession
+	}
+	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
+	for i, ca := range response.HostSigners {
+		data, err := services.MarshalCertAuthority(
+			ca, services.WithVersion(version), services.PreserveRevision())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		raw.HostSigners[i] = data
+	}
+	return &raw, nil
 }
 
-// HTTP GET /v1/events?query
-//
-// Query fields:
-//	'from'  : time filter in RFC3339 format
-//	'to'    : time filter in RFC3339 format
-//  ...     : other fields are passed directly to the audit backend
-func (s *APIServer) searchEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var err error
-	to := time.Now().In(time.UTC)
-	from := to.AddDate(0, -1, 0) // one month ago
-	query := r.URL.Query()
-	// parse 'to' and 'from' params:
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
+func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
+	return []types.Namespace{{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}}, nil
+}
+
+func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *http.Request, p httprouter.Params, _ string) (any, error) {
+	name := p.ByName("namespace")
+	if !types.IsValidNamespace(name) {
+		return nil, trace.BadParameter("invalid namespace %q", name)
 	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
+	if name != defaults.Namespace {
+		return nil, trace.NotFound("namespace %q is not found", name)
 	}
-	// remove 'to' & 'from' fields, passing the rest of the query unmodified
-	// to whatever pluggable search is implemented by the backend
-	query.Del("to")
-	query.Del("from")
-	eventsList, err := s.a.SearchEvents(from, to, query.Encode())
+
+	return &types.Namespace{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}, nil
+}
+
+func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	cn, err := auth.ScopedServerWithRoles().GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return eventsList, nil
+
+	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
 }
 
-type auditEventReq struct {
-	Type   string             `json:"type"`
-	Fields events.EventFields `json:"fields"`
+type upsertTunnelConnectionRawReq struct {
+	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
 
-// HTTP	POST /v1/events
-func (s *APIServer) emitAuditEvent(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req auditEventReq
+// upsertTunnelConnection updates or inserts tunnel connection
+func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req upsertTunnelConnectionRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.a.EmitAuditEvent(req.Type, req.Fields); err != nil {
+	conn, err := services.UnmarshalTunnelConnection(req.TunnelConnection)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertTunnelConnection(conn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
-// HTTP POST /v1/sessions/:id/stream
-func (s *APIServer) postSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
+// getTunnelConnections returns a list of tunnel connections from a cluster
+func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	conns, err := auth.GetTunnelConnections(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	items := make([]json.RawMessage, len(conns))
+	for i, conn := range conns {
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
+}
 
-	if err = s.a.PostSessionChunk(*sid, r.Body); err != nil {
+// getAllTunnelConnections returns a list of tunnel connections from a cluster
+func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	conns, err := auth.GetAllTunnelConnections()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	items := make([]json.RawMessage, len(conns))
+	for i, conn := range conns {
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		items[i] = data
+	}
+	return items, nil
+}
+
+// deleteTunnelConnection deletes tunnel connection by name
+func (s *APIServer) deleteTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteTunnelConnection(p.ByName("cluster"), p.ByName("conn"))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
-// HTTP GET /v1/sessions/:id/stream?offset=x&bytes=y
-// Query parameters:
-//   "offset"   : bytes from the beginning
-//   "bytes"    : number of bytes to read (it won't return more than 512Kb)
-func (s *APIServer) getSessionChunk(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// "offset bytes" query param
-	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("offset"))
-	if err != nil || offsetBytes < 0 {
-		offsetBytes = 0
-	}
-	// "max bytes" query param
-	max, err := strconv.Atoi(r.URL.Query().Get("bytes"))
-	if err != nil || offsetBytes < 0 {
-		offsetBytes = 0
-	}
-	log.Debugf("apiserver.GetSessionChunk(%v, offset=%d)", *sid, offsetBytes)
-	w.Header().Set("Content-Type", "text/plain")
-
-	buffer, err := s.a.GetSessionChunk(*sid, offsetBytes, max)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err = w.Write(buffer); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-}
-
-// HTTP GET /v1/sessions/:id/events?maxage=n
-// Query:
-//    'after' : cursor value to return events newer than N. Defaults to 0, (return all)
-func (s *APIServer) getSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
+// deleteTunnelConnections deletes all tunnel connections for cluster
+func (s *APIServer) deleteTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteTunnelConnections(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
+	return message("ok"), nil
+}
+
+// deleteAllTunnelConnections deletes all tunnel connections
+func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteAllTunnelConnections()
 	if err != nil {
-		afterN = 0
+		return nil, trace.Wrap(err)
 	}
-	log.Debugf("[AUTH] api.getSessionEvents(%v, after=%d)", *sid, afterN)
-	return s.a.GetSessionEvents(*sid, afterN)
+	return message("ok"), nil
 }
 
 func message(msg string) map[string]interface{} {

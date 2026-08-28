@@ -1,0 +1,4 @@
+type: directory
+path: /my/path
+symlinks: secure
+acls: required

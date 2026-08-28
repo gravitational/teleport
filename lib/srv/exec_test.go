@@ -1,114 +1,199 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
 import (
 	"fmt"
-	"net"
+	"os"
 	"os/user"
+	"strconv"
+	"testing"
 
-	"gopkg.in/check.v1"
-
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/lib/utils"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
-// ExecSuite also implements ssh.ConnMetadata
-type ExecSuite struct {
-	usr        *user.User
-	ctx        *ctx
-	localAddr  net.Addr
-	remoteAddr net.Addr
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise, it will run tests as normal.
+func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
+	logtest.InitLogger(testing.Verbose)
+	modules.SetInsecureTestMode(true)
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
 }
 
-var _ = check.Suite(&ExecSuite{})
+// TestEmitExecAuditEvent make sure the full command and exit code for a
+// command is always recorded.
+func TestEmitExecAuditEvent(t *testing.T) {
+	t.Parallel()
 
-func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-	s.usr, _ = user.Current()
-	s.ctx = &ctx{isTestStub: true}
-	s.ctx.login = s.usr.Username
-	s.ctx.session = &session{id: "xxx"}
-	s.ctx.teleportUser = "galt"
-	s.ctx.conn = &ssh.ServerConn{Conn: s}
-	s.ctx.exec = &execResponse{ctx: s.ctx}
-	s.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
-	s.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
-}
+	srv := newMockServer(t)
+	scx := newExecServerContext(t, srv)
 
-func (s *ExecSuite) TestOSCommandPrep(c *check.C) {
-	expectedEnv := []string{
-		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(""),
-		fmt.Sprintf("HOME=%s", s.usr.HomeDir),
-		fmt.Sprintf("USER=%s", s.usr.Username),
-		"SHELL=/bin/sh",
-		"SSH_TELEPORT_USER=galt",
-		"SSH_SESSION_WEBPROXY_ADDR=<proxyhost>:3080",
-		"TERM=xterm",
-		"SSH_CLIENT=10.0.0.5 4817 3022",
-		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
-		"SSH_SESSION_ID=xxx",
+	rec, ok := scx.party.s.recorder.(*mockRecorder)
+	require.True(t, ok)
+
+	expectedUsr, err := user.Current()
+	require.NoError(t, err)
+	expectedHostname := "testHost"
+
+	expectedMeta := apievents.UserMetadata{
+		User:                 "teleportUser",
+		Login:                expectedUsr.Username,
+		Impersonator:         "",
+		AWSRoleARN:           "",
+		AccessRequests:       []string(nil),
+		UserKind:             apievents.UserKind_USER_KIND_HUMAN,
+		XXX_NoUnkeyedLiteral: struct{}{},
+		XXX_unrecognized:     []uint8(nil),
+		XXX_sizecache:        0,
 	}
 
-	// empty command (simple shell)
-	cmd, err := prepInteractiveCommand(s.ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/sh")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"-sh"})
-	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
-	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
-
-	// non-empty command (exec a prog)
-	s.ctx.isTestStub = true
-	s.ctx.exec.cmdName = "ls -lh /etc"
-	cmd, err = prepareCommand(s.ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(cmd, check.NotNil)
-	c.Assert(cmd.Path, check.Equals, "/bin/sh")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"/bin/sh", "-c", "ls -lh /etc"})
-	c.Assert(cmd.Dir, check.Equals, s.usr.HomeDir)
-	c.Assert(cmd.Env, check.DeepEquals, expectedEnv)
-
-	// command without args
-	s.ctx.exec.cmdName = "top"
-	cmd, err = prepareCommand(s.ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(cmd.Path, check.Equals, "/usr/bin/top")
-	c.Assert(cmd.Args, check.DeepEquals, []string{"top"})
+	tests := []struct {
+		inCommand  string
+		inError    error
+		outCommand string
+		outCode    string
+	}{
+		// Successful execution.
+		{
+			inCommand:  "exit 0",
+			inError:    nil,
+			outCommand: "exit 0",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandSuccess),
+		},
+		// Exited with error.
+		{
+			inCommand:  "exit 255",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "exit 255",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandFailure),
+		},
+		// Command injection.
+		{
+			inCommand:  "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			inError:    fmt.Errorf("unknown error"),
+			outCommand: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+			outCode:    strconv.Itoa(reexecconstants.RemoteCommandFailure),
+		},
+	}
+	for _, tt := range tests {
+		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
+		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
+		require.Equal(t, tt.outCommand, execEvent.Command)
+		require.Equal(t, tt.outCode, execEvent.ExitCode)
+		require.Equal(t, expectedMeta, execEvent.UserMetadata)
+		require.Equal(t, "123", execEvent.ServerID)
+		require.Equal(t, "abc", execEvent.ForwardedBy)
+		require.Equal(t, expectedHostname, execEvent.ServerHostname)
+		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
+		require.Equal(t, "xxx", execEvent.SessionID)
+		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
+		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+		require.NotEmpty(t, events.EventID)
+	}
 }
 
-func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
-	c.Assert(getDefaultEnvPath("../../fixtures/login.defs"), check.Equals, "PATH=/usr/local/bin:/usr/bin:/bin:/foo")
-	c.Assert(getDefaultEnvPath("bad/file"), check.Equals, "PATH="+defaultPath)
+func newExecServerContext(t *testing.T, srv Server) *ServerContext {
+	scx := newTestServerContext(t, srv, nil, nil)
+
+	term, err := newLocalTerminal(scx)
+	require.NoError(t, err)
+	term.SetTermType("xterm")
+
+	rec := &mockRecorder{done: false}
+	s := &session{
+		id:       "xxx",
+		term:     term,
+		emitter:  rec,
+		recorder: rec,
+		scx:      scx,
+		registry: &SessionRegistry{
+			SessionRegistryConfig: SessionRegistryConfig{
+				Srv: srv,
+			},
+		},
+	}
+	scx.party = newParty(s, types.SessionPeerMode, nil, scx)
+
+	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, scx.party.s.term.Close()) })
+
+	return scx
 }
 
-// implementation of ssh.Conn interface
-func (s *ExecSuite) User() string                                           { return s.usr.Username }
-func (s *ExecSuite) SessionID() []byte                                      { return []byte{1, 2, 3} }
-func (s *ExecSuite) ClientVersion() []byte                                  { return []byte{1} }
-func (s *ExecSuite) ServerVersion() []byte                                  { return []byte{1} }
-func (s *ExecSuite) RemoteAddr() net.Addr                                   { return s.remoteAddr }
-func (s *ExecSuite) LocalAddr() net.Addr                                    { return s.localAddr }
-func (s *ExecSuite) Close() error                                           { return nil }
-func (s *ExecSuite) SendRequest(string, bool, []byte) (bool, []byte, error) { return false, nil, nil }
-func (s *ExecSuite) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
-	return nil, nil, nil
+func TestCheckSCPAllowed(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		command string
+		assert  require.BoolAssertionFunc
+	}{
+		{
+			name:    "scp command",
+			command: "scp foo bar",
+			assert:  require.True,
+		},
+		{
+			name:    "other command",
+			command: "some other command",
+			assert:  require.False,
+		},
+		{
+			name:    "no command",
+			command: "",
+			assert:  require.False,
+		},
+		{
+			name:    "scp command with whitespace",
+			command: "\tscp foo bar",
+			assert:  require.True,
+		},
+		{
+			name:    "other bash commands aren't affected",
+			command: "echo $((1+1))",
+			assert:  require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scx := newTestServerContext(t, nil, nil, nil)
+			scx.AllowFileCopying = true
+			scx.Identity.AccessPermit = decisionpb.SSHAccessPermit_builder{SshFileCopy: true}.Build()
+			ok, err := checkSCPAllowed(scx, tc.command)
+			require.NoError(t, err)
+			tc.assert(t, ok)
+		})
+	}
 }
-func (s *ExecSuite) Wait() error { return nil }

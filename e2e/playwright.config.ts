@@ -1,0 +1,75 @@
+/**
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { defineConfig, devices } from '@playwright/test';
+
+// Default to localhost:3080/web/login if START_URL is not defined.
+const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
+
+const browserList = (process.env.E2E_BROWSERS || 'chromium').split(',');
+
+const browserDevices: Record<string, object> = {
+  chromium: { ...devices['Desktop Chrome'], channel: 'chromium' },
+  firefox: { ...devices['Desktop Firefox'] },
+  webkit: { ...devices['Desktop Safari'] },
+};
+
+export default defineConfig({
+  testDir: './tests',
+  timeout: 20_000,
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  // No globalSetup: sessions are minted per user on first use (helpers/authState.ts) so the logins spread
+  // across the run instead of drawing the whole run's rate limiter budget at once.
+  reporter: [
+    ['html', { open: 'never' }],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
+
+  use: {
+    ignoreHTTPSErrors: true,
+    baseURL,
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    ...browserList.flatMap(browser => [
+      {
+        name: `${browser}:authenticated`,
+        testDir: './tests/web/authenticated',
+        use: { ...browserDevices[browser] },
+      },
+      {
+        name: `${browser}:unauthenticated`,
+        testDir: './tests/web/unauthenticated',
+        use: { ...browserDevices[browser] },
+      },
+    ]),
+
+    {
+      name: 'connect',
+      // Enables interacting with Web UI from Connect test flows.
+      use: browserDevices.chromium,
+      testDir: './tests/connect',
+      workers: 1,
+    },
+  ],
+});

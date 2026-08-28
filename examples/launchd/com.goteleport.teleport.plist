@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+   <dict>
+   <key>Label</key>
+   <string>Teleport Service</string>
+   <key>ProgramArguments</key>
+   <array>
+      <string>/usr/local/bin/teleport</string>
+      <string>start</string>
+      <string>--config=/etc/teleport.yaml</string>
+   </array>
+   <key>UserName</key>
+   <string>root</string>
+   <key>KeepAlive</key>
+   <true/>
+   <key>RunAtLoad</key>
+   <true/>
+   <key>ThrottleInterval</key>
+   <integer>30</integer>
+   <key>SuccessfulExit</key>
+   <false/>
+   <key>SessionCreate</key>
+   <true/>
+<key>StandardOutPath</key>
+<string>/var/log/teleport-stdout.log</string>
+<key>StandardErrorPath</key>
+<string>/var/log/teleport-stderr.log</string>
+</dict>
+</plist>

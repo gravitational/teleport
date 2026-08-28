@@ -1,0 +1,979 @@
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package types
+
+import (
+	"fmt"
+	"iter"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/compare"
+	"github.com/gravitational/teleport/api/utils"
+	netutils "github.com/gravitational/teleport/api/utils/net"
+)
+
+var _ compare.IsEqual[Application] = (*AppV3)(nil)
+
+// Application represents a web, TCP or cloud console application.
+type Application interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetNamespace returns the app namespace.
+	GetNamespace() string
+	// GetStaticLabels returns the app static labels.
+	GetStaticLabels() map[string]string
+	// SetStaticLabels sets the app static labels.
+	SetStaticLabels(map[string]string)
+	// GetDynamicLabels returns the app dynamic labels.
+	GetDynamicLabels() map[string]CommandLabel
+	// SetDynamicLabels sets the app dynamic labels.
+	SetDynamicLabels(map[string]CommandLabel)
+	// String returns string representation of the app.
+	String() string
+	// GetDescription returns the app description.
+	GetDescription() string
+	// GetURI returns the app connection endpoint.
+	GetURI() string
+	// SetURI sets the app endpoint.
+	SetURI(string)
+	// GetPublicAddr returns the app public address.
+	GetPublicAddr() string
+	// SetPublicAddr sets the app public address.
+	SetPublicAddr(s string)
+	// GetInsecureSkipVerify returns the app insecure setting.
+	GetInsecureSkipVerify() bool
+	// GetRewrite returns the app rewrite configuration.
+	GetRewrite() *Rewrite
+	// IsAWSConsole returns true if this app is AWS management console.
+	IsAWSConsole() bool
+	// IsAzureCloud returns true if this app represents Azure Cloud instance.
+	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
+	// IsTCP returns true if this app represents a TCP endpoint.
+	IsTCP() bool
+	// IsMCP returns true if this app represents a MCP server.
+	IsMCP() bool
+	// IsLLM returns true if this app represents an LLM inference endpoint.
+	IsLLM() bool
+	// GetProtocol returns the application protocol.
+	GetProtocol() string
+	// GetAWSAccountID returns value of label containing AWS account ID on this app.
+	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS External ID configured for this app.
+	GetAWSExternalID() string
+	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+	GetAWSRolesAnywhereProfileARN() string
+	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
+	GetAWSRolesAnywhereAcceptRoleSessionName() bool
+	// GetAWSRegion returns the AWS region configured for the app.
+	GetAWSRegion() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// SetUserGroups will set the list of user group IDs associated with the application.
+	SetUserGroups([]string)
+	// Copy returns a copy of this app resource.
+	Copy() *AppV3
+	// GetIntegration will return the Integration.
+	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+	GetIntegration() string
+	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
+	GetRequiredAppNames() []string
+	// GetUseAnyProxyPublicAddr will return true if a client should rebuild this app's fqdn based on the proxy's public addr.
+	GetUseAnyProxyPublicAddr() bool
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORSPolicy
+	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+	GetTCPPorts() PortRanges
+	// SetTCPPorts sets port ranges to which connections can be forwarded to.
+	SetTCPPorts([]*PortRange)
+	// GetIdentityCenter fetches identity center info for the app, if any.
+	GetIdentityCenter() *AppIdentityCenter
+	// GetMCP fetches MCP specific configuration.
+	GetMCP() *MCP
+	// GetLLM fetches LLM specific configuration.
+	GetLLM() *LLM
+	// GetTLS fetches TLS configuration.
+	GetTLS() *AppTLS
+	// GetClientCertMode returns the client certificate mode used.
+	GetClientCertMode() AppClientCertMode
+	// GetTLSMode returns the TLS mode.
+	GetTLSMode() AppTLSMode
+	// IsEqual determines if two application resources are equivalent to one another.
+	IsEqual(Application) bool
+	// GetScope gets the scope of the app.
+	GetScope() string
+}
+
+// NewAppV3 creates a new app resource.
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppV3(meta Metadata, spec AppSpecV3, scope ...string) (*AppV3, error) {
+	app := &AppV3{
+		Metadata: meta,
+		Spec:     spec,
+	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		app.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
+	if err := app.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return app, nil
+}
+
+// GetVersion returns the app resource version.
+func (a *AppV3) GetVersion() string {
+	return a.Version
+}
+
+// GetKind returns the app resource kind.
+func (a *AppV3) GetKind() string {
+	return a.Kind
+}
+
+// GetSubKind returns the app resource subkind.
+func (a *AppV3) GetSubKind() string {
+	return a.SubKind
+}
+
+// SetSubKind sets the app resource subkind.
+func (a *AppV3) SetSubKind(sk string) {
+	a.SubKind = sk
+}
+
+// GetRevision returns the revision
+func (a *AppV3) GetRevision() string {
+	return a.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (a *AppV3) SetRevision(rev string) {
+	a.Metadata.SetRevision(rev)
+}
+
+// GetMetadata returns the app resource metadata.
+func (a *AppV3) GetMetadata() Metadata {
+	return a.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (a *AppV3) Origin() string {
+	return a.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (a *AppV3) SetOrigin(origin string) {
+	a.Metadata.SetOrigin(origin)
+}
+
+// GetNamespace returns the app resource namespace.
+func (a *AppV3) GetNamespace() string {
+	return a.Metadata.Namespace
+}
+
+// SetExpiry sets the app resource expiration time.
+func (a *AppV3) SetExpiry(expiry time.Time) {
+	a.Metadata.SetExpiry(expiry)
+}
+
+// Expiry returns the app resource expiration time.
+func (a *AppV3) Expiry() time.Time {
+	return a.Metadata.Expiry()
+}
+
+// GetName returns the app resource name.
+func (a *AppV3) GetName() string {
+	return a.Metadata.Name
+}
+
+// SetName sets the app resource name.
+func (a *AppV3) SetName(name string) {
+	a.Metadata.Name = name
+}
+
+// GetStaticLabels returns the app static labels.
+func (a *AppV3) GetStaticLabels() map[string]string {
+	return a.Metadata.Labels
+}
+
+// SetStaticLabels sets the app static labels.
+func (a *AppV3) SetStaticLabels(sl map[string]string) {
+	a.Metadata.Labels = sl
+}
+
+// GetDynamicLabels returns the app dynamic labels.
+func (a *AppV3) GetDynamicLabels() map[string]CommandLabel {
+	if a.Spec.DynamicLabels == nil {
+		return nil
+	}
+	return V2ToLabels(a.Spec.DynamicLabels)
+}
+
+// SetDynamicLabels sets the app dynamic labels
+func (a *AppV3) SetDynamicLabels(dl map[string]CommandLabel) {
+	a.Spec.DynamicLabels = LabelsToV2(dl)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (a *AppV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := a.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := a.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns the app combined static and dynamic labels.
+func (a *AppV3) GetAllLabels() map[string]string {
+	return CombineLabels(nil, a.Metadata.Labels, a.Spec.DynamicLabels)
+}
+
+// GetDescription returns the app description.
+func (a *AppV3) GetDescription() string {
+	return a.Metadata.Description
+}
+
+// GetURI returns the app connection address.
+func (a *AppV3) GetURI() string {
+	return a.Spec.URI
+}
+
+// SetURI sets the app connection address.
+func (a *AppV3) SetURI(uri string) {
+	a.Spec.URI = uri
+}
+
+// GetPublicAddr returns the app public address.
+func (a *AppV3) GetPublicAddr() string {
+	return a.Spec.PublicAddr
+}
+
+// SetPublicAddr sets the app public address.
+func (a *AppV3) SetPublicAddr(addr string) {
+	a.Spec.PublicAddr = addr
+}
+
+// GetInsecureSkipVerify returns the app insecure setting.
+func (a *AppV3) GetInsecureSkipVerify() bool {
+	return a.Spec.InsecureSkipVerify
+}
+
+// GetRewrite returns the app rewrite configuration.
+func (a *AppV3) GetRewrite() *Rewrite {
+	return a.Spec.Rewrite
+}
+
+// IsAWSConsole returns true if this app is AWS management console.
+func (a *AppV3) IsAWSConsole() bool {
+	// TODO(greedy52) support region based console URL like:
+	// https://us-east-1.console.aws.amazon.com/
+	for _, consoleURL := range []string{
+		constants.AWSConsoleURL,
+		constants.AWSUSGovConsoleURL,
+		constants.AWSCNConsoleURL,
+		constants.AWSQuickSightURL,
+	} {
+		if strings.HasPrefix(a.Spec.URI, consoleURL) {
+			return true
+		}
+	}
+
+	return a.Spec.Cloud == CloudAWS
+}
+
+// IsAzureCloud returns true if this app is Azure Cloud instance.
+func (a *AppV3) IsAzureCloud() bool {
+	return a.Spec.Cloud == CloudAzure
+}
+
+// IsGCP returns true if this app is GCP instance.
+func (a *AppV3) IsGCP() bool {
+	return a.Spec.Cloud == CloudGCP
+}
+
+// IsTCP returns true if this app represents a TCP endpoint.
+func (a *AppV3) IsTCP() bool {
+	return IsAppTCP(a.Spec.URI)
+}
+
+// IsMCP returns true if provided uri is an MCP app.
+func (a *AppV3) IsMCP() bool {
+	return IsAppMCP(a.Spec.URI)
+}
+
+// IsLLM returns true if app is an LLM inference endpoint.
+func (a *AppV3) IsLLM() bool {
+	return strings.HasPrefix(a.Spec.URI, SchemeLLMEndpoint+"://")
+}
+
+func IsAppTCP(uri string) bool {
+	return strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, SchemeTLS+"://")
+}
+
+// IsAppMCP returns true if provided uri is an MCP app.
+func IsAppMCP(uri string) bool {
+	return GetMCPServerTransportType(uri) != ""
+}
+
+// GetProtocol returns the application protocol.
+func (a *AppV3) GetProtocol() string {
+	if a.IsTCP() {
+		return ApplicationProtocolTCP
+	}
+	if a.IsMCP() {
+		return ApplicationProtocolMCP
+	}
+	if a.IsLLM() {
+		return ApplicationProtocolLLM
+	}
+	return ApplicationProtocolHTTP
+}
+
+// GetAWSAccountID returns value of label containing AWS account ID on this app.
+func (a *AppV3) GetAWSAccountID() string {
+	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+// GetAWSExternalID returns the AWS External ID configured for this app.
+func (a *AppV3) GetAWSExternalID() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.ExternalID
+}
+
+// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
+		return ""
+	}
+	return a.Spec.AWS.RolesAnywhereProfile.ProfileARN
+}
+
+// GetAWSRegion returns the AWS region configured for the app.
+func (a *AppV3) GetAWSRegion() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.Region
+}
+
+// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
+func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
+		return false
+	}
+	return a.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName
+}
+
+// GetUserGroups will get the list of user group IDss associated with the application.
+func (a *AppV3) GetUserGroups() []string {
+	return a.Spec.UserGroups
+}
+
+// SetUserGroups will set the list of user group IDs associated with the application.
+func (a *AppV3) SetUserGroups(userGroups []string) {
+	a.Spec.UserGroups = userGroups
+}
+
+// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetTCPPorts() PortRanges {
+	return a.Spec.TCPPorts
+}
+
+// SetTCPPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetTCPPorts(ports []*PortRange) {
+	a.Spec.TCPPorts = ports
+}
+
+// GetIntegration will return the Integration.
+// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+func (a *AppV3) GetIntegration() string {
+	return a.Spec.Integration
+}
+
+// String returns the app string representation.
+func (a *AppV3) String() string {
+	return fmt.Sprintf("App(Name=%v, PublicAddr=%v, Labels=%v)",
+		a.GetName(), a.GetPublicAddr(), a.GetAllLabels())
+}
+
+// Copy returns a copy of this database resource.
+func (a *AppV3) Copy() *AppV3 {
+	return utils.CloneProtoMsg(a)
+}
+
+func (a *AppV3) GetRequiredAppNames() []string {
+	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetUseAnyProxyPublicAddr() bool {
+	return a.Spec.UseAnyProxyPublicAddr
+}
+
+func (a *AppV3) GetCORS() *CORSPolicy {
+	return a.Spec.CORS
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (a *AppV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (a *AppV3) setStaticFields() {
+	a.Kind = KindApp
+	a.Version = V3
+}
+
+// CheckAndSetDefaults checks and sets default values for any missing fields.
+func (a *AppV3) CheckAndSetDefaults() error {
+	a.setStaticFields()
+	if err := a.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	for key := range a.Spec.DynamicLabels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("app %q invalid label key: %q", a.GetName(), key)
+		}
+	}
+
+	if a.Spec.URI == "" {
+		switch {
+		case a.Spec.Cloud != "":
+			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
+		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
+			a.Spec.URI = SchemeMCPStdio + "://"
+		case a.Spec.LLM != nil:
+			a.Spec.URI = SchemeLLMEndpoint + "://"
+		default:
+			return trace.BadParameter("app %q URI is empty", a.GetName())
+		}
+	}
+	if a.Spec.Cloud == "" && a.IsAWSConsole() {
+		a.Spec.Cloud = CloudAWS
+	}
+	switch a.Spec.Cloud {
+	case "", CloudAWS, CloudAzure, CloudGCP:
+		break
+	default:
+		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
+	}
+	publicAddr := a.Spec.PublicAddr
+	// If the public addr has digits in a sub-host and a port, it might cause url.Parse to fail.
+	// Eg of a failing url: 123.teleport.example.com:3080
+	// This is not a valid URL, but we have been using it as such.
+	// To prevent this from failing, we add the `//`.
+	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
+		publicAddr = "//" + publicAddr
+	}
+	publicAddrURL, err := url.Parse(publicAddr)
+	if err != nil {
+		return trace.BadParameter("invalid PublicAddr format: %v", err)
+	}
+	host := a.Spec.PublicAddr
+	if publicAddrURL.Host != "" {
+		host = publicAddrURL.Host
+	}
+
+	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
+		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
+			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
+	}
+
+	switch {
+	case a.IsMCP():
+		a.SetSubKind(SubKindMCP)
+		if err := a.checkMCP(); err != nil {
+			return trace.Wrap(err)
+		}
+	case a.IsLLM():
+		a.SetSubKind(SubKindLLM)
+		if err := a.checkLLM(); err != nil {
+			return trace.Wrap(err)
+		}
+	case len(a.Spec.TCPPorts) != 0:
+		if err := a.checkTCPPorts(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Set an "app-sub-kind" label can be used for RBAC.
+	if a.SubKind != "" {
+		if a.Metadata.Labels == nil {
+			a.Metadata.Labels = make(map[string]string)
+		}
+		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
+	}
+
+	return nil
+}
+
+func (a *AppV3) checkTCPPorts() error {
+	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
+	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
+	uri, err := url.Parse(a.Spec.URI)
+	if err != nil {
+		return trace.BadParameter("invalid app URI format: %v", err)
+	}
+
+	switch {
+	// The scheme of URI is enforced to be "tcp" (or "tls") on purpose. This way in the future we can add
+	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
+	// web app gets downgraded to a version which supports multi-port only for TCP apps.
+	//
+	// For now, we simply ignore the Ports field set on non-TCP apps.
+	case uri.Scheme != "tcp" && uri.Scheme != SchemeTLS:
+		return nil
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'mcp' configuration", a.GetName())
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'inference' configuration", a.GetName())
+	case uri.Port() != "":
+		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
+	}
+
+	for _, portRange := range a.Spec.TCPPorts {
+		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
+		}
+	}
+
+	return nil
+}
+
+func (a *AppV3) checkMCP() error {
+	switch {
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("MCP server %q cannot specify 'inference' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("MCP server %q cannot specify 'tcp_ports' configuration", a.GetName())
+	}
+
+	switch GetMCPServerTransportType(a.Spec.URI) {
+	case MCPTransportStdio:
+		return trace.Wrap(a.checkMCPStdio())
+	case MCPTransportSSE, MCPTransportHTTP:
+		_, err := url.Parse(a.Spec.URI)
+		return trace.Wrap(err)
+	default:
+		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
+	}
+}
+
+func (a *AppV3) checkMCPStdio() error {
+	// Skip validation for internal demo resource.
+	if resourceType, _ := a.GetLabel(TeleportInternalResourceType); resourceType == DemoResource {
+		return nil
+	}
+	if a.Spec.MCP == nil {
+		return trace.BadParameter("MCP server %q is missing 'mcp' spec", a.GetName())
+	}
+	if a.Spec.MCP.Command == "" {
+		return trace.BadParameter("MCP server %q is missing 'command' which specifies the executable to launch the MCP server. Arguments should be specified through the 'args' field", a.GetName())
+	}
+	if a.Spec.MCP.RunAsHostUser == "" {
+		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
+	}
+	return nil
+}
+
+// supportedFormatInferenceProviders determines which provider can serve an API
+// format.
+var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
+	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
+	LLMFormatOpenAI:    {LLMProviderOpenAI, LLMProviderAWSBedrock},
+}
+
+func (a *AppV3) checkLLM() error {
+	switch {
+	case a.Spec.URI != SchemeLLMEndpoint+"://":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'uri' configuration", a.GetName())
+	case a.Spec.LLM == nil:
+		return trace.BadParameter("Inference endpoint %q must specify 'inference' configuration", a.GetName())
+	case a.Spec.Cloud != "":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'cloud' configuration", a.GetName())
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'mcp' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
+	case a.Spec.Rewrite != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
+	}
+
+	llm := a.Spec.LLM
+	// Ensure the combination between Format and Provider is supported.
+	// This also covers the requirement of supported format and provider values.
+	providers, ok := supportedFormatInferenceProviders[llm.Format]
+	if !ok {
+		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'. Supported formats are: %s", a.GetName(), llm.Format, strings.Join(SupportedLLMFormats, ", "))
+	}
+
+	if !slices.Contains(providers, llm.Provider) {
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
+	}
+
+	if a.Spec.AWS != nil && llm.Provider != LLMProviderAWSBedrock {
+		return trace.BadParameter("Inference endpoint %q can only define 'aws' options for provider %q", a.GetName(), LLMProviderAWSBedrock)
+	}
+
+	for _, model := range llm.Models {
+		if model == nil || model.Name == "" {
+			return trace.BadParameter("Inference endpoint %q 'models' elements must include the 'name' property", a.GetName())
+		}
+	}
+
+	// Ensure fallback model is present on the models list.
+	if llm.FallbackModel != "" {
+		if !slices.ContainsFunc(llm.Models, func(model *LLM_Model) bool { return model.Name == llm.FallbackModel }) {
+			return trace.BadParameter("Inference endpoint %q doesn't specify the model used in 'fallback_model'. Update the 'models' list to include the missing model or update the 'fallback_model' to one item of the list", a.GetName())
+		}
+	}
+
+	return nil
+}
+
+// AppSupportsTLSConfig returns if app supports TLS config based on its URI.
+func AppSupportsTLSConfig(uri string) bool {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	return slices.Contains(AppSchemesWithTLSSupport, parsed.Scheme)
+}
+
+// GetIdentityCenter returns the Identity Center information for the app, if any.
+// May be nil.
+func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
+	return a.Spec.IdentityCenter
+}
+
+// GetDisplayName fetches a human-readable display name for the App.
+func (a *AppV3) GetDisplayName() string {
+	// Only Identity Center apps have a display name at this point. Returning
+	// the empty string signals to the caller they should fall back to whatever
+	// they have been using in the past.
+	if a.Spec.IdentityCenter == nil {
+		return ""
+	}
+	return a.Metadata.Description
+}
+
+// IsEqual determines if two application resources are equivalent to one another.
+func (a *AppV3) IsEqual(i Application) bool {
+	if other, ok := i.(*AppV3); ok {
+		return deriveTeleportEqualAppV3(a, other)
+	}
+	return false
+}
+
+// GetMCP returns MCP specific configuration.
+func (a *AppV3) GetMCP() *MCP {
+	return a.Spec.MCP
+}
+
+// GetLLM returns LLM specific configuration.
+func (a *AppV3) GetLLM() *LLM {
+	return a.Spec.LLM
+}
+
+// GetTLS returns TLS configuration.
+func (a *AppV3) GetTLS() *AppTLS {
+	return a.Spec.TLS
+}
+
+// GetTLSMode returns the TLS mode.
+func (a *AppV3) GetTLSMode() AppTLSMode {
+	switch {
+	case a.Spec.InsecureSkipVerify:
+		return AppTLSModeInsecure
+	case a.Spec.TLS != nil && a.Spec.TLS.Mode != "":
+		// Rely on specified value when available.
+		return a.Spec.TLS.Mode
+	case AppSupportsTLSConfig(a.Spec.URI):
+		// Defaults to check only server name to keep backwards compatibility.
+		return AppTLSModeVerifyServerName
+	default:
+		// Unsupported app types should not return any valid mode.
+		return ""
+	}
+}
+
+// GetClientCertMode returns the client certificate mode used.
+func (a *AppV3) GetClientCertMode() AppClientCertMode {
+	if a.Spec.TLS == nil || a.Spec.TLS.ClientCertMode == "" {
+		return AppClientCertModeDisabled
+	}
+
+	return a.Spec.TLS.ClientCertMode
+}
+
+// GetScope returns the scope of the app.
+func (a *AppV3) GetScope() string {
+	if a == nil {
+		return ""
+	}
+
+	return a.Scope
+}
+
+// DeduplicateApps deduplicates apps by combination of app name and public address.
+// Apps can have the same name but also could have different addresses.
+func DeduplicateApps(apps []Application) []Application {
+	return slices.Collect(DeduplicatedApps(slices.Values(apps)))
+}
+
+// DeduplicatedApps iterates deduplicated apps by combination of app name and
+// public address. This is the iter.Seq version of DeduplicateApps.
+func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
+	type key struct{ name, addr string }
+	seen := make(map[key]struct{})
+	return func(yield func(Application) bool) {
+		for app := range apps {
+			key := key{app.GetName(), app.GetPublicAddr()}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if !yield(app) {
+				return
+			}
+		}
+	}
+}
+
+// Apps is a list of app resources.
+type Apps []Application
+
+// Find returns app with the specified name or nil.
+func (a Apps) Find(name string) Application {
+	for _, app := range a {
+		if app.GetName() == name {
+			return app
+		}
+	}
+	return nil
+}
+
+// AsResources returns these apps as resources with labels.
+func (a Apps) AsResources() (resources ResourcesWithLabels) {
+	for _, app := range a {
+		resources = append(resources, app)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (a Apps) Len() int { return len(a) }
+
+// Less compares apps by name.
+func (a Apps) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
+
+// Swap swaps two apps.
+func (a Apps) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// GetPermissionSets fetches the list of permission sets from the Identity Center
+// app information. Handles nil identity center values.
+func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
+	if a == nil {
+		return nil
+	}
+	return a.PermissionSets
+}
+
+// PortRanges is a list of port ranges.
+type PortRanges []*PortRange
+
+// Contains checks if targetPort is within any of the port ranges.
+func (p PortRanges) Contains(targetPort int) bool {
+	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
+		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
+	})
+}
+
+// String returns a string representation of port ranges.
+func (p PortRanges) String() string {
+	var builder strings.Builder
+	for i, portRange := range p {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(portRange.String())
+	}
+	return builder.String()
+}
+
+// String returns a string representation of a port range.
+func (p *PortRange) String() string {
+	if p.EndPort == 0 {
+		return strconv.Itoa(int(p.Port))
+	} else {
+		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
+}
+
+// GetMCPServerTransportType returns the transport of the MCP server based on
+// the URI. If no MCP transport type can be determined from the URI, an empty
+// string is returned.
+func GetMCPServerTransportType(uri string) string {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+
+	switch parsed.Scheme {
+	case SchemeMCPStdio:
+		return MCPTransportStdio
+	case SchemeMCPSSEHTTP, SchemeMCPSSEHTTPS:
+		return MCPTransportSSE
+	case SchemeMCPHTTP, SchemeMCPHTTPS:
+		return MCPTransportHTTP
+	default:
+		return ""
+	}
+}
+
+// LLMFormat indicates the API format used by clients to use an inference
+// endpoint.
+type LLMFormat = string
+
+const (
+	// LLMFormatUnspecified represents an empty LLM API format.
+	LLMFormatUnspecified LLMProvider = ""
+	// LLMFormatOpenAI represents the OpenAI LLM API format.
+	LLMFormatOpenAI LLMFormat = "openai"
+	// LLMFormatAnthropic represents the Anthropic LLM API format.
+	LLMFormatAnthropic LLMFormat = "anthropic"
+)
+
+// SupportedLLMFormats is the list of supported LLM API formats.
+var SupportedLLMFormats = []LLMFormat{LLMFormatOpenAI, LLMFormatAnthropic}
+
+// LLMProvider determines which service serves the LLM inference endpoint.
+type LLMProvider = string
+
+const (
+	// LLMProviderUnspecified represents an empty inference provider.
+	LLMProviderUnspecified LLMProvider = ""
+	// LLMProviderOpenAI represents the OpenAI LLM inference provider.
+	LLMProviderOpenAI LLMProvider = "openai"
+	// LLMProviderAnthropic represents the Anthropic LLM inference provider.
+	LLMProviderAnthropic LLMProvider = "anthropic"
+	// LLMProviderAWSBedrock represents the AWS Bedrock LLM inference provider.
+	LLMProviderAWSBedrock LLMProvider = "bedrock"
+)
+
+// SupportedLLMProviders is the list of supported LLM inference providers.
+var SupportedLLMProviders = []LLMProvider{
+	LLMProviderOpenAI,
+	LLMProviderAnthropic,
+	LLMProviderAWSBedrock,
+}
+
+// AppSchemesWithTLSSupport list of app schemas that support TLS configurations.
+var AppSchemesWithTLSSupport = []string{
+	"https",
+	SchemeTLS,
+	SchemeMCPHTTPS,
+	SchemeMCPSSEHTTPS,
+}
+
+// AppTLSMode defines TLS verification.
+//
+// Friendly reminder: When adding or modifying TLS mode value, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppTLSMode = string
+
+const (
+	// AppTLSModeVerifyFull performs certificate verification with server name
+	// and spiffe ID check.
+	AppTLSModeVerifyFull AppTLSMode = "verify-full"
+	// AppTLSModeVerifyServerName performs certificate verification with server
+	// name check.
+	AppTLSModeVerifyServerName AppTLSMode = "verify-server-name"
+	// AppTLSModeVerifySpiffeID performs certificate verification with spiffe ID
+	// check.
+	AppTLSModeVerifySpiffeID AppTLSMode = "verify-spiffe-id"
+	// AppTLSModeInsecure disables app's TLS certificate verification.
+	AppTLSModeInsecure AppTLSMode = "insecure"
+)
+
+// AppClientCertMode specifies which client certificate mode to use for the
+// upstream connection.
+//
+// Friendly reminder: When adding or modifying a client cert mode, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppClientCertMode = string
+
+const (
+	// AppClientCertModeManaged indicates app service will issue client
+	// certificates to use in the app upstream connection, establishing mTLS
+	// connections.
+	AppClientCertModeManaged AppClientCertMode = "managed"
+	// AppClientCertModeDisabled indicates the app upstream connection won't use
+	// client certificates.
+	AppClientCertModeDisabled AppClientCertMode = "disabled"
+)
+
+// AppTLSInternalCA represents a Teleport CA that the app service will accept
+// certificates from when establishing an app upstream connection.
+//
+// Friendly reminder: When adding or modifying a internal CA alias, also check
+// the AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppTLSInternalCA = string
+
+const (
+	// AppTLSInternalCAWorkloadIdentity represents the Workload Identity CA.
+	AppTLSInternalCAWorkloadIdentity AppTLSInternalCA = "workload_identity"
+)
+
+// AppSupportedInternalCAs returns the list of internal CAs that can be used
+// in the app TLS configuration.
+func AppSupportedInternalCAs() []string {
+	return []string{AppTLSInternalCAWorkloadIdentity}
+}

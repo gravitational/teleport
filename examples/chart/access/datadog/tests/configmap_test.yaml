@@ -1,0 +1,37 @@
+suite: Test configmap
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      datadog:
+        apiEndpoint: https://api.datadoghq.com
+        apiKey: test-api-key
+        applicationKey: test-application-key
+        fallbackRecipient: admin@example.com
+        severity: SEV-3
+      log:
+        output: /var/log/teleport-datadog.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should not contain annotations when not defined
+    asserts:
+      - isNull:
+          path: metadata.annotations
+
+  - it: should contain annotations when defined
+    set:
+      annotations:
+        config:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB

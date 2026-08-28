@@ -1,0 +1,41 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "e/web/**/*.ts",
+    "e/web/**/*.tsx",
+    "e/web/**/*.js",
+    "e/web/**/*.jsx",
+    "web/**/*.ts",
+    "web/**/*.tsx",
+    "web/**/*.js",
+    "web/**/*.jsx"
+  ],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./web/packages/design/tsconfig.json" }
+  ],
+  "compilerOptions": {
+    "outDir": "build.assets/.cache/ts",
+    "noEmit": true,
+    "types": ["node", "@types/wicg-file-system-access"],
+    "paths": {
+      "build/*": ["./web/packages/build/*"],
+      "build": ["./web/packages/build/"],
+      "shared/*": ["./web/packages/shared/*"],
+      "design/*": ["./web/packages/design/src/*"],
+      "design": ["./web/packages/design/src/"],
+      "teleport/*": ["./web/packages/teleport/src/*"],
+      "teleport": ["./web/packages/teleport/src/"],
+      "teleterm/*": ["./web/packages/teleterm/src/*"],
+      "e-teleport/*": ["./e/web/teleport/src/*"],
+      "gen-proto-ts/*": ["./gen/proto/ts/*"]
+    }
+  },
+  "exclude": [
+    "web/packages/design",
+    "node_modules",
+    "**/node_modules/*",
+    "**/build/app/**",
+    "**/build/release/**"
+  ]
+}

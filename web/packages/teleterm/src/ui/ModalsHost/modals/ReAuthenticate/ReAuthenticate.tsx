@@ -1,0 +1,304 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { FC, useEffect, useState } from 'react';
+
+import {
+  Alert,
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+  Image,
+  Link,
+  Text,
+} from 'design';
+import DialogConfirmation, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+} from 'design/DialogConfirmation';
+import * as icons from 'design/Icon';
+import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import FieldInput from 'shared/components/FieldInput';
+import { FieldSelect } from 'shared/components/FieldSelect';
+import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { requiredToken } from 'shared/components/Validation/rules';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { routing } from 'teleterm/ui/uri';
+
+export const ReAuthenticate: FC<{
+  promptMfaRequest: PromptMFARequest;
+  onCancel: () => void;
+  onOtpSubmit: (otp: string) => void;
+  onSsoContinue: (redirectUrl: string) => void;
+  onBrowserMfaContinue: (redirectUrl: string) => void;
+  hidden?: boolean;
+}> = props => {
+  const { promptMfaRequest: req, onSsoContinue, onBrowserMfaContinue } = props;
+
+  const availableMfaTypes = makeAvailableMfaTypes(req);
+
+  const [selectedMfaType, setSelectedMfaType] = useState<AvailableMfaType>(
+    availableMfaTypes[0]
+  );
+
+  const [otpToken, setOtpToken] = useState('');
+
+  const { clusterUri } = req;
+  const { clustersService } = useAppContext();
+  const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+  const rootCluster = clustersService.findRootClusterByResource(rootClusterUri);
+  const rootClusterName = routing.parseClusterName(rootClusterUri);
+  const rootClusterProxyHost =
+    // As a fallback, we read the proxy hostname from the URI. One small issue is that URIs don't
+    // include the port number, so if the actual proxy host has a port number other than 443,
+    // rootClusterProxyHost will not point to the proxy service.
+    // In practice though we should not end up in a situation where this modal is shown but the
+    // cluster does not exist in the app.
+    rootCluster?.proxyHost || rootClusterName;
+
+  // maybeOpenBrowser opens the browser if the given mfaType is SSO of Browser MFA
+  function maybeOpenBrowser(mfaType: AvailableMfaType) {
+    switch (mfaType.value) {
+      case 'sso':
+        onSsoContinue(req.sso?.redirectUrl);
+        break;
+      case 'browsermfa':
+        onBrowserMfaContinue(
+          `https://${rootClusterProxyHost}/web/mfa/browser/${req.browser.requestId}`
+        );
+        break;
+    }
+  }
+
+  // selectMfaType is a wrapper for setSelectedMfaType that will also open the
+  // browser if the user has selected SSO or Browser MFA
+  function selectMfaType(mfaType: AvailableMfaType) {
+    setSelectedMfaType(mfaType);
+
+    // Open the browser if the user selected SSO or Browser MFA
+    maybeOpenBrowser(mfaType);
+  }
+
+  // If there is only one available MFA type, the user may not get a dropdown
+  // to select the MFA type. If the only available type is SSO or Browser MFA,
+  // open the browser now.
+  useEffect(() => {
+    if (availableMfaTypes.length === 1) {
+      selectMfaType(availableMfaTypes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  let $totpPrompt = (
+    <FieldInput
+      flex="1"
+      autoFocus
+      label="Authenticator Code"
+      rule={requiredToken}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      value={otpToken}
+      onChange={e => setOtpToken(e.target.value)}
+      placeholder="123 456"
+      mb={0}
+    />
+  );
+  if (req.perSessionMfa) {
+    const $action =
+      availableMfaTypes.length > 1 ? (
+        'choose'
+      ) : (
+        <Link
+          href={`https://${rootClusterProxyHost}/web/account`}
+          target="_blank"
+        >
+          set up
+        </Link>
+      );
+    $totpPrompt = (
+      <>
+        {/* Empty box to occupy hald of flex width if TOTP input is not shown. */}
+        <Box flex="1" />
+        <Alert kind="warning" width="100%" m={0}>
+          Authenticator App is no longer supported as a two-factor type for
+          per-session MFA. Please {$action} another authentication method.
+        </Alert>
+      </>
+    );
+  }
+
+  return (
+    <DialogConfirmation
+      open={!props.hidden}
+      keepInDOMAfterClose
+      onClose={props.onCancel}
+      dialogCss={() => ({
+        maxWidth: '400px',
+        width: '100%',
+      })}
+    >
+      <Validation>
+        {({ validator }) => (
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              validator.validate() && props.onOtpSubmit(otpToken);
+            }}
+          >
+            <DialogHeader
+              justifyContent="space-between"
+              mb={0}
+              alignItems="baseline"
+            >
+              <H2 mb={4}>
+                Verify your identity on <strong>{rootClusterName}</strong>
+              </H2>
+              <ButtonIcon
+                type="button"
+                onClick={props.onCancel}
+                color="text.slightlyMuted"
+              >
+                <icons.Cross size="medium" />
+              </ButtonIcon>
+            </DialogHeader>
+
+            <DialogContent mb={4}>
+              <Flex flexDirection="column" gap={4} alignItems="flex-start">
+                {req.reason && <Text>{req.reason}</Text>}
+
+                <Flex width="100%" gap={3} flexWrap="wrap">
+                  {availableMfaTypes.length > 1 && (
+                    <FieldSelect
+                      flex="1"
+                      label="Two-factor Type"
+                      value={selectedMfaType}
+                      options={availableMfaTypes}
+                      onChange={mfaType => {
+                        selectMfaType(mfaType);
+                      }}
+                    />
+                  )}
+                  {selectedMfaType.value === 'totp' ? (
+                    $totpPrompt
+                  ) : (
+                    // Empty box to occupy hald of flex width if TOTP input is not shown.
+                    <Box flex="1" />
+                  )}
+                </Flex>
+
+                {selectedMfaType.value === 'webauthn' && (
+                  <>
+                    <Image width="200px" src={svgHardwareKey} mx="auto" />
+                    <Box
+                      width="100%"
+                      textAlign="center"
+                      style={{ position: 'relative' }}
+                    >
+                      <Text bold>Insert your security key and tap it.</Text>
+                      <LinearProgress />
+                    </Box>
+                  </>
+                )}
+
+                {selectedMfaType.value === 'sso' && (
+                  <PromptSsoStatus ssoPrompt="follow-browser-steps" />
+                )}
+
+                {selectedMfaType.value === 'browsermfa' && (
+                  <Box
+                    width="100%"
+                    textAlign="center"
+                    style={{ position: 'relative' }}
+                  >
+                    <Text bold>
+                      Please follow the steps in the browser to authenticate.
+                    </Text>
+                    <LinearProgress />
+                  </Box>
+                )}
+              </Flex>
+            </DialogContent>
+
+            <DialogFooter>
+              <Flex gap={3}>
+                {selectedMfaType.value === 'totp' && (
+                  <ButtonPrimary
+                    type="submit"
+                    // TOTP is not a supported MFA type for per-session MFA prompts.
+                    disabled={req.perSessionMfa}
+                  >
+                    Continue
+                  </ButtonPrimary>
+                )}
+                <ButtonSecondary type="button" onClick={props.onCancel}>
+                  Cancel
+                </ButtonSecondary>
+              </Flex>
+            </DialogFooter>
+          </form>
+        )}
+      </Validation>
+    </DialogConfirmation>
+  );
+};
+
+type MfaType = 'webauthn' | 'totp' | 'sso' | 'browsermfa';
+type AvailableMfaType = Option<MfaType, string>;
+
+const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
+const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
+const browsermfa = { value: 'browsermfa' as MfaType, label: 'Browser MFA' };
+
+function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
+  let availableMfaTypes: AvailableMfaType[] = [];
+
+  if (req.webauthn) {
+    availableMfaTypes.push(webauthn);
+  }
+  if (req.totp) {
+    availableMfaTypes.push(totp);
+  }
+  // put sso last in the list so we don't automatically open the browser unless
+  // sso is the only one in the list.
+  if (req.sso) {
+    availableMfaTypes.push({
+      value: 'sso',
+      label: req.sso.displayName || req.sso.connectorId,
+    });
+  }
+
+  if (req.browser) {
+    availableMfaTypes.push(browsermfa);
+  }
+
+  // This shouldn't happen but is technically allowed by the req data structure.
+  if (availableMfaTypes.length === 0) {
+    availableMfaTypes.push(webauthn);
+    availableMfaTypes.push(totp);
+  }
+  return availableMfaTypes;
+}

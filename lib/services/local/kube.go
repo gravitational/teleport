@@ -1,0 +1,213 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package local
+
+import (
+	"context"
+	"iter"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+)
+
+// KubernetesService manages kubernetes resources in the backend.
+type KubernetesService struct {
+	backend.Backend
+	logger *slog.Logger
+	svc    *generic.ScopeAwareService[types.KubeCluster]
+}
+
+// NewKubernetesService creates a new KubernetesService.
+func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
+	svc, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.KubeCluster]{
+		Backend:               b,
+		ResourceKind:          types.KindKubernetesCluster,
+		UnscopedBackendPrefix: kubeUnscopedPrefix(),
+		ScopedBackendPrefix:   kubeScopedPrefix(),
+		MarshalFunc: func(kc types.KubeCluster, option ...services.MarshalOption) ([]byte, error) {
+			return services.MarshalKubeCluster(kc, option...)
+		},
+		UnmarshalFunc: func(bytes []byte, option ...services.MarshalOption) (types.KubeCluster, error) {
+			cluster, err := services.UnmarshalKubeCluster(bytes, option...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &KubernetesService{
+		Backend: b,
+		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+		svc:     svc,
+	}, nil
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+//
+// Deprecated: this predates both scope filtering and with_secrets, and is secret-inclusive because the
+// legacy RPC it backs must keep behaving as it does for outdated clients. Prefer RangeKubeClusters.
+// TODO(okraport): remove in v21, along with the legacy GetKubernetesClusters RPC.
+func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	out, err := stream.Collect(s.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+		WithSecrets: true,
+	}.Build()))
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// ListKubeClusters returns a page of registered kube clusters respecting scope filters.
+func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	filterFn := func(kc types.KubeCluster) bool {
+		return scopes.MatchScope(scopeFilter, kc.GetScope())
+	}
+
+	clusters, next, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if !req.GetWithSecrets() {
+		for i, cluster := range clusters {
+			clusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
+		}
+	}
+
+	return clusters, next, nil
+}
+
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.KubeCluster](trace.Wrap(err))
+	}
+	withSecrets := req.GetWithSecrets()
+	filterFn := func(kc types.KubeCluster) (types.KubeCluster, bool) {
+		if !scopes.MatchScope(scopeFilter, kc.GetScope()) {
+			return nil, false
+		}
+		if !withSecrets {
+			kc = kc.WithoutSecrets().(types.KubeCluster)
+		}
+		return kc, true
+	}
+
+	return stream.FilterMap(s.svc.Resources(ctx, req.GetPageToken(), ""), filterFn)
+}
+
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	sqn := scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	cluster, err := s.svc.GetResource(ctx, sqn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !req.GetWithSecrets() {
+		cluster = cluster.WithoutSecrets().(types.KubeCluster)
+	}
+	return cluster, nil
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	if err := validateKubeCluster(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err := s.svc.CreateResource(ctx, cluster)
+	return trace.Wrap(err)
+}
+
+// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
+func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	if err := validateKubeCluster(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := s.svc.UpdateResource(ctx, cluster)
+	return trace.Wrap(err)
+}
+
+// DeleteKubeCluster removes the specified kubernetes cluster resource.
+func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
+}
+
+// DeleteAllKubernetesClusters removes all kubernetes cluster resources.
+func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
+	return s.svc.DeleteAllResources(ctx)
+}
+
+func validateKubeCluster(cluster types.KubeCluster) error {
+	if err := services.CheckAndSetDefaults(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cluster.GetScope() == "" {
+		return nil
+	}
+
+	if err := scopes.StrongValidate(cluster.GetScope()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(cluster.GetDynamicLabels()) > 0 {
+		return trace.BadParameter("scoped kubernetes clusters do not support dynamic labels")
+	}
+
+	return nil
+}
+
+func kubeUnscopedPrefix() backend.Key {
+	return backend.NewKey("kubernetes")
+}
+
+func kubeScopedPrefix() backend.Key {
+	return backend.NewKey("scoped", "kubernetes")
+}

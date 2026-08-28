@@ -1,0 +1,185 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.scopes.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1";
+
+// Pin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
+// information for access-control evaluation at that scope.
+message Pin {
+  reserved 2;
+  reserved "assignments";
+  // scope is the target scope that this pin is associated with. This is the scope that the certificate/identity is
+  // pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies
+  // conveyed by this pin.
+  string scope = 1;
+
+  // kind indicates the pin kind (USER or AGENT). Pin kind determines whether this identity's privileges are conveyed
+  // via scoped user roles or system roles (note: bots use USER kind pins, rather than a separate BOT kind).
+  PinKind kind = 4;
+
+  // assignment_tree encodes the full tree of scoped privilege assignments, organized by *Scope of Origin*. Policies/privileges
+  // assigned from higher scopes of origin take precedence over those assigned from lower scopes of origin. Only specified
+  // for USER kind pins.
+  AssignmentNode assignment_tree = 3;
+
+  // system_roles encodes the system roles held by the pinned identity. Only specified for AGENT kind pins.
+  SystemRoles system_roles = 5;
+}
+
+// PinKind expresses the kind of scope pin associated with a certificate/identity. User (and bot) certificates are kind USER,
+// while agent certificates are kind AGENT. The pin kind determines whether the privileges associated with an identity are
+// derived from scoped user roles (USER) or from system roles (AGENT).
+enum PinKind {
+  // PIN_KIND_UNSPECIFIED indicates that no pin kind has been specified.
+  PIN_KIND_UNSPECIFIED = 0;
+
+  // PIN_KIND_USER indicates that the pin is associated with a user certificate/identity.
+  PIN_KIND_USER = 1;
+
+  // PIN_KIND_AGENT indicates that the pin is associated with an agent certificate/identity.
+  PIN_KIND_AGENT = 2;
+}
+
+// AssignmentNode represents a node in the assignment tree. In addition to containing its own children as is standard for tree nodes,
+// each assignment node may also contain a role subtree. The assignment tree is organized by *Scope of Origin* (the scope from which
+// the assignment originates), while the role subtree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+message AssignmentNode {
+  // children are the child assignment nodes, keyed by scope segment.
+  map<string, AssignmentNode> children = 1;
+
+  // role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+  RoleNode role_tree = 2;
+}
+
+// RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
+// that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+// The role tree is *relative to* the Scope of Origin that references it (i.e. if assignment node `/staging` contains a role tree
+// with roles at `/west`, the full Scope of Effect for those roles is `/staging/west`).
+message RoleNode {
+  reserved 2;
+  reserved "roles";
+
+  // children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
+  map<string, RoleNode> children = 1;
+
+  // roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
+  repeated RolesByScope roles_by_scope = 3;
+}
+
+// RolesByScope groups a set of roles that share the same resource scope. Because pins are subject to size constraints when encoded
+// to certificates, we only store the depth (segment count) of the resource scope associated with this set of roles.  Roles are only
+// assignable to equivalent/descendant scopes, and so their resource scope is always a prefix of the Scope of Effect, which is already
+// known at the RoleNode where this entry appears.
+message RolesByScope {
+  // depth is the number of path segments in the roles' resource scope (root=0, /staging/west=2, etc).
+  uint32 depth = 1;
+
+  // names are the role names whose resource scope is at this depth.
+  repeated string names = 2;
+}
+
+// PinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
+message PinnedAssignments {
+  // roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
+  repeated string roles = 1;
+}
+
+// SystemRoles is a collection of system roles held by an agent identity.
+message SystemRoles {
+  // primary is the primary system role associated with the certificate. For per-service agent certificates, this will
+  // be an ordinary system role (e.g. "Node") and the additional system roles will be empty. If the primary is "Instance"
+  // then the additional system roles will contain all system roles held by the agent.
+  string primary = 1;
+
+  // additional is the list of all system roles held by the agent identity. Only populated for "Instance" certificates.
+  repeated string additional = 2;
+}
+
+// Mode determines how a Filter matches resource scopes relative to the scope specified by the
+// filter. Most modes select resources by their relationship to Filter.Scope (exact, descendants,
+// ancestors, or all relatives). Two special modes (MODE_UNSCOPED and MODE_ALL) do not select by
+// relationship and instead match the unscoped subset or everything the caller may see, respectively.
+//
+// NOTE: Our internals treat an unspecified filter and a MODE_ALL filter is both being "match all",
+// *however* the API/authz layer treats them differently. A MODE_ALL filter is interpreted as being
+// intentional. However, an omitted filter is replaced by an identity-dependent default (MODE_EXACT
+// for scoped callers and MODE_UNSCOPED for unscoped callers). This conservative defaulting is a key
+// component of the backwards comatibility and safety story for scope-enabled APIs. Any callsite being
+// updated to use an inclusive filtering mode like MODE_ALL must be carefully validated to ensure that
+// it is safe in the context of issues like the "confused deputy" problem.
+enum Mode {
+  reserved 1;
+  reserved "MODE_RESOURCES_SUBJECT_TO_SCOPE";
+
+  // MODE_UNSPECIFIED indicates that no scope-based filtering has been specified. Cache/backend impls
+  // treat this as equivalent to MODE_ALL. The API/authz layer replaces this with one of MODE_EXACT or
+  // MODE_UNSCOPED depending on whether the caller is scoped or unscoped, respectively.
+  MODE_UNSPECIFIED = 0;
+
+  // MODE_POLICIES_APPLICABLE_TO_SCOPE matches scopes by the policy application rules. In the
+  // terminology of scope comparison, this means Ancestor and Equivalent scopes. This is the mode that most caching
+  // and access-control related queries should use as it answers the question "what policies might affect access to
+  // this resource at scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
+  MODE_POLICIES_APPLICABLE_TO_SCOPE = 2 [deprecated = true];
+
+  // MODE_EXACT matches resources in the exact scope specified by Filter.Scope (Equivalent only). This is
+  // the minimal/safe default for watch/list requests initiated by scoped callers that do not specify an
+  // explicit filter.
+  MODE_EXACT = 3;
+
+  // MODE_DESCENDANTS matches the scope specified by Filter.Scope and all of its descendants. For example,
+  // a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging/west/test`, but not
+  // `/staging` or `/prod/west`.
+  MODE_DESCENDANTS = 4;
+
+  // MODE_ANCESTORS matches the scope specified by Filter.Scope and all of its ancestors. For example,
+  // a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging`, but not
+  // `/staging/west/test` or `/prod/west`.
+  MODE_ANCESTORS = 5;
+
+  // MODE_RELATIVES matches the scope specified by Filter.Scope, all of its ancestors, and all of its
+  // descendants (i.e. any non-orthogonal scope). For example, a Filter.Scope of `/staging/west` would match
+  // `/staging/west`, `/staging`, and `/staging/west/test, but not `/prod/west`.
+  MODE_RELATIVES = 6;
+
+  // MODE_UNSCOPED matches unscoped resources only. Filter.Scope must be empty when this mode is selected.
+  // This is the safe default for watch/list requests initiated by unscoped callers that do not specify an
+  // explicit filter.
+  MODE_UNSCOPED = 7;
+
+  // MODE_ALL matches all resources that the caller has permission to see (scoped and unscoped). Filter.Scope
+  // must be empty when this mode is selected. This is the mode that most exhaustive user-facing views (e.g. `tctl get`)
+  // should use.
+  MODE_ALL = 8;
+}
+
+// Filter is a query parameter that matches scopes based on a specified scope and mode. See the
+// Mode enum for the semantics of each matching mode, and the 'lib/scopes' package (MatchScope/ValidateFilter)
+// for the authoritative matching and validation logic.
+//
+// Conventionally, list and watch requests for scope-aware types include a `scope_filter` field of this type
+// which matches the resource scope of the associated resource type. Some APIs may also support additional
+// filters (e.g. scoped roles can be filtered by assignable scope).
+message Filter {
+  // Scope is the scope value to match against. Must be empty for MODE_UNSCOPED, MODE_ALL, and
+  // MODE_UNSPECIFIED, and non-empty for all relationship-based modes.
+  string scope = 1;
+
+  // Mode determines the mode of matching.
+  Mode mode = 2;
+}

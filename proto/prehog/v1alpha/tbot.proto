@@ -1,0 +1,64 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+// TbotStartEvent is triggered whenever tbot starts, regardless of whether tbot
+// was able to successfully connect to or authenticate with a Teleport cluster.
+message TbotStartEvent {
+  // RunMode specifies whether or not tbot has been configured to run once
+  // and output certificates, or continually renew certificates in the
+  // background.
+  enum RunMode {
+    RUN_MODE_UNSPECIFIED = 0;
+    RUN_MODE_ONE_SHOT = 1;
+    RUN_MODE_DAEMON = 2;
+  }
+  RunMode run_mode = 1;
+  string version = 2;
+  string join_type = 3;
+  string helper = 4;
+  string helper_version = 5;
+  int32 destinations_other = 6;
+  int32 destinations_database = 7;
+  int32 destinations_kubernetes = 8;
+  int32 destinations_application = 9;
+}
+
+message SubmitTbotEventRequest {
+  // uuid identifying that tbot session. This is future-proofing for if we
+  // decide to add multiple events in future, and need to tie them together.
+  string distinct_id = 1;
+
+  // optional, will default to the ingest time if unset
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof event {
+    TbotStartEvent start = 3;
+  }
+}
+
+message SubmitTbotEventResponse {}
+
+service TbotReportingService {
+  rpc SubmitTbotEvent(SubmitTbotEventRequest) returns (SubmitTbotEventResponse) {}
+}

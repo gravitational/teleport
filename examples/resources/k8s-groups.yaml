@@ -1,0 +1,29 @@
+#
+# Example: Default k8s-groups Role
+#
+kind: role
+metadata:
+  name: k8s-groups
+spec:
+  options:
+    max_session_ttl: 30h0m0s
+    forward_agent: true
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+  allow:
+    logins: [root, '{{internal.logins}}']
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]]
+    node_labels:
+      '*': '*'
+    rules:
+    - resources: [role]
+      verbs: [list, create, read, update, delete]
+    - resources: [auth_connector]
+      verbs: [connect, list, create, read, update, delete]
+    - resources: [session]
+      verbs: [list, read]
+    - resources: [trusted_cluster]
+      verbs: [connect, list, create, read, update, delete]
+  deny: {}

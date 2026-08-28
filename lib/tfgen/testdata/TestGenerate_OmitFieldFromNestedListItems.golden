@@ -1,0 +1,21 @@
+resource "teleport_okta_import_rule" "example-import-rule" {
+  version = "v1"
+
+  metadata = {
+    name = "example-import-rule"
+  }
+
+  spec = {
+    mappings = [{
+      match = [{
+        app_ids = ["app1"]
+        }, {
+        app_ids = ["app2"]
+      }]
+      }, {
+      match = [{
+        app_ids = ["app3"]
+      }]
+    }]
+  }
+}

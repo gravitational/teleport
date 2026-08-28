@@ -1,0 +1,68 @@
+{{/* PSPs are deprecated in 1.22 and removed in 1.25. However Helm doesn't handle their removal properly in 1.25
+     We must remove them before 1.25 to ensure the Helm state doesn't corrupt. As this is a breaking change, this
+     only applies to v12+ charts. v11 and below will only show a warning from the NOTES.txt.
+     Users must use PSAs instead (beta in 1.23, GA in 1.25). The "teleport-cluster" chart runs in "baseline" mode */}}
+{{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) -}}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+  - ALL
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: MustRunAs
+    ranges:
+    # Forbid adding the root group.
+    - min: 1
+      max: 65535
+  runAsUser:
+    rule: MustRunAsNonRoot
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+    # Forbid adding the root group.
+    - min: 1
+      max: 65535
+  readOnlyRootFilesystem: true
+  volumes:
+  - '*'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-psp
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - policy
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+  resourceNames:
+  - {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-psp
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-psp
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}
+{{- end -}}

@@ -1,0 +1,333 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package boundkeypair
+
+import (
+	"crypto"
+	"testing"
+	"time"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
+)
+
+type mockCA struct {
+	types.CertAuthority
+
+	keys []*types.JWTKeyPair
+}
+
+func (m *mockCA) GetTrustedJWTKeyPairs() []*types.JWTKeyPair {
+	return m.keys
+}
+
+func newJWTKeyPair(t *testing.T) (crypto.Signer, *types.JWTKeyPair) {
+	t.Helper()
+
+	signer := newTestKeypair(t)
+	private, err := keys.MarshalPrivateKey(signer)
+	require.NoError(t, err)
+
+	public, err := keys.MarshalPublicKey(signer.Public())
+	require.NoError(t, err)
+
+	return signer, &types.JWTKeyPair{
+		PublicKey:      public,
+		PrivateKey:     private,
+		PrivateKeyType: types.PrivateKeyType_RAW,
+	}
+}
+
+func TestIssueAndVerifyJoinState(t *testing.T) {
+	activeSigner, activeKeypair := newJWTKeyPair(t)
+	standbySigner, standbyKeypair := newJWTKeyPair(t)
+	invalidSigner, _ := newJWTKeyPair(t)
+
+	clock := clockwork.NewFakeClock()
+
+	ca := &mockCA{
+		keys: []*types.JWTKeyPair{
+			activeKeypair,
+			standbyKeypair,
+		},
+	}
+
+	makeParams := func(mutators ...func(*JoinStateParams)) *JoinStateParams {
+		token := &types.ProvisionTokenV2{
+			Spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodBoundKeypair,
+				Roles:      []types.SystemRole{types.RoleBot},
+				BotName:    "test",
+				BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+					Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+						InitialPublicKey: "abcd",
+					},
+					Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+						Mode: string(RecoveryModeStandard),
+					},
+				},
+			},
+			Status: &types.ProvisionTokenStatusV2{
+				BoundKeypair: &types.ProvisionTokenStatusV2BoundKeypair{},
+			},
+		}
+
+		params := &JoinStateParams{
+			Clock:       clock,
+			ClusterName: "example.com",
+			Token:       token,
+		}
+
+		for _, mutator := range mutators {
+			mutator(params)
+		}
+
+		return params
+	}
+
+	// makeScopedParams builds params around a scoped token referencing the
+	// bot (scope, botName). Unlike makeParams, mutating the returned params'
+	// token status is not supported: the scoped token wrapper converts its
+	// status on every accessor call.
+	makeScopedParams := func(scope, botName string) *JoinStateParams {
+		scopedToken, err := joining.NewToken(joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
+				Name: "example-token",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				Roles:      []string{string(types.RoleBot)},
+				UsageMode:  joining.TokenUsageModeBot,
+				Bot:        scopes.QualifiedName{Scope: scope, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
+						InitialPublicKey: "abcd",
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
+						Mode:  string(RecoveryModeStandard),
+						Limit: 1,
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		return &JoinStateParams{
+			Clock:       clock,
+			ClusterName: "example.com",
+			Token:       scopedToken,
+		}
+	}
+
+	withRecovery := func(count, limit uint32) func(*JoinStateParams) {
+		return func(params *JoinStateParams) {
+			params.Token.GetBoundKeypairStatus().RecoveryCount = count
+			params.Token.GetBoundKeypair().Recovery.Limit = limit
+		}
+	}
+
+	withInstanceID := func(id string) func(*JoinStateParams) {
+		return func(params *JoinStateParams) {
+			params.Token.GetBoundKeypairStatus().BoundBotInstanceID = id
+		}
+	}
+
+	makeIssuer := func(signer crypto.Signer, params *JoinStateParams) func(*testing.T, clockwork.Clock) string {
+		return func(t *testing.T, clock clockwork.Clock) string {
+			params.Clock = clock
+
+			state, err := IssueJoinState(signer, params)
+			require.NoError(t, err)
+
+			return state
+		}
+	}
+
+	tests := []struct {
+		name string
+
+		issue        func(t *testing.T, clock clockwork.Clock) string
+		verifyParams *JoinStateParams
+
+		clockMod func(clock *clockwork.FakeClock)
+
+		assertError   require.ErrorAssertionFunc
+		assertSuccess func(t *testing.T, s *JoinState)
+	}{
+		{
+			name:         "success",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError:  require.NoError,
+		},
+		{
+			name:         "success with alternate signer",
+			issue:        makeIssuer(standbySigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError:  require.NoError,
+		},
+		{
+			name: "invalid join state",
+			issue: func(t *testing.T, _ clockwork.Clock) string {
+				return "asdf"
+			},
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "parsing serialized join state")
+			},
+		},
+		{
+			name:         "invalid count",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeParams(withRecovery(1, 1)),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "recovery counter mismatch")
+			},
+		},
+		{
+			name:         "invalid instance ID",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
+			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "bot instance mismatch")
+			},
+		},
+		{
+			name:         "untrusted signer",
+			issue:        makeIssuer(invalidSigner, makeParams(withRecovery(0, 1), withInstanceID("foo"))),
+			verifyParams: makeParams(withRecovery(0, 1), withInstanceID("bar")),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "join state could not be verified")
+			},
+		},
+		{
+			name:         "issued too early",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			clockMod: func(clock *clockwork.FakeClock) {
+				clock.Advance(-10 * time.Minute)
+			},
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "token not valid yet")
+			},
+		},
+		{
+			name: "cluster name must match",
+			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
+				jsp.ClusterName = "invalid"
+			})),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "invalid issuer claim")
+			},
+		},
+		{
+			name: "subject must match",
+			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
+				ptv2, ok := jsp.Token.(*types.ProvisionTokenV2)
+				require.True(t, ok)
+
+				ptv2.Spec.BotName = "invalid"
+			})),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped bot success",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError:  require.NoError,
+		},
+		{
+			// The subject is the scope-qualified name, so a same-named bot in
+			// another scope is a different subject.
+			name:         "bot scope must match",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeScopedParams("/bar", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "unscoped join state rejected for scoped bot",
+			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
+			verifyParams: makeScopedParams("/foo", "test"),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped join state rejected for unscoped bot",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name: "informational parameters can be modified",
+			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
+				jsp.Token.GetBoundKeypair().Recovery.Mode = "relaxed"
+				jsp.Token.GetBoundKeypair().Recovery.Limit = 123
+			})),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError:  require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+
+			signedState := tt.issue(t, clock)
+
+			if tt.clockMod != nil {
+				tt.clockMod(clock)
+			}
+
+			tt.verifyParams.Clock = clock
+			_, err := VerifyJoinState(ca, signedState, tt.verifyParams)
+			tt.assertError(t, err)
+		})
+	}
+
+	t.Run("subject", func(t *testing.T) {
+		// An unscoped bot's subject must stay the bare name: changing it would
+		// invalidate every join state already held by an unscoped bot.
+		subject, err := makeParams().GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "test", subject)
+
+		subject, err = makeScopedParams("/foo", "test").GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "/foo::test", subject)
+	})
+}

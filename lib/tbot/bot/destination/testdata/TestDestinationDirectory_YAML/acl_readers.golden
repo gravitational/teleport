@@ -1,0 +1,6 @@
+type: directory
+path: /my/path
+acls: required
+readers:
+  - user: foo
+  - group: "123"

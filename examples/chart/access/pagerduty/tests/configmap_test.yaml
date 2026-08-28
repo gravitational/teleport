@@ -1,0 +1,16 @@
+suite: Test deployment
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot (smtp on)
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      pagerduty:
+        apiKey: test-api-key
+        userEmail: example-user@example.com
+      log:
+        output: /var/log/teleport-pagerduty.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}

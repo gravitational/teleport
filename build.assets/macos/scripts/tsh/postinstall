@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+main() {
+  BIN=/usr/local/bin/
+  [ ! -d "$BIN" ] && mkdir -p "$BIN"
+
+  # If tsh exists and is not a link, make a backup.
+  if [ -f "$BIN/tsh" ] && [ ! -L "$BIN/tsh" ]; then
+    rm -f "$BIN/tsh.bak"
+    mv "$BIN/tsh" "$BIN/tsh.bak"
+  fi
+
+  # Link package to $BIN.
+  rm -f "$BIN/tsh"  # in case link exists
+  ln -s "/Applications/tsh.app/Contents/MacOS/tsh" "$BIN/tsh"
+}
+
+main "$@"

@@ -1,0 +1,28 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - '*'
+should match the snapshot (simple):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - '*'

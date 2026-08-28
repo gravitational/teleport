@@ -1,104 +1,121 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
 import (
-	"path/filepath"
+	"context"
+	"os"
 	"testing"
-	"time"
 
-	"github.com/gravitational/teleport/lib/backend/boltbk"
-	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 
-	. "gopkg.in/check.v1"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestServices(t *testing.T) { TestingT(t) }
-
-type BoltSuite struct {
-	bk    *boltbk.BoltBackend
-	suite *suite.ServicesTestSuite
-	dir   string
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
 }
 
-var _ = Suite(&BoltSuite{})
-
-func (s *BoltSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+type servicesContext struct {
+	bk    backend.Backend
+	suite *ServicesTestSuite
 }
 
-func (s *BoltSuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
+func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
+	var tt servicesContext
+	t.Cleanup(func() { tt.Close() })
+
+	clock := clockwork.NewFakeClock()
 
 	var err error
-	s.bk, err = boltbk.New(filepath.Join(s.dir, "db"))
-	c.Assert(err, IsNil)
+	tt.bk, err = memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{}
-	suite.CAS = NewCAService(s.bk)
-	suite.LockS = NewLockService(s.bk)
-	suite.PresenceS = NewPresenceService(s.bk)
-	suite.ProvisioningS = NewProvisioningService(s.bk)
-	suite.WebS = NewIdentityService(s.bk, 10, time.Duration(time.Hour))
-	suite.ChangesC = make(chan interface{})
-	s.suite = suite
+	configService, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+
+	eventsService := NewEventsService(tt.bk)
+	presenceService := NewPresenceService(tt.bk)
+
+	caService := NewCAService(tt.bk)
+
+	identityService, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
+
+	tt.suite = &ServicesTestSuite{
+		TrustS:         caService,
+		TrustInternalS: caService,
+		PresenceS:      presenceService,
+		ProvisioningS:  NewProvisioningService(tt.bk),
+		WebS:           identityService,
+		Access:         NewAccessService(tt.bk),
+		EventsS:        eventsService,
+		ChangesC:       make(chan interface{}),
+		ConfigS:        configService,
+		LocalConfigS:   configService,
+		RestrictionsS:  NewRestrictionsService(tt.bk),
+		Clock:          clock,
+	}
+
+	return &tt
 }
 
-func (s *BoltSuite) TearDownTest(c *C) {
-	c.Assert(s.bk.Close(), IsNil)
+func (tt *servicesContext) Close() error {
+	return tt.bk.Close()
 }
 
-func (s *BoltSuite) TestUserCACRUD(c *C) {
-	s.suite.CertAuthCRUD(c)
+func TestCRUD(t *testing.T) {
+	tt := setupServicesContext(context.Background(), t)
+
+	t.Run("TestUserCACRUD", tt.suite.CertAuthCRUD)
+	t.Run("TestServerCRUD", tt.suite.ServerCRUD)
+	t.Run("TestAppServerCRUD", tt.suite.AppServerCRUD)
+	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
+	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
+	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)
+	t.Run("TestPasswordCRUD", tt.suite.PasswordCRUD)
+	t.Run("TestWebSessionCRUD", tt.suite.WebSessionCRUD)
+	t.Run("TestToken", tt.suite.TokenCRUD)
+	t.Run("TestRoles", tt.suite.RolesCRUD)
+	t.Run("TestSAMLCRUD", tt.suite.SAMLCRUD)
+	t.Run("TestSAMLPagination", tt.suite.SAMLPagination)
+	t.Run("TestTunnelConnectionsCRUD", tt.suite.TunnelConnectionsCRUD)
+	t.Run("TestGithubConnectorCRUD", tt.suite.GithubConnectorCRUD)
+	t.Run("TestGithubPagination", tt.suite.GithubPagination)
+	t.Run("TestEvents", tt.suite.Events)
+	t.Run("TestEventsClusterConfig", tt.suite.EventsClusterConfig)
+	t.Run("TestNetworkRestrictions", func(t *testing.T) { tt.suite.NetworkRestrictions(t) })
+	t.Run("TestOIDCCRUD", tt.suite.OIDCCRUD)
+	t.Run("TestOIDCPagination", tt.suite.OIDCPagination)
 }
 
-func (s *BoltSuite) TestServerCRUD(c *C) {
-	s.suite.ServerCRUD(c)
-}
+func TestSemaphore(t *testing.T) {
+	tt := setupServicesContext(context.Background(), t)
 
-func (s *BoltSuite) TestReverseTunnelsCRUD(c *C) {
-	s.suite.ReverseTunnelsCRUD(c)
-}
-
-func (s *BoltSuite) TestUsersCRUD(c *C) {
-	s.suite.UsersCRUD(c)
-}
-
-func (s *BoltSuite) TestPasswordHashCRUD(c *C) {
-	s.suite.PasswordHashCRUD(c)
-}
-
-func (s *BoltSuite) TestPasswordAndHotpCRUD(c *C) {
-	s.suite.PasswordCRUD(c)
-}
-
-func (s *BoltSuite) TestPasswordGarbage(c *C) {
-	s.suite.PasswordGarbage(c)
-}
-
-func (s *BoltSuite) TestWebSessionCRUD(c *C) {
-	s.suite.WebSessionCRUD(c)
-}
-
-func (s *BoltSuite) TestLocking(c *C) {
-	s.suite.Locking(c)
-}
-
-func (s *BoltSuite) TestToken(c *C) {
-	s.suite.TokenCRUD(c)
+	t.Run("TestSemaphoreLock", tt.suite.SemaphoreLock)
+	t.Run("TestSemaphoreConcurrency", tt.suite.SemaphoreConcurrency)
+	t.Run("TestSemaphoreContention", tt.suite.SemaphoreContention)
+	t.Run("TestSemaphoreFlakiness", tt.suite.SemaphoreFlakiness)
 }

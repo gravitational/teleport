@@ -1,0 +1,193 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package reversetunnelclient
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net"
+	"time"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/proxy/peer"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/sshagent"
+)
+
+// DialParams is a list of parameters used to Dial to a node within a cluster.
+type DialParams struct {
+	// From is the source address.
+	From net.Addr
+
+	// To is the destination address.
+	To net.Addr
+
+	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
+	// forwarding proxy.
+	GetUserAgent sshagent.ClientGetter
+
+	// AgentlessSignerCreator is called lazily by the forwarding server after
+	// the SSH handshake to create an ssh.Signer for authenticating to agentless
+	// nodes.
+	AgentlessSignerCreator agentless.SignerCreator
+
+	// Address is used by the forwarding proxy to generate a host certificate for
+	// the target node. This is needed because while dialing occurs via IP
+	// address, tsh thinks it's connecting via DNS name and that's how it
+	// validates the host certificate.
+	Address string
+
+	// Principals are additional principals that need to be added to the host
+	// certificate. Used by the recording proxy to correctly generate a host
+	// certificate.
+	Principals []string
+
+	// ServerID the hostUUID.clusterName of a Teleport node. Used with nodes
+	// that are connected over a reverse tunnel.
+	ServerID string
+
+	// ProxyIDs is a list of proxy ids the node is connected to.
+	ProxyIDs []string
+
+	// ConnType is the type of connection requested, either node or application.
+	// Only used when connecting through a tunnel.
+	ConnType types.TunnelType
+
+	// TargetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	TargetServer types.Server
+
+	// FromPeerProxy indicates that the dial request is being tunneled from
+	// a peer proxy.
+	FromPeerProxy bool
+
+	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
+	OriginalClientDstAddr net.Addr
+
+	// TargetScope is the scope the target must belong to.
+	TargetScope string
+}
+
+func (params DialParams) String() string {
+	to := params.To.String()
+	if to == "" {
+		to = params.ServerID
+	}
+	return fmt.Sprintf("from: %q to: %q", params.From, to)
+}
+
+// Cluster represents a teleport cluster, either root or leaf,
+// that can be accessed via teleport tunnel or directly by proxy.
+type Cluster interface {
+	// DialAuthServer returns a net.Conn to the Auth Server of a cluster.
+	DialAuthServer(DialParams) (conn net.Conn, err error)
+	// Dial dials any address within the cluster network, in terminating
+	// mode it uses local instance of forwarding server to terminate
+	// and record the connection.
+	Dial(DialParams) (conn net.Conn, err error)
+	// DialTCP dials any address within the cluster network and
+	// ignores recording mode, used in components that need direct dialer.
+	DialTCP(DialParams) (conn net.Conn, err error)
+	// GetLastConnected returns last time the cluster was seen connected
+	GetLastConnected() time.Time
+	// GetName returns cluster name (identified by authority domain's name)
+	GetName() string
+	// GetStatus returns status of this cluster (either offline or connected)
+	GetStatus() string
+	// GetClient returns client connected to remote auth server
+	GetClient() (authclient.ClientI, error)
+	// CachingAccessPoint returns access point that is lightweight
+	// but is resilient to auth server crashes
+	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
+	// NodeWatcher returns the node watcher that maintains the node set for the cluster
+	NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
+	// GitServerWatcher returns the Git server watcher for the cluster
+	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
+	// DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster
+	DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error)
+	// AppServerWatcher returns the watcher that maintains the app server set for the cluster
+	AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error)
+	// GetTunnelsCount returns the amount of active inbound tunnels
+	// from the remote cluster
+	GetTunnelsCount() int
+	// IsClosed reports whether this Cluster has been closed and should no
+	// longer be used.
+	IsClosed() bool
+	// Closer allows the Cluster to be closed
+	io.Closer
+}
+
+// ClusterGetter allows retrieving connected [Cluster].
+type ClusterGetter interface {
+	// Clusters returns all connected clusters
+	Clusters(ctx context.Context) ([]Cluster, error)
+	// Cluster returns the cluster matching the provided name or a trace.NotFoundError.
+	// The cluster's lifecycle is owned by the reverse tunnel server. Callers should not
+	// close the returned cluster.
+	Cluster(ctx context.Context, clusterName string) (Cluster, error)
+}
+
+// Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
+// cluster connect and register with it.
+type Server interface {
+	ClusterGetter
+	// Start starts server
+	Start() error
+	// Close closes server's operations immediately
+	Close() error
+	// DrainConnections closes listeners and begins draining connections without
+	// closing open connections.
+	DrainConnections(context.Context) error
+	// Shutdown performs graceful server shutdown closing open connections.
+	Shutdown(context.Context) error
+	// Wait waits for server to close all outstanding operations
+	Wait(ctx context.Context)
+	// GetProxyPeerClient returns the proxy peer client
+	GetProxyPeerClient() *peer.Client
+	// TrackUserConnection tracks a user connection that should prevent
+	// the server from being terminated if active. The returned function
+	// should be called when the connection is terminated.
+	TrackUserConnection() (release func())
+}
+
+const (
+	// NoApplicationTunnel is the error message returned when application
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when an app agent has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoApplicationTunnel = "could not find reverse tunnel, check that Application Service agent proxying this application is up and running"
+	// NoDatabaseTunnel is the error message returned when database reverse
+	// tunnel cannot be found.
+	//
+	// It usually happens when a database agent has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoDatabaseTunnel = "could not find reverse tunnel, check that Database Service agent proxying this database is up and running"
+	// NoOktaTunnel is the error message returned when an Okta
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when an Okta service has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoOktaTunnel = "could not find reverse tunnel, check that Okta Service agent proxying this application is up and running"
+)

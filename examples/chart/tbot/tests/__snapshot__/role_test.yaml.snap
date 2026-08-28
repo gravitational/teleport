@@ -1,0 +1,32 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      annotations:
+        test-key: test-annotation-role
+      labels:
+        test-key: test-label-role
+      name: RELEASE-NAME-tbot
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - '*'
+should match the snapshot (simple):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: RELEASE-NAME-tbot
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - '*'

@@ -1,0 +1,11 @@
+# Teleport Access Request MsTeams Plugin
+
+This chart sets up and configures a Deployment for the Access Request MsTeams plugin.
+
+## Installation
+
+See the [Access Requests with Microsoft Teams guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/msteams/).
+
+## Values
+
+See [teleport-plugin-msteams Chart Reference](https://goteleport.com/docs/reference/helm-reference/teleport-plugin-msteams/) for available Helm Chart configuration.

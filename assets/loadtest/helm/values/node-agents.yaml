@@ -1,0 +1,11 @@
+replicaCount: 30
+agentsPerPod: 15
+
+minReadySeconds: 30
+
+image:
+  tag: 15.0.0
+
+joinParams:
+  method: token
+  token_name: "qwertyuiop"

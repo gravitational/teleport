@@ -1,0 +1,33 @@
+kind: oidc
+metadata:
+  name: oidc_connector
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - access
+    value: devs
+  - claim: groups
+    roles:
+    - auditor
+    - editor
+    value: admins
+  client_id: <CLIENT-NAME>
+  client_secret: <CLIENT-SECRET>
+  issuer_url: https://idp.example.com/
+  redirect_url: https://mytenant.teleport.sh:443/v1/webapi/oidc/callback
+  max_age: 24h
+  # pkce_mode determines if the OIDC authentication flow should include PKCE code verifiers. Options or `enabled`, `disabled`, and `` (defaults to disabled)
+  pkce_mode: "enabled"
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
+version: v3

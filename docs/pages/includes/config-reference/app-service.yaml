@@ -1,0 +1,119 @@
+app_service:
+    # Turns 'app' role on. Default is false
+    enabled: true
+    # Teleport contains a small debug app that can be used to make sure the
+    # Application Service is working correctly. The app outputs JWTs so it can
+    # be useful when extending your application.
+    debug_app: true
+    # Enables the builtin Teleport demo MCP server that shows current user and
+    # session information. To access it, this MCP server uses the app label
+    # "teleport.internal/resource-type" with the value "demo".
+    mcp_demo_server: true
+
+    # Matchers for dynamic application resources
+    #
+    # All application resources have a predefined "teleport.dev/origin" label with
+    # one of the following values:
+    # "dynamic": application resources created via an Auth Service API 
+    # client like `tctl` or the Teleport Terraform provider
+    # "config": application resources defined in the "apps" array below
+    resources:
+      - labels:
+          "*": "*"
+
+    apps:
+    - name: "kubernetes-dashboard"
+      # Optional: For access to cloud provider APIs, specify the cloud
+      # provider. Allowed values are "AWS", "Azure", and "GCP".
+      cloud: ""
+      # Optional: Free-form description of the application.
+      description: "Kubernetes Dashboard to development cluster"
+      # URI of Application. For TCP applications
+      # use tcp, ex: tcp://localhost:5432.
+      uri: "http://10.0.1.27:8000"
+      # Optionally skip TLS verification. default false
+      # insecure_skip_verify: true
+      # Optional Public Addr
+      public_addr: "example.com"
+      # Optional Label: These can be used in combination with RBAC rules
+      # to limit access to applications
+      labels:
+         env: "prod"
+
+      # # Optional list of Teleport application names that require a session for this app to function correctly.
+      # # When launching this app, any app listed here will also be launched, and a session will be created.
+      # # These sessions follow their respective RBAC policies.
+      # required_apps:
+      #   - "my-api"
+      #   - "prod-database"
+      #   # Add more required app names as needed
+
+      # # Optional CORS policy is used for preflight requests only. It does not overwrite the contained
+      # # app's CORS policy per route but is used by Teleport to respond to unauthenticated OPTION requests.
+      # # Important Notes:
+      # # - Each field in the CORS spec is optional.
+      # # - The allowed_headers field accepts wildcard entries. However, in requests with "allow_credentials: true",
+      # #   a wildcard is treated as the literal header name "*" without special semantics.
+      # # - The Authorization header can't be set with a wildcard and always needs to be listed explicitly.
+      # cors:
+      #   # Specifies which origins are allowed to make cross-origin requests.
+      #   allowed_origins:
+      #     - "https://example.com"
+      #     - "https://app.example.com"
+      #   # HTTP methods that are allowed when accessing the resource.
+      #   allowed_methods:
+      #     - "GET"
+      #     - "POST"
+      #     - "PUT"
+      #     - "DELETE"
+      #     - "OPTIONS"
+      #   # HTTP headers that can be used during the actual request.
+      #   allowed_headers:
+      #     - "Content-Type"
+      #     - "Authorization"
+      #     - "X-Custom-Header"
+      #   # Headers that browsers are allowed to access.
+      #   exposed_headers:
+      #     - "Content-Type"
+      #     - "X-Custom-Response-Header"
+      #   # Indicates whether the request can include credentials.
+      #   allow_credentials: true
+      #   # Indicates how long (in seconds) the results of a preflight request can be cached.
+      #   max_age: 3600
+
+      # Optional Dynamic Labels
+      commands:
+      - name: "os"
+        command: ["/usr/bin/uname"]
+        period: "5s"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
+        ## Optional rewrite to remove parts of the JWT token.
+        ## Can be one of three options:
+        ## - roles-and-traits: include both roles and traits in the JWT token
+        ## - roles: include only roles in the JWT token
+        ## - traits: include only traits in the JWT token
+        ## - none: include neither roles nor traits in the JWT token
+        ## Default: roles-and-traits
+        # jwt_claims: roles-and-traits
+
+      # Contains MCP server-related configurations.
+      mcp:
+        # Command to launch stdio-based MCP servers.
+        command: "docker"
+        # Args to execute with the command.
+        args: ["run", "-i", "--rm", "mcp/everything"]
+        # Name of the host user account under which the command will be
+        # executed. Required for stdio-based MCP servers.
+        run_as_host_user: "docker"
+

@@ -1,0 +1,105 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { ButtonIcon, ButtonWarning, H2 } from 'design';
+import * as Alerts from 'design/Alert';
+import DialogConfirmation, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+} from 'design/DialogConfirmation';
+import { Cross } from 'design/Icon';
+import { P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+
+export function ClusterLogout({
+  clusterUri,
+  onClose,
+  hidden,
+}: {
+  clusterUri: RootClusterUri;
+  hidden?: boolean;
+  onClose(): void;
+}) {
+  const ctx = useAppContext();
+  const [{ status, statusText }, removeCluster] = useAsync(() =>
+    ctx.mainProcessClient.logout(clusterUri)
+  );
+
+  async function removeClusterAndClose(): Promise<void> {
+    const [, err] = await removeCluster();
+    if (!err) {
+      onClose();
+    }
+  }
+
+  const profileName = routing.parseClusterName(clusterUri);
+
+  return (
+    <DialogConfirmation
+      open={!hidden}
+      keepInDOMAfterClose
+      onClose={onClose}
+      dialogCss={() => ({
+        maxWidth: '400px',
+        width: '100%',
+      })}
+    >
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          void removeClusterAndClose();
+        }}
+      >
+        <DialogHeader justifyContent="space-between">
+          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {profileName}</H2>
+          <ButtonIcon
+            type="button"
+            disabled={status === 'processing'}
+            onClick={onClose}
+            color="text.slightlyMuted"
+          >
+            <Cross size="medium" />
+          </ButtonIcon>
+        </DialogHeader>
+        <DialogContent mb={4} gap={2}>
+          <P>Are you sure you want to log out?</P>
+          {status === 'error' && (
+            <Alerts.Danger mb={0} details={statusText}>
+              Could not log out
+            </Alerts.Danger>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <ButtonWarning
+            disabled={status === 'processing'}
+            size="large"
+            block={true}
+            autoFocus
+            type="submit"
+          >
+            Log Out
+          </ButtonWarning>
+        </DialogFooter>
+      </form>
+    </DialogConfirmation>
+  );
+}

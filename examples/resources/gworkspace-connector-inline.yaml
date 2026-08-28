@@ -1,0 +1,47 @@
+kind: oidc
+metadata:
+  name: google
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - auditor
+    value: auditor@google-workspace-group-email.com
+  - claim: groups
+    roles:
+    - access
+    value: teleport-developers@example.com
+  client_id: <GOOGLE-WORKSPACE-CLIENT-ID>.apps.googleusercontent.com
+  client_secret: <OAUTH-CLIENT-SECRET>
+  display: Google
+  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
+  google_service_account: |
+    {
+     "type": "service_account",
+     "project_id": "<PROJECT-ID>",
+     "private_key_id": "<PRIVATE-KEY-ID>",
+     "private_key": "-----BEGIN PRIVATE KEY-----\n<PRIVATE-KEY-CONTENTS>\n-----END PRIVATE KEY-----\n",
+     "client_email": "<TELEPORT-SERVICE-ACCOUNT-EMAIL>",
+     "client_id": "<CLIENT-ID>",
+     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+     "token_uri": "https://oauth2.googleapis.com/token",
+     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+     "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/teleport-service-account%40access-304316.iam.gserviceaccount.com"
+    }
+  issuer_url: https://accounts.google.com
+  redirect_url: https://<SELF-HOSTED-CLUSTER-URL|TENANT-ID.teleport.sh>/v1/webapi/oidc/callback
+  scope:
+  - openid
+  - email
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
+version: v3

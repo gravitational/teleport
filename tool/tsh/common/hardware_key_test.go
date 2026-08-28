@@ -1,0 +1,742 @@
+//go:build pivtest
+
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package common
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os/user"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
+)
+
+// TestHardwareKeyLogin tests Hardware Key login and relogin flows.
+func TestHardwareKeyLogin(t *testing.T) {
+	ctx := context.Background()
+
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	aliceRole, err := types.NewRole("alice", types.RoleSpecV6{})
+	require.NoError(t, err)
+	alice.SetRoles([]string{aliceRole.GetName()})
+
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(), testserver.WithBootstrap(connector, alice, aliceRole), func(o *testserver.TestServersOpts) error {
+		o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
+			// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
+			// for unknown reasons unless Multiplex mode is on. I could not reproduce these errors on a live
+			// cluster, so the issue likely lies with the test server setup. Perhaps the test certs generated
+			// are not 1-to-1 with live certs.
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		})
+
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
+	authServer := testServer.GetAuthServer()
+
+	proxyAddr, err := testServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// mock SSO login and count the number of login attempts.
+	var lastLoginCount int
+	mockSSOLogin := mockSSOLogin(authServer, alice)
+	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
+		lastLoginCount++
+
+		// Set MockAttestationData to attest the expected key policy and reset it after login.
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			MockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keyRing.SSHPrivateKey.GetPrivateKeyPolicy(),
+			},
+		})
+		return mockSSOLogin(ctx, connectorID, keyRing, protocol)
+	}
+	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
+
+	t.Run("cap", func(t *testing.T) {
+		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
+			// Set require MFA type in the cluster auth preference.
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetRequireMFAType(requireMFAType)
+			_, err = authServer.UpsertAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+		}
+
+		t.Cleanup(func() {
+			setRequireMFAType(t, types.RequireMFAType_OFF)
+		})
+
+		// login should use the private key policy reported by the proxy without
+		// needing to retry hardware key login.
+		setRequireMFAType(t, types.RequireMFAType_HARDWARE_KEY_TOUCH)
+		tmpHomePath := t.TempDir()
+		err = Run(context.Background(), []string{
+			"login",
+			"--debug",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		require.NoError(t, err)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
+
+		// Upgrading the auth preference requireMFAType should trigger relogin
+		// on the next command run.
+		setRequireMFAType(t, types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN)
+		err = Run(context.Background(), []string{
+			"ls",
+			"--debug",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		require.NoError(t, err)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
+	})
+
+	t.Run("role", func(t *testing.T) {
+		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
+			// Set require MFA type in the user's role.
+			aliceRole.SetOptions(types.RoleOptions{
+				RequireMFAType: requireMFAType,
+			})
+			_, err = authServer.UpsertRole(ctx, aliceRole)
+			require.NoError(t, err)
+		}
+
+		t.Cleanup(func() {
+			setRequireMFAType(t, types.RequireMFAType_OFF)
+		})
+
+		// login should initially fail using the private key policy reported by the proxy (off),
+		// then trigger a retry with the hardware key policy parsed from the error.
+		setRequireMFAType(t, types.RequireMFAType_HARDWARE_KEY_TOUCH)
+		tmpHomePath := t.TempDir()
+		err = Run(context.Background(), []string{
+			"login",
+			"--debug",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		require.NoError(t, err)
+		assert.Equal(t, 2, lastLoginCount, "expected two login attempts but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
+
+		// Upgrading the auth preference requireMFAType should trigger relogin
+		// on the next command run.
+		setRequireMFAType(t, types.RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN)
+		err = Run(context.Background(), []string{
+			"ls",
+			"--debug",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(tmpHomePath), setMockSSOLogin)
+		require.NoError(t, err)
+		assert.Equal(t, 1, lastLoginCount, "expected one login attempt but got %v", lastLoginCount)
+		lastLoginCount = 0 // reset login count
+	})
+}
+
+// TestHardwareKeySSH tests Hardware Key SSH flows.
+func TestHardwareKeySSH(t *testing.T) {
+	ctx := context.Background()
+	connector := mockConnector(t)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	aliceRole, err := types.NewRole("alice", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Name},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	alice.SetRoles([]string{aliceRole.GetName()})
+
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithBootstrap(connector, alice, aliceRole),
+		testserver.WithClusterName("my-cluster"),
+		func(o *testserver.TestServersOpts) error {
+			o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
+				// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
+				// for unknown reasons unless Multiplex mode is on. I could not reproduce these errors on a live
+				// cluster, so the issue likely lies with the test server setup. Perhaps the test certs generated
+				// are not 1-to-1 with live certs.
+				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			})
+
+			return nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
+	authServer := testServer.GetAuthServer()
+	proxyAddr, err := testServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	agentless := CreateAgentlessNode(t, authServer, "my-cluster", "agentless-node")
+
+	// Login before adding hardware key requirement
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// Require hardware key touch for alice.
+	aliceRole.SetOptions(types.RoleOptions{
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	_, err = authServer.UpsertRole(ctx, aliceRole)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		targetHost string
+	}{
+		{
+			name:       "regular node",
+			targetHost: testServer.Config.Hostname,
+		},
+		{
+			name:       "agentless node",
+			targetHost: agentless.GetHostname(),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+			})
+
+			tmpHomePath = t.TempDir()
+			// SSH fails without an attested hardware key login.
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Name, tc.targetHost),
+				"echo", "test",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.Error(t, err)
+
+			// Set MockAttestationData to attest the expected key policy and try again.
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				MockAttestationData: &keys.AttestationData{
+					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				},
+			})
+
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+
+			err = Run(ctx, []string{
+				"ssh",
+				"--insecure",
+				fmt.Sprintf("%s@%s", user.Name, tc.targetHost),
+				"echo", "test",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+		})
+	}
+}
+
+func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
+	t.Helper()
+
+	ctx := context.Background()
+	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
+		DomainName: clusterName,
+	}, false)
+	require.NoError(t, err)
+
+	caCheckers, err := sshutils.GetCheckers(openSSHCA)
+	require.NoError(t, err)
+
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+
+	nodeUUID := uuid.New().String()
+	hostCertBytes, err := authServer.GenerateHostCert(
+		ctx,
+		ssh.MarshalAuthorizedKey(sshPub),
+		"",
+		"",
+		[]string{nodeUUID, nodeHostname, testserver.Loopback},
+		clusterName,
+		types.RoleNode,
+		0,
+	)
+	require.NoError(t, err)
+
+	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
+	require.NoError(t, err)
+	signer, err := ssh.NewSignerFromSigner(key)
+	require.NoError(t, err)
+	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
+	require.NoError(t, err)
+
+	// start SSH server
+	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
+
+	// create node resource
+	node := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: nodeUUID,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     sshAddr,
+			Hostname: nodeHostname,
+		},
+	}
+	_, err = authServer.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// wait for node resource to be written to the backend
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+	w, err := authServer.NewWatcher(timedCtx, types.Watch{
+		Name: "node-create watcher",
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for nodeCreated := false; !nodeCreated; {
+		select {
+		case e := <-w.Events():
+			if e.Type == types.OpPut {
+				nodeCreated = true
+			}
+		case <-w.Done():
+			t.Fatal("Did not receive node create event")
+		}
+	}
+	require.NoError(t, w.Close())
+
+	return node
+}
+
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
+func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	t.Helper()
+
+	sshCfg := ssh.ServerConfig{
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
+			}
+
+			for _, pubKey := range caPubKeys {
+				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
+					return &ssh.Permissions{}, nil
+				}
+			}
+
+			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
+		},
+	}
+	sshCfg.AddHostKey(hostKey)
+
+	lis, err := net.Listen("tcp", testserver.Loopback+":")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, lis.Close())
+	})
+
+	go func() {
+		nConn, err := lis.Accept()
+		if utils.IsOKNetworkError(err) {
+			return
+		}
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if nConn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = nConn.Close()
+			}
+		})
+
+		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if conn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = conn.Close()
+			}
+		})
+		go ssh.DiscardRequests(reqs)
+
+		var agentForwarded bool
+		var shellRequested bool
+		var execRequested bool
+		var sftpRequested bool
+		for {
+			var channelReq ssh.NewChannel
+			select {
+			case channelReq = <-channels:
+				if channelReq == nil { // server is closed
+					return
+				}
+			case <-t.Context().Done():
+				return
+			}
+			if !assert.Equal(t, "session", channelReq.ChannelType()) {
+				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
+				continue
+			}
+			channel, reqs, err := channelReq.Accept()
+			assert.NoError(t, err)
+			t.Cleanup(func() {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = channel.Close()
+			})
+
+			go func() {
+			outer:
+				for {
+					var req *ssh.Request
+					select {
+					case req = <-reqs:
+						if req == nil { // channel is closed
+							return
+						}
+					case <-t.Context().Done():
+						break outer
+					}
+					if req.WantReply {
+						assert.NoError(t, req.Reply(true, nil))
+					}
+					switch req.Type {
+					case sshutils.AgentForwardRequest:
+						agentForwarded = true
+					case sshutils.ShellRequest:
+						assert.NoError(t, channel.Close())
+						shellRequested = true
+						break outer
+					case sshutils.ExecRequest:
+						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+						assert.NoError(t, err)
+						assert.NoError(t, channel.Close())
+						execRequested = true
+						break outer
+					case sshutils.SubsystemRequest:
+						var r sshutils.SubsystemReq
+						err := ssh.Unmarshal(req.Payload, &r)
+						assert.NoError(t, err)
+						assert.Equal(t, "sftp", r.Name)
+						sftpRequested = true
+
+						sftpServer, err := sftp.NewServer(channel)
+						assert.NoError(t, err)
+						go sftpServer.Serve()
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
+						break outer
+					}
+				}
+				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
+			}()
+		}
+	}()
+
+	return lis.Addr().String()
+}
+
+// TestHardwareKeyApp tests Hardware Key App flows.
+func TestHardwareKeyApp(t *testing.T) {
+	ctx := context.Background()
+
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
+
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
+
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
+	connector := mockConnector(t)
+
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithClusterName("root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps = servicecfg.AppsConfig{
+				Enabled: true,
+				Apps: []servicecfg.App{{
+					Name: "myapp",
+					URI:  startDummyHTTPServer(t, "myapp"),
+				}},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
+	authServer := testServer.GetAuthServer()
+	proxyAddr, err := testServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Set up user with MFA device since app login requires MFA when
+	// hardware key touch/pin is enabled.
+	origin := "https://127.0.0.1"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	_, err = authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+	})
+	require.NoError(t, err)
+	registerDeviceForUser(t, authServer, device, accessUser.GetName(), origin)
+
+	// Login before adding hardware key requirement and verify we can connect to the app.
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	confOut := new(bytes.Buffer)
+	err = Run(ctx, []string{
+		"app",
+		"config",
+		"myapp",
+		"--format", "json",
+	}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
+	require.NoError(t, err)
+
+	var info appConfigInfo
+	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+
+	clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
+	require.NoError(t, err)
+
+	resp, err := testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "myapp", resp.Header.Get("Server"))
+	resp.Body.Close()
+
+	// Require hardware key touch for the user. The user's current app certs should fail.
+	accessRole, err := authServer.GetRole(ctx, "access")
+	require.NoError(t, err)
+	accessRole.SetOptions(types.RoleOptions{
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	_, err = authServer.UpsertRole(ctx, accessRole)
+	require.NoError(t, err)
+
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp.Body.Close()
+
+	// App login fails without an attested hardware key login.
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()))
+	require.Error(t, err)
+
+	// Set MockAttestationData to attest the expected key policy and try again.
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		},
+	})
+
+	// App Login will still fail without MFA, since the app sessions will
+	// only be attested as "web_session".
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, false /* success */)
+
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()), webauthnLoginOpt)
+	require.Error(t, err)
+
+	// App commands will succeed with MFA.
+	webauthnLoginOpt = setupWebAuthnChallengeSolver(device, true /* success */)
+
+	// Test App login success and connect.
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()), webauthnLoginOpt)
+	require.NoError(t, err)
+
+	confOut = new(bytes.Buffer)
+	err = Run(ctx, []string{
+		"app",
+		"config",
+		"myapp",
+		"--format", "json",
+	}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+
+	clientCert, err = keys.LoadX509KeyPair(info.Cert, info.Key)
+	require.NoError(t, err)
+
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "myapp", resp.Header.Get("Server"))
+	resp.Body.Close()
+}

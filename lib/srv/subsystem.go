@@ -1,52 +1,44 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
 import (
-	"fmt"
-	"strings"
+	"context"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
 
-type subsys struct {
+// SubsystemResult is a result of execution of the subsystem.
+type SubsystemResult struct {
+	// Name holds the name of the subsystem that was executed.
 	Name string
+
+	// Err holds the result of execution of the subsystem.
+	Err error
 }
 
-// subsystem represents SSH subsytem - special command executed
-// in the context of the session
-type subsystem interface {
-	// start starts subsystem
-	start(*ssh.ServerConn, ssh.Channel, *ssh.Request, *ctx) error
-	// wait is returned by subystem when it's completed
-	wait() error
-}
+// Subsystem represents SSH subsystem - special command executed
+// in the context of the session.
+type Subsystem interface {
+	// Start starts subsystem
+	Start(context.Context, *ssh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
 
-func parseSubsystemRequest(srv *Server, req *ssh.Request) (subsystem, error) {
-	var s subsys
-	if err := ssh.Unmarshal(req.Payload, &s); err != nil {
-		return nil, fmt.Errorf("failed to parse subsystem request, error: %v", err)
-	}
-	if srv.proxyMode && strings.HasPrefix(s.Name, "proxy:") {
-		return parseProxySubsys(s.Name, srv)
-	}
-	if srv.proxyMode && strings.HasPrefix(s.Name, "proxysites") {
-		return parseProxySitesSubsys(s.Name, srv)
-	}
-	return nil, trace.BadParameter("unrecognized subsystem: %v", s.Name)
+	// Wait is returned by subsystem when it's completed
+	Wait() error
 }

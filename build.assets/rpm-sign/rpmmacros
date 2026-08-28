@@ -1,0 +1,9 @@
+%_signature gpg
+%_gpg_path /root/.gnupg
+%_gpg_name Gravitational, Inc
+%_gpgbin /usr/bin/gpg
+%_gpg_pass -
+# Use SHA512 to sign RPMs
+%__gpg_sign_cmd %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase '' --no-secmem-warning -u "%{_gpg_name}" --digest-algo sha512 -sbo %{__signature_filename} %{__plaintext_filename}
+# Don't include build-id artifacts
+%_build_id_links none

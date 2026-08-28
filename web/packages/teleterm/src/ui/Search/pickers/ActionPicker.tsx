@@ -1,0 +1,1254 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import React, { ReactElement, ReactNode, useCallback, useMemo } from 'react';
+import styled from 'styled-components';
+
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
+import { makeLabelTag } from 'design/formatters';
+import * as icons from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Label as LabelProto } from 'gen-proto-ts/teleport/lib/teleterm/v1/label_pb';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
+import { Highlight } from 'shared/components/Highlight';
+import {
+  Attempt,
+  hasFinished,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
+
+import { isWebApp } from 'teleterm/services/tshd/app';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  DisplayResults,
+  isClusterSearchFilter,
+  LabelMatch,
+  ResourceMatch,
+  ResourceSearchResult,
+  SearchFilter,
+  SearchResult,
+  SearchResultApp,
+  SearchResultCluster,
+  SearchResultDatabase,
+  SearchResultKube,
+  SearchResultResourceType,
+  SearchResultServer,
+  SearchResultWindowsDesktop,
+} from 'teleterm/ui/Search/searchResult';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import * as uri from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+import { useVnetContext } from 'teleterm/ui/Vnet';
+
+import { SearchAction } from '../actions';
+import { useSearchContext } from '../SearchContext';
+import {
+  CrossClusterResourceSearchResult,
+  resourceTypeToReadableName,
+} from '../useSearch';
+import { PickerContainer } from './PickerContainer';
+import { getParameterPicker } from './pickers';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
+import { useActionAttempts } from './useActionAttempts';
+
+export function ActionPicker(props: { input: ReactElement }) {
+  const ctx = useAppContext();
+  const { clustersService, modalsService, mainProcessClient } = ctx;
+  ctx.clustersService.useState();
+
+  const {
+    changeActivePicker,
+    pauseUserInteraction,
+    close,
+    inputValue,
+    resetInput,
+    filters,
+    removeFilter,
+    addWindowEventListener,
+    advancedSearchEnabled,
+    toggleAdvancedSearch,
+  } = useSearchContext();
+  const {
+    displayResultsAction,
+    filterActions,
+    resourceActionsAttempt,
+    resourceSearchAttempt,
+  } = useActionAttempts();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const totalCountOfClusters = clustersService.getClusters().length;
+
+  // Use memo because this value never changes during app's lifetime but the call to get it goes
+  // through the context bridge.
+  const isScoreDebugEnabled = useMemo(
+    () => mainProcessClient.configService.get('debug.searchResultsScore').value,
+    [mainProcessClient.configService]
+  );
+
+  const getClusterName = useCallback(
+    (resourceUri: uri.ClusterOrResourceUri) => {
+      const clusterUri = uri.routing.ensureClusterUri(resourceUri);
+      const cluster = clustersService.findCluster(clusterUri);
+      // Name is empty if the user hasn't logged into that cluster yet.
+      return cluster?.name || uri.routing.parseClusterName(resourceUri);
+    },
+    [clustersService]
+  );
+
+  const getOptionalClusterName = useCallback(
+    (resourceUri: uri.ClusterOrResourceUri) =>
+      totalCountOfClusters === 1 ? undefined : getClusterName(resourceUri),
+    [getClusterName, totalCountOfClusters]
+  );
+
+  const onPick = useCallback(
+    (action: SearchAction) => {
+      if (action.type === 'simple-action') {
+        action.perform();
+        // TODO: This logic probably should be encapsulated inside SearchContext, so that ActionPicker
+        // and ParameterPicker can reuse it.
+        //
+        // Overall, the context should probably encapsulate more logic so that the components don't
+        // have to worry about low-level stuff such as input state. Input state already lives in the
+        // search context so it should be managed from there, if possible.
+        if (!action.preventAutoInputReset) {
+          resetInput();
+        }
+        if (!action.preventAutoClose) {
+          close();
+        }
+      }
+      if (action.type === 'parametrized-action') {
+        changeActivePicker(getParameterPicker(action));
+      }
+    },
+    [changeActivePicker, close, resetInput]
+  );
+
+  const filterButtons = filters.map(s => {
+    if (s.filter === 'resource-type') {
+      return (
+        <FilterButton
+          key={`resource-type-${s.resourceType}`}
+          text={resourceTypeToReadableName[s.resourceType]}
+          onClick={() => removeFilter(s)}
+        />
+      );
+    }
+    if (s.filter === 'cluster') {
+      const clusterName = getClusterName(s.clusterUri);
+      return (
+        <FilterButton
+          key="cluster"
+          text={clusterName}
+          onClick={() => removeFilter(s)}
+        />
+      );
+    }
+  });
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    const { length } = filters;
+    if (e.key === 'Backspace' && inputValue === '' && length) {
+      removeFilter(filters[length - 1]);
+    }
+  }
+
+  const actionPickerStatus = useMemo(
+    () =>
+      getActionPickerStatus({
+        inputValue,
+        filters,
+        filterActions,
+        resourceSearchAttempt,
+        allClusters: clustersService.getClusters(),
+      }),
+    [inputValue, filters, filterActions, resourceSearchAttempt, clustersService]
+  );
+  const showErrorsInModal = useCallback(
+    errors =>
+      pauseUserInteraction(
+        () =>
+          new Promise(resolve => {
+            modalsService.openRegularDialog({
+              kind: 'resource-search-errors',
+              errors,
+              getClusterName,
+              onCancel: () => resolve(undefined),
+            });
+          })
+      ),
+    [pauseUserInteraction, modalsService, getClusterName]
+  );
+
+  // The order of attempts is important.
+  // Display results action and filter actions should be displayed before resource actions.
+  const resultListAttempts = [
+    makeSuccessAttempt([displayResultsAction]),
+    makeSuccessAttempt(filterActions),
+    resourceActionsAttempt,
+  ];
+
+  return (
+    <PickerContainer>
+      <InputWrapper onKeyDown={handleKeyDown}>
+        {filterButtons}
+        {props.input}
+      </InputWrapper>
+      <ResultList<SearchAction>
+        attempts={resultListAttempts}
+        onPick={onPick}
+        onBack={close}
+        addWindowEventListener={addWindowEventListener}
+        render={item => {
+          const Component = ComponentMap[item.searchResult.kind];
+          return {
+            key: getKey(item.searchResult),
+            Component: (
+              <>
+                {isScoreDebugEnabled &&
+                item.searchResult.kind !== 'display-results'
+                  ? item.searchResult.score
+                  : undefined}
+                <Component
+                  searchResult={item.searchResult}
+                  getOptionalClusterName={getOptionalClusterName}
+                  isVnetSupported={isVnetSupported}
+                />
+              </>
+            ),
+          };
+        }}
+        ExtraTopComponent={
+          <ExtraTopComponents
+            status={actionPickerStatus}
+            getClusterName={getClusterName}
+            showErrorsInModal={showErrorsInModal}
+            advancedSearch={{
+              isToggled: advancedSearchEnabled,
+              onToggle: toggleAdvancedSearch,
+            }}
+          />
+        }
+      />
+    </PickerContainer>
+  );
+}
+
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return `${searchResult.kind}-${searchResult.resource}`;
+    case 'display-results':
+      return `${searchResult.kind}-${searchResult.documentUri}-${searchResult.value}`;
+    default:
+      return `${searchResult.kind}-${searchResult.resource.uri}`;
+  }
+}
+
+const InputWrapper = styled(Flex).attrs({ px: 2 })`
+  row-gap: ${props => props.theme.space[2]}px;
+  column-gap: ${props => props.theme.space[2]}px;
+  align-items: center;
+  flex-wrap: wrap;
+  // account for border
+  padding-block: calc(${props => props.theme.space[2]}px - 1px);
+  // input height without border
+  min-height: 38px;
+
+  & > input {
+    height: unset;
+    padding-inline: 0;
+    flex: 1;
+  }
+`;
+
+const ExtraTopComponents = (props: {
+  status: ActionPickerStatus;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  showErrorsInModal: (errors: ResourceSearchError[]) => void;
+  advancedSearch: AdvancedSearch;
+}) => {
+  const { status, getClusterName, showErrorsInModal, advancedSearch } = props;
+
+  if (advancedSearch.isToggled) {
+    return <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />;
+  }
+
+  switch (status.inputState) {
+    case 'no-input': {
+      switch (status.searchMode.kind) {
+        case 'no-search': {
+          return (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
+            />
+          );
+        }
+        case 'preview': {
+          const {
+            nonRetryableResourceSearchErrors,
+            hasNoRemainingFilterActions,
+          } = status.searchMode;
+
+          return (
+            <>
+              <TypeToSearchItem
+                hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+                advancedSearch={advancedSearch}
+              />
+              {nonRetryableResourceSearchErrors.length > 0 && (
+                <ResourceSearchErrorsItem
+                  errors={nonRetryableResourceSearchErrors}
+                  getClusterName={getClusterName}
+                  showErrorsInModal={() => {
+                    showErrorsInModal(nonRetryableResourceSearchErrors);
+                  }}
+                  // We show the advanced search in TypeToSearchItem.
+                  advancedSearch={undefined}
+                />
+              )}
+            </>
+          );
+        }
+        default: {
+          return assertUnreachable(status.searchMode);
+        }
+      }
+    }
+    case 'some-input': {
+      const shouldShowResourceSearchErrorsItem =
+        status.nonRetryableResourceSearchErrors.length > 0;
+      const shouldShowNoResultsItem = status.hasNoResults;
+      const shouldShowTypeToSearchItem =
+        !shouldShowResourceSearchErrorsItem && !shouldShowNoResultsItem;
+
+      return (
+        <>
+          {shouldShowResourceSearchErrorsItem && (
+            <ResourceSearchErrorsItem
+              errors={status.nonRetryableResourceSearchErrors}
+              getClusterName={getClusterName}
+              showErrorsInModal={() => {
+                showErrorsInModal(status.nonRetryableResourceSearchErrors);
+              }}
+              advancedSearch={advancedSearch}
+            />
+          )}
+          {shouldShowNoResultsItem && (
+            <NoResultsItem
+              clustersWithExpiredCerts={status.clustersWithExpiredCerts}
+              getClusterName={getClusterName}
+              // Show the toggle only
+              // when ResourceSearchErrorsItem is not visible
+              advancedSearch={
+                shouldShowResourceSearchErrorsItem ? undefined : advancedSearch
+              }
+            />
+          )}
+          {shouldShowTypeToSearchItem && (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
+            />
+          )}
+        </>
+      );
+    }
+    default: {
+      assertUnreachable(status);
+    }
+  }
+};
+
+/**
+ * ActionPickerStatus helps with displaying ExtraTopComponents. It has two goals:
+ *
+ *   * Encapsulate business logic so that anything that ExtraTopComponents renders can just read
+ *     ActionPickerStatus fields.
+ *   * Represent only valid UI states. For example, inputState 'no-input' doesn't have hasNoResults
+ *     field as this field would make no sense in a situation where no search requests were made.
+ *
+ * As you may notice, ActionPickerStatus doesn't say whether the search request is in progress or
+ * not, simply because displaying the progress bar is handled by another component. The questions
+ * answered by ActionPickerStatus are valid to ask no matter what the state of the request is.
+ */
+type ActionPickerStatus =
+  | {
+      // no-input: The input is empty.
+      inputState: 'no-input';
+      searchMode:
+        | {
+            // no-search: The search bar is pristine, that is the input and the filters are empty.
+            kind: 'no-search';
+          }
+        | {
+            // preview: At least one filter is selected. The search bar is fetching or shows
+            // a preview of results matching the filters.
+            kind: 'preview';
+            hasNoRemainingFilterActions: boolean;
+            nonRetryableResourceSearchErrors: ResourceSearchError[];
+          };
+    }
+  | {
+      // some-input: The input is not empty. The search bar is fetching or shows results matching
+      // the query and filters.
+      inputState: 'some-input';
+      hasNoResults: boolean;
+      nonRetryableResourceSearchErrors: ResourceSearchError[];
+      clustersWithExpiredCerts: Set<uri.ClusterUri>;
+    };
+
+export function getActionPickerStatus({
+  inputValue,
+  filters,
+  filterActions,
+  allClusters,
+  resourceSearchAttempt,
+}: {
+  inputValue: string;
+  filters: SearchFilter[];
+  filterActions: SearchAction[];
+  allClusters: Cluster[];
+  resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
+}): ActionPickerStatus {
+  if (!inputValue) {
+    const didNotSelectAnyFilters = filters.length === 0;
+
+    // If the input is empty, we fetch the preview only after the user selected some filters.
+    // So at this point we know that no search request was sent.
+    if (didNotSelectAnyFilters) {
+      return {
+        inputState: 'no-input',
+        searchMode: { kind: 'no-search' },
+      };
+    }
+
+    // The number of available filters the user can select changes dynamically based on how many
+    // clusters are in the state. That's why instead of inspecting the filters array from
+    // SearchContext, we inspect the actual filter actions attempt to see if any further filter
+    // suggestions will be shown to the user.
+    //
+    // We also know that this attempt is always successful as filters are calculated in a sync way.
+    // They're converted into an attempt only to conform to the interface of ResultList.
+    const hasNoRemainingFilterActions = filterActions.length === 0;
+
+    const nonRetryableResourceSearchErrors =
+      resourceSearchAttempt.status === 'success'
+        ? resourceSearchAttempt.data.errors.filter(
+            err => !isRetryable(err.cause)
+          )
+        : [];
+
+    return {
+      inputState: 'no-input',
+      searchMode: {
+        kind: 'preview',
+        hasNoRemainingFilterActions,
+        nonRetryableResourceSearchErrors,
+      },
+    };
+  }
+
+  const nonRetryableResourceSearchErrors = [];
+  let clustersWithExpiredCerts = new Set(
+    allClusters.filter(c => !c.connected).map(c => c.uri)
+  );
+
+  if (!hasFinished(resourceSearchAttempt)) {
+    return {
+      inputState: 'some-input',
+      hasNoResults: false,
+      nonRetryableResourceSearchErrors,
+      clustersWithExpiredCerts,
+    };
+  }
+
+  // resourceSearchAttempt never has error status.
+  const hasNoResults =
+    resourceSearchAttempt.data.results.length === 0 &&
+    filterActions.length === 0;
+
+  resourceSearchAttempt.data.errors.forEach(err => {
+    if (isRetryable(err.cause)) {
+      clustersWithExpiredCerts.add(err.clusterUri);
+    } else {
+      nonRetryableResourceSearchErrors.push(err);
+    }
+  });
+
+  // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
+  const clusterFilter = filters.find(isClusterSearchFilter);
+  if (clusterFilter) {
+    const hasClusterCertExpired = clustersWithExpiredCerts.has(
+      clusterFilter.clusterUri
+    );
+    clustersWithExpiredCerts = new Set();
+
+    if (hasClusterCertExpired) {
+      clustersWithExpiredCerts.add(clusterFilter.clusterUri);
+    }
+  }
+
+  return {
+    inputState: 'some-input',
+    hasNoResults,
+    clustersWithExpiredCerts,
+    nonRetryableResourceSearchErrors,
+  };
+}
+
+export const ComponentMap: Record<
+  SearchResult['kind'],
+  React.FC<SearchResultItem<SearchResult>>
+> = {
+  server: ServerItem,
+  kube: KubeItem,
+  database: DatabaseItem,
+  app: AppItem,
+  windows_desktop: WindowsDesktopItem,
+  'cluster-filter': ClusterFilterItem,
+  'resource-type-filter': ResourceTypeFilterItem,
+  'display-results': DisplayResultsItem,
+};
+
+type SearchResultItem<T> = {
+  searchResult: T;
+  getOptionalClusterName: (uri: uri.ClusterOrResourceUri) => string;
+  isVnetSupported: boolean;
+};
+
+function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
+  return (
+    <IconAndContent Icon={icons.Lan} iconColor="text.slightlyMuted">
+      <Text typography="body2">
+        Search only in{' '}
+        <Highlight
+          text={props.searchResult.resource.name}
+          keywords={[props.searchResult.nameMatch]}
+        />
+      </Text>
+    </IconAndContent>
+  );
+}
+
+function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
+  return (
+    <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">
+          Display {props.searchResult.value ? 'search' : 'all'} results{' '}
+          {props.searchResult.value && (
+            <>
+              for{' '}
+              <Highlight
+                keywords={[props.searchResult.value]}
+                text={props.searchResult.value}
+              />
+            </>
+          )}
+          {props.searchResult.documentUri
+            ? ' in the current tab'
+            : ' in a new tab'}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4" color="text.muted">
+            {props.getOptionalClusterName(props.searchResult.clusterUri)}
+          </Text>
+        </Box>
+      </Flex>
+    </IconAndContent>
+  );
+}
+
+const resourceIcons: Record<
+  SearchResultResourceType['resource'],
+  React.ComponentType<{
+    color: string;
+    fontSize: string;
+    lineHeight: string;
+  }>
+> = {
+  kube_cluster: icons.Kubernetes,
+  node: icons.Server,
+  db: icons.Database,
+  app: icons.Application,
+  windows_desktop: icons.Desktop,
+};
+
+function ResourceTypeFilterItem(
+  props: SearchResultItem<SearchResultResourceType>
+) {
+  return (
+    <IconAndContent
+      Icon={resourceIcons[props.searchResult.resource]}
+      iconColor="text.slightlyMuted"
+    >
+      <Text typography="body2">
+        Search for{' '}
+        <Highlight
+          text={resourceTypeToReadableName[props.searchResult.resource]}
+          keywords={[props.searchResult.nameMatch]}
+        />
+      </Text>
+    </IconAndContent>
+  );
+}
+
+function ServerItem(props: SearchResultItem<SearchResultServer>) {
+  const { searchResult } = props;
+  const mainField = 'hostname';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasUuidMatches = visibleMatches.hasMatchOnField('name');
+  const hasAddrMatches = visibleMatches.hasMatchOnField('addr');
+
+  return (
+    <ResourceItem
+      Icon={icons.Server}
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to server'
+          : 'Connect over SSH'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      searchResult={props.searchResult}
+      details={
+        <Labels labels={visibleMatches.labels}>
+          {(hasAddrMatches || hasUuidMatches) && (
+            <ResourceFields>
+              {hasAddrMatches && (
+                <span>
+                  <HighlightField field="addr" searchResult={searchResult} />
+                </span>
+              )}
+
+              {hasUuidMatches && (
+                <span>
+                  UUID:{' '}
+                  <HighlightField field={'name'} searchResult={searchResult} />
+                </span>
+              )}
+            </ResourceFields>
+          )}
+        </Labels>
+      }
+    />
+  );
+}
+
+function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
+  const { searchResult } = props;
+  const db = searchResult.resource;
+  const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasDescMatches = visibleMatches.hasMatchOnField('desc');
+  const hasTypeMatches = visibleMatches.hasMatchOnField('type');
+  const hasProtocolMatches = visibleMatches.hasMatchOnField('protocol');
+
+  const $resourceFields = (hasTypeMatches ||
+    hasProtocolMatches ||
+    hasDescMatches) && (
+    <ResourceFields>
+      {(hasTypeMatches || hasProtocolMatches) && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField field="type" searchResult={searchResult} />
+          /
+          <HighlightField field="protocol" searchResult={searchResult} />
+        </span>
+      )}
+      {hasDescMatches && (
+        <span
+          css={`
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          <HighlightField field="desc" searchResult={searchResult} />
+        </span>
+      )}
+    </ResourceFields>
+  );
+
+  return (
+    <ResourceItem
+      Icon={icons.Database}
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to db'
+          : 'Set up a db connection'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={
+        <>
+          {/* If the description is long, put the resource fields on a separate line.
+          Otherwise show the resource fields and the labels together in a single line.
+       */}
+          {db.desc.length >= 30 ? (
+            <>
+              {$resourceFields}
+              <Labels labels={visibleMatches.labels} />
+            </>
+          ) : (
+            <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
+          )}
+        </>
+      }
+    />
+  );
+}
+
+export function AppItem(props: SearchResultItem<SearchResultApp>) {
+  const { searchResult } = props;
+  const app = searchResult.resource;
+  const mainField = app.friendlyName ? 'friendlyName' : 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasAddrWithProtocolMatches =
+    visibleMatches.hasMatchOnField('addrWithProtocol');
+  const hasDescMatches = visibleMatches.hasMatchOnField('desc');
+
+  const $resourceFields = (hasAddrWithProtocolMatches || hasDescMatches) && (
+    <ResourceFields>
+      {hasAddrWithProtocolMatches && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField
+            field="addrWithProtocol"
+            searchResult={searchResult}
+          />
+        </span>
+      )}
+      {hasDescMatches && (
+        <span
+          css={`
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          <HighlightField field="desc" searchResult={searchResult} />
+        </span>
+      )}
+    </ResourceFields>
+  );
+
+  return (
+    <ResourceItem
+      Icon={icons.Application}
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={getAppItemCopy(
+        app,
+        searchResult.requiresRequest,
+        props.isVnetSupported
+      )}
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={
+        <>
+          {/* If the description is long, put the resource fields on a separate line.
+          Otherwise, show the resource fields and the labels together in a single line.
+       */}
+          {app.desc.length >= 30 ? (
+            <>
+              {$resourceFields}
+              <Labels labels={visibleMatches.labels} />
+            </>
+          ) : (
+            <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
+          )}
+        </>
+      }
+    />
+  );
+}
+
+function WindowsDesktopItem(
+  props: SearchResultItem<SearchResultWindowsDesktop>
+) {
+  const { searchResult } = props;
+  const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasAddrWithoutDefaultPortMatches = visibleMatches.hasMatchOnField(
+    'addrWithoutDefaultPort'
+  );
+
+  const $resourceFields = hasAddrWithoutDefaultPortMatches && (
+    <ResourceFields>
+      <span
+        css={`
+          flex-shrink: 0;
+        `}
+      >
+        <HighlightField
+          field="addrWithoutDefaultPort"
+          searchResult={searchResult}
+        />
+      </span>
+    </ResourceFields>
+  );
+
+  return (
+    <ResourceItem
+      Icon={icons.Desktop}
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to desktop'
+          : 'Connect to desktop'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={
+        <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
+      }
+    />
+  );
+}
+
+function getAppItemCopy(
+  app: App,
+  requiresRequest: boolean,
+  isVnetSupported: boolean
+): string {
+  if (requiresRequest) {
+    return 'Request access to the app';
+  }
+  if (app.samlApp) {
+    return 'Log in via the browser';
+  }
+  if (isWebApp(app) || app.awsConsole) {
+    return 'Launch in the browser';
+  }
+
+  // TCP app
+  if (isVnetSupported) {
+    return 'Connect with VNet';
+  }
+  return 'Set up an app connection';
+}
+
+function KubeItem(props: SearchResultItem<SearchResultKube>) {
+  const { searchResult } = props;
+  const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+
+  return (
+    <ResourceItem
+      Icon={icons.Kubernetes}
+      title={<HighlightField field={mainField} searchResult={searchResult} />}
+      searchResult={props.searchResult}
+      action={
+        searchResult.requiresRequest
+          ? 'Request access to Kubernetes cluster'
+          : 'Log in to Kubernetes cluster'
+      }
+      clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
+      details={<Labels labels={visibleMatches.labels} />}
+    />
+  );
+}
+
+/**
+ * Computes secondary matches to display in the item details.
+ * It omits resource and label matches for terms already matched in the main field,
+ * reducing duplicate highlights.
+ */
+export function getVisibleMatches(
+  searchResult: ResourceSearchResult,
+  mainField: ResourceMatch<ResourceSearchResult['kind']>['field']
+) {
+  const mainFieldMatchedTerms = new Set(
+    searchResult.resourceMatches
+      .filter(match => match.field === mainField)
+      .map(match => match.searchTerm)
+  );
+
+  const secondaryResourceMatchFields = new Set<
+    ResourceMatch<ResourceSearchResult['kind']>['field']
+  >();
+  for (const match of searchResult.resourceMatches) {
+    if (!mainFieldMatchedTerms.has(match.searchTerm)) {
+      secondaryResourceMatchFields.add(match.field);
+    }
+  }
+
+  const labelMatches = searchResult.labelMatches.filter(
+    match => !mainFieldMatchedTerms.has(match.searchTerm)
+  );
+  const labelScores = new Map<string, number>();
+  for (const match of labelMatches) {
+    const currentScore = labelScores.get(match.labelName) || 0;
+    labelScores.set(match.labelName, currentScore + match.score);
+  }
+
+  const labels = searchResult.resource.labels
+    .filter(label => labelScores.has(label.name))
+    .toSorted(
+      (a, b) =>
+        // Highest score first.
+        (labelScores.get(b.name) || 0) - (labelScores.get(a.name) || 0)
+    );
+
+  return {
+    labels: {
+      list: labels,
+      matches: labelMatches,
+    },
+    hasMatchOnField: (
+      field: ResourceMatch<ResourceSearchResult['kind']>['field']
+    ) => secondaryResourceMatchFields.has(field),
+  };
+}
+
+export function NoResultsItem(props: {
+  clustersWithExpiredCerts: Set<uri.ClusterUri>;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  advancedSearch: AdvancedSearch;
+}) {
+  const clustersWithExpiredCerts = Array.from(
+    props.clustersWithExpiredCerts,
+    clusterUri => props.getClusterName(clusterUri)
+  );
+  clustersWithExpiredCerts.sort();
+  let expiredCertsCopy = '';
+
+  if (clustersWithExpiredCerts.length === 1) {
+    expiredCertsCopy = `The cluster ${clustersWithExpiredCerts[0]} was excluded from the search because you are not logged in to it.`;
+  }
+
+  if (clustersWithExpiredCerts.length > 1) {
+    // prettier-ignore
+    expiredCertsCopy = `The following clusters were excluded from the search because you are not logged in to them: ${clustersWithExpiredCerts.join(', ')}.`;
+  }
+
+  return (
+    <NonInteractiveItem>
+      <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body2">No matching results found.</Text>
+        </ContentAndAdvancedSearch>
+        {expiredCertsCopy && <Text typography="body3">{expiredCertsCopy}</Text>}
+      </IconAndContent>
+    </NonInteractiveItem>
+  );
+}
+
+export function TypeToSearchItem({
+  hasNoRemainingFilterActions,
+  advancedSearch,
+}: {
+  hasNoRemainingFilterActions: boolean;
+  advancedSearch: AdvancedSearch;
+}) {
+  return (
+    <NonInteractiveItem>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body3">
+          Enter space-separated search terms.
+          {hasNoRemainingFilterActions ||
+            ' Select a filter to narrow down the search.'}
+        </Text>
+      </ContentAndAdvancedSearch>
+    </NonInteractiveItem>
+  );
+}
+
+export function AdvancedSearchEnabledItem({
+  advancedSearch,
+}: {
+  advancedSearch: AdvancedSearch;
+}) {
+  return (
+    <NonInteractiveItem>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body3">
+          Enter the query using the predicate language. Inline results are not
+          available in this mode.
+        </Text>
+      </ContentAndAdvancedSearch>
+    </NonInteractiveItem>
+  );
+}
+
+export function ResourceSearchErrorsItem(props: {
+  errors: ResourceSearchError[];
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  showErrorsInModal: () => void;
+  advancedSearch: AdvancedSearch;
+}) {
+  const { errors, getClusterName } = props;
+
+  let shortDescription: string;
+
+  if (errors.length === 1) {
+    const firstErrorMessage = errors[0].messageWithClusterName(getClusterName);
+    shortDescription = `${firstErrorMessage}.`;
+  } else {
+    const allErrorMessages = errors
+      .map(err =>
+        err.messageWithClusterName(getClusterName, { capitalize: false })
+      )
+      .join(', ');
+    shortDescription = `Ran into ${errors.length} errors: ${allErrorMessages}.`;
+  }
+
+  return (
+    <NonInteractiveItem>
+      <IconAndContent Icon={icons.Warning} iconColor="warning.main">
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body2">
+            Some of the search results are incomplete.
+          </Text>
+        </ContentAndAdvancedSearch>
+
+        <Flex gap={2} justifyContent="space-between" alignItems="baseline">
+          <span
+            css={`
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              overflow: hidden;
+            `}
+          >
+            <Text typography="body3">{shortDescription}</Text>
+          </span>
+
+          <ButtonBorder
+            type="button"
+            size="small"
+            css={`
+              flex-shrink: 0;
+            `}
+            onClick={props.showErrorsInModal}
+          >
+            Show details
+          </ButtonBorder>
+        </Flex>
+      </IconAndContent>
+    </NonInteractiveItem>
+  );
+}
+
+function Labels(
+  props: React.PropsWithChildren<{
+    labels: {
+      list: LabelProto[];
+      matches: LabelMatch[];
+    };
+  }>
+) {
+  const { labels } = props;
+
+  if (!(props.children || labels.list.length)) {
+    return;
+  }
+
+  return (
+    <LabelsFlex>
+      {props.children}
+      {labels.list.map(label => (
+        <Label
+          key={label.name + label.value}
+          labelMatches={labels.matches}
+          label={label}
+        />
+      ))}
+    </LabelsFlex>
+  );
+}
+
+const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
+  overflow-x: hidden;
+  flex-wrap: nowrap;
+  align-items: baseline;
+
+  // Make the children not shrink, otherwise they would shrink in attempt to render all labels in
+  // the same row.
+
+  & > * {
+    flex-shrink: 0;
+  }
+`;
+
+const ResourceFields = styled(Flex).attrs({ gap: 1 })`
+  color: ${props => props.theme.colors.text.main};
+  font-size: ${props => props.theme.fontSizes[0]}px;
+`;
+
+function Label(props: { labelMatches: LabelMatch[]; label: LabelProto }) {
+  let { label, labelMatches } = props;
+  labelMatches = labelMatches.filter(match => match.labelName == label.name);
+  const nameMatches = labelMatches
+    .filter(match => match.kind === 'label-name')
+    .map(match => match.searchTerm);
+  const valueMatches = labelMatches
+    .filter(match => match.kind === 'label-value')
+    .map(match => match.searchTerm);
+
+  return (
+    <DesignLabel key={label.name} kind="secondary" title={makeLabelTag(label)}>
+      <Highlight text={label.name} keywords={nameMatches} />:{' '}
+      <Highlight text={label.value} keywords={valueMatches} />
+    </DesignLabel>
+  );
+}
+
+function HighlightField(props: {
+  searchResult: ResourceSearchResult;
+  field: ResourceMatch<ResourceSearchResult['kind']>['field'];
+}) {
+  // `as` used as a workaround for a TypeScript issue.
+  // https://github.com/microsoft/TypeScript/issues/33591
+  const keywords = (
+    props.searchResult.resourceMatches as ResourceMatch<
+      ResourceSearchResult['kind']
+    >[]
+  )
+    .filter(match => match.field === props.field)
+    .map(match => match.searchTerm);
+
+  return (
+    <Highlight
+      text={props.searchResult.resource[props.field]}
+      keywords={keywords}
+    />
+  );
+}
+
+function FilterButton(props: { text: string; onClick(): void }) {
+  return (
+    <Flex
+      justifyContent="center"
+      alignItems="center"
+      css={`
+        color: ${props => props.theme.colors.buttons.text};
+        background: ${props => props.theme.colors.spotBackground[1]};
+        border-radius: ${props => props.theme.radii[2]}px;
+      `}
+      px="6px"
+    >
+      <CloseIcon
+        color="buttons.text"
+        mr={1}
+        mt="1px"
+        title="Remove filter"
+        onClick={props.onClick}
+        css={`
+          cursor: pointer;
+          border-radius: ${props => props.theme.radii[1]}px;
+
+          &:hover {
+            background: ${props => props.theme.colors.spotBackground[1]};
+          }
+
+          > svg {
+            height: 13px;
+            width: 13px;
+          }
+        `}
+      />
+      <span
+        title={props.text}
+        css={`
+          white-space: nowrap;
+          cursor: default;
+        `}
+      >
+        {props.text}
+      </span>
+    </Flex>
+  );
+}
+
+interface AdvancedSearch {
+  isToggled: boolean;
+  onToggle(): void;
+}
+
+function ContentAndAdvancedSearch(
+  props: React.PropsWithChildren<{
+    advancedSearch: AdvancedSearch | undefined;
+  }>
+) {
+  return (
+    <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
+      {props.children}
+      {props.advancedSearch && (
+        <AdvancedSearchToggle {...props.advancedSearch} />
+      )}
+    </Flex>
+  );
+}
+
+function ResourceItem(props: {
+  Icon: React.ComponentType<IconProps>;
+  searchResult: { requiresRequest: boolean };
+  title: ReactNode;
+  action: ReactNode;
+  clusterName: string;
+  details?: ReactNode;
+}) {
+  return (
+    <IconAndContent
+      Icon={props.Icon}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">{props.title}</Text>
+        <Text typography="body2" color="text.muted">
+          {props.action}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4" color="text.muted">
+            {props.clusterName}
+          </Text>
+        </Box>
+      </Flex>
+      {props.details}
+    </IconAndContent>
+  );
+}
+
+function getRequestableResourceIconOpacity(args: { requiresRequest: boolean }) {
+  // Unified resources use 0.5 opacity for the requestable resources.
+  return args.requiresRequest ? 0.5 : 1;
+}

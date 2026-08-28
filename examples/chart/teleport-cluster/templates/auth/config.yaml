@@ -1,0 +1,296 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+{{- $configTemplate := printf "teleport-cluster.auth.config.%s" $auth.chartMode -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.config }}
+    {{- toYaml $auth.extraLabels.config | nindent 4 }}
+    {{- end }}
+{{- if $auth.annotations.config }}
+  annotations: {{- toYaml $auth.annotations.config | nindent 4 }}
+{{- end }}
+data:
+{{- if or $auth.createProxyToken .Values.operator.enabled }}
+  apply-on-startup.yaml: |2
+    {{- if $auth.createProxyToken }}
+    ---
+    kind: token
+    version: v2
+    metadata:
+      name: {{ .Release.Name }}-proxy
+      expires: "2050-01-01T00:00:00Z"
+    spec:
+      roles: [Proxy]
+      join_method: kubernetes
+      kubernetes:
+        allow:
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.proxy.serviceAccountName" . }}"
+    {{- end }}
+    {{- if .Values.operator.enabled }}
+    ---
+    kind: role
+    metadata:
+      description: Automatically generated role for bot operator
+      labels:
+        teleport.internal/bot: operator
+      name: bot-operator
+    spec:
+      allow:
+        impersonate:
+          roles:
+            - operator
+        rules:
+          - resources:
+              - cert_authority
+            verbs:
+              - readnosecrets
+      deny: {}
+    version: v7
+    ---
+    kind: user
+    metadata:
+      labels:
+        teleport.internal/bot: operator
+      name: bot-operator
+    spec:
+      roles:
+        - bot-operator
+    version: v2
+    ---
+    kind: role
+    metadata:
+      name: operator
+    spec:
+      allow:
+        # The operator role can see all nodes.
+        # This is required to reconcile OpenSSH and OpenSSHEICE nodes.
+        # However, it has no login set, so it cannot SSH on them
+        node_labels:
+          "*": ["*"]
+        app_labels:
+          "*": ["*"]
+        db_labels:
+          "*": ["*"]
+        rules:
+          - resources:
+              - role
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - user
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - auth_connector
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - saml_idp_service_provider
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - lock
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - login_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - token
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - okta_import_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - access_list
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - node
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - trusted_cluster
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - bot
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - workload_identity
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - app
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - autoupdate_version
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - autoupdate_config
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - db
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - inference_model
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - inference_policy
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - inference_secret
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - retrieval_model
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - access_monitoring_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - scoped_token
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - scoped_role
+            verbs:
+              - list
+              - create
+              - readnosecrets
+              - update
+              - delete
+          - resources:
+              - scoped_role_assignment
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+      deny: {}
+    version: v7
+    ---
+    kind: token
+    version: v2
+    metadata:
+      name: "{{ .Values.operator.token }}"
+    spec:
+      roles: [Bot]
+      join_method: kubernetes
+      bot_name: operator
+      kubernetes:
+        allow:
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.auth.operatorServiceAccountName" . }}"
+  {{- end }}
+{{- end }}
+  teleport.yaml: |2
+    {{- mustMergeOverwrite (include $configTemplate . | fromYaml) $auth.teleportConfig | toYaml | nindent 4 -}}

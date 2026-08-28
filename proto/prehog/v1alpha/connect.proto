@@ -1,0 +1,132 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+message ConnectClusterLoginEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // local/github/saml/oidc/passwordless
+  string connector_type = 3;
+  string arch = 4;
+  string os = 5;
+  string os_version = 6;
+  string app_version = 7;
+}
+
+message ConnectProtocolUseEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // one of ssh/db/kube
+  string protocol = 3;
+  // origin denotes which part of Connect UI was used to access a resource.
+  // One of resource_table/search_bar/connection_list/reopened_session/vnet (optional for backwards
+  // compatibility).
+  string origin = 4;
+  // access_through describes whether a resource was accessed by speaking to the proxy service
+  // directly, through a local proxy or through VNet.
+  // One of proxy_service/local_proxy/vnet (optional for backwards compatibility).
+  string access_through = 5;
+}
+
+message ConnectAccessRequestCreateEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  // one of role/resource
+  string kind = 3;
+}
+
+message ConnectAccessRequestReviewEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
+message ConnectAccessRequestAssumeRoleEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
+message ConnectFileTransferRunEvent {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  bool is_upload = 3;
+}
+
+message ConnectUserJobRoleUpdateEvent {
+  // Software Engineer, DevOps Engineer etc.
+  string job_role = 1;
+}
+
+message ConnectConnectMyComputerSetup {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+  bool success = 3;
+  // empty when success is true
+  string failed_step = 4;
+}
+
+message ConnectConnectMyComputerAgentStart {
+  // anonymized
+  string cluster_name = 1;
+  // anonymized
+  string user_name = 2;
+}
+
+message SubmitConnectEventRequest {
+  // UUID
+  string distinct_id = 1;
+
+  // optional, will default to the ingest time if unset
+  google.protobuf.Timestamp timestamp = 2;
+
+  oneof event {
+    ConnectClusterLoginEvent cluster_login = 3;
+    ConnectProtocolUseEvent protocol_use = 4;
+    ConnectAccessRequestCreateEvent access_request_create = 5;
+    ConnectAccessRequestReviewEvent access_request_review = 6;
+    ConnectAccessRequestAssumeRoleEvent access_request_assume_role = 7;
+    ConnectFileTransferRunEvent file_transfer_run = 8;
+    ConnectUserJobRoleUpdateEvent user_job_role_update = 9;
+    ConnectConnectMyComputerSetup connect_my_computer_setup = 10;
+    ConnectConnectMyComputerAgentStart connect_my_computer_agent_start = 11;
+  }
+}
+
+message SubmitConnectEventResponse {}
+
+service ConnectReportingService {
+  rpc SubmitConnectEvent(SubmitConnectEventRequest) returns (SubmitConnectEventResponse) {}
+}

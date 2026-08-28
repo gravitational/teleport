@@ -1,0 +1,612 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package desktop
+
+import (
+	"cmp"
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"maps"
+	"net"
+	"net/netip"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/go-ldap/ldap/v3"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/winpki"
+)
+
+const (
+	// attrName is the name of an LDAP object.
+	attrName = "name"
+
+	// description is a description of an LDAP object.
+	attrDescription          = "description"
+	attrDescriptionMaxLength = 1024 // https://learn.microsoft.com/en-us/windows/win32/adschema/a-description
+
+	// attrCommonName is the common name of an LDAP object, or "CN".
+	attrCommonName = "cn"
+
+	// attrObjectGUID is the globally unique identifier for an LDAP object.
+	attrObjectGUID = "objectGUID"
+
+	// attrDistinguishedName is the distinguished name of an LDAP object, or "DN".
+	attrDistinguishedName = "distinguishedName"
+
+	// attrPrimaryGroupID is the primary group ID of an LDAP object.
+	attrPrimaryGroupID = "primaryGroupID"
+
+	// attrOS is the operating system of a computer object
+	attrOS = "operatingSystem"
+
+	// attrOSVersion is the operating system version of a computer object.
+	attrOSVersion = "operatingSystemVersion"
+
+	// attrDNSHostName is the DNS Host name of an LDAP object.
+	attrDNSHostName = "dNSHostName" // unusual capitalization is correct
+)
+
+const (
+	// ClassComputer is the object class for computers in Active Directory.
+	ClassComputer = "computer"
+
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+)
+
+// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
+const (
+	// writableDomainControllerGroupID is the windows security identifier for dcs with write permissions
+	writableDomainControllerGroupID = "516"
+	// readOnlyDomainControllerGroupID is the windows security identifier for read only dcs
+	readOnlyDomainControllerGroupID = "521"
+)
+
+// currentLDAPDesktops returns the set of desktops that exist in the backend which were both:
+// 1. Registered by this agent.
+// 2. Discovered via LDAP.
+func (s *WindowsService) currentLDAPDesktops(ctx context.Context) map[string]types.WindowsDesktop {
+	result := make(map[string]types.WindowsDesktop)
+
+	for desktop, err := range clientutils.Resources(
+		ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{
+					HostID: s.cfg.Heartbeat.HostUUID,
+					Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP,
+				},
+				Labels:   map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:    pageSize,
+				StartKey: pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			// The ability to filter by source was added in a v18 release.
+			// We do an extra client-side filter here in case we hit an old auth server
+			// that doesn't respect the new filter.
+			// TODO(zmb3): DELETE IN v20, at which point auth is guaranteed to support the new filter
+			filtered := slices.DeleteFunc(resp.Desktops, func(d types.WindowsDesktop) bool {
+				v3, ok := d.(*types.WindowsDesktopV3)
+				if !ok {
+					return true
+				}
+				return v3.Status == nil || v3.Status.Source != types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP
+			})
+
+			return filtered, resp.NextKey, nil
+		}) {
+		if err != nil {
+			return result
+		}
+		result[desktop.GetName()] = desktop
+	}
+
+	return result
+}
+
+// startDesktopDiscovery starts fetching desktops from LDAP, periodically
+// registering and unregistering them as necessary.
+func (s *WindowsService) startDesktopDiscovery() error {
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+		// Match all desktops with one of our LDAP labels.
+		// This ensures the desktop was discovered via LDAP and not created with dynamic registration.
+		Matcher: func(d types.WindowsDesktop) bool {
+			_, ok := d.GetLabel(types.DiscoveryLabelWindowsOS)
+			return ok
+		},
+		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentLDAPDesktops(s.closeCtx) },
+		GetNewResources:     s.getDesktopsFromLDAP,
+		OnCreate:            s.upsertDesktop,
+		OnUpdate:            s.updateDesktop,
+		OnDelete:            s.deleteDesktop,
+		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		// reconcile once before starting the ticker, so that desktops show up immediately
+		// (we still have a small delay to give the LDAP client time to initialize)
+		s.cfg.Clock.Sleep(15 * time.Second)
+		if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
+		}
+
+		t := s.cfg.Clock.NewTicker(s.cfg.DiscoveryInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-s.closeCtx.Done():
+				return
+			case <-t.Chan():
+				if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+					s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
+	var filters = []string{
+		fmt.Sprintf("(%s=%s)", winpki.AttrObjectClass, ClassComputer),
+		fmt.Sprintf("(!(%s=%s))", winpki.AttrObjectClass, ClassGMSA),
+	}
+	filters = append(filters, additionalFilters...)
+	return winpki.CombineLDAPFilters(filters)
+}
+
+// getDesktopsFromLDAP discovers Windows hosts via LDAP
+func (s *WindowsService) getDesktopsFromLDAP() (result map[string]types.WindowsDesktop) {
+	// We always return the results of the last discovery in order to prevent
+	// the reconciler from deleting resources due to transient network errors.
+	defer func() {
+		for _, d := range s.lastDiscoveryResults {
+			// Enforce a TTL of at least 5 minutes to avoid thrashing
+			// when a very small discovery interval is configured.
+			ttl := max(s.cfg.DiscoveryInterval*3, 5*time.Minute)
+
+			// Bump the TTL out even in the error case. This will keep desktops in
+			// the inventory until we get confirmation from LDAP that the desktop
+			// is no longer present.
+			//
+			// Note that if there is an issue with LDAP connectivity, the RDP connection
+			// to the host will only succeed if we've already cached the user's SID.
+			d.SetExpiry(s.cfg.Clock.Now().UTC().Add(ttl))
+		}
+		result = s.lastDiscoveryResults
+	}()
+
+	tc, err := s.loadTLSConfigForLDAP()
+	if err != nil {
+		s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
+		return
+	}
+
+	ldapClient, err := winpki.DialLDAP(s.closeCtx, s.getLDAPConfig(), tc)
+	if err != nil {
+		s.cfg.Logger.WarnContext(s.closeCtx, "could not dial LDAP server", "error", err)
+		return
+	}
+	defer ldapClient.Close()
+
+	discovered := make(map[string]types.WindowsDesktop)
+	for _, discoveryConfig := range s.cfg.Discovery {
+		filter := s.ldapSearchFilter(discoveryConfig.Filters)
+		s.cfg.Logger.DebugContext(s.closeCtx, "searching for desktops", "filter", filter)
+
+		var attrs []string
+		attrs = append(attrs, computerAttributes...)
+		attrs = append(attrs, discoveryConfig.LabelAttributes...)
+
+		entries, err := ldapClient.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
+		if err != nil {
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops, using last known results", "error", err)
+			return
+		}
+
+		s.cfg.Logger.DebugContext(s.closeCtx, "discovered Windows Desktops", "count", len(entries))
+
+		for _, entry := range entries {
+			desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn, &discoveryConfig)
+			if err != nil {
+				s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
+				continue
+			}
+			maps.Copy(desktop.GetMetadata().Labels, discoveryConfig.Labels)
+			discovered[desktop.GetName()] = desktop
+		}
+	}
+
+	// capture the result, which will be used on the next reconcile loop
+	s.lastDiscoveryResults = discovered
+	return
+}
+
+func (s *WindowsService) updateDesktop(ctx context.Context, desktop, _ types.WindowsDesktop) error {
+	return s.upsertDesktop(ctx, desktop)
+}
+
+func (s *WindowsService) upsertDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return s.cfg.AuthClient.UpsertWindowsDesktop(ctx, d)
+}
+
+func (s *WindowsService) deleteDesktop(ctx context.Context, d types.WindowsDesktop) error {
+	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
+}
+
+func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string, cfg *servicecfg.LDAPDiscoveryConfig) {
+	// apply common LDAP labels by default
+	labels[types.OriginLabel] = types.OriginDynamic
+	labels[types.DiscoveryLabelWindowsDNSHostName] = entry.GetAttributeValue(attrDNSHostName)
+	labels[types.DiscoveryLabelWindowsComputerName] = entry.GetAttributeValue(attrName)
+	labels[types.DiscoveryLabelWindowsOS] = entry.GetAttributeValue(attrOS)
+	labels[types.DiscoveryLabelWindowsOSVersion] = entry.GetAttributeValue(attrOSVersion)
+
+	// attempt to compute the desktop's OU from its DN
+	dn := entry.GetAttributeValue(attrDistinguishedName)
+	cn := entry.GetAttributeValue(attrCommonName)
+	if len(dn) > 0 && len(cn) > 0 {
+		ou := strings.TrimPrefix(dn, "CN="+cn+",")
+		labels[types.DiscoveryLabelWindowsOU] = ou
+		labels[types.DiscoveryLabelWindowsDomain] = dnToDomain(dn)
+	}
+
+	// label domain controllers
+	switch entry.GetAttributeValue(attrPrimaryGroupID) {
+	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
+		labels[types.DiscoveryLabelWindowsIsDomainController] = "true"
+	}
+
+	// apply any custom labels per the discovery configuration
+	const maxAttributeLabelLen = 512
+	for _, attr := range cfg.LabelAttributes {
+		values := slices.Clone(entry.GetAttributeValues(attr))
+
+		switch cfg.LabelAttributeMode {
+		case "", servicecfg.LabelAttributeModeFirst:
+			// Take only the first value
+			if len(values) > 1 {
+				values = values[:1]
+			}
+		case servicecfg.LabelAttributeModeJoin:
+			// Prune empty/whitespace values.
+			// (Ideally, we'd do this in all modes, but for backwards compatibility we leave
+			// "first" mode with the legacy behavior)
+			values = slices.DeleteFunc(values, func(v string) bool { return strings.TrimSpace(v) == "" })
+			if len(values) == 0 {
+				continue
+			}
+		}
+
+		// Sort the attributes so the Teleport label is consistent even if AD
+		// returns them in a different order.
+		slices.Sort(values)
+
+		// At this point we can do an unconditional join, because
+		// strings.Join is a no-op on a single-element slice.
+		if value := strings.Join(values, cmp.Or(cfg.LabelAttributeJoinSeparator, "|")); len(value) > 0 {
+			switch cfg.LabelAttributeMode {
+			case "", servicecfg.LabelAttributeModeFirst:
+				// Don't enforce the maximum label attribute length in first mode.
+				// This preserves backwards compatibility.
+			default:
+				if len(value) > maxAttributeLabelLen {
+					continue
+				}
+			}
+			labels[types.DiscoveryLabelLDAPPrefix+attr] = value
+		}
+	}
+}
+
+func dnToDomain(dn string) string {
+	// Leverage go-ldaps for parsing DNs.
+	parsed, err := ldap.ParseDN(dn)
+	if err != nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, rdn := range parsed.RDNs {
+		// Domain Component RDNs will only ever have one attribute/value pair
+		// in practice (even though the grammar technically allows multiple).
+		if len(rdn.Attributes) == 1 && strings.EqualFold(rdn.Attributes[0].Type, "dc") {
+			if b.Len() > 0 {
+				b.WriteRune('.')
+			}
+			b.WriteString(rdn.Attributes[0].Value)
+		}
+	}
+
+	return b.String()
+}
+
+const dnsQueryTimeout = 5 * time.Second
+
+// lookupDesktop does a DNS lookup for the provided hostname.
+// It checks using the default system resolver first, and falls
+// back to the configured LDAP server if the system resolver fails.
+func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]string, error) {
+	stringAddrs := func(addrs []netip.Addr) []string {
+		result := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			result = append(result, addr.String())
+		}
+		return result
+	}
+
+	queryResolver := func(resolver *net.Resolver, resolverName string) chan []netip.Addr {
+		if resolver == nil {
+			ch := make(chan []netip.Addr)
+			close(ch)
+			return ch
+		}
+
+		ch := make(chan []netip.Addr, 1)
+		go func() {
+			tctx, cancel := context.WithTimeout(ctx, dnsQueryTimeout)
+			defer cancel()
+
+			addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
+			if err != nil {
+				s.cfg.Logger.DebugContext(ctx, "DNS lookup failed", "hostname", hostname, "resolver", resolverName, "error", err)
+			}
+
+			// even though we requested "ip4" it's possible to get IPv4
+			// addresses mapped to IPv6 addresses, so we unmap them here
+			result := make([]netip.Addr, 0, len(addrs))
+			for _, addr := range addrs {
+				if addr.Is4() || addr.Is4In6() {
+					result = append(result, addr.Unmap())
+				}
+			}
+
+			ch <- result
+		}()
+		return ch
+	}
+
+	// kick off both DNS queries in parallel
+	defaultResult := queryResolver(net.DefaultResolver, "default")
+	ldapResult := queryResolver(s.dnsResolver, "LDAP")
+
+	// wait for the default resolver to return (or time out)
+	addrs := <-defaultResult
+	if len(addrs) > 0 {
+		return stringAddrs(addrs), nil
+	}
+
+	// If we didn't get a result from the default resolver,
+	// use the result from the LDAP resolver.
+	// This shouldn't block for very long, since both operations
+	// started at the same time with the same timeout.
+	addrs = <-ldapResult
+	if len(addrs) > 0 {
+		return stringAddrs(addrs), nil
+	}
+
+	return nil, trace.Errorf("could not resolve %v in time", hostname)
+}
+
+// ldapEntryToWindowsDesktop generates the Windows Desktop resource
+// from an LDAP search result
+func (s *WindowsService) ldapEntryToWindowsDesktop(
+	ctx context.Context,
+	entry *ldap.Entry,
+	getHostLabels func(string) map[string]string,
+	cfg *servicecfg.LDAPDiscoveryConfig,
+) (types.WindowsDesktop, error) {
+	hostname := entry.GetAttributeValue(attrDNSHostName)
+	if hostname == "" {
+		attrs := make([]string, len(entry.Attributes))
+		for _, a := range entry.Attributes {
+			attrs = append(attrs, fmt.Sprintf("%v=%v", a.Name, a.Values))
+		}
+		s.cfg.Logger.DebugContext(ctx, "LDAP entry is missing hostname", "dn", entry.DN, "attrs", strings.Join(attrs, ","))
+		return nil, trace.BadParameter("LDAP entry %v missing hostname", entry.DN)
+	}
+	labels := getHostLabels(hostname)
+	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
+	s.applyLabelsFromLDAP(entry, labels, cfg)
+
+	if os, ok := labels[types.DiscoveryLabelWindowsOS]; ok && strings.Contains(os, "linux") {
+		return nil, trace.BadParameter("LDAP entry looks like a Linux host")
+	}
+
+	addrs, err := s.lookupDesktop(ctx, hostname)
+	if err != nil || len(addrs) == 0 {
+		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
+	}
+
+	s.cfg.Logger.DebugContext(ctx, "resolved desktop host", "hostname", hostname, "addrs", addrs)
+	addr, err := utils.ParseHostPortAddr(addrs[0], cfg.RDPPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ensure no '.' in name, because we use SNI to route to the right
+	// desktop, and our cert is valid for *.desktop.teleport.cluster.local
+	name := strings.ReplaceAll(hostname, ".", "-")
+
+	// append portion of the object GUID to ensure that desktops from
+	// different domains that happen to have the same hostname don't conflict
+	if guid := entry.GetRawAttributeValue(attrObjectGUID); len(guid) >= 4 {
+		name += "-" + hex.EncodeToString(guid[:4])
+	}
+
+	desktop, err := types.NewWindowsDesktopV3(
+		name,
+		labels,
+		types.WindowsDesktopSpecV3{
+			Addr:   addr.String(),
+			Domain: labels[types.DiscoveryLabelWindowsDomain],
+			HostID: s.cfg.Heartbeat.HostUUID,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	description := entry.GetAttributeValue(attrDescription)
+	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
+
+	desktop.Status = &types.WindowsDesktopStatus{
+		Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP,
+	}
+
+	return desktop, nil
+}
+
+// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
+// according to the up-to-date list of dynamic Windows desktop resources. The reconciler runs until the
+// provided context expires.
+func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
+	if len(s.cfg.ResourceMatchers) == 0 {
+		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
+		return nil
+	}
+	// errCh is used to indicate whether the background reconciliation routine
+	// starts successfully
+	errCh := make(chan error)
+
+	go func() {
+		s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
+		watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
+			DynamicWindowsDesktopGetter: s.cfg.AccessPoint,
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentWindowsDesktop,
+				Client:    s.cfg.AccessPoint,
+			},
+		})
+		if err != nil {
+			errCh <- trace.Wrap(err)
+			return
+		}
+
+		defer watcher.Close()
+		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
+
+		currentResources := make(map[string]types.WindowsDesktop)
+		var newResources map[string]types.WindowsDesktop
+
+		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+			Matcher: func(desktop types.WindowsDesktop) bool {
+				return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
+			},
+			GetCurrentResources: func() map[string]types.WindowsDesktop { return currentResources },
+			GetNewResources:     func() map[string]types.WindowsDesktop { return newResources },
+			OnCreate:            s.upsertDesktop,
+			OnUpdate:            s.updateDesktop,
+			OnDelete:            s.deleteDesktop,
+		})
+		if err != nil {
+			errCh <- trace.Wrap(err)
+			return
+		}
+
+		// If we got here, the reconciler is running.
+		errCh <- nil
+
+		tickDuration := 5 * time.Minute
+		expiryDuration := tickDuration + 2*time.Minute
+
+		tick := s.cfg.Clock.NewTicker(tickDuration)
+		defer tick.Stop()
+
+		for {
+			select {
+			case desktops := <-watcher.ResourcesC:
+				start := s.cfg.Clock.Now()
+				newResources = make(map[string]types.WindowsDesktop)
+				for _, dynamicDesktop := range desktops {
+					desktop, err := s.toWindowsDesktop(dynamicDesktop)
+					if err != nil {
+						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
+						continue
+					}
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+					newResources[dynamicDesktop.GetName()] = desktop
+				}
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
+					continue
+				}
+				currentResources = newResources
+				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
+			case <-tick.Chan():
+				start := s.cfg.Clock.Now()
+				newResources = make(map[string]types.WindowsDesktop)
+				for k, v := range currentResources {
+					newResources[k] = v.Copy()
+					newResources[k].SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+				}
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
+					continue
+				}
+				currentResources = newResources
+				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
+			case <-watcher.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return trace.Wrap(<-errCh, "could not start dynamic desktop reconciler")
+}
+
+func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDesktop) (*types.WindowsDesktopV3, error) {
+	width, height := dynamicDesktop.GetScreenSize()
+
+	desktopLabels := dynamicDesktop.GetAllLabels()
+	labels := make(map[string]string, len(desktopLabels)+1)
+	maps.Copy(labels, desktopLabels)
+	labels[types.OriginLabel] = types.OriginDynamic
+
+	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
+		Addr:   dynamicDesktop.GetAddr(),
+		Domain: dynamicDesktop.GetDomain(),
+		HostID: s.cfg.Heartbeat.HostUUID,
+		NonAD:  dynamicDesktop.NonAD(),
+		ScreenSize: &types.Resolution{
+			Width:  width,
+			Height: height,
+		},
+	})
+}

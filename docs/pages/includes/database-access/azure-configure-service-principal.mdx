@@ -1,0 +1,73 @@
+There are a couple of ways for the Teleport Database Service to access Azure
+resources:
+
+- The Database Service can run on an Azure VM with attached managed identity. This
+  is the recommended way of deploying the Database Service in production since
+  it eliminates the need to manage Azure credentials.
+- The Database Service can be registered as a Microsoft Entra ID application
+  (via "App registrations") and configured with its credentials. This is only
+  recommended for development and testing purposes since it requires Azure
+  credentials to be present in the Database Service's environment.
+
+<Tabs>
+<TabItem label="Using managed identity">
+  Go to the [Managed Identities](https://portal.azure.com/#browse/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+  page in your Azure portal and click *Create* to create a new user-assigned
+  managed identity:
+
+  ![Managed identities](../../../img/azure/managed-identities@2x.png)
+
+  Pick a name and resource group for the new identity and create it:
+
+  ![New identity](../../../img/database-access/guides/azure/new-identity.png)
+
+  Take note of the created identity's *Client ID*:
+
+  ![Created identity](../../../img/database-access/guides/azure/created-identity.png)
+
+  Next, navigate to the Azure VM that will run your Database Service instance and
+  add the identity you've just created to it:
+
+  ![VM identity](../../../img/database-access/guides/azure/vm-identity.png)
+
+  Attach this identity to all Azure VMs that will be running the Database
+  Service.
+</TabItem>
+<TabItem label="Using app registrations">
+  <Admonition type="note">
+    Registering the Database Service as a Microsoft Entra ID application is
+    suitable for test and development scenarios, or if your Database Service
+    does not run on an Azure VM. For production scenarios prefer to use the
+    managed identity
+    approach.
+  </Admonition>
+
+  Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
+  page of Microsoft Entra ID and click on *New registration*:
+
+  ![App registrations](../../../img/azure/app-registrations@2x.png)
+
+  Pick a name (e.g. *DatabaseService*) and register a new application. Once the
+  app has been created, take note of its *Application (client) ID* and click on
+  *Add a certificate or secret*:
+
+  ![Registered app](../../../img/database-access/guides/azure/registered-app@2x.png)
+
+  Create a new client secret that the Database Service agent will use to
+  authenticate with the Azure API:
+
+  ![Registered app secrets](../../../img/azure/registered-app-secrets@2x.png)
+
+  The Teleport Database Service uses Azure SDK's default credential provider chain to
+  look for credentials. Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
+  to pick a method suitable for your use-case. For example, to use
+  environment-based authentication with a client secret, the Database Service should
+  have the following environment variables set:
+
+  ```code
+  export AZURE_TENANT_ID=
+  export AZURE_CLIENT_ID=
+  export AZURE_CLIENT_SECRET=
+  ```
+</TabItem>
+</Tabs>

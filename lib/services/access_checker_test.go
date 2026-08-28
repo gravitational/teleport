@@ -1,0 +1,1665 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package services
+
+import (
+	"context"
+	"sort"
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+func TestAccessCheckerKubeResources(t *testing.T) {
+	emptySet := []types.KubernetesResource{}
+	kubeUsers := []string{"user1"}
+	kubeAnyLabels, kubeDevLabels := types.Labels{"*": {"*"}}, types.Labels{"env": {"dev"}}
+	devKubeCluster := newKubeCluster(t, "dev", map[string]string{"env": "dev"})
+	prodKubeCluster := newKubeCluster(t, "prod", map[string]string{"env": "prod"})
+	roleSet := NewRoleSet(
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("dev")
+			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			})
+			rv.SetKubernetesLabels(types.Allow, kubeDevLabels)
+			rv.SetKubeUsers(types.Allow, kubeUsers)
+		}),
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			})
+			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
+			rv.SetKubeUsers(types.Allow, kubeUsers)
+		}),
+	)
+	listOnlySet := NewRoleSet(
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("list-only")
+			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+			})
+			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
+			rv.SetKubeUsers(types.Allow, kubeUsers)
+		}),
+	)
+	localCluster := "cluster"
+	type fields struct {
+		info          *AccessInfo
+		roleSet       RoleSet
+		resource      types.KubernetesResource
+		isClusterWide bool
+	}
+	tests := []struct {
+		name         string
+		fields       fields
+		kubeCluster  types.KubeCluster
+		wantAllowed  []types.KubernetesResource
+		wantDenied   []types.KubernetesResource
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name:        "prod cluster",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+				},
+				roleSet: roleSet,
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "dev cluster",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+				},
+				roleSet: roleSet,
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "rand",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "dev cluster with resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-3",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "prod/test-2",
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "*",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  "",
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "prod cluster with resource access request",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-2",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "test/test-3",
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "prod/test-2",
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
+				},
+			},
+			wantAllowed:  nil,
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "dev cluster with kube_cluster resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        devKubeCluster.GetName(),
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access dev cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  "",
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access prod cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "dev",
+					Namespace: "dev",
+					Verbs:     []string{types.KubeVerbGet},
+					APIGroup:  "",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.Wildcard},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "access pod outside namespace allowed by roles",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+						{
+							Kind:            "pods",
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "wrongNamespace/wrongPodName",
+						},
+					}),
+				},
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "wrongPodName",
+					Namespace: "wrongNamespace",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+			},
+			wantAllowed:  nil,
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "prod cluster with list verb but tries to access get",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"list-only"},
+				},
+				roleSet: listOnlySet,
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "prod cluster with list verb",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				info: &AccessInfo{
+					Roles: []string{"list-only"},
+				},
+				roleSet: listOnlySet,
+				resource: types.KubernetesResource{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbList},
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any1",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+				{
+					Kind:      "pods",
+					Name:      "any1",
+					Namespace: "any2",
+					Verbs:     []string{types.KubeVerbList},
+					APIGroup:  types.Wildcard,
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tt.fields.info, localCluster, tt.fields.roleSet)
+			gotAllowed, gotDenied := accessChecker.GetKubeResources(tt.kubeCluster)
+
+			err := accessChecker.CheckAccess(
+				tt.kubeCluster,
+				AccessState{MFARequired: MFARequiredNever},
+				// Append a matcher that validates if the Kubernetes resource is allowed
+				// by the roles that satisfy the Kubernetes Cluster.
+				NewKubernetesResourceMatcher(tt.fields.resource, tt.fields.isClusterWide),
+			)
+			tt.assertAccess(t, err)
+			sortKubeResourceSlice(gotAllowed)
+			sortKubeResourceSlice(gotDenied)
+			// The selfsubjectaccessrewview gets injected everywhere.
+			tt.wantAllowed = append(tt.wantAllowed, types.KubernetesResourceSelfSubjectAccessReview)
+			sortKubeResourceSlice(tt.wantAllowed)
+
+			require.EqualValues(t, tt.wantAllowed, gotAllowed)
+			require.EqualValues(t, tt.wantDenied, gotDenied)
+		})
+	}
+}
+
+func newKubeCluster(t *testing.T, name string, labels map[string]string) types.KubeCluster {
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:   name,
+		Labels: labels,
+	}, types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	return cluster
+}
+
+func sortKubeResourceSlice(resources []types.KubernetesResource) {
+	sort.Slice(resources, func(i, j int) bool { return resources[i].Name < resources[j].Name })
+}
+
+func TestAccessCheckerHostUsersShell(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	expectedShell := "bash"
+	secondaryShell := "zsh"
+	localCluster := "cluster"
+
+	roleSet := NewRoleSet(
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: expectedShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: secondaryShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+	)
+
+	accessInfo := &AccessInfo{
+		Roles: []string{"default-shell"},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, localCluster, roleSet)
+	hui, err := accessChecker.HostUsers(serverStub{})
+	require.NoError(t, err)
+
+	// the first value for shell encountered while checking roles should be used, which means
+	// secondaryShell should never be the result here
+	require.Equal(t, expectedShell, hui.Shell)
+}
+
+func TestAccessCheckerDesktopGroups(t *testing.T) {
+	localCluster := "cluster"
+
+	allowCreateNoGroups := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true) })
+	denyUserCreation := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false) })
+	allowGroupA := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"a"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA"}
+	})
+	allowGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"b"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupB"}
+	})
+	allowABC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA", "groupB", "groupC"}
+	})
+	denyGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"b"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupB"}
+	})
+	denyGroupC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"c"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupC"}
+	})
+
+	for _, test := range []struct {
+		name          string
+		roles         RoleSet
+		desktopLabels map[string]string
+		wantGroups    []string
+		assert        require.ErrorAssertionFunc
+	}{
+		{
+			name:       "empty groups",
+			roles:      NewRoleSet(allowCreateNoGroups),
+			wantGroups: []string{},
+			assert:     require.NoError,
+		},
+		{
+			name:          "multiple groups",
+			roles:         NewRoleSet(allowABC),
+			desktopLabels: map[string]string{"group": "all"},
+			wantGroups:    []string{"groupA", "groupB", "groupC"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "only considers matching labels",
+			roles:         NewRoleSet(allowGroupA, allowGroupB),
+			desktopLabels: map[string]string{"group": "a"},
+			wantGroups:    []string{"groupA"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "denied groups are removed",
+			roles:         NewRoleSet(allowABC, denyGroupB, denyGroupC),
+			desktopLabels: map[string]string{"group": "all", "denygroup": "b"},
+			// B gets removed due to deny rule, but C doesn't since labels don't match
+			wantGroups: []string{"groupA", "groupC"},
+			assert:     require.NoError,
+		},
+		{
+			name:          "error if user creation is disabled",
+			roles:         NewRoleSet(allowCreateNoGroups, denyUserCreation),
+			desktopLabels: map[string]string{},
+			wantGroups:    nil,
+			assert:        require.Error,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			desktop, err := types.NewWindowsDesktopV3("test-desktop", test.desktopLabels, types.WindowsDesktopSpecV3{
+				Addr: "example.com:3389",
+			})
+			require.NoError(t, err)
+
+			ac := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, test.roles)
+			groups, err := ac.DesktopGroups(desktop)
+			require.ElementsMatch(t, test.wantGroups, groups)
+			test.assert(t, err)
+
+			if err == nil {
+				require.NotNil(t, groups, "desktop groups should never be nil, use an empty slice instead")
+			}
+		})
+	}
+}
+
+func TestSSHPortForwarding(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	localCluster := "cluster"
+
+	allAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	deny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	legacyAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	legacyDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-deny")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(false),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	implicitAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("implicit-allow")
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	testCases := []struct {
+		name         string
+		roleSet      RoleSet
+		expectedMode decisionpb.SSHPortForwardMode
+	}{
+		{
+			name:         "allow all",
+			roleSet:      NewRoleSet(allAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "deny all",
+			roleSet:      NewRoleSet(allDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "allow remote and local",
+			roleSet:      NewRoleSet(allow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "deny remote and local",
+			roleSet:      NewRoleSet(deny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "legacy allow",
+			roleSet:      NewRoleSet(legacyAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "legacy deny",
+			roleSet:      NewRoleSet(legacyDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "remote allow",
+			roleSet:      NewRoleSet(remoteAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "remote deny",
+			roleSet:      NewRoleSet(remoteDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name:         "local allow",
+			roleSet:      NewRoleSet(localAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "local deny",
+			roleSet:      NewRoleSet(localDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			name:         "implicit allow",
+			roleSet:      NewRoleSet(implicitAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "conflicting roles: allow all with remote deny",
+			roleSet:      NewRoleSet(allow, remoteDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name:         "conflicting roles: allow all with local deny",
+			roleSet:      NewRoleSet(allow, localDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			// legacy behavior prefers explicit allow, so make sure we respect that if one is given
+			name:         "conflicting roles: deny all with legacy allow",
+			roleSet:      NewRoleSet(deny, legacyAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			// legacy behavior prioritizes explicit allow, so make sure we respect that if another role would allow access
+			name:         "conflicting roles: allow all with legacy deny",
+			roleSet:      NewRoleSet(allow, legacyDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "conflicting roles implicit allow explicit deny",
+			roleSet:      NewRoleSet(implicitAllow, deny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, c.roleSet)
+			require.Equal(t, c.expectedMode, accessChecker.SSHPortForwardMode())
+		})
+	}
+}
+
+type serverStub struct {
+	types.Server
+}
+
+func (serverStub) GetKind() string {
+	return types.KindNode
+}
+
+func TestAccessCheckerWorkloadIdentity(t *testing.T) {
+	localCluster := "cluster"
+
+	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "no-labels",
+		},
+	}
+	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "foo-labeled",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+	}
+
+	roleNoLabels := newRole(func(rv *types.RoleV6) {})
+	roleWildcard := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+	})
+	roleFooLabel := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{"foo": {"bar"}}
+	})
+	tests := []struct {
+		name         string
+		roleSet      RoleSet
+		resource     *workloadidentityv1pb.WorkloadIdentity
+		requireError require.ErrorAssertionFunc
+	}{
+		{
+			name: "wildcard role, no labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     noLabelsWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "wildcard role, labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, tt.roleSet)
+			err := accessChecker.CheckAccess(
+				types.Resource153ToResourceWithLabels(tt.resource),
+				AccessState{},
+			)
+			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "matches kind and subkind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "unmatched subkind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							Kind:        types.KindIdentityCenterAccount,
+							ClusterName: localCluster,
+							Name:        "aws-dev",
+						},
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
+		})
+	}
+}
+
+func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
+	roleEmptyTools := newRole(func(rv *types.RoleV6) {
+		rv.SetName("empty")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+	})
+	roleNoLabelsMatch := newRole(func(rv *types.RoleV6) {
+		rv.SetName("not-match")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"bar"},
+		})
+	})
+	roleAllowWildcard := newRole(func(rv *types.RoleV6) {
+		rv.SetName("dev")
+		rv.SetAppLabels(types.Allow, types.Labels{"env": []string{"dev"}})
+		rv.SetMCPPermissions(types.Allow, &types.MCPPermissions{
+			Tools: []string{"*"},
+		})
+	})
+	roleExplicitDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny-bar")
+		rv.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+		rv.SetMCPPermissions(types.Deny, &types.MCPPermissions{
+			Tools: []string{"foo"},
+		})
+	})
+
+	mcpServer := &types.AppV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: "mcp-everything",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		roles     RoleSet
+		mcpServer types.Application
+		result    EnumerationResult
+	}{
+		{
+			name:      "no tools permission",
+			roles:     NewRoleSet(roleEmptyTools, roleNoLabelsMatch),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				allowedDeniedMap: map[string]bool{},
+			},
+		},
+		{
+			name:      "allow wildcard, deny specific value",
+			roles:     NewRoleSet(roleAllowWildcard, roleExplicitDeny),
+			mcpServer: mcpServer,
+			result: EnumerationResult{
+				wildcardAllowed: true,
+				allowedDeniedMap: map[string]bool{
+					"foo": false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run(tt.name, func(t *testing.T) {
+				accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
+				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
+				require.Equal(t, tt.result, enumResult)
+			})
+		})
+	}
+}
+
+func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "aws-console"
+
+	// Over-broad role that allows two ARNs
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.AWSRoleARNs = []string{
+			"arn:aws:iam::123456789012:role/Admin",
+			"arn:aws:iam::123456789012:role/ReadOnly",
+		}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: constants.AWSConsoleURL,
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to only ReadOnly ARN via Constraints
+	rid := types.ResourceAccessID{
+		Id: types.ResourceID{
+			ClusterName: localCluster,
+			Kind:        types.KindApp,
+			Name:        appName,
+		},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{
+						"arn:aws:iam::123456789012:role/ReadOnly",
+					},
+				},
+			},
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// 1) Should fail: ARN is not present in Constraints.RoleArns
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/Admin"),
+	)
+	require.Error(t, err)
+
+	// 2) Should pass: ARN is present in Constraints.RoleArns
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/ReadOnly"),
+	)
+	require.NoError(t, err)
+
+	// 3) Should fail with AWSRoleARNMatcher: same constraint check as (1)
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		&AWSRoleARNMatcher{RoleARN: "arn:aws:iam::123456789012:role/Admin"},
+	)
+	require.Error(t, err)
+
+	// 4) Should pass with AWSRoleARNMatcher: same constraint check as (2)
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		&AWSRoleARNMatcher{RoleARN: "arn:aws:iam::123456789012:role/ReadOnly"},
+	)
+	require.NoError(t, err)
+}
+
+// TestAccessChecker_Constraints_UnknownKind verifies that nil-Details
+// constraints deny their resource even when no role matchers are passed.
+func TestAccessChecker_Constraints_UnknownKind(t *testing.T) {
+	const localCluster = "cluster"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	newApp := func(name string) *types.AppServerV3 {
+		return &types.AppServerV3{
+			Kind: types.KindApp,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}
+	}
+	appRID := func(name string, rc *types.ResourceConstraints) types.ResourceAccessID {
+		return types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName: localCluster,
+				Kind:        types.KindApp,
+				Name:        name,
+			},
+			Constraints: rc,
+		}
+	}
+	unknownConstraints := func() *types.ResourceConstraints {
+		return &types.ResourceConstraints{Version: "v1"}
+	}
+
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		appRID("constrained-app", unknownConstraints()),
+		appRID("plain-app", nil),
+		// Duplicate entries for one resource; must deny regardless of order.
+		appRID("shadowed-app", nil),
+		appRID("shadowed-app", unknownConstraints()),
+	}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+	state := AccessState{MFARequired: MFARequiredNever}
+
+	// No matchers, as when the app service authorizes a plain web app.
+	err := ac.CheckAccess(newApp("constrained-app"), state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Passing a matcher must not change the outcome.
+	err = ac.CheckAccess(newApp("constrained-app"), state, NewLoginMatcher("root"))
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// A clean duplicate entry must not shadow the constrained one.
+	err = ac.CheckAccess(newApp("shadowed-app"), state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// The rest of the identity keeps working.
+	require.NoError(t, ac.CheckAccess(newApp("plain-app"), state))
+}
+
+// TestAccessChecker_Constraints_UnknownKind_Kube verifies that a nil-Details
+// pod entry denies cluster access even alongside a clean pod entry.
+func TestAccessChecker_Constraints_UnknownKind_Kube(t *testing.T) {
+	const localCluster = "cluster"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.KubernetesLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kc"}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	podRID := func(pod string, rc *types.ResourceConstraints) types.ResourceAccessID {
+		return types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     localCluster,
+				Kind:            types.KindKubePod,
+				Name:            "kc",
+				SubResourceName: pod,
+			},
+			Constraints: rc,
+		}
+	}
+	state := AccessState{MFARequired: MFARequiredNever}
+
+	// Clean entry first, constrained entry second; still denied.
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		podRID("ns/pod-a", nil),
+		podRID("ns/pod-b", &types.ResourceConstraints{Version: "v1"}),
+	}}
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+	err = ac.CheckAccess(kubeCluster, state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Control: clean entries alone allow cluster access.
+	cleanInfo := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		podRID("ns/pod-a", nil),
+	}}
+	cleanAC := NewAccessCheckerWithRoleSet(cleanInfo, localCluster, NewRoleSet(role))
+	require.NoError(t, cleanAC.CheckAccess(kubeCluster, state))
+}
+
+// TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,
+func TestUserSessionRoleNotFoundError(t *testing.T) {
+	// Create a mock RoleGetter that returns "role not found" error for a specific role
+	mockRoleGetter := &mockRoleGetter{
+		roles: map[string]types.Role{
+			"existing-role": newRole(func(rv *types.RoleV6) { rv.SetName("existing-role") }),
+		},
+	}
+
+	t.Run("NewAccessChecker with missing role does not add UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessChecker(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.NotContains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with missing role adds UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.Contains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with existing role succeeds", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"existing-role"},
+		}
+
+		checker, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.NoError(t, err)
+		require.NotNil(t, checker)
+	})
+}
+
+func TestDelegationSessionResourceRestrictions(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.Wildcard}),
+			types.NewRule(types.KindApp, []string{types.Wildcard}),
+			types.NewRule(types.KindAppServer, []string{types.Wildcard}),
+			types.NewRule(types.KindDatabase, []string{types.Wildcard}),
+			types.NewRule(types.KindDatabaseServer, []string{types.Wildcard}),
+			types.NewRule(types.KindKubernetesCluster, []string{types.Wildcard}),
+			types.NewRule(types.KindKubeServer, []string{types.Wildcard}),
+		})
+	})
+
+	tests := []struct {
+		name            string
+		allowedResource types.ResourceID
+		resource        string
+		verb            string
+		assertAccess    require.ErrorAssertionFunc
+	}{
+		{
+			name: "unrelated resource kind denies create",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindToken,
+			verb:     types.VerbCreate,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "unrelated resource kind denies read",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindToken,
+			verb:     types.VerbRead,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "matching resource kind allows read",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbRead,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind allows list",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind allows read without secrets",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbReadNoSecrets,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind denies create",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindApp,
+			verb:     types.VerbCreate,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "app implies app_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindAppServer,
+			verb:         types.VerbRead,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "database implies db_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindDatabase,
+				Name:        "payments",
+			},
+			resource:     types.KindDatabaseServer,
+			verb:         types.VerbReadNoSecrets,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "kubernetes cluster implies kube_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindKubernetesCluster,
+				Name:        "dev-kube",
+			},
+			resource:     types.KindKubeServer,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "windows desktop implies windows desktop service",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindWindowsDesktop,
+				Name:        "dev-kube",
+			},
+			resource:     types.KindWindowsDesktopService,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+				DelegationSessionID: "delegation-session",
+				AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					tc.allowedResource,
+				}),
+			}, "cluster", NewRoleSet(role))
+
+			err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, tc.resource, tc.verb)
+			tc.assertAccess(t, err)
+
+			err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, tc.resource, tc.verb)
+			tc.assertAccess(t, err)
+		})
+	}
+}
+
+func TestDelegationSessionWithoutResourceIDsDoesNotDenyRuleChecks(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.VerbCreate}),
+			{
+				Resources: []string{types.KindSession},
+				Verbs:     []string{types.VerbList},
+				Where:     `contains(session.participants, "guest")`,
+			},
+		})
+	})
+
+	checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+		DelegationSessionID: "delegation-session",
+	}, "cluster", NewRoleSet(role))
+
+	err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
+
+	err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
+
+	cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Equal(t, &types.WhereExpr{
+		Contains: types.WhereExpr2{
+			L: &types.WhereExpr{Field: "participants"},
+			R: &types.WhereExpr{Literal: "guest"},
+		},
+	}, cond)
+}
+
+func TestDelegationSessionExtractConditionForIdentifier(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			{
+				Resources: []string{types.KindSession},
+				Verbs:     []string{types.VerbList},
+				Where:     `contains(session.participants, "guest")`,
+			},
+		})
+	})
+
+	t.Run("unrelated resource kind denies extraction", func(t *testing.T) {
+		checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+			DelegationSessionID: "delegation-session",
+			AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+				{
+					ClusterName: "cluster",
+					Kind:        types.KindApp,
+					Name:        "hr-system",
+				},
+			}),
+		}, "cluster", NewRoleSet(role))
+
+		cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+		require.True(t, trace.IsAccessDenied(err))
+		require.Nil(t, cond)
+	})
+
+	t.Run("matching resource kind delegates to role set", func(t *testing.T) {
+		checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+			DelegationSessionID: "delegation-session",
+			AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+				{
+					ClusterName: "cluster",
+					Kind:        types.KindSession,
+					Name:        "session-id",
+				},
+			}),
+		}, "cluster", NewRoleSet(role))
+
+		cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+		require.NoError(t, err)
+		require.Equal(t, &types.WhereExpr{
+			Contains: types.WhereExpr2{
+				L: &types.WhereExpr{Field: "participants"},
+				R: &types.WhereExpr{Literal: "guest"},
+			},
+		}, cond)
+	})
+}
+
+// mockRoleGetter implements RoleGetter for testing
+type mockRoleGetter struct {
+	roles map[string]types.Role
+}
+
+func (m *mockRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, exists := m.roles[name]; exists {
+		return role, nil
+	}
+	// Return the same error format as the real implementation
+	return nil, trace.NotFound("role %v is not found", name)
+}
+
+func (m *mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.roles {
+		roles = append(roles, role)
+	}
+	return roles, nil
+}

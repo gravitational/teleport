@@ -1,0 +1,5 @@
+SSH Server ID        Hostname             Address    Labels  
+-------------------- -------------------- ---------- ------- 
+unscoped-direct-uuid unscoped-direct-name 1.2.3.4:22 key=val 
+unscoped-tunnel-uuid unscoped-tunnel-name ⟵ Tunnel           
+

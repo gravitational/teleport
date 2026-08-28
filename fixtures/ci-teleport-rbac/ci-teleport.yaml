@@ -1,0 +1,103 @@
+# defines the permissions needed for Teleport k8s integration tests to run in a cluster
+# namespace for teleport tests
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: teletest
+---
+# clusterrole granting overarching privileges
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ci-teleport
+rules:
+- apiGroups: [""]
+  resources: ["users", "groups"]
+  verbs: ["impersonate"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["create"]
+---
+# role to allow pod operations in teletest namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-teleport-sa
+  namespace: teletest
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["create"]
+---
+# role to allow pod operations via impersonation in teletest namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-teleport-group
+  namespace: teletest
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  # websocket protocol needs "get" permission
+  verbs: ["create", "get"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create", "get"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/ephemeralcontainers"]
+  verbs: ["patch"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+  resourceNames: ["test-pod"]
+- apiGroups: [""]
+  resources: ["pods/attach"]
+  verbs: ["create"]
+  resourceNames: ["test-pod"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ci-teleport
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ci-teleport
+subjects:
+- kind: ServiceAccount
+  name: teleport-sa
+  namespace: ci-teleport
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-teleport-sa
+  namespace: teletest
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-teleport-sa
+subjects:
+- kind: ServiceAccount
+  name: teleport-sa
+  namespace: ci-teleport
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-teleport-group
+  namespace: teletest
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-teleport-group
+subjects:
+- kind: Group
+  name: teleport-ci-test-group

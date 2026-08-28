@@ -1,0 +1,72 @@
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import cfg from 'teleport/config';
+import api from 'teleport/services/api';
+import auth, { makeWebauthnCreationResponse } from 'teleport/services/auth';
+
+import makeMfaDevice from './makeMfaDevice';
+import {
+  AddNewHardwareDeviceRequest,
+  AddNewTotpDeviceRequest,
+  MfaDevice,
+  SaveNewHardwareDeviceRequest,
+} from './types';
+
+class MfaService {
+  fetchDevicesWithToken(tokenId: string): Promise<MfaDevice[]> {
+    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
+    return api
+      .get(cfg.getMfaDevicesWithTokenUrl(tokenId))
+      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
+  }
+
+  removeDevice(tokenId: string, deviceName: string) {
+    return api.delete(cfg.getMfaDeviceUrl(tokenId, deviceName));
+  }
+
+  fetchDevices(): Promise<MfaDevice[]> {
+    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
+    return api
+      .get(cfg.api.mfaDevicesPath)
+      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
+  }
+
+  addNewTotpDevice(req: AddNewTotpDeviceRequest) {
+    return api.post(cfg.api.mfaDevicesPath, req);
+  }
+
+  saveNewWebAuthnDevice(req: SaveNewHardwareDeviceRequest) {
+    return auth.checkWebauthnSupport().then(() => {
+      const request = {
+        ...req.addRequest,
+        webauthnRegisterResponse: makeWebauthnCreationResponse(req.credential),
+      };
+
+      return api.post(cfg.api.mfaDevicesPath, request);
+    });
+  }
+
+  addNewWebauthnDevice(req: AddNewHardwareDeviceRequest) {
+    return auth.createNewWebAuthnDevice(req).then(credential => {
+      this.saveNewWebAuthnDevice({ addRequest: req, credential });
+    });
+  }
+}
+
+export default MfaService;

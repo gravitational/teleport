@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# This script is called hourly to check if the certificate
+# needs renewal, and renews the cert after that
+
+set -e
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
+
+# Source variables from user-data
+. /etc/teleport.d/conf
+
+if [ ! -f /etc/teleport.d/role.auth ] && [ ! -f /etc/teleport.d/role.all ]; then
+    echo "Not running 'auth' or 'all' role, exiting with success"
+    exit 0
+fi
+
+# Fetching certbot state
+aws s3 sync '--exclude=records/*' --exact-timestamps "s3://${TELEPORT_S3_BUCKET}" /etc/letsencrypt/ --sse=AES256
+
+# s3 does not support symlinks, we have to create them after the sync, else certbot will fail.
+# live/ symlinks point to the latest archive/<domain>/<object>XX.pem where XX is incremented at each cert-renewal.
+# The last iteration is retrieved by listing all fullchains, sorting them by iteration (this is not alphabetical order
+# because fullchain10.pem should be greater than fullchain2.pem). We finally strip the id from the filename.
+ARCHIVE_NUMBER="$(
+  find "/etc/letsencrypt/archive/${TELEPORT_DOMAIN_NAME}/" -iname "fullchain*.pem" \
+  | sort -V \
+  | tail -n 1 \
+  | sed 's@.\+fullchain\([[:digit:]]\+\)\.pem@\1@'
+  )"
+
+PEM_FILES="cert chain fullchain privkey"
+
+for PEM_FILE in $PEM_FILES; do
+  rm "/etc/letsencrypt/live/${TELEPORT_DOMAIN_NAME}/${PEM_FILE}.pem"
+  ln -sf "/etc/letsencrypt/archive/${TELEPORT_DOMAIN_NAME}/${PEM_FILE}${ARCHIVE_NUMBER}.pem" "/etc/letsencrypt/live/${TELEPORT_DOMAIN_NAME}/${PEM_FILE}.pem"
+done
+
+# This is called periodically, if renewal is successful
+# certs are uploaded to the S3 Bucket
+/usr/local/bin/certbot renew --deploy-hook=/usr/local/bin/teleport-upload-cert
