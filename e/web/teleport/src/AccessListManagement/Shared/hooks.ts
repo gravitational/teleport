@@ -27,6 +27,7 @@ export function useUserOptions<T>(collector: (user: User[]) => T[]) {
       const usersResult = await ctx.userService.fetchUsersV2({
         search: input,
         limit: 50,
+        searchMode: 'identity',
       });
 
       return collector(usersResult.items);

@@ -1,3 +1,5 @@
 import { Option } from 'shared/components/Select';
 
-export type UserOption = Option<string, string>;
+import type { User } from 'teleport/services/user';
+
+export type UserOption = Option<User, string>;

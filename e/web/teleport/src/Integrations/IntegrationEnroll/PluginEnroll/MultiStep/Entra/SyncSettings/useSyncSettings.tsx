@@ -15,7 +15,10 @@ export function useSyncSettings(plugin?: Plugin<PluginEntraIdSpec>) {
     if (!owners) {
       return [];
     }
-    return owners.map(u => ({ value: u, label: u }));
+    return owners.map(name => ({
+      value: { name, roles: [] },
+      label: name,
+    }));
   }
 
   const [selectedOwners, setSelectedOwners] = useState<UserOption[]>(

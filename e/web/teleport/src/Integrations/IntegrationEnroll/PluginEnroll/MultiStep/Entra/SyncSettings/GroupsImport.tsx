@@ -9,6 +9,10 @@ import {
   useUsersNoOptionsMessage,
 } from 'e-teleport/AccessListManagement/Shared/hooks';
 import {
+  ReactSelectAccessListOption,
+  UserDisplayNameMultiValueLabel,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
+import {
   CreateFilters,
   FilterOption,
 } from 'e-teleport/Integrations/shared/CreateFilters';
@@ -79,7 +83,7 @@ function DefaultOwners({
     (user: User[]) => {
       return user.map(user => ({
         label: user.name,
-        value: user.name,
+        value: user,
       }));
     }
   );
@@ -96,6 +100,10 @@ function DefaultOwners({
       </Text>
       <FieldSelectCreatableAsync
         width="540px"
+        components={{
+          Option: ReactSelectAccessListOption,
+          MultiValueLabel: UserDisplayNameMultiValueLabel,
+        }}
         required={true}
         placeholder="Type a username and press enter"
         isMulti
@@ -103,6 +111,7 @@ function DefaultOwners({
         isSearchable
         defaultOptions={true}
         loadOptions={loadOptions}
+        getOptionValue={opt => opt.label}
         value={selectedOptions}
         onChange={(opts: UserOption[]) => onOptionChange(opts)}
         noOptionsMessage={noOptionsMessage}

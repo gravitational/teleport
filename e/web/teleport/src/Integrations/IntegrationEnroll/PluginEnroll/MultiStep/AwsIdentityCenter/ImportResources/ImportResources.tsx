@@ -19,6 +19,10 @@ import {
   useUserOptions,
   useUsersNoOptionsMessage,
 } from 'e-teleport/AccessListManagement/Shared/hooks';
+import {
+  ReactSelectAccessListOption,
+  UserDisplayNameMultiValueLabel,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { pluginsService } from 'e-teleport/services/plugins';
@@ -284,6 +288,10 @@ export const GroupsWithAssignment = ({
         <AccessListDescription />
         <Box width="540px" mt={2}>
           <FieldSelectCreatableAsync
+            components={{
+              Option: ReactSelectAccessListOption,
+              MultiValueLabel: UserDisplayNameMultiValueLabel,
+            }}
             autoFocus={true}
             placeholder="Type a username and press enter"
             isMulti

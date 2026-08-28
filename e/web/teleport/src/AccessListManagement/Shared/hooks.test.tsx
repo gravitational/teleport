@@ -33,7 +33,11 @@ test('loadOptions returns users when allowed to list them', async () => {
   await expect(result.current.loadOptions('')).resolves.toEqual([
     { value: { name: 'alice', roles: [] }, label: 'alice' },
   ]);
-  expect(fetchUsersV2).toHaveBeenCalledWith({ search: '', limit: 50 });
+  expect(fetchUsersV2).toHaveBeenCalledWith({
+    search: '',
+    limit: 50,
+    searchMode: 'identity',
+  });
   expect(result.current.canListUsers).toBe(true);
 });
 

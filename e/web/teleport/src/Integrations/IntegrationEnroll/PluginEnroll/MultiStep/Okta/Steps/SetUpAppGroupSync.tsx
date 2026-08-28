@@ -22,7 +22,11 @@ import {
   useUserOptions,
   useUsersNoOptionsMessage,
 } from 'e-teleport/AccessListManagement/Shared/hooks';
-import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
+import {
+  ReactSelectAccessListOption,
+  type UserOption,
+  UserDisplayNameMultiValueLabel,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
   AppTable,
@@ -323,6 +327,10 @@ export const AppGroupSyncForm = ({
               </Text>
               <Box width="540px">
                 <FieldSelectCreatableAsync
+                  components={{
+                    Option: ReactSelectAccessListOption,
+                    MultiValueLabel: UserDisplayNameMultiValueLabel,
+                  }}
                   autoFocus={true}
                   placeholder="Type a username and press enter"
                   isMulti

@@ -1,4 +1,5 @@
 import { MemoryRouter } from 'react-router';
+import selectEvent from 'react-select-event';
 
 import {
   fireEvent,
@@ -15,13 +16,17 @@ import userService from 'teleport/services/user';
 
 import { AccessListOwnersSource, Filters } from '../types';
 import { emptyFilter, filterCollection } from './constants';
-import {} from './GroupsImport';
 import { SyncSettings } from './SyncSettings';
 
 beforeEach(() => {
   jest.spyOn(userService, 'fetchUsersV2').mockResolvedValue({
     items: [
-      { name: 'alice', roles: [] },
+      {
+        name: 'alice',
+        roles: [],
+        displayPrimary: 'Alice Adams',
+        displaySecondary: 'alice@example.com',
+      },
       { name: 'bob', roles: [] },
       { name: 'carol', roles: [] },
     ],
@@ -66,7 +71,13 @@ test('edit settings', async () => {
   // select first user option
   const users = screen.getByText(/type a username/i);
   fireEvent.keyDown(users, { key: 'ArrowDown' });
+  expect(await screen.findByText('Alice Adams')).toBeVisible();
+  expect(screen.getByText('alice@example.com')).toBeVisible();
+  expect(screen.getByText('alice')).toBeVisible();
   fireEvent.keyDown(users, { key: 'Enter' });
+
+  expect(screen.getByText('Alice Adams')).toBeVisible();
+  expect(screen.getByText('alice')).toBeVisible();
 
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
@@ -177,6 +188,8 @@ test('prefill values from plugin spec', async () => {
   expect(screen.getByText('Group Filters')).toBeInTheDocument();
   expect(screen.getByTestId('toggle')).not.toBeChecked();
   expect(screen.getByText(`Access Lists owner(s)`)).toBeInTheDocument();
+  expect(screen.getByText('alice')).toBeVisible();
+  expect(screen.getByText('bob')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
   expect(onSave).toHaveBeenCalledWith(
@@ -184,6 +197,28 @@ test('prefill values from plugin spec', async () => {
     plugin.spec.defaultOwners,
     AccessListOwnersSource.Plugin,
     { delta: '0s', full: '1h' }
+  );
+});
+
+test('renders and submits a manually entered owner by username', async () => {
+  const onSave = jest.fn();
+  renderSyncSettings(undefined, onSave);
+
+  await waitFor(() => {
+    expect(screen.getByText('Edit Sync Settings')).toBeInTheDocument();
+  });
+
+  const users = screen.getByRole('combobox');
+  await selectEvent.create(users, 'external-owner');
+
+  expect(screen.getByText('external-owner')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+  expect(onSave).toHaveBeenCalledWith(
+    emptyFilter,
+    ['external-owner'],
+    AccessListOwnersSource.Plugin,
+    { delta: '0s', full: '0s' }
   );
 });
 

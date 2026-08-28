@@ -12,6 +12,10 @@ import {
   useUserOptions,
   useUsersNoOptionsMessage,
 } from 'e-teleport/AccessListManagement/Shared/hooks';
+import {
+  ReactSelectAccessListOption,
+  UserDisplayNameMultiValueLabel,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import { CreateFilters } from 'e-teleport/Integrations/shared/CreateFilters';
 import cfg from 'teleport/config';
 import { StyledBox } from 'teleport/Discover/Shared';
@@ -145,6 +149,10 @@ export function FormMixin({ attempt }) {
           </Text>
           <FieldSelectCreatableAsync
             width="540px"
+            components={{
+              Option: ReactSelectAccessListOption,
+              MultiValueLabel: UserDisplayNameMultiValueLabel,
+            }}
             autoFocus={true}
             placeholder="Type a username and press enter"
             isMulti
