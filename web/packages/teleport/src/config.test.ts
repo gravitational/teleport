@@ -188,15 +188,16 @@ test('getUsersUrlV2 encodes params', () => {
       startKey: 'next=1&offset=2',
       search: 'user@example.com / admin',
       limit: 25,
+      searchMode: 'identity',
     })
   ).toEqual(
-    '/v2/webapi/users?startKey=next%3D1%26offset%3D2&search=user%40example.com%20%2F%20admin&limit=25'
+    '/v2/webapi/users?startKey=next%3D1%26offset%3D2&search=user%40example.com%20%2F%20admin&limit=25&searchMode=identity'
   );
 });
 
 test('getUsersUrlV2 clears optional params', () => {
   expect(cfg.getUsersUrlV2()).toEqual(
-    '/v2/webapi/users?startKey=&search=&limit='
+    '/v2/webapi/users?startKey=&search=&limit=&searchMode='
   );
 });
 
