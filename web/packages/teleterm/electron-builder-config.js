@@ -1,10 +1,15 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { env, platform } from 'node:process';
+import { promisify } from 'node:util';
 
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
+const requiredGlibcVersionScript = path.resolve(
+  import.meta.dirname,
+  'build_resources/required-glibc-version.sh'
+);
 
 // The following checks make no sense when cross-building because they check the platform of the
 // host and not the platform we're building for.
@@ -55,6 +60,8 @@ if (process.env.TEAMID) {
   process.env.APPLE_TEAM_ID = process.env.TEAMID;
 }
 
+const appFiles = ['build/app'];
+
 /**
  * Describes whether there will be an attempt by electron-builder to sign the app on macOS.
  */
@@ -74,8 +81,29 @@ const config = {
   appId,
   asar: true,
   publish: [{ provider: 'custom' }],
-  asarUnpack: '**\\*.{node,dll}',
-  afterPack: packed => {
+  // Disable native dependency rebuilding because electron-builder does not recognize node-pty's
+  // prebuild directory layout and would rebuild it even when a compatible prebuild is available.
+  // This setting applies to all packages, but node-pty is currently the only native dependency.
+  // node-pty provides prebuilt binaries for these targets:
+  // - darwin-arm64 and darwin-x64
+  // - linux-arm64 and linux-x64 (glibc 2.28 or later)
+  // - win32-arm64 and win32-x64
+  npmRebuild: false,
+  // Unpack the whole selected prebuild directory. In addition to native Node
+  // modules, it can contain companion executables such as spawn-helper and
+  // OpenConsole.exe.
+  // build/Release is covered too, as node-pty compiles itself there during installation when
+  // npm_config_build_from_source is set (which also removes prebuilds) or when it ships no prebuild
+  // for the current platform.
+  asarUnpack: [
+    '**/node_modules/node-pty/prebuilds/**',
+    '**/node_modules/node-pty/build/Release/**',
+  ],
+  afterPack: async packed => {
+    if (packed.electronPlatformName === 'linux') {
+      await addGlibcPackageDependencies(packed);
+    }
+
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
     // file it finds, causing signature verification to fail for tsh.app that gets
     // embedded in Teleport Connect. This causes the error "invalid Info.plist (plist
@@ -101,7 +129,6 @@ const config = {
       fs.writeFileSync(plistPath, tshAppPlist);
     }
   },
-  files: ['build/app'],
   protocols: [
     {
       // name ultimately becomes CFBundleURLName which is the URL identifier. [1] Apple recommends
@@ -123,6 +150,10 @@ const config = {
     },
   ],
   mac: {
+    files: [
+      ...appFiles,
+      '!node_modules/node-pty/prebuilds/!(darwin-arm64|darwin-x64)',
+    ],
     // ZIP target is used only for app updates.
     target: ['zip', 'dmg'],
     category: 'public.app-category.developer-tools',
@@ -181,6 +212,7 @@ const config = {
     ],
   },
   win: {
+    files: [...appFiles, '!node_modules/node-pty/prebuilds/!(win32-${arch})'],
     target: ['nsis'],
     signtoolOptions: {
       // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
@@ -260,6 +292,7 @@ const config = {
     afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
   },
   linux: {
+    files: [...appFiles, '!node_modules/node-pty/prebuilds/!(linux-${arch})'],
     target: ['tar.gz', 'rpm', 'deb'],
     artifactName: '${name}-${version}-${arch}.${ext}', // tar.gz
     category: 'Development',
@@ -312,6 +345,44 @@ const config = {
 };
 
 export default config;
+
+/** Adds a versioned glibc dependency to the deb and rpm package targets. */
+async function addGlibcPackageDependencies(packed) {
+  const { stdout } = await promisify(execFile)(requiredGlibcVersionScript, [
+    packed.appOutDir,
+  ]);
+  const glibcVersion = stdout.trim();
+  if (!glibcVersion) {
+    throw new Error('glibc version missing');
+  }
+
+  for (const [index, target] of packed.targets.entries()) {
+    let dependency;
+    switch (target.name) {
+      case 'deb':
+        dependency = `libc6 (>= ${glibcVersion})`;
+        break;
+      case 'rpm':
+        dependency = `glibc >= ${glibcVersion}`;
+        break;
+      case 'tar.gz':
+        continue;
+      default:
+        throw new Error(`Unhandled target ${target.name}`);
+    }
+
+    // Electron Builder reuses target instances across architectures of a multi-arch build, so
+    // appending to target.options.fpm in place would accumulate '--depends' flags across afterPack calls.
+    // Instead, replace this architecture's packed.targets entry with a clone that gets its own
+    // options.
+    const targetForArch = Object.create(target);
+    targetForArch.options = {
+      ...target.options,
+      fpm: [...(target.options.fpm ?? []), '--depends', dependency],
+    };
+    packed.targets[index] = targetForArch;
+  }
+}
 
 function promisifiedSpawn(cmd, args, options) {
   return new Promise((resolve, reject) => {

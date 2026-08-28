@@ -1,21 +1,16 @@
 # syntax=docker/dockerfile:1
 
-# This Dockerfile makes the "build box connect" the container used
-# to build the Teleport Connect. It can also be used to build the
-# web assets for the Teleport UI.
-#
-# This image is base on the node image, which is based on Debian Bullseye.
-# Using it as an image allows us to link against the oldest version of glibc
-# supported by Node.js Docker images.
+# This Dockerfile defines the Node.js buildbox used to build
+# Teleport Connect and the Teleport Web UI assets.
 #
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## BUILDBOX-NODE ###################################################################
 
-# Pin the tag to Debian Bullseye to make sure the glibc compatibility
-# (glibc version of Bullseye is 2.31).
+# Debian Bookworm ships with glibc 2.36, but this does not raise Teleport Connect's
+# minimum glibc requirement because its native dependencies are prebuilt.
 ARG NODE_VERSION
-FROM node:${NODE_VERSION}-bullseye AS buildbox
+FROM node:${NODE_VERSION}-bookworm AS buildbox
 
 # BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
@@ -37,17 +32,9 @@ RUN apt-get -y update && \
     build-essential \
     ca-certificates \
     clang \
-    git \
     golang \
-    libc6-dev \
-    libssl-dev \
     llvm \
     locales \
-    openssh-client \
-    pkg-config \
-    python3-pip \
-    python3-setuptools \
-    python3-wheel \
     # Used during tag builds to build the RPM package of Connect.
     rpm \
     && \
