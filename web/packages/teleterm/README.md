@@ -9,7 +9,7 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ### Limitations of the OSS version
 
-Client tools updates are disabled in this version as they are licensed under AGPL. 
+Client tools updates are disabled in this version as they are licensed under AGPL.
 To use Community Edition builds or custom binaries, set the `TELEPORT_CDN_BASE_URL` environment variable.
 
 To use Community Edition builds, start Teleport Connect with:
@@ -121,9 +121,12 @@ on Notion for build process documentation that is specific to Gravitational.
 
 ### Native dependencies
 
-If node-pty doesn't provide precompiled binaries for your system and the specific Electron version,
-you will need to install [the dependencies required by
-node-pty](https://github.com/microsoft/node-pty#dependencies).
+[node-pty](https://github.com/microsoft/node-pty) is the only native dependency. It provides
+prebuilt binaries for macOS, Linux, and Windows on arm64 and x64.
+
+Native dependency rebuilding is disabled in `electron-builder-config.js` because Electron Builder
+does not recognize node-pty's prebuild directory layout and would rebuild it unnecessarily. Revisit
+this setting if another native dependency is added.
 
 ### Linux
 
@@ -156,23 +159,6 @@ The privileged updater on Windows (for per-machine updates) verifies update sign
 The hardcoded values are kept in `authenticode_windows.go`.
 As a result, the service binary itself does not need to be signed (e.g., in OSS builds), but all updates must be
 properly signed.
-
-#### Native dependencies on Windows
-
-On Windows, you need to pay special attention to [the dev tools needed by node-pty](https://github.com/microsoft/node-pty?tab=readme-ov-file#windows),
-especially the Spectre-mitigated libraries installed through Visual Studio Installer that are kind
-of tricky to install. If you're on an arm64 VM of Windows, you'll likely need both arm64 and x64
-versions of Spectre-mitigated libraries. This is because during `pnpm install` pnpm will try to
-build arm64 version of node-pty (which will be used for `pnpm start-term`), and during `pnpm
-package-term` it might attempt to compile x64 version of node-pty.
-
-At the time of writing, we found the following set of individual components for Visual Studio 2022
-to work with Connect build process:
-
-- MSVC v143 - VS 2022 C++ ARM64/ARM64EC Spectre-mitigated libs (Latest)
-- MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)
-
-If you're on an actual Windows machine, you can install just the x64/x86 libs.
 
 #### Packaging
 
