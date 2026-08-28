@@ -20,9 +20,9 @@ import (
 // present in the Teleport cluster and have the appropriate RBAC permissions for the
 // workload to run successfully.
 const (
-	adminIdentity    = "admin"
-	deniedIdentity   = "denied"
-	readonlyIdentity = "read-only"
+	adminIdentity      = "admin"
+	allowedIdentity    = "allowed"
+	crudDeniedIdentity = "crud-denied"
 )
 
 const (
@@ -36,73 +36,73 @@ var testCases = []TestCase{
 	{
 		Name:     "read-your-writes: created resource eventually returns the same value when read",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runReadYourWritesProperty,
 	},
 	{
 		Name:     "read-your-writes: modern create semantics return updated object",
 		Kinds:    crud.DefaultKindsWithModernUpdateSemantics(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runReadYourWritesModernProperty,
 	},
 	{
 		Name:     "read-your-updates: updated resources are visible on subsequent reads",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runReadYourUpdatesProperty,
 	},
 	{
 		Name:     "read-your-updates: modern update semantics return updated object",
 		Kinds:    crud.DefaultKindsWithModernUpdateSemantics(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runReadYourUpdatesModernProperty,
 	},
 	{
 		Name:     "read-your-deletes: deleted resources are not readable",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runDeleteVisibilityProperty,
 	},
 	{
 		Name:     "updates-change-revision: updates with the current revision succeed and advance the revision",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runUpdatesBumpRevisionProperty,
 	},
 	{
 		Name:     "updates-respect-revision: updates with a stale revision are rejected",
 		Kinds:    crud.DefaultKindsWithConditionalUpdate(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runStaleResourceUpdateProperty,
 	},
 	{
 		Name:     "collection-deletes-observed: deleted resources are excluded from subsequent lists",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runListExclusionAfterDeleteProperty,
 	},
 	{
 		Name:     "collection-uniqueness: listing never observes duplicate resources",
 		Kinds:    crud.DefaultKinds(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runPaginationUniqueItemsProperty,
 	},
 	{
 		Name:     "concurrent-update: concurrent updates to a single resource have 1 winner",
 		Kinds:    crud.DefaultKindsWithConditionalUpdate(),
-		Identity: adminIdentity,
+		Identity: allowedIdentity,
 		run:      runConcurrentUpdateProperty,
 	},
 	{
 		Name:     "deny: existing resource cannot be read",
 		Kinds:    crud.DefaultKinds(),
-		Identity: deniedIdentity,
+		Identity: crudDeniedIdentity,
 		run:      runDenyReadProperty,
 	},
 	{
-		Name:     "read-only: existing resource can be read",
+		Name:     "allow: existing resource can be read",
 		Kinds:    crud.DefaultKinds(),
-		Identity: readonlyIdentity,
+		Identity: allowedIdentity,
 		run:      runReadOnlyReadProperty,
 	},
 }

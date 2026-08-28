@@ -1,20 +1,7 @@
 kind: role
 version: v8
 metadata:
-  name: workload-admin
-spec:
-  allow:
-    rules:
-    - resources:
-      - "*"
-      verbs:
-      - list
-      - read
----
-kind: role
-version: v8
-metadata:
-  name: resource-admin
+  name: resource-allow
 spec:
   allow:
     app_labels:
@@ -36,7 +23,7 @@ spec:
 kind: role
 version: v8
 metadata:
-  name: resource-deny-all
+  name: resource-deny
 spec:
   allow:
     rules:
@@ -109,7 +96,7 @@ spec:
 kind: role
 version: v8
 metadata:
-  name: node-admin
+  name: node-allow
 spec:
   allow:
     logins: ['root']
@@ -128,7 +115,7 @@ spec:
 kind: role
 version: v8
 metadata:
-  name: app-admin
+  name: app-allow
 spec:
   allow:
     app_labels:
@@ -143,6 +130,7 @@ spec:
     app_labels:
       '*': ['*']
     rules:
+      # Allow role reads to mint cert.
       - resources: [role]
         verbs: [read]
 ---
@@ -153,6 +141,7 @@ metadata:
 spec:
   allow:
     rules:
+      # Allow role reads to mint cert.
       - resources: [role]
         verbs: [read]
   deny:
@@ -162,8 +151,35 @@ spec:
 kind: token
 version: v2
 metadata:
-  name: workload-token
+  name: workload-admin-token
 spec:
   roles: [Bot]
   join_method: token
-  bot_name: workload
+  bot_name: workload-admin
+---
+kind: token
+version: v2
+metadata:
+  name: workload-allowed-token
+spec:
+  roles: [Bot]
+  join_method: token
+  bot_name: workload-allowed
+---
+kind: token
+version: v2
+metadata:
+  name: workload-denied-token
+spec:
+  roles: [Bot]
+  join_method: token
+  bot_name: workload-denied
+---
+kind: token
+version: v2
+metadata:
+  name: workload-crud-denied-token
+spec:
+  roles: [Bot]
+  join_method: token
+  bot_name: workload-crud-denied

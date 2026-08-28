@@ -1,0 +1,25 @@
+version: v2
+debug: true
+proxy_server: antithesis.teleport.local:3080
+diag_addr: 127.0.0.1:3001
+
+onboarding:
+  join_method: token
+  token: workload-allowed-token
+
+storage:
+  type: directory
+  path: /var/lib/teleport/bot/allowed
+
+outputs:
+  - type: identity
+    allow_reissue: true
+    destination:
+      type: directory
+      path: /creds/allowed
+
+  - type: application
+    app_name: alpha
+    destination:
+      type: directory
+      path: /creds/allowed-app

@@ -19,8 +19,9 @@ import (
 // present in the Teleport cluster and have the appropriate RBAC permissions for the
 // workload to run successfully.
 const (
-	adminIdentity  = "admin"
-	deniedIdentity = "denied"
+	adminIdentity   = "admin"
+	allowedIdentity = "allowed"
+	deniedIdentity  = "denied"
 )
 
 const (
@@ -47,7 +48,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: SSH command via hostname returns expected output and emits expected events.",
 			run:      runAllowedSSHCommandProperty,
-			Identity: adminIdentity,
+			Identity: allowedIdentity,
 			Target: TargetSelector{
 				Host: "agent",
 			},
@@ -55,7 +56,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: SSH command via label returns expected output and emits expected events.",
 			run:      runAllowedSSHCommandProperty,
-			Identity: adminIdentity,
+			Identity: allowedIdentity,
 			Target: TargetSelector{
 				Labels: map[string]string{
 					"test_template": "ssh",
@@ -65,7 +66,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: SSH command via predicate expression returns expected output and emits expected events.",
 			run:      runAllowedSSHCommandProperty,
-			Identity: adminIdentity,
+			Identity: allowedIdentity,
 			Target: TargetSelector{
 				PredicateExpression: `labels["test_template"] == "ssh"`,
 			},

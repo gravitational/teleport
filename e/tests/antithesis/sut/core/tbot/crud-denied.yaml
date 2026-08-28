@@ -1,0 +1,18 @@
+version: v2
+debug: true
+proxy_server: antithesis.teleport.local:3080
+diag_addr: 127.0.0.1:3003
+
+onboarding:
+  join_method: token
+  token: workload-crud-denied-token
+
+storage:
+  type: directory
+  path: /var/lib/teleport/bot/crud-denied
+
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /creds/crud-denied

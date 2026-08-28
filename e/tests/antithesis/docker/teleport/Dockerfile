@@ -168,7 +168,7 @@ COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/apps
 CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
 FROM runtime AS tbot
-CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/tbot.yaml"]
+CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/admin.yaml"]
 
 
 FROM runtime AS workload
@@ -179,7 +179,7 @@ RUN mkdir -p \
     /var/lib/teleport/bot
 
 COPY --from=builder /out/workload_entrypoint /usr/local/bin/workload_entrypoint
-CMD ["/usr/local/bin/workload_entrypoint", "--config=/etc/tbot/tbot.yaml"]
+CMD ["/usr/local/bin/workload_entrypoint", "--config=/etc/tbot/admin.yaml", "--config=/etc/tbot/allowed.yaml", "--config=/etc/tbot/denied.yaml", "--config=/etc/tbot/crud-denied.yaml"]
 
 # See https://antithesis.com/docs/test_templates/test_composer_reference/
 FROM workload AS workload-core

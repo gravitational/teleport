@@ -18,7 +18,7 @@ func runDeniedAppAccessCredentialMintProperty(ctx context.Context, params *TestC
 	}
 	defer denied.Close()
 
-	cert, err := mintAppCert(ctx, denied, botUsername, params.App)
+	cert, err := mintAppCert(ctx, denied, deniedBotUsername, params.App)
 	details := params.Details(map[string]any{"error": err})
 	assert.Sometimes(err == nil,
 		"A denied identity can mint an app credential before access is rejected",

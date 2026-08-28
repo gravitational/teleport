@@ -88,7 +88,7 @@ func runAllowedAppAccessMintedCredProperty(ctx context.Context, params *TestCase
 	defer appClient.Close()
 
 	start := time.Now().Add(-maxTolerableClockJitter)
-	cert, err := mintAppCert(ctx, appClient, botUsername, params.App)
+	cert, err := mintAppCert(ctx, appClient, allowedBotUsername, params.App)
 	assert.Sometimes(err == nil,
 		"An authorized identity can mint an HTTP app credential",
 		params.Details(map[string]any{"error": err}))
@@ -143,7 +143,7 @@ func runAllowedTCPAppAccessMintedCredProperty(ctx context.Context, params *TestC
 	defer appClient.Close()
 
 	start := time.Now().Add(-maxTolerableClockJitter)
-	cert, err := mintAppCert(ctx, appClient, botUsername, params.App)
+	cert, err := mintAppCert(ctx, appClient, allowedBotUsername, params.App)
 	assert.Sometimes(err == nil,
 		"An authorized identity can mint a TCP app credential",
 		params.Details(map[string]any{"error": err}))

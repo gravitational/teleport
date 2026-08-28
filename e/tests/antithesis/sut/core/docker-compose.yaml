@@ -177,7 +177,7 @@ services:
       agent:
         condition: service_healthy
     volumes:
-      - ./tbot/tbot.yaml:/etc/tbot/tbot.yaml:ro
+      - ./tbot:/etc/tbot:ro
       - machine-id:/opt/machine-id
       - certs:/certs
 

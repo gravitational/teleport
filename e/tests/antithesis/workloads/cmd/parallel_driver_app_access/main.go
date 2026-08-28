@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	adminIdentity     = "admin"
-	appAdminIdentity  = "app-admin"
-	appMintIdentity   = "app-mint"
-	appDeniedIdentity = "app-denied"
-	botUsername       = "bot-workload"
+	adminIdentity      = "admin"
+	allowedIdentity    = "allowed"
+	allowedAppIdentity = "allowed-app"
+	deniedIdentity     = "denied"
+	allowedBotUsername = "bot-workload-allowed"
+	deniedBotUsername  = "bot-workload-denied"
 )
 
 const (
@@ -52,7 +53,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: HTTP app access to alpha with tbot credentials succeeds and emits expected events.",
 			run:      runAllowedAppAccessTbotCredProperty,
-			Identity: appAdminIdentity,
+			Identity: allowedAppIdentity,
 			App: AppTarget{
 				Name:       "alpha",
 				PublicAddr: "app-alpha.antithesis.teleport.local",
@@ -62,7 +63,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: HTTP app access to alpha with minted credentials succeeds and emits session start.",
 			run:      runAllowedAppAccessMintedCredProperty,
-			Identity: appMintIdentity,
+			Identity: allowedIdentity,
 			App: AppTarget{
 				Name:       "alpha",
 				PublicAddr: "app-alpha.antithesis.teleport.local",
@@ -72,7 +73,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "allow: TCP app access to alpha-tcp with minted credentials succeeds and emits expected events.",
 			run:      runAllowedTCPAppAccessMintedCredProperty,
-			Identity: appMintIdentity,
+			Identity: allowedIdentity,
 			App: AppTarget{
 				Name:       "alpha-tcp",
 				PublicAddr: "app-alpha-tcp.antithesis.teleport.local",
@@ -82,7 +83,7 @@ func run(ctx context.Context, runningInAntithesis bool) error {
 		{
 			Name:     "deny: alpha app access with minted credentials is rejected.",
 			run:      runDeniedAppAccessCredentialMintProperty,
-			Identity: appDeniedIdentity,
+			Identity: deniedIdentity,
 			App: AppTarget{
 				Name:       "alpha",
 				PublicAddr: "app-alpha.antithesis.teleport.local",

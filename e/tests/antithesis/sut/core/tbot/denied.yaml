@@ -1,0 +1,19 @@
+version: v2
+debug: true
+proxy_server: antithesis.teleport.local:3080
+diag_addr: 127.0.0.1:3002
+
+onboarding:
+  join_method: token
+  token: workload-denied-token
+
+storage:
+  type: directory
+  path: /var/lib/teleport/bot/denied
+
+outputs:
+  - type: identity
+    allow_reissue: true
+    destination:
+      type: directory
+      path: /creds/denied

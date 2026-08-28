@@ -2,16 +2,42 @@
 kind: bot
 version: v1
 metadata:
-  name: workload
+  name: workload-admin
 spec:
-  # The bot itself gets all persona roles. Each tbot output narrows
-  # down to a single role via its own `roles:` field.
+  # Admin credentials are used by workload setup and audit helpers.
   roles:
-    - resource-admin
-    - resource-deny-all
-    - resource-read-only
-    - node-admin
-    - node-deny
-    - app-admin
+    - resource-allow
+    - node-allow
+    - app-allow
     - app-mint
+---
+kind: bot
+version: v1
+metadata:
+  name: workload-allowed
+spec:
+  # Allowed credentials combine all roles used by positive workload tests.
+  roles:
+    - resource-allow
+    - node-allow
+    - app-allow
+    - app-mint
+---
+kind: bot
+version: v1
+metadata:
+  name: workload-denied
+spec:
+  # Denied credentials combine roles used by negative SSH and app access tests.
+  roles:
+    - node-deny
     - app-deny
+---
+kind: bot
+version: v1
+metadata:
+  name: workload-crud-denied
+spec:
+  # CRUD denied credentials use a broad resource deny role, including role reads.
+  roles:
+    - resource-deny

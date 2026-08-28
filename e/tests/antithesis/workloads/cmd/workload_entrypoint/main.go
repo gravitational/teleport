@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot"
-	"github.com/gravitational/teleport/lib/tbot/cli"
+	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -59,39 +60,59 @@ func main() {
 
 func Run(ctx context.Context, args []string) error {
 	app := kingpin.New("init", "Antithesis workload init.").Interspersed(true)
-	globalCfg := cli.NewGlobalArgs(app)
+	var configPaths []string
+	app.Flag("config", "Path to a tbot configuration file. May be specified multiple times.").Short('c').Required().StringsVar(&configPaths)
 
 	if _, err := app.Parse(args); err != nil {
 		app.Usage(args)
 		return trace.Wrap(err, "parsing args")
 	}
 
-	botConfig, err := cli.LoadConfigWithMutators(globalCfg)
-	if err != nil {
-		return trace.Wrap(err, "loading tbot config")
-	}
-
-	b := tbot.New(botConfig, log.With(teleport.ComponentLabel, "tbot"))
+	readyC := make(chan error, len(configPaths))
 
 	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		return b.Run(ctx)
-	})
-
-	group.Go(func() error {
-		err := waitForReady(ctx, botConfig.DiagAddr)
+	for _, path := range configPaths {
+		cfg, err := tbotconfig.ReadConfigFromFile(path, false)
 		if err != nil {
-			return trace.Wrap(err, "bot failed to become ready")
+			return trace.Wrap(err, "loading bot config from path %s", path)
 		}
+		if err := cfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating bot config from path %s", path)
+		}
+		b := tbot.New(cfg, log.With(
+			teleport.ComponentLabel, "tbot",
+			"config_path", path,
+			"diag_addr", cfg.DiagAddr,
+		))
 
-		// Mark as ready for testing.
-		lifecycle.SetupComplete(map[string]any{
-			"auth_server":  botConfig.AuthServer,
-			"proxy_server": botConfig.ProxyServer,
-			"diag_addr":    botConfig.DiagAddr,
-			"insecure":     botConfig.Insecure,
-			"debug":        botConfig.Debug,
+		group.Go(func() error {
+			return b.Run(ctx)
 		})
+
+		group.Go(func() error {
+			select {
+			case readyC <- waitForReady(ctx, cfg.DiagAddr):
+				return nil
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+		})
+
+	}
+
+	group.Go(func() error {
+		for range configPaths {
+			select {
+			case err := <-readyC:
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+		}
+		slog.InfoContext(ctx, "all bot instances reported ready, issue setup_complete")
+		lifecycle.SetupComplete(map[string]any{})
 		return nil
 	})
 
