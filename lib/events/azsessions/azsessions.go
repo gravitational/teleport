@@ -586,15 +586,13 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	const batchSize = 256 // https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch
-	for i := 0; i < len(parts); i += batchSize {
+	for partBatch := range slices.Chunk(parts, batchSize) {
 		batch, err := cErr(h.inprogress.NewBatchBuilder())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		m := min(len(parts[i:]), batchSize)
-
-		for _, part := range parts[i : i+m] {
+		for _, part := range partBatch {
 			if err := batch.Delete(partName(upload, part.Number), nil); err != nil {
 				return trace.Wrap(err)
 			}
@@ -602,7 +600,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 		resp, err := cErr(h.inprogress.SubmitBatch(ctx, batch, nil))
 		if err != nil {
-			log.WarnContext(ctx, "Failed to clean up part batch.", "error", err, fieldPartNumber, parts[i].Number)
+			log.WarnContext(ctx, "Failed to clean up part batch.", "error", err, fieldPartNumber, partBatch[0].Number)
 			continue
 		}
 
@@ -615,7 +613,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 		if errs > 0 {
 			log.WarnContext(ctx, "Failed to clean up part batch.",
-				fieldPartNumber, parts[i].Number,
+				fieldPartNumber, partBatch[0].Number,
 				"errors", errs,
 				"last_error", err,
 			)

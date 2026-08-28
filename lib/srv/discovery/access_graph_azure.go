@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"sync"
 	"time"
 
@@ -133,12 +134,11 @@ func azurePushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	upsert *accessgraphv1alpha.AzureResourceList,
 ) error {
-	for i := 0; i < len(upsert.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(upsert.GetResources()))
+	for resources := range slices.Chunk(upsert.GetResources(), batchSize) {
 		err := client.Send(
 			accessgraphv1alpha.AzureEventsStreamRequest_builder{
 				Upsert: accessgraphv1alpha.AzureResourceList_builder{
-					Resources: upsert.GetResources()[i:end],
+					Resources: resources,
 				}.Build(),
 			}.Build(),
 		)
@@ -154,12 +154,11 @@ func azurePushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AzureEventsStreamClient,
 	toDel *accessgraphv1alpha.AzureResourceList,
 ) error {
-	for i := 0; i < len(toDel.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(toDel.GetResources()))
+	for resources := range slices.Chunk(toDel.GetResources(), batchSize) {
 		err := client.Send(
 			accessgraphv1alpha.AzureEventsStreamRequest_builder{
 				Delete: accessgraphv1alpha.AzureResourceList_builder{
-					Resources: toDel.GetResources()[i:end],
+					Resources: resources,
 				}.Build(),
 			}.Build(),
 		)

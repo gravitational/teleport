@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -564,14 +565,13 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
 	var instColl []*EC2Instances
 	for _, insts := range instancesByRegion {
-		for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-			end := min(i+awsEC2APIChunkSize, len(insts.Instances))
+		for instances := range slices.Chunk(insts.Instances, awsEC2APIChunkSize) {
 			inst := &EC2Instances{
 				AccountID:           insts.AccountID,
 				Region:              insts.Region,
 				DocumentName:        insts.DocumentName,
 				Parameters:          insts.Parameters,
-				Instances:           insts.Instances[i:end],
+				Instances:           instances,
 				Rotation:            insts.Rotation,
 				Integration:         insts.Integration,
 				DiscoveryConfigName: insts.DiscoveryConfigName,
@@ -893,13 +893,12 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 		}
 
 		for ownerID, pageInstances := range pageInstancesPerOwnerID {
-			for i := 0; i < len(pageInstances); i += awsEC2APIChunkSize {
-				end := min(i+awsEC2APIChunkSize, len(pageInstances))
+			for pageChunk := range slices.Chunk(pageInstances, awsEC2APIChunkSize) {
 				inst := &EC2Instances{
 					AccountID:           ownerID,
 					Region:              params.region,
 					DocumentName:        f.Matcher.SSM.DocumentName,
-					Instances:           ToEC2Instances(pageInstances[i:end]),
+					Instances:           ToEC2Instances(pageChunk),
 					Parameters:          params.ssmRunParams,
 					Rotation:            params.rotation,
 					Integration:         f.Matcher.Integration,
@@ -908,7 +907,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.Matcher.Params.EnrollMode,
 				}
-				for _, ec2inst := range pageInstances[i:end] {
+				for _, ec2inst := range pageChunk {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
 				}
 				instances = append(instances, inst)

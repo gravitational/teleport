@@ -416,7 +416,7 @@ func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, 
 			// split request IDs into chunks of 256 for cuncurrent resolution (larger chunk sizes than this
 			// result in degraded performance, likely due to the complexity of the resulting predicate expression
 			// becoming more harmful than the batching is beneficial).
-			for _, resourceIDs := range splitChunks(allIDsOfKind, 256) {
+			for resourceIDs := range slices.Chunk(allIDsOfKind, 256) {
 
 				clusterName, resourceIDs := clusterName, resourceIDs
 
@@ -450,17 +450,6 @@ func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, 
 	}
 
 	return allDetails, nil
-}
-
-// splitChunks is a helper for chunking a slice s into sub-slices of size n. If the length of s
-// is not evenly divisble by n then the last slice will be shorter than the rest.
-func splitChunks[T any](s []T, n int) [][]T {
-	c := make([][]T, 0, (len(s)/n)+1)
-	for i := 0; i < len(s); i += n {
-		end := min(len(s), i+n)
-		c = append(c, s[i:end])
-	}
-	return c
 }
 
 func getSortField(sortByString string) proto.AccessRequestSort {

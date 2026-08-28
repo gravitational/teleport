@@ -22,6 +22,7 @@ package rdpstate
 
 import (
 	"image"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -122,11 +123,8 @@ func TestResizeCrop_PreservesSolidColor(t *testing.T) {
 	require.NotNil(t, img)
 	require.Equal(t, image.Rect(0, 0, 50, 50), img.Bounds())
 
-	for i := 0; i < len(img.Pix); i += 4 {
-		require.Equal(t, uint8(0xFF), img.Pix[i], "R at offset %d", i)
-		require.Equal(t, uint8(0x00), img.Pix[i+1], "G at offset %d", i)
-		require.Equal(t, uint8(0x00), img.Pix[i+2], "B at offset %d", i)
-		require.Equal(t, uint8(0xFF), img.Pix[i+3], "A at offset %d", i)
+	for pixel := range slices.Chunk(img.Pix, 4) {
+		require.Equal(t, []byte{0xFF, 0x00, 0x00, 0xFF}, pixel)
 	}
 }
 

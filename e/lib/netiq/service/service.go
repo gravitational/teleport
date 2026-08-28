@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -328,12 +329,11 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_NetIQEventsStreamClient,
 	upsert *accessgraphv1alpha.NetIQResourceList,
 ) error {
-	for i := 0; i < len(upsert.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(upsert.GetResources()))
+	for resources := range slices.Chunk(upsert.GetResources(), batchSize) {
 		err := client.Send(
 			accessgraphv1alpha.NetIQEventsStreamRequest_builder{
 				Upsert: accessgraphv1alpha.NetIQResourceList_builder{
-					Resources: upsert.GetResources()[i:end],
+					Resources: resources,
 				}.Build(),
 			}.Build(),
 		)
@@ -348,12 +348,11 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_NetIQEventsStreamClient,
 	toDel *accessgraphv1alpha.NetIQResourceList,
 ) error {
-	for i := 0; i < len(toDel.GetResources()); i += batchSize {
-		end := min(i+batchSize, len(toDel.GetResources()))
+	for resources := range slices.Chunk(toDel.GetResources(), batchSize) {
 		err := client.Send(
 			accessgraphv1alpha.NetIQEventsStreamRequest_builder{
 				Delete: accessgraphv1alpha.NetIQResourceList_builder{
-					Resources: toDel.GetResources()[i:end],
+					Resources: resources,
 				}.Build(),
 			}.Build(),
 		)

@@ -343,12 +343,10 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 		}
 	}()
 	const maxKeysPerReport = 500
-	for i := 0; i < len(keys); i += maxKeysPerReport {
-		start := i
-		end := min(i+maxKeysPerReport, len(keys))
+	for batch := range slices.Chunk(keys, maxKeysPerReport) {
 		if err := stream.Send(
 			accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
-				Keys:      keys[start:end],
+				Keys:      batch,
 				Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_ADD,
 			}.Build(),
 		); err != nil {

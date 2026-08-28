@@ -935,9 +935,8 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	}
 
 	// Batch the receipt handles and send them to the worker pool.
-	for i := 0; i < len(handles); i += maxDeleteBatchSize {
-		end := min(i+maxDeleteBatchSize, len(handles))
-		workerCh <- handles[i:end]
+	for batch := range slices.Chunk(handles, maxDeleteBatchSize) {
+		workerCh <- batch
 	}
 	close(workerCh)
 

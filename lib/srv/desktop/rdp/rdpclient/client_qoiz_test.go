@@ -23,6 +23,7 @@ package rdpclient
 
 import (
 	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -54,11 +55,11 @@ func TestEncodeQOIZ(t *testing.T) {
 	t.Run("random", func(t *testing.T) {
 		// test with random data to verify we get correct number of frames from Rust
 		data := make([]byte, 4*500*500)
-		for i := 0; i < 4*500*500; i += 4 {
-			data[i] = byte(rand.IntN(256))
-			data[i+1] = byte(rand.IntN(256))
-			data[i+2] = byte(rand.IntN(256))
-			data[i+3] = 0xFF
+		for pixel := range slices.Chunk(data, 4) {
+			pixel[0] = byte(rand.IntN(256))
+			pixel[1] = byte(rand.IntN(256))
+			pixel[2] = byte(rand.IntN(256))
+			pixel[3] = 0xFF
 		}
 
 		frames, err := EncodeQOIZ(data, 0, 0, 500, 500)

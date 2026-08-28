@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -126,13 +127,10 @@ func (r *Reporter) runAssertionCeremony(ctx context.Context, stream accessgraphs
 
 // reportPrivateKeys reports the private keys to the Teleport server in batches of size [r.batchSize] using the given stream.
 func (r *Reporter) reportPrivateKeys(stream accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient, privateKeys []*accessgraphsecretsv1pb.PrivateKey) error {
-	batchSize := r.batchSize
-	for i := 0; len(privateKeys) > i; i += batchSize {
-		start := i
-		end := min(i+batchSize, len(privateKeys))
+	for batch := range slices.Chunk(privateKeys, r.batchSize) {
 		if err := stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
 			PrivateKeys: accessgraphsecretsv1pb.ReportPrivateKeys_builder{
-				Keys: privateKeys[start:end],
+				Keys: batch,
 			}.Build(),
 		}.Build()); err != nil && !errors.Is(err, io.EOF) {
 			// [io.EOF] indicates that the server has closed the stream.
