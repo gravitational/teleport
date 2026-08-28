@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -199,13 +200,11 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	ecsServices := make([]ecsTypes.Service, 0, len(ecsServiceNames))
 
 	// According to AWS API docs, a maximum of 10 Services can be queried at the same time when using the ecs:DescribeServices operation.
-	batchSize := 10
-	for batchStart := 0; batchStart < len(ecsServiceNames); batchStart += batchSize {
-		batchEnd := min(batchStart+batchSize, len(ecsServiceNames))
-
+	const batchSize = 10
+	for serviceNames := range slices.Chunk(ecsServiceNames, batchSize) {
 		describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 			Cluster:  wellKnownClusterName,
-			Services: ecsServiceNames[batchStart:batchEnd],
+			Services: serviceNames,
 			Include:  []ecsTypes.ServiceField{ecsTypes.ServiceFieldTags},
 		})
 		if err != nil {
