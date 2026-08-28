@@ -97,7 +97,6 @@ Request reviews directly in Slack.
 #### Kubernetes
 
 * Add `kube_cluster` support to the Terraform Provider. [#69082](https://github.com/gravitational/teleport/pull/69082)
-* Running `tsh proxy kube` with per-session MFA now performs a single MFA ceremony covering all requested Kubernetes clusters instead of one per cluster, and issues per-cluster certificates concurrently. [#69383](https://github.com/gravitational/teleport/pull/69383)
 * Fixed `tsh kubectl` failing with "cannot get software key PEM" when hardware key support is enabled. [#68741](https://github.com/gravitational/teleport/pull/68741)
 * Fixed an issue where `tsh kube credentials` returned a vague "cannot get software key PEM" error under hardware key policies. It now provides a clear and helpful error message. [#68741](https://github.com/gravitational/teleport/pull/68741)
 * Improved the error `tsh kube credentials` returns when a Kubernetes client bypasses the `tsh proxy kube` local proxy due to an overridden KUBECONFIG. [#68741](https://github.com/gravitational/teleport/pull/68741)
