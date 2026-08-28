@@ -115,7 +115,6 @@ jobs:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
           values: |
-            REGISTRY,secret
             ANTITHESIS_GCP_SA_KEY,secret
             ANTITHESIS_REGISTRY,secret
             ANTITHESIS_API_KEY,secret
@@ -123,7 +122,7 @@ jobs:
       - name: Login to registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.ANTITHESIS_REGISTRY }}
           username: _json_key
           password: ${{ env.ANTITHESIS_GCP_SA_KEY }}
 
