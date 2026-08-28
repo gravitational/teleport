@@ -49,6 +49,13 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		return trace.BadParameter("no update flags are set")
 	}
 
+	if c.iac != "" && c.formatSet {
+		return trace.BadParameter("--iac and --format cannot be combined")
+	}
+	if c.iac == iacTerraform && c.anyAuditFlagsSet() {
+		return trace.BadParameter("--audit-frequency and --audit-day are not supported with --iac=terraform")
+	}
+
 	// To avoid non-atomic partial writes, member updates are to be run
 	// separately from updates to access list meta/spec. Combining
 	// both means there will be partial failures where grants may be
@@ -89,11 +96,6 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		}
 	}
 
-	ctx, err = withReusableAdminActionMFA(ctx, client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	var updatedAccessList *accesslist.AccessList
 	var updatedRoles []string
 	var rolesToDelete []string
@@ -101,6 +103,38 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 	var removedMembers []accesslists.NormalizedSQN
 
 	switch {
+	case c.iac != "":
+		// dry-run request
+		var updatedMembers []*accesslist.AccessListMember
+		if c.anyMemberUpdateFlagSet() {
+			updatedMembers, _, err = c.buildMembersForUpdate(ctx, client, aclName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			updatedMembers, err = c.collectAllMembers(ctx, client, aclName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if err := c.applySpecFlags(al); err != nil {
+			return trace.Wrap(err)
+		}
+		if c.ownersSet || c.ownerAccessListsSet {
+			var updatedOwners []accesslist.Owner
+			updatedOwners, _, err = c.buildOwnersForUpdate(al)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(updatedOwners) == 0 {
+				return trace.BadParameter("an access list must have at least one owner")
+			}
+			al.Spec.Owners = updatedOwners
+		}
+
+		return trace.Wrap(c.dryRunUpdate(ctx, client, al, updatedMembers))
+
 	case c.anyMemberUpdateFlagSet():
 		// Member-only update: replace the membership list without touching
 		// the access list spec.
@@ -109,6 +143,12 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		ctx, err = withReusableAdminActionMFA(ctx, client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		updatedAccessList, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, al, updatedMembers)
 		if err != nil {
 			return trace.Wrap(err)
@@ -129,6 +169,11 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 				return trace.BadParameter("an access list must have at least one owner")
 			}
 			al.Spec.Owners = updatedOwners
+		}
+
+		ctx, err = withReusableAdminActionMFA(ctx, client)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		if al.IsPreset() && (c.anyAccessFlagsSet() || c.removeAccess) {
@@ -334,39 +379,51 @@ func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.
 	return newOwners, removedOwners, trace.NewAggregate(userErr, listErr)
 }
 
-// updateAccessListWithPreset updates an access list spec/meta and its related access roles.
-func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []string, []string, error) {
+func (c *Command) buildUpdatedAccessRoles(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) ([]*types.RoleV6, error) {
 	if err := rejectUnknownGrants(al); err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	if c.removeAccess {
+		return nil, nil // no roles appended means "remove these access roles from al grants"
 	}
 
 	var updatedAccessRoles []*types.RoleV6
-	if !c.removeAccess {
-		var standardRoleUpdateFn applyAccessFlagsToRole
-		if c.anyStandardAccessFlagsSet() {
-			standardRoleUpdateFn = c.applyStandardAccessFlagsToRole
-		}
-		standardRole, err := resolveAccessRole(ctx, client, al, standardRolePrefixName, standardRoleUpdateFn)
-		if err != nil {
-			return nil, nil, nil, trace.Wrap(err)
-		}
+	var standardRoleUpdateFn applyAccessFlagsToRole
 
-		var awsicRoleUpdateFn applyAccessFlagsToRole
-		if c.awsicAssignmentsSet {
-			awsicRoleUpdateFn = c.applyAWSICFlagsToRole
-		}
-		awsicRole, err := resolveAccessRole(ctx, client, al, awsicRolePrefixName, awsicRoleUpdateFn)
-		if err != nil {
-			return nil, nil, nil, trace.Wrap(err)
-		}
+	if c.anyStandardAccessFlagsSet() {
+		standardRoleUpdateFn = c.applyStandardAccessFlagsToRole
+	}
+	standardRole, err := resolveAccessRole(ctx, client, al, standardRolePrefixName, standardRoleUpdateFn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		if standardRole != nil {
-			updatedAccessRoles = append(updatedAccessRoles, standardRole)
-		}
-		if awsicRole != nil {
-			updatedAccessRoles = append(updatedAccessRoles, awsicRole)
-		}
-	} // else, no roles appended means "remove these access roles from al grants"
+	var awsicRoleUpdateFn applyAccessFlagsToRole
+	if c.awsicAssignmentsSet {
+		awsicRoleUpdateFn = c.applyAWSICFlagsToRole
+	}
+	awsicRole, err := resolveAccessRole(ctx, client, al, awsicRolePrefixName, awsicRoleUpdateFn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if standardRole != nil {
+		updatedAccessRoles = append(updatedAccessRoles, standardRole)
+	}
+	if awsicRole != nil {
+		updatedAccessRoles = append(updatedAccessRoles, awsicRole)
+	}
+
+	return updatedAccessRoles, nil
+}
+
+// updateAccessListWithPreset updates an access list spec/meta and its related access roles.
+func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []string, []string, error) {
+	updatedAccessRoles, err := c.buildUpdatedAccessRoles(ctx, client, al)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 
 	grpcClient := accesslistv1.NewAccessListServiceClient(client.GetConnection())
 	resp, err := grpcClient.UpdateAccessListWithPreset(ctx, accesslistv1.UpdateAccessListWithPresetRequest_builder{
@@ -404,6 +461,34 @@ func (c *Command) printUpdateText(r UpdateJSONResponse) {
 	}
 
 	c.printRolesToBeDeleted(r.RolesToDelete)
+}
+
+func (c *Command) dryRunUpdate(ctx context.Context, client *authclient.Client, al *accesslist.AccessList, members []*accesslist.AccessListMember) error {
+	alPresetType := al.GetAllLabels()[accesslist.AccessListPresetLabel]
+
+	var accessRoles []*types.RoleV6
+	if alPresetType != "" {
+		var err error
+		accessRoles, err = c.buildUpdatedAccessRoles(ctx, client, al)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(c.writeIACConfig(al, accessRoles, membersForDryRunUpdate(members), alPresetType))
+}
+
+func membersForDryRunUpdate(members []*accesslist.AccessListMember) []*accesslist.AccessListMember {
+	out := make([]*accesslist.AccessListMember, 0, len(members))
+	for _, member := range members {
+		memberCopy := member.Clone()
+		// These fields will be filled in the backend
+		memberCopy.Metadata.Revision = ""
+		memberCopy.Spec.Joined = time.Time{}
+		memberCopy.Spec.AddedBy = ""
+		out = append(out, memberCopy)
+	}
+	return out
 }
 
 // resolveAccessRole returns the access role to send for upsert. A role is

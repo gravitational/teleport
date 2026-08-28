@@ -162,6 +162,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`)|Output format.|
 |`--gcp-service-accounts`|*no default*|GCP service accounts members may assume via matched apps.|
 |`--github-orgs`|*no default*|Selects git servers members may access by GitHub organization name.|
+|`--iac`|*no default* (one of: `terraform`)|Dry-run: print the IaC config for the new access list without creating it. 'terraform' generates a static access list, which does not support audit reviews.|
 |`--kubernetes-groups`|*no default*|Kubernetes groups members may impersonate on matched clusters.|
 |`--kubernetes-labels`|*no default*|Selects Kubernetes clusters members may access by label match.|
 |`--kubernetes-users`|*no default*|Kubernetes users members may impersonate on matched clusters.|
@@ -346,6 +347,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`)|Output format.|
 |`--gcp-service-accounts`|*no default*|GCP service accounts members may assume via matched apps.|
 |`--github-orgs`|*no default*|Selects git servers members may access by GitHub organization name.|
+|`--iac`|*no default* (one of: `terraform`)|Dry-run: print the IaC config for the updated access list without applying the changes. 'terraform' generates a static access list, which does not support audit reviews.|
 |`--kubernetes-groups`|*no default*|Kubernetes groups members may impersonate on matched clusters.|
 |`--kubernetes-labels`|*no default*|Selects Kubernetes clusters members may access by label match.|
 |`--kubernetes-users`|*no default*|Kubernetes users members may impersonate on matched clusters.|
