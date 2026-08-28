@@ -143,6 +143,7 @@ export function TerraformDeploymentCreate({ onPrev }: { onPrev(): void }) {
       <StepButtons
         hideNextBtn
         onPrev={onPrev}
+        disablePrev={!!detectedAccessList}
         customBtns={<ButtonBorder onClick={handleDone}>Done</ButtonBorder>}
       />
     </>

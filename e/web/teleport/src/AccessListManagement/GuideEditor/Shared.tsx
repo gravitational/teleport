@@ -24,6 +24,7 @@ export function NoResultsFound() {
 export const StepButtons = ({
   disabled = false,
   disableNext = false,
+  disablePrev = false,
   onNext,
   onPrev,
   nextBtnTxt,
@@ -41,6 +42,7 @@ export const StepButtons = ({
    * Disables next button
    */
   disableNext?: boolean;
+  disablePrev?: boolean;
   onNext?(): void;
   onPrev?(): void;
   nextBtnTxt?: string;
@@ -94,7 +96,7 @@ export const StepButtons = ({
           <ButtonSecondary
             width="100%"
             onClick={onPrev ? () => onPrev() : () => prevStep()}
-            disabled={disabled}
+            disabled={disabled || disablePrev}
           >
             {prevBtnTxt ? prevBtnTxt : 'Back'}
           </ButtonSecondary>

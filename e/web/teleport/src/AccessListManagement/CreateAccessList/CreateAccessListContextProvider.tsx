@@ -4,12 +4,14 @@ import {
   PropsWithChildren,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { useLocation, type Location } from 'react-router';
 
 import { Validator } from 'shared/components/Validation';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { ensureError } from 'shared/utils/error';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
@@ -27,6 +29,9 @@ import {
   AccessListBodyRequest,
   AccessListWithPresetRequest,
 } from 'e-teleport/services/accessmanagement/preset';
+import auth from 'teleport/services/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 import {
   AccessListEvent,
   AccessListStepStatusEvent,
@@ -42,6 +47,11 @@ import { getTerraformBlockCommentWithRole } from '../GuideEditor/Terraform/terra
 import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { HybridUserOption } from '../Shared/Shared';
 import { convertTraitLabelsToAllUserTraits, TraitLabel } from '../Traits';
+import {
+  cleanupPresetAcl,
+  PendingCleanup,
+  tryPresetAclCleanup,
+} from './presetcleanup';
 import { ResumableAccessListState } from './route';
 import { Grant, Members, Owners, Spec } from './types';
 
@@ -79,6 +89,8 @@ type State = {
    * The UUID generated for the new access list being created.
    */
   newAccessListId: string;
+  requiresCleanup?: PendingCleanup;
+  dismissCleanupError(): void;
 };
 
 const CreateAccessListContext = createContext<State>(null);
@@ -97,6 +109,12 @@ export const CreateAccessListContextProvider: FC<
   } = useAttempt('');
   const { updateAccessListCache, guideEditor } =
     useAccessListManagementContext();
+
+  // This safeguards against a possible (though highly unlikely) case of
+  // rapid clicks starting multiple create processes that can trigger the
+  // auto cleanup by accident, which can undo a successfully created access list.
+  // The auto cleanup gets triggered by any error, including "already exists".
+  const createInFlightRef = useRef(false);
 
   const { preset, standardRoleState, awsIcRoleState, emitEvent, terraform } =
     guideEditor;
@@ -130,6 +148,9 @@ export const CreateAccessListContextProvider: FC<
   const [newAccessListId, setNewAccessListId] = useState(() =>
     crypto.randomUUID()
   );
+
+  // requiresCleanup defines which resources require cleaning up (delete):
+  const [requiresCleanup, setRequiresCleanup] = useState<PendingCleanup>();
 
   // This effect triggers the terraform configs to be regenerated when state
   // changes. It's debounced to reduce the number of api calls.
@@ -225,6 +246,8 @@ export const CreateAccessListContextProvider: FC<
   ]);
 
   function reset() {
+    createInFlightRef.current = false;
+    setRequiresCleanup(undefined);
     setSpec(defaultSpec);
     setOwners(defaultOwners);
     setOwnerGrant(defaultGrants);
@@ -291,7 +314,7 @@ export const CreateAccessListContextProvider: FC<
     });
   }
 
-  function createDefaultAccessList(
+  function createCustomAccessList(
     reqSpec: AccessListSpecForRequest,
     reqMembers: AccessListMembersForRequest
   ) {
@@ -318,7 +341,7 @@ export const CreateAccessListContextProvider: FC<
     );
   }
 
-  function createAccessListWithPreset(
+  async function createAccessListWithPreset(
     reqSpec: AccessListSpecForRequest,
     reqMembers: AccessListMembersForRequest
   ) {
@@ -352,30 +375,86 @@ export const CreateAccessListContextProvider: FC<
       accessRoles,
     };
 
-    return runAttempt(() =>
-      accessManagementService
-        .createAccessListWithPreset(req)
-        .then(createdList => {
-          updateCache(createdList, { ...reqSpec, members: reqMembers });
-          emitEvent({
-            event: AccessListEvent.Completed,
-            stepStatus: AccessListStepStatusEvent.Success,
-          });
-        })
-        .catch((err: Error) => {
-          emitEvent({
-            event: AccessListEvent.Completed,
-            stepStatus: AccessListStepStatusEvent.Error,
-            stepStatusError: err.message,
-          });
-          throw err;
-        })
+    // Get reusable mfa response, so users aren't getting asked
+    // to re-authn multiple times in a row.
+    let mfaResponse: MfaChallengeResponse;
+    try {
+      setCreateAttempt({ status: 'processing' });
+      const challenge = await auth.getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse: true,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      });
+      mfaResponse = await auth.getMfaChallengeResponse(challenge);
+
+      const stillRequiresCleanup = await tryPresetAclCleanup(
+        newAccessListId,
+        requiresCleanup,
+        mfaResponse
+      );
+      setRequiresCleanup(stillRequiresCleanup || undefined);
+      if (stillRequiresCleanup) {
+        // Can't proceed if not all resources from previous attempt is not
+        // cleaned upped.
+        setCreateAttempt({ status: '' });
+        return false;
+      }
+    } catch (err) {
+      const ensuredError = ensureError(err);
+      setCreateAttempt({ status: 'failed', statusText: ensuredError.message });
+      return false;
+    }
+
+    return runAttempt(async () => {
+      try {
+        const createdList =
+          await accessManagementService.createAccessListWithPreset(
+            req,
+            mfaResponse
+          );
+
+        updateCache(createdList, { ...reqSpec, members: reqMembers });
+        emitEvent({
+          event: AccessListEvent.Completed,
+          stepStatus: AccessListStepStatusEvent.Success,
+        });
+      } catch (err) {
+        const ensuredError = ensureError(err);
+        emitEvent({
+          event: AccessListEvent.Completed,
+          stepStatus: AccessListStepStatusEvent.Error,
+          stepStatusError: ensuredError.message,
+        });
+        await cleanupPresetAcl(
+          newAccessListId,
+          ensuredError,
+          mfaResponse,
+          setRequiresCleanup
+        );
+      }
+    });
+  }
+
+  function dismissCleanupError() {
+    setRequiresCleanup(
+      requiresCleanup ? { ...requiresCleanup, error: undefined } : undefined
     );
   }
 
   function onCreate(validator: Validator) {
+    const isPresetCreate = preset === 'long-term' || preset === 'short-term';
+    if (isPresetCreate) {
+      if (createInFlightRef.current) {
+        return Promise.resolve(false);
+      }
+      createInFlightRef.current = true;
+    }
+
     if (!validator.validate()) {
-      return;
+      createInFlightRef.current = false;
+      return Promise.resolve(false);
     }
 
     const reqSpec = makeAccessListSpecForRequest({
@@ -394,9 +473,11 @@ export const CreateAccessListContextProvider: FC<
     switch (preset) {
       case 'long-term':
       case 'short-term':
-        return createAccessListWithPreset(reqSpec, reqMembers);
+        return createAccessListWithPreset(reqSpec, reqMembers).finally(() => {
+          createInFlightRef.current = false;
+        });
       case '':
-        return createDefaultAccessList(reqSpec, reqMembers);
+        return createCustomAccessList(reqSpec, reqMembers);
       default:
         preset satisfies never;
     }
@@ -424,6 +505,8 @@ export const CreateAccessListContextProvider: FC<
         createdAccessList,
         getResumableAccessListState,
         newAccessListId,
+        requiresCleanup,
+        dismissCleanupError,
       }}
     >
       {props.children}

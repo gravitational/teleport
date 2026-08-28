@@ -54,7 +54,7 @@ afterEach(async () => {
 });
 
 test('defining server access renders only server related identity tab', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -84,7 +84,7 @@ test('defining server access renders only server related identity tab', async ()
 });
 
 test('defining windows access renders only windows related identity tab', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -113,7 +113,7 @@ test('defining windows access renders only windows related identity tab', async 
 });
 
 test('defining db access renders only db related identity tab and test default wildcard values', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -192,7 +192,7 @@ test('defining db access renders only db related identity tab and test default w
 });
 
 test('defining kube access renders only kube related identity tab', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -224,7 +224,7 @@ test('defining kube access renders only kube related identity tab', async () => 
 });
 
 test('defining git access does not render any identity tabs (no requirement)', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   render(
     <ProviderWithQuery>
@@ -255,7 +255,7 @@ test('defining git access does not render any identity tabs (no requirement)', a
 });
 
 test('defining AWS IC access does not render any identity tabs (no requirement)', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
   server.use(fetchUnifiedResources('get', appsWithAllMatchingPermissionSet));
 
   render(
@@ -291,7 +291,7 @@ test('defining AWS IC access does not render any identity tabs (no requirement)'
 });
 
 test('defining generic app access does not render identity tabs', async () => {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
   server.use(
     fetchUnifiedResources('get', [
       {
@@ -332,7 +332,7 @@ test('defining application access where identities are required', async () => {
     gcp_service_accounts: false,
   };
 
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
   server.use(
     fetchUnifiedResources('get', [
       {
@@ -495,134 +495,23 @@ test('defining application access where identities are required', async () => {
   });
 });
 
-test('defining access to everything renders all the correct identity tabs', async () => {
-  const addedAccess: Record<DefinableResourceAccessFields, boolean> = {
-    app_labels: false,
-    db_labels: false,
-    kubernetes_labels: false,
-    windows_desktop_labels: false,
-    linux_desktop_labels: false,
-    node_labels: false,
-    awsIc: false,
-    github_permissions: false,
-  };
-
-  const user = userEvent.setup();
+test('defining access to everything renders all identity tabs', async () => {
+  const user = userEvent.setup({ delay: null });
   server.use(fetchUnifiedResources('get', appsWithAllMatchingPermissionSet));
-
-  render(
-    <ProviderWithQuery>
-      <AccessGraphDemoProvider>
-        <CreateAccessList />
-      </AccessGraphDemoProvider>
-    </ProviderWithQuery>
-  );
-
+  renderCreateAccessList();
   await startGuide(user);
 
-  /**
-   * Define aws ic access
-   */
-  server.use(fetchUnifiedResources('get', appsWithAllMatchingPermissionSet));
-  await goToAccessTab('awsIc', user);
-  await user.click(
-    screen.getByRole('button', { name: /make a new selection/i })
-  );
-  await user.click(
-    screen.getByRole('checkbox', { name: /app-friendly-name-1/i })
-  );
-  await user.click(screen.getByRole('checkbox', { name: /ps-name-1/i }));
-  await user.click(screen.getByRole('button', { name: /add selection/i }));
-  expect(screen.getAllByTestId(/row-*/i)).toHaveLength(1);
-  addedAccess['awsIc'] = true;
-
-  /**
-   * Define app access
-   */
-  server.use(
-    fetchUnifiedResources('get', [
-      {
-        kind: 'app',
-        name: 'AppTestAzure',
-        uri: 'cloud://Azure',
-        labels: [{ name: 'env', value: 'test' }],
-      },
-    ])
-  );
-  await goToAccessTab('app_labels', user);
-  await clickLabelAndWaitForRender('AppTestAzure', user);
-  addedAccess['app_labels'] = true;
-
-  server.use(...makeHandlers([fetchUnifiedResources('get', null)]));
-
-  /**
-   * Define db access
-   */
-  await goToAccessTab('db_labels', user);
-  await clickLabelAndWaitForRender('DbTestRow', user);
-  addedAccess['db_labels'] = true;
-
-  /**
-   * Define Windows desktop access
-   */
-  await goToAccessTab('windows_desktop_labels', user);
-  await clickLabelAndWaitForRender('WindowsTestRow', user);
-  addedAccess['windows_desktop_labels'] = true;
-
-  /**
-   * Define Linux desktop access
-   */
-  await goToAccessTab('linux_desktop_labels', user);
-  await clickLabelAndWaitForRender('LinuxTestRow', user);
-  addedAccess['linux_desktop_labels'] = true;
-
-  /**
-   * Define kube access
-   */
-  await goToAccessTab('kubernetes_labels', user);
-  await clickLabelAndWaitForRender('KubeClusterTestRow', user);
-  addedAccess['kubernetes_labels'] = true;
-
-  /**
-   * Define server access
-   */
-  await goToAccessTab('node_labels', user);
-  await clickLabelAndWaitForRender('NodeTestRow', user);
-  addedAccess['node_labels'] = true;
-
-  /**
-   * Define git server access
-   */
-  await goToAccessTab('github_permissions', user);
-  const reactSelectInput = screen.getByRole('combobox');
-  await act(async () => {
-    await selectEvent.select(reactSelectInput, 'GitServerTestRow');
-  });
-  expect(screen.getByText('GitServerTestRow')).toBeInTheDocument();
-  spiedUnifiedResource.mockClear();
-  addedAccess['github_permissions'] = true;
+  await defineAwsIcAccess(user);
+  useAzureAppFixture();
+  await defineIdentityAccessTypes(user);
+  await defineGitServerAccess(user);
 
   spiedUnifiedResource.mockClear();
-  expect(addedAccess).toEqual({
-    app_labels: true,
-    db_labels: true,
-    kubernetes_labels: true,
-    windows_desktop_labels: true,
-    linux_desktop_labels: true,
-    node_labels: true,
-    awsIc: true,
-    github_permissions: true,
-  });
-
-  /**
-   * Go to identities step and test all expected identity tabs are rendered
-   */
   await user.click(screen.getByRole('button', { name: /next/i }));
 
   await screen.findByText(/application identities/i);
   expect(spiedUnifiedResource).not.toHaveBeenCalled();
   expect(screen.getAllByRole('tab')).toHaveLength(6);
-
   expect(
     screen.getByRole('tab', { name: /application tab/i })
   ).toBeInTheDocument();
@@ -636,10 +525,18 @@ test('defining access to everything renders all the correct identity tabs', asyn
     screen.getByRole('tab', { name: /windows desktop tab/i })
   ).toBeInTheDocument();
   expect(screen.getByRole('tab', { name: /server tab/i })).toBeInTheDocument();
+});
 
-  /**
-   * Test going to different tabs
-   */
+test('navigates between identity tabs with next and back buttons', async () => {
+  const user = userEvent.setup({ delay: null });
+  useAzureAppFixture();
+  renderCreateAccessList();
+  await startGuide(user);
+  await defineIdentityAccessTypes(user);
+
+  await user.click(screen.getByRole('button', { name: /next/i }));
+  await screen.findByText(/application identities/i);
+
   await user.click(screen.getByRole('button', { name: /next: database/i }));
   expect(screen.getByText(/database identities/i)).toBeInTheDocument();
 
@@ -661,9 +558,6 @@ test('defining access to everything renders all the correct identity tabs', asyn
     screen.queryByRole('button', { name: /next:/i })
   ).not.toBeInTheDocument();
 
-  /**
-   * Test clicking back button takes you to previous tab
-   */
   await user.click(screen.getByRole('button', { name: /back/i }));
   expect(screen.getByText(/kubernetes identities/i)).toBeInTheDocument();
 
@@ -678,10 +572,19 @@ test('defining access to everything renders all the correct identity tabs', asyn
 
   await user.click(screen.getByRole('button', { name: /back/i }));
   expect(screen.getByText(/application identities/i)).toBeInTheDocument();
+});
 
-  /**
-   * Go back to previous step and remove some resource access definitions
-   */
+test('removes identity tabs when matching resource access is removed', async () => {
+  const user = userEvent.setup({ delay: null });
+  useAzureAppFixture();
+  renderCreateAccessList();
+  await startGuide(user);
+  await defineIdentityAccessTypes(user, { includeDesktops: false });
+
+  await user.click(screen.getByRole('button', { name: /next/i }));
+  await screen.findByText(/application identities/i);
+  expect(screen.getAllByRole('tab')).toHaveLength(4);
+
   await user.click(screen.getByRole('button', { name: /back/i }));
   act(mio.enterAll);
   await screen.findByText('AppTestRow');
@@ -707,28 +610,6 @@ test('defining access to everything renders all the correct identity tabs', asyn
   act(mio.enterAll);
   await screen.findByText('DbTestRow');
 
-  // Remove windows
-  await goToAccessTab('windows_desktop_labels', user, 'WindowsTestRow');
-  inputWrapper = screen.getByTestId('resource-label-input');
-  await user.click(
-    within(inputWrapper).getByRole('button', {
-      name: 'Remove env: test',
-    })
-  );
-  act(mio.enterAll);
-  await screen.findByText('WindowsTestRow');
-
-  // Remove Linux desktop
-  await goToAccessTab('linux_desktop_labels', user, 'LinuxTestRow');
-  inputWrapper = screen.getByTestId('resource-label-input');
-  await user.click(
-    within(inputWrapper).getByRole('button', {
-      name: 'Remove env: test',
-    })
-  );
-  act(mio.enterAll);
-  await screen.findByText('LinuxTestRow');
-
   /**
    * Go to identities tab again and test identity tabs are as expected
    */
@@ -741,15 +622,87 @@ test('defining access to everything renders all the correct identity tabs', asyn
     screen.getByRole('tab', { name: /kubernetes cluster tab/i })
   ).toBeInTheDocument();
   expect(screen.getByRole('tab', { name: /server tab/i })).toBeInTheDocument();
-}, 15000);
+});
+
+function renderCreateAccessList() {
+  render(
+    <ProviderWithQuery>
+      <AccessGraphDemoProvider>
+        <CreateAccessList />
+      </AccessGraphDemoProvider>
+    </ProviderWithQuery>
+  );
+}
+
+async function defineAwsIcAccess(user: UserEvent) {
+  await goToAccessTab('awsIc', user);
+  await user.click(
+    screen.getByRole('button', { name: /make a new selection/i })
+  );
+  await user.click(
+    screen.getByRole('checkbox', { name: /app-friendly-name-1/i })
+  );
+  await user.click(screen.getByRole('checkbox', { name: /ps-name-1/i }));
+  await user.click(screen.getByRole('button', { name: /add selection/i }));
+  expect(screen.getAllByTestId(/row-*/i)).toHaveLength(1);
+}
+
+function useAzureAppFixture() {
+  server.use(
+    fetchUnifiedResources('get', [
+      {
+        kind: 'app',
+        name: 'AppTestAzure',
+        uri: 'cloud://Azure',
+        labels: [{ name: 'env', value: 'test' }],
+      },
+    ])
+  );
+}
+
+async function defineIdentityAccessTypes(
+  user: UserEvent,
+  opts: { includeDesktops?: boolean } = {}
+) {
+  const { includeDesktops = true } = opts;
+
+  await goToAccessTab('app_labels', user);
+  await clickLabelAndWaitForRender('AppTestAzure', user);
+
+  server.use(...makeHandlers([fetchUnifiedResources('get', null)]));
+
+  await goToAccessTab('db_labels', user);
+  await clickLabelAndWaitForRender('DbTestRow', user);
+
+  if (includeDesktops) {
+    await goToAccessTab('windows_desktop_labels', user);
+    await clickLabelAndWaitForRender('WindowsTestRow', user);
+
+    await goToAccessTab('linux_desktop_labels', user);
+    await clickLabelAndWaitForRender('LinuxTestRow', user);
+  }
+
+  await goToAccessTab('kubernetes_labels', user);
+  await clickLabelAndWaitForRender('KubeClusterTestRow', user);
+
+  await goToAccessTab('node_labels', user);
+  await clickLabelAndWaitForRender('NodeTestRow', user);
+}
+
+async function defineGitServerAccess(user: UserEvent) {
+  await goToAccessTab('github_permissions', user);
+  const reactSelectInput = screen.getByRole('combobox');
+  await act(async () => {
+    await selectEvent.select(reactSelectInput, 'GitServerTestRow');
+  });
+  expect(screen.getByText('GitServerTestRow')).toBeInTheDocument();
+}
 
 async function startGuide(user: UserEvent) {
   // Fill in required name and start the guide.
   await screen.findByText(/Select a guide/i);
-  await user.type(
-    screen.getByPlaceholderText(/Access List name/i),
-    'Test Access List'
-  );
+  await user.click(screen.getByPlaceholderText(/Access List name/i));
+  await user.paste('Test Access List');
   await user.click(screen.getByRole('button', { name: /start guide/i }));
 
   await screen.findByText(/define application access/i);
@@ -758,7 +711,7 @@ async function startGuide(user: UserEvent) {
 }
 
 async function clickLabelAndWaitForRender(id: string, user: UserEvent) {
-  let targetRow = screen.getByTestId(id);
+  let targetRow = await screen.findByTestId(id);
   await user.click(within(targetRow).getByTitle(/env: test/i));
   act(mio.enterAll);
   await screen.findByText(id);

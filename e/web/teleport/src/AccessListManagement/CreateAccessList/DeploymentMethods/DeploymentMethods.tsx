@@ -16,8 +16,16 @@ import { cancelPrompt } from '../types';
 import { ErrorCreatingAccessListDialog } from './ErrorCreatingAccessListDialog';
 
 export function DeploymentMethods() {
-  const { spec, onCreate, createAttempt, setCreateAttempt, members, owners } =
-    useCreateAccessList();
+  const {
+    spec,
+    onCreate,
+    createAttempt,
+    setCreateAttempt,
+    members,
+    owners,
+    requiresCleanup,
+    dismissCleanupError,
+  } = useCreateAccessList();
 
   const { guideEditor } = useAccessListManagementContext();
   const {
@@ -74,6 +82,7 @@ export function DeploymentMethods() {
               }
               button={
                 <PaneButton
+                  disabled={createAttempt.status === 'processing'}
                   onClick={() => {
                     setDeploymentView('terraform');
                   }}
@@ -105,11 +114,16 @@ export function DeploymentMethods() {
                       </PaneButton>
                     }
                   />
-                  {createAttempt.status === 'failed' && (
+                  {(createAttempt.status === 'failed' ||
+                    requiresCleanup?.error) && (
                     <ErrorCreatingAccessListDialog
                       error={createAttempt.statusText}
-                      onCancel={() => setCreateAttempt({ status: '' })}
+                      onCancel={() => {
+                        setCreateAttempt({ status: '' });
+                        dismissCleanupError();
+                      }}
                       retry={() => handleCreate(validator)}
+                      requiresCleanup={requiresCleanup}
                     />
                   )}
                 </>
@@ -130,7 +144,10 @@ export function DeploymentMethods() {
           />
         </Flex>
       </Box>
-      <StepButtons hideNextBtn />
+      <StepButtons
+        hideNextBtn
+        disabled={createAttempt.status === 'processing'}
+      />
       {deploymentView === '' && <Prompt when message={cancelPrompt} />}
     </>
   );

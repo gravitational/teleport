@@ -147,6 +147,12 @@ describe('going through different guides', () => {
           startKey: '',
         });
       }),
+      http.get(`${accessListPath}/:id`, () => {
+        return HttpResponse.json(
+          { error: { message: 'not found' } },
+          { status: 404 }
+        );
+      }),
       // Mock MFA challenge endpoint - return empty challenge (MFA not required)
       http.post(mfaChallengePath, () => {
         return HttpResponse.json({});

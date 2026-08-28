@@ -5,6 +5,7 @@ import cfg from 'e-teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 import { makeTraits } from 'teleport/services/user/makeUser';
 import {
   isPathNotFoundError,
@@ -170,26 +171,28 @@ export const accessManagementService = {
       .then(resp => makeAccessList(resp.accessList));
   },
   async createAccessListWithPreset(
-    req: AccessListWithPresetRequest
+    req: AccessListWithPresetRequest,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<AccessList> {
-    // Reusable token is required b/c endpoint makes
-    // 2x grpc calls that both require re-authn.
-    const challenge = await auth.getMfaChallenge({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse: true,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
-
-    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+    if (!mfaResponse) {
+      // Reusable token is required b/c endpoint makes
+      // 2x grpc calls that both require re-authn.
+      const challenge = await auth.getMfaChallenge({
+        scope: MfaChallengeScope.ADMIN_ACTION,
+        allowReuse: true,
+        isMfaRequiredRequest: {
+          admin_action: {},
+        },
+      });
+      mfaResponse = await auth.getMfaChallengeResponse(challenge);
+    }
 
     return api
       .post(
         cfg.getAccessListWithPresetUrl({ action: 'create' }),
         req,
         undefined,
-        challengeResponse
+        mfaResponse
       )
       .then(resp => makeAccessList(resp.accessList));
   },
@@ -222,6 +225,21 @@ export const accessManagementService = {
         accessList: makeAccessList(resp.accessList),
         rolesToBeDeleted: resp.rolesToBeDeleted ?? [],
       }));
+  },
+  async deleteAccessListWithPreset(
+    accessListId: string,
+    mfaResponse?: MfaChallengeResponse
+  ): Promise<string[]> {
+    if (!mfaResponse) {
+      mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+    }
+    return api
+      .delete(
+        cfg.getAccessListWithPresetUrl({ action: 'delete', accessListId }),
+        null,
+        mfaResponse
+      )
+      .then(resp => resp?.roles ?? []);
   },
   reviewAccessList(req: ReviewAccessListRequest): Promise<Date> {
     const madeReq = {
@@ -435,6 +453,14 @@ function getPresetTypeFromMetadataLabel(labels: object): AccessListPreset {
     return '';
   }
   return labels['teleport.internal/access-list-preset'] ?? '';
+}
+
+export function getPresetRolesFromMetadataLabel(labels: object): string[] {
+  if (!labels) {
+    return [];
+  }
+  const roles = labels['teleport.internal/access-list-preset-roles'];
+  return roles ? roles.split(',') : [];
 }
 
 export function makeAccessList(json: any): AccessList {

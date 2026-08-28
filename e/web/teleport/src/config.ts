@@ -151,6 +151,7 @@ const cfg = {
     accessListPreset: {
       create: '/v1/enterprise/accesslistpreset',
       update: '/v1/enterprise/accesslistpreset/:accessListId',
+      delete: '/v1/enterprise/accesslistpreset/:accessListId',
       terraform: '/v1/enterprise/generate/terraform/accesslist',
     },
 
@@ -391,6 +392,7 @@ const cfg = {
     req:
       | { action: 'create' | 'terraform' }
       | { action: 'update'; accessListId: string }
+      | { action: 'delete'; accessListId: string }
   ) {
     const action = req.action;
     switch (action) {
@@ -400,6 +402,10 @@ const cfg = {
         return generatePath(cfg.api.accessListPreset.terraform);
       case 'update':
         return generatePath(cfg.api.accessListPreset.update, {
+          accessListId: req.accessListId,
+        });
+      case 'delete':
+        return generatePath(cfg.api.accessListPreset.delete, {
           accessListId: req.accessListId,
         });
       default:

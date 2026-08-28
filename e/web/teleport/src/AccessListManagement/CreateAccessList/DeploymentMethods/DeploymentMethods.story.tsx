@@ -120,6 +120,35 @@ export function ErrorDialog() {
   );
 }
 
+export function ErrorDialogWithAclCleanupError() {
+  return (
+    <ErrorCreatingAccessListDialog
+      error=""
+      onCancel={() => {}}
+      retry={() => {}}
+      requiresCleanup={{
+        accessListId: 'new-acl-id',
+        error: 'failed to delete access list',
+      }}
+    />
+  );
+}
+
+export function ErrorDialogWithRoleCleanupError() {
+  return (
+    <ErrorCreatingAccessListDialog
+      error="original error"
+      onCancel={() => {}}
+      retry={() => {}}
+      requiresCleanup={{
+        error: 'failed to delete access list',
+        roles: ['role-a', 'role-b'],
+        accessListId: 'new-acl-id',
+      }}
+    />
+  );
+}
+
 function Provider({ children }: { children: React.ReactNode }) {
   const spec: Spec = {
     title: 'Engineering Access',
