@@ -57,11 +57,16 @@ func (c *Command) anyMemberUpdateFlagSet() bool {
 	return c.membersSet || c.memberAccessListsSet
 }
 
+func (c *Command) anyAuditFlagsSet() bool {
+	return c.auditFrequencySet || c.auditDaySet
+}
+
 func (c *Command) anyNonMemberUpdateFlagSet() bool {
-	return c.titleSet || c.descriptionSet || c.auditFrequencySet || c.auditDaySet ||
+	return c.titleSet || c.descriptionSet ||
 		c.ownersSet || c.ownerAccessListsSet || c.ownerRequiredRolesSet || c.ownerRequiredTraitsSet ||
 		c.memberRequiredRolesSet || c.memberRequiredTraitsSet ||
 		c.removeAccess ||
 		c.anyGrantsSet() ||
-		c.anyAccessFlagsSet()
+		c.anyAccessFlagsSet() ||
+		c.anyAuditFlagsSet()
 }

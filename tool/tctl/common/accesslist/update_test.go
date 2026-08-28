@@ -17,6 +17,7 @@
 package accesslist
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -28,6 +29,55 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/accesslists/preset"
 )
+
+func TestUpdateRejectsBadParams(t *testing.T) {
+	tests := []struct {
+		name            string
+		cmd             Command
+		wantErrContains string
+	}{
+		{
+			name:            "no update flags",
+			wantErrContains: "no update flags are set",
+		},
+		{
+			name: "iac and format",
+			cmd: Command{
+				titleSet:  true,
+				title:     "New Title",
+				iac:       iacTerraform,
+				formatSet: true,
+			},
+			wantErrContains: "--iac and --format cannot be combined",
+		},
+		{
+			name: "audit frequency with terraform iac",
+			cmd: Command{
+				iac:               iacTerraform,
+				auditFrequencySet: true,
+				auditFrequency:    6,
+			},
+			wantErrContains: "are not supported with --iac=terraform",
+		},
+		{
+			name: "audit day with terraform iac",
+			cmd: Command{
+				iac:         iacTerraform,
+				auditDaySet: true,
+				auditDay:    15,
+			},
+			wantErrContains: "are not supported with --iac=terraform",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Update(context.Background(), nil)
+			require.True(t, trace.IsBadParameter(err))
+			require.Contains(t, err.Error(), tt.wantErrContains)
+		})
+	}
+}
 
 func TestApplySpecFlags(t *testing.T) {
 	tests := []struct {
