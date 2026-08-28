@@ -6097,6 +6097,18 @@ func splitAccessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) (*pr
 	return &reqCopy, searchKeywords
 }
 
+func formatUserWithResolvedDisplay(ctx context.Context, getter services.UserGetter, username string) (string, error) {
+	displays, err := services.ResolveUserDisplays(ctx, getter, []string{username})
+	if err != nil {
+		return username, trace.Wrap(err)
+	}
+	primaryDisplay := displays[username].Primary
+	if primaryDisplay == "" {
+		return username, nil
+	}
+	return fmt.Sprintf("%s (%s)", primaryDisplay, username), nil
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
@@ -6234,19 +6246,24 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		ResourceKinds: apiutils.Deduplicate(resources),
 	})
 
+	requesterDisplay, displayErr := formatUserWithResolvedDisplay(ctx, a, req.GetUser())
+	if displayErr != nil {
+		a.logger.WarnContext(ctx, "Failed to resolve requester display for access request notification", "error", displayErr)
+	}
+
 	// Create a notification.
 	var notificationText string
 	// If this is a resource request.
 	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s requested access to %d resources.", req.GetUser(), len(req.GetAllRequestedResourceIDs()))
+		notificationText = fmt.Sprintf("%s requested access to %d resources.", requesterDisplay, len(req.GetAllRequestedResourceIDs()))
 		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s requested access to a resource.", req.GetUser())
+			notificationText = fmt.Sprintf("%s requested access to a resource.", requesterDisplay)
 		}
 		// If this is a role request.
 	} else {
-		notificationText = fmt.Sprintf("%s requested access to the '%s' role.", req.GetUser(), req.GetRoles()[0])
+		notificationText = fmt.Sprintf("%s requested access to the '%s' role.", requesterDisplay, req.GetRoles()[0])
 		if len(req.GetRoles()) > 1 {
-			notificationText = fmt.Sprintf("%s requested access to %d roles.", req.GetUser(), len(req.GetRoles()))
+			notificationText = fmt.Sprintf("%s requested access to %d roles.", requesterDisplay, len(req.GetRoles()))
 		}
 	}
 
@@ -6582,7 +6599,11 @@ func (a *Server) submitAccessReview(
 
 	// Create a notification.
 	if !req.GetState().IsPending() {
-		_, err = a.Services.CreateUserNotification(ctx, generateAccessRequestReviewedNotification(req, params))
+		actorDisplay, displayErr := formatUserWithResolvedDisplay(ctx, a, params.Review.Author)
+		if displayErr != nil {
+			a.logger.DebugContext(ctx, "Failed to resolve reviewer display for access request notification", "error", displayErr)
+		}
+		_, err = a.Services.CreateUserNotification(ctx, generateAccessRequestReviewedNotification(req, params, actorDisplay))
 		if err != nil {
 			a.logger.DebugContext(ctx, "Failed to emit access request reviewed notification", "error", err)
 		}
@@ -6631,7 +6652,7 @@ func prehogProposedStateFromRequestState(state types.RequestState) prehogv1a.Acc
 
 // generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their
 // access request being approved or denied.
-func generateAccessRequestReviewedNotification(req types.AccessRequest, params types.AccessReviewSubmission) *notificationsv1.Notification {
+func generateAccessRequestReviewedNotification(req types.AccessRequest, params types.AccessReviewSubmission, actorDisplay string) *notificationsv1.Notification {
 	var subKind string
 	var reviewVerb string
 
@@ -6647,19 +6668,19 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 
 	var notificationText string
 	if req.GetState().IsPromoted() {
-		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", params.Review.Author)
+		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", actorDisplay)
 	} else {
 		// If this was a resource request.
 		if len(req.GetRequestedResourceIDs()) > 0 {
-			notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
+			notificationText = fmt.Sprintf("%s %s your access request for %d resources.", actorDisplay, reviewVerb, len(req.GetRequestedResourceIDs()))
 			if len(req.GetRequestedResourceIDs()) == 1 {
-				notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
+				notificationText = fmt.Sprintf("%s %s your access request for a resource.", actorDisplay, reviewVerb)
 			}
 			// If this was a role request.
 		} else {
-			notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
+			notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", actorDisplay, reviewVerb, req.GetRoles()[0])
 			if len(req.GetRoles()) > 1 {
-				notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+				notificationText = fmt.Sprintf("%s %s your access request for %d roles.", actorDisplay, reviewVerb, len(req.GetRoles()))
 			}
 		}
 	}
