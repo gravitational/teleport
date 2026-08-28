@@ -4980,7 +4980,7 @@ func testCreateUserWithRoles(t *testing.T, server *authtest.TLSServer, user stri
 
 func TestAccessRequestNotifications(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	fakeClock := clockwork.NewFakeClock()
 
@@ -5015,6 +5015,11 @@ func TestAccessRequestNotifications(t *testing.T) {
 	reviewer, reviewerClient := testCreateUserWithRoles(t, testTLSServer, reviewerUsername, reviewerRole.GetName())
 
 	requester, _ := testCreateUserWithRoles(t, testTLSServer, requesterUsername, requesterRole.GetName())
+	reviewerUser, err := testTLSServer.AuthServer.AuthServer.GetUser(ctx, reviewerUsername, false)
+	require.NoError(t, err)
+	reviewerUser.SetTraits(map[string][]string{"displayName": {"Review User"}})
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, reviewerUser)
+	require.NoError(t, err)
 
 	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
 	require.NoError(t, err)
@@ -5028,6 +5033,7 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.Equal(t, &types.AccessReviewConditions{
 		Roles: []string{requestRole.GetName()},
 	}, globalNotifsResp[0].GetSpec().GetByPermissions().GetRoleConditions()[0].ReviewRequests)
+	require.Equal(t, "requester requested access to the 'requestRole' role.", globalNotifsResp[0].GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationTitleLabel])
 
 	// Approve the request
 	_, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
@@ -5041,7 +5047,7 @@ func TestAccessRequestNotifications(t *testing.T) {
 	userNotifsResp, _, err := testTLSServer.AuthServer.AuthServer.Notifications.ListUserNotifications(ctx, 100, "")
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 1)
-	require.Contains(t, userNotifsResp[0].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer approved your access request")
+	require.Equal(t, "Review User (reviewer) approved your access request for the 'requestRole' role.", userNotifsResp[0].GetMetadata().GetLabels()[types.NotificationTitleLabel])
 
 	// Create another access request.
 	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requester.GetUsername(), requestRole.GetName())
@@ -5061,7 +5067,7 @@ func TestAccessRequestNotifications(t *testing.T) {
 	userNotifsResp, _, err = testTLSServer.AuthServer.AuthServer.Notifications.ListUserNotifications(ctx, 100, "")
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 2)
-	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
+	require.Equal(t, "Review User (reviewer) denied your access request for the 'requestRole' role.", userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel])
 }
 
 func testNewAccessRequest(t *testing.T, user string, roles ...string) types.AccessRequest {
