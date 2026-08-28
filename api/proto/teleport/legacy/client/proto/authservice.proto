@@ -2679,6 +2679,65 @@ message GetGithubAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+// ValidateGithubAuthCallbackRequest is the request for the
+// ValidateGithubAuthCallback RPC.
+message ValidateGithubAuthCallbackRequest {
+  // Query is the query string parameters from the GitHub OAuth2 callback
+  // redirect.
+  map<string, wrappers.StringValues> Query = 1;
+}
+
+// ValidateGithubAuthCallbackResponse is the response for the
+// ValidateGithubAuthCallback RPC.
+message ValidateGithubAuthCallbackResponse {
+  // RequestInfo echoes fields of the original Github auth request back to the
+  // Proxy.
+  message RequestInfo {
+    // ConnectorID is the name of the connector in use.
+    string ConnectorID = 1;
+    // CSRFToken is used to protect against CSRF attacks.
+    string CSRFToken = 2;
+    // SSHPubKey is the SSH public key requested as the subject of the user's
+    // SSH certificate, in SSH authorized_keys format.
+    bytes SSHPubKey = 3;
+    // TLSPubKey is the TLS public key requested as the subject of the user's
+    // TLS certificate, in PEM-encoded PKCS#1 or PKIX format.
+    bytes TLSPubKey = 4;
+    // CreateWebSession indicates that the user wants a web session after
+    // successful authentication.
+    bool CreateWebSession = 5;
+    // ClientRedirectURL is the URL the client will be redirected to after
+    // successful auth.
+    string ClientRedirectURL = 6;
+  }
+
+  // Username is the name of the authenticated Teleport user.
+  string Username = 1;
+  // Identity is the validated external identity.
+  types.ExternalIdentity Identity = 2;
+  // Session is the web session created for the user, if one was requested.
+  types.WebSessionV2 Session = 3;
+  // Cert is the generated SSH client certificate.
+  bytes Cert = 4;
+  // TLSCert is the PEM-encoded TLS client certificate.
+  bytes TLSCert = 5;
+  // Req echoes the original auth request.
+  RequestInfo Req = 6;
+  // HostSigners is a list of signing host public keys trusted by the proxy,
+  // used in console login.
+  repeated types.CertAuthorityV2 HostSigners = 7;
+  // ClientOptions contains options the cluster wants the client to use.
+  LoginClientOptions ClientOptions = 8;
+}
+
+// LoginClientOptions contains options passed from the control plane to the
+// client at login time, shared by the login-style responses.
+message LoginClientOptions {
+  // DefaultRelayAddr is the cluster-specified address of the relay in use,
+  // to be used if the client does not otherwise specify a relay.
+  string DefaultRelayAddr = 1;
+}
+
 message ListOIDCConnectorsRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -3635,6 +3694,9 @@ service AuthService {
   rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
   // GetGithubAuthRequest returns Github auth request if found.
   rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
+  // ValidateGithubAuthCallback is called by the Proxy to validate the GitHub
+  // OAuth2 callback and issue the user's session and certificates.
+  rpc ValidateGithubAuthCallback(ValidateGithubAuthCallbackRequest) returns (ValidateGithubAuthCallbackResponse);
 
   // GetSSODiagnosticInfo returns SSO diagnostic info records.
   rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);

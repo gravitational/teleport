@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/url"
@@ -931,49 +932,115 @@ func TestGithubAuthCompat(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Create the request over gRPC, this simulates to proxy creating the
-			// initial request.
-			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
-				ConnectorID:  connector.GetName(),
-				Type:         constants.Github,
-				SshPublicKey: tc.sshPubKey,
-				TlsPublicKey: tc.tlsPubKey,
-				CertTTL:      apidefaults.MinCertDuration,
-			})
-			require.NoError(t, err)
+			// Validation runs over both the gRPC RPC used by proxies on v19+
+			// and the legacy HTTP endpoint still used by older proxies.
+			// TODO(strideynet): DELETE the http transport IN v20.0.0 along
+			// with the legacy endpoint.
+			for _, transport := range []struct {
+				name      string
+				roundtrip func(t *testing.T, q url.Values) *authclient.GithubAuthResponse
+			}{
+				{
+					name: "grpc",
+					roundtrip: func(t *testing.T, q url.Values) *authclient.GithubAuthResponse {
+						// Call the gRPC client directly rather than via the
+						// authclient.Client wrapper, so a broken RPC can't be
+						// masked by the wrapper's HTTP fallback.
+						resp, err := proxyClient.APIClient.ValidateGithubAuthCallback(t.Context(),
+							authclient.ValidateGithubAuthCallbackRequestToProto(q))
+						require.NoError(t, err)
+						return authclient.GithubAuthResponseFromProto(resp)
+					},
+				},
+				{
+					name: "http",
+					roundtrip: func(t *testing.T, q url.Values) *authclient.GithubAuthResponse {
+						// Raw request pinning the legacy wire format sent by
+						// older proxies.
+						out, err := proxyClient.HTTPClient.PostJSON(t.Context(),
+							proxyClient.HTTPClient.Endpoint("github", "requests", "validate"),
+							struct {
+								Query url.Values `json:"query"`
+							}{Query: q})
+						require.NoError(t, err)
+						var raw struct {
+							Username      string                       `json:"username"`
+							Identity      types.ExternalIdentity       `json:"identity"`
+							Session       json.RawMessage              `json:"session"`
+							Cert          []byte                       `json:"cert"`
+							TLSCert       []byte                       `json:"tls_cert"`
+							Req           authclient.GithubAuthRequest `json:"req"`
+							HostSigners   []json.RawMessage            `json:"host_signers"`
+							ClientOptions authclient.ClientOptions     `json:"client_options"`
+						}
+						require.NoError(t, json.Unmarshal(out.Bytes(), &raw))
+						resp := &authclient.GithubAuthResponse{
+							Username:      raw.Username,
+							Identity:      raw.Identity,
+							Cert:          raw.Cert,
+							TLSCert:       raw.TLSCert,
+							Req:           raw.Req,
+							ClientOptions: raw.ClientOptions,
+						}
+						if len(raw.Session) != 0 {
+							session, err := services.UnmarshalWebSession(raw.Session)
+							require.NoError(t, err)
+							resp.Session = session
+						}
+						for _, rawCA := range raw.HostSigners {
+							ca, err := services.UnmarshalCertAuthority(rawCA)
+							require.NoError(t, err)
+							resp.HostSigners = append(resp.HostSigners, ca)
+						}
+						return resp
+					},
+				},
+			} {
+				t.Run(transport.name, func(t *testing.T) {
+					// Create the request over gRPC, this simulates to proxy creating the
+					// initial request.
+					req, err := proxyClient.CreateGithubAuthRequest(t.Context(), types.GithubAuthRequest{
+						ConnectorID:  connector.GetName(),
+						Type:         constants.Github,
+						SshPublicKey: tc.sshPubKey,
+						TlsPublicKey: tc.tlsPubKey,
+						CertTTL:      apidefaults.MinCertDuration,
+					})
+					require.NoError(t, err)
 
-			// Simulate the proxy redirecting the user to github, getting a
-			// response, and calling back to auth for validation.
-			resp, err := proxyClient.ValidateGithubAuthCallback(ctx, url.Values{
-				"code":  []string{"success"},
-				"state": []string{req.StateToken},
-			})
-			require.NoError(t, err)
+					// Simulate the proxy redirecting the user to github, getting a
+					// response, and calling back to auth for validation.
+					resp := transport.roundtrip(t, url.Values{
+						"code":  []string{"success"},
+						"state": []string{req.StateToken},
+					})
 
-			// The proxy should get back the keys exactly as it sent them.
-			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
-			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+					// The proxy should get back the keys exactly as it sent them.
+					require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+					require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 
-			// Make sure the subject key in the issued SSH cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectSSHSubjectKey != nil {
-				sshCert, err := sshutils.ParseCertificate(resp.Cert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
-			} else {
-				// No SSH cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.Cert)
-			}
+					// Make sure the subject key in the issued SSH cert matches the
+					// expected key and didn't get accidentally switched.
+					if tc.expectSSHSubjectKey != nil {
+						sshCert, err := sshutils.ParseCertificate(resp.Cert)
+						require.NoError(t, err)
+						require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+					} else {
+						// No SSH cert should be issued if we didn't ask for one.
+						require.Empty(t, resp.Cert)
+					}
 
-			// Make sure the subject key in the issued TLS cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectTLSSubjectKey != nil {
-				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
-			} else {
-				// No TLS cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.TLSCert)
+					// Make sure the subject key in the issued TLS cert matches the
+					// expected key and didn't get accidentally switched.
+					if tc.expectTLSSubjectKey != nil {
+						tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+						require.NoError(t, err)
+						require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+					} else {
+						// No TLS cert should be issued if we didn't ask for one.
+						require.Empty(t, resp.TLSCert)
+					}
+				})
 			}
 		})
 	}

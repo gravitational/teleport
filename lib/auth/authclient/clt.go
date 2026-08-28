@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -984,6 +985,10 @@ type SAMLAuthRequest struct {
 }
 
 // GithubAuthResponse represents Github auth callback validation response
+//
+// TODO(strideynet): once the legacy HTTP fallback is deleted in v20.0.0,
+// consider replacing GithubAuthResponse and GithubAuthRequest with the proto
+// representation throughout.
 type GithubAuthResponse struct {
 	// Username is the name of authenticated user
 	Username string `json:"username"`
@@ -1028,6 +1033,101 @@ type GithubAuthRequest struct {
 	// ClientRedirectURL is the URL where client will be redirected after
 	// successful auth.
 	ClientRedirectURL string `json:"client_redirect_url"`
+}
+
+// ValidateGithubAuthCallbackRequestToProto converts a GitHub OAuth2 callback
+// query to its proto representation.
+func ValidateGithubAuthCallbackRequestToProto(q url.Values) *proto.ValidateGithubAuthCallbackRequest {
+	query := make(map[string]*wrappers.StringValues, len(q))
+	for k, v := range q {
+		query[k] = &wrappers.StringValues{Values: v}
+	}
+	return &proto.ValidateGithubAuthCallbackRequest{Query: query}
+}
+
+// ValidateGithubAuthCallbackRequestFromProto converts the proto representation
+// of a GitHub OAuth2 callback query to its native representation.
+func ValidateGithubAuthCallbackRequestFromProto(req *proto.ValidateGithubAuthCallbackRequest) url.Values {
+	q := make(url.Values, len(req.Query))
+	for k, v := range req.Query {
+		if v != nil {
+			q[k] = v.Values
+		}
+	}
+	return q
+}
+
+// ToProto converts GithubAuthResponse to its proto representation.
+func (r *GithubAuthResponse) ToProto() (*proto.ValidateGithubAuthCallbackResponse, error) {
+	resp := &proto.ValidateGithubAuthCallbackResponse{
+		Username: r.Username,
+		Identity: &r.Identity,
+		Cert:     r.Cert,
+		TLSCert:  r.TLSCert,
+		Req: &proto.ValidateGithubAuthCallbackResponse_RequestInfo{
+			ConnectorID:       r.Req.ConnectorID,
+			CSRFToken:         r.Req.CSRFToken,
+			SSHPubKey:         r.Req.SSHPubKey,
+			TLSPubKey:         r.Req.TLSPubKey,
+			CreateWebSession:  r.Req.CreateWebSession,
+			ClientRedirectURL: r.Req.ClientRedirectURL,
+		},
+		ClientOptions: &proto.LoginClientOptions{
+			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
+		},
+	}
+	if r.Session != nil {
+		session, ok := r.Session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("expected web session to be of type types.WebSessionV2, got %T", r.Session)
+		}
+		resp.Session = session
+	}
+	resp.HostSigners = make([]*types.CertAuthorityV2, 0, len(r.HostSigners))
+	for _, certAuthority := range r.HostSigners {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter("expected certificate authority to be of type types.CertAuthorityV2, got %T", certAuthority)
+		}
+		resp.HostSigners = append(resp.HostSigners, cast)
+	}
+	return resp, nil
+}
+
+// GithubAuthResponseFromProto converts the proto representation of
+// GithubAuthResponse to its native representation.
+func GithubAuthResponseFromProto(resp *proto.ValidateGithubAuthCallbackResponse) *GithubAuthResponse {
+	r := &GithubAuthResponse{
+		Username: resp.Username,
+		Cert:     resp.Cert,
+		TLSCert:  resp.TLSCert,
+	}
+	if resp.Identity != nil {
+		r.Identity = *resp.Identity
+	}
+	if resp.Session != nil {
+		r.Session = resp.Session
+	}
+	if resp.Req != nil {
+		r.Req = GithubAuthRequest{
+			ConnectorID:       resp.Req.ConnectorID,
+			CSRFToken:         resp.Req.CSRFToken,
+			SSHPubKey:         resp.Req.SSHPubKey,
+			TLSPubKey:         resp.Req.TLSPubKey,
+			CreateWebSession:  resp.Req.CreateWebSession,
+			ClientRedirectURL: resp.Req.ClientRedirectURL,
+		}
+	}
+	if resp.ClientOptions != nil {
+		r.ClientOptions = ClientOptions{
+			DefaultRelayAddr: resp.ClientOptions.DefaultRelayAddr,
+		}
+	}
+	r.HostSigners = make([]types.CertAuthority, 0, len(resp.HostSigners))
+	for _, certAuthority := range resp.HostSigners {
+		r.HostSigners = append(r.HostSigners, certAuthority)
+	}
+	return r
 }
 
 // IdentityService manages identities and users

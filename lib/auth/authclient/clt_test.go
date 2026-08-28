@@ -27,6 +27,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -96,6 +97,55 @@ func TestValidateTrustedClusterResponseProto(t *testing.T) {
 	proto, err := native.ToProto()
 	require.NoError(t, err)
 	backToNative := ValidateTrustedClusterResponseFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestValidateGithubAuthCallbackRequestProto(t *testing.T) {
+	native := url.Values{
+		"code":  []string{"success"},
+		"state": []string{"fizz-buzz"},
+	}
+	backToNative := ValidateGithubAuthCallbackRequestFromProto(ValidateGithubAuthCallbackRequestToProto(native))
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestGithubAuthResponseProto(t *testing.T) {
+	session, err := types.NewWebSession("test-session", types.KindWebSession, types.WebSessionSpecV2{
+		User:        "alice",
+		Priv:        []byte("priv"),
+		Pub:         []byte("pub"),
+		TLSCert:     []byte("session-tls-cert"),
+		BearerToken: "bearer",
+	})
+	require.NoError(t, err)
+
+	native := &GithubAuthResponse{
+		Username: "alice",
+		Identity: types.ExternalIdentity{
+			ConnectorID: "github",
+			Username:    "alice",
+		},
+		Session: session,
+		Cert:    []byte("ssh-cert"),
+		TLSCert: []byte("tls-cert"),
+		Req: GithubAuthRequest{
+			ConnectorID:       "github",
+			CSRFToken:         "csrf-token",
+			SSHPubKey:         []byte("ssh-pub"),
+			TLSPubKey:         []byte("tls-pub"),
+			CreateWebSession:  true,
+			ClientRedirectURL: "https://localhost:3080/callback",
+		},
+		HostSigners: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+		},
+		ClientOptions: ClientOptions{
+			DefaultRelayAddr: "relay.example.com:443",
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := GithubAuthResponseFromProto(proto)
 	require.Empty(t, cmp.Diff(native, backToNative))
 }
 

@@ -188,6 +188,7 @@ const (
 	AuthService_DeleteGithubConnector_FullMethodName               = "/proto.AuthService/DeleteGithubConnector"
 	AuthService_CreateGithubAuthRequest_FullMethodName             = "/proto.AuthService/CreateGithubAuthRequest"
 	AuthService_GetGithubAuthRequest_FullMethodName                = "/proto.AuthService/GetGithubAuthRequest"
+	AuthService_ValidateGithubAuthCallback_FullMethodName          = "/proto.AuthService/ValidateGithubAuthCallback"
 	AuthService_GetSSODiagnosticInfo_FullMethodName                = "/proto.AuthService/GetSSODiagnosticInfo"
 	AuthService_GetServerInfos_FullMethodName                      = "/proto.AuthService/GetServerInfos"
 	AuthService_GetServerInfo_FullMethodName                       = "/proto.AuthService/GetServerInfo"
@@ -733,6 +734,9 @@ type AuthServiceClient interface {
 	CreateGithubAuthRequest(ctx context.Context, in *types.GithubAuthRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found.
 	GetGithubAuthRequest(ctx context.Context, in *GetGithubAuthRequestRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
+	// ValidateGithubAuthCallback is called by the Proxy to validate the GitHub
+	// OAuth2 callback and issue the user's session and certificates.
+	ValidateGithubAuthCallback(ctx context.Context, in *ValidateGithubAuthCallbackRequest, opts ...grpc.CallOption) (*ValidateGithubAuthCallbackResponse, error)
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(ctx context.Context, in *GetSSODiagnosticInfoRequest, opts ...grpc.CallOption) (*types.SSODiagnosticInfo, error)
 	// GetServerInfos returns a stream of ServerInfos.
@@ -2717,6 +2721,16 @@ func (c *authServiceClient) GetGithubAuthRequest(ctx context.Context, in *GetGit
 	return out, nil
 }
 
+func (c *authServiceClient) ValidateGithubAuthCallback(ctx context.Context, in *ValidateGithubAuthCallbackRequest, opts ...grpc.CallOption) (*ValidateGithubAuthCallbackResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateGithubAuthCallbackResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateGithubAuthCallback_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetSSODiagnosticInfo(ctx context.Context, in *GetSSODiagnosticInfoRequest, opts ...grpc.CallOption) (*types.SSODiagnosticInfo, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.SSODiagnosticInfo)
@@ -4408,6 +4422,9 @@ type AuthServiceServer interface {
 	CreateGithubAuthRequest(context.Context, *types.GithubAuthRequest) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found.
 	GetGithubAuthRequest(context.Context, *GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error)
+	// ValidateGithubAuthCallback is called by the Proxy to validate the GitHub
+	// OAuth2 callback and issue the user's session and certificates.
+	ValidateGithubAuthCallback(context.Context, *ValidateGithubAuthCallbackRequest) (*ValidateGithubAuthCallbackResponse, error)
 	// GetSSODiagnosticInfo returns SSO diagnostic info records.
 	GetSSODiagnosticInfo(context.Context, *GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error)
 	// GetServerInfos returns a stream of ServerInfos.
@@ -5208,6 +5225,9 @@ func (UnimplementedAuthServiceServer) CreateGithubAuthRequest(context.Context, *
 }
 func (UnimplementedAuthServiceServer) GetGithubAuthRequest(context.Context, *GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGithubAuthRequest not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateGithubAuthCallback(context.Context, *ValidateGithubAuthCallbackRequest) (*ValidateGithubAuthCallbackResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateGithubAuthCallback not implemented")
 }
 func (UnimplementedAuthServiceServer) GetSSODiagnosticInfo(context.Context, *GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSSODiagnosticInfo not implemented")
@@ -8201,6 +8221,24 @@ func _AuthService_GetGithubAuthRequest_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ValidateGithubAuthCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateGithubAuthCallbackRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateGithubAuthCallback(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateGithubAuthCallback_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateGithubAuthCallback(ctx, req.(*ValidateGithubAuthCallbackRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetSSODiagnosticInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSSODiagnosticInfoRequest)
 	if err := dec(in); err != nil {
@@ -10948,6 +10986,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubAuthRequest",
 			Handler:    _AuthService_GetGithubAuthRequest_Handler,
+		},
+		{
+			MethodName: "ValidateGithubAuthCallback",
+			Handler:    _AuthService_ValidateGithubAuthCallback_Handler,
 		},
 		{
 			MethodName: "GetSSODiagnosticInfo",

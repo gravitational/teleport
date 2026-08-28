@@ -3617,6 +3617,24 @@ func (g *GRPCServer) GetGithubAuthRequest(ctx context.Context, req *authpb.GetGi
 	return request, nil
 }
 
+// ValidateGithubAuthCallback is called by the Proxy to validate the GitHub
+// OAuth2 callback and issue the user's session and certificates.
+func (g *GRPCServer) ValidateGithubAuthCallback(ctx context.Context, req *authpb.ValidateGithubAuthCallbackRequest) (*authpb.ValidateGithubAuthCallbackResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.ValidateGithubAuthCallback(ctx, authclient.ValidateGithubAuthCallbackRequestFromProto(req))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := response.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native GithubAuthResponse to proto representation")
+	}
+	return protoResp, nil
+}
+
 // GetSSODiagnosticInfo gets a SSO diagnostic info for a specific SSO auth request.
 func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *authpb.GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error) {
 	auth, err := g.authenticate(ctx)
