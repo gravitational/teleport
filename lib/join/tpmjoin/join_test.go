@@ -139,6 +139,7 @@ func TestJoinTPM(t *testing.T) {
 		{
 			desc: "success, both ek cert serial and ek pub hash match",
 			tokenSpec: &types.ProvisionTokenSpecV2TPM{
+				EKCertAllowedCAs: []string{string(goodTPMCA.caCertPEM)},
 				Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
 					{
 						EKPublicHash:        goodTPMPubHash,
@@ -150,8 +151,9 @@ func TestJoinTPM(t *testing.T) {
 			tpmCert:     tpmCert1,
 			assertError: require.NoError,
 			expectJoinAttrs: verifiedAttrs{
-				ekPubHash:    goodTPMPubHash,
-				ekCertSerial: tpmCertSerial1,
+				ekPubHash:      goodTPMPubHash,
+				ekCertSerial:   tpmCertSerial1,
+				ekCertVerified: true,
 			},
 		},
 		{
@@ -529,6 +531,7 @@ func TestJoinTPMScoped(t *testing.T) {
 		{
 			desc: "success, both ek cert serial and ek pub hash match",
 			tokenSpec: joiningv1.TPM_builder{
+				EkcertAllowedCas: []string{string(goodTPMCA.caCertPEM)},
 				Allow: []*joiningv1.TPM_Rule{
 					joiningv1.TPM_Rule_builder{
 						EkPublicHash:        goodTPMPubHash,
@@ -540,8 +543,9 @@ func TestJoinTPMScoped(t *testing.T) {
 			tpmCert:     tpmCert1,
 			assertError: require.NoError,
 			expectJoinAttrs: verifiedAttrs{
-				ekPubHash:    goodTPMPubHash,
-				ekCertSerial: tpmCertSerial1,
+				ekPubHash:      goodTPMPubHash,
+				ekCertSerial:   tpmCertSerial1,
+				ekCertVerified: true,
 			},
 		},
 		{

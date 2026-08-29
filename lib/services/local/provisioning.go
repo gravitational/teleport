@@ -414,7 +414,14 @@ func validateTPMToken(token types.ProvisionToken) error {
 	if len(tpmSpec.EKCertAllowedCAs) > 0 {
 		return nil
 	}
+
 	for i, rule := range tpmSpec.Allow {
+		// Note that the corresponding verification for scoped tokens does not
+		// allow ek_certificate_serial without ekcert_allowed_cas. This change
+		// is meant to make rules easier to reason about (clients can lie about
+		// serials, so we should at least verify against the CA that signed it)
+		// but enforcing the rule would be a breaking change here, so
+		// ProvisionTokenV2 can still use serial+hash.
 		if rule.EKCertificateSerial != "" && rule.EKPublicHash == "" {
 			return trace.BadParameter(
 				"allow[%d]: ek_certificate_serial requires ek_public_hash or ekcert_allowed_cas to be set so that the EK certificate can be verified", i)

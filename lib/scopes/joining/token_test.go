@@ -1346,6 +1346,7 @@ func TestValidateScopedToken(t *testing.T) {
 				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
 
 				tok.GetSpec().SetTpm(joiningv1.TPM_builder{
+					EkcertAllowedCas: []string{fixtures.TLSCACertPEM},
 					Allow: []*joiningv1.TPM_Rule{
 						joiningv1.TPM_Rule_builder{
 							Description:         "example rule",
@@ -1398,7 +1399,7 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "at least one of ['ek_public_hash', 'ek_certificate_serial'] must be set",
 		},
 		{
-			name: "tpm token with serial missing required hash",
+			name: "tpm token with serial missing required CAs",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetJoinMethod(string(types.JoinMethodTPM))
 
@@ -1411,8 +1412,8 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}.Build())
 			},
-			expectedStrongErr: "ek_certificate_serial requires ek_public_hash",
-			expectedWeakErr:   "ek_certificate_serial requires ek_public_hash",
+			expectedStrongErr: "ek_certificate_serial requires ekcert_allowed_cas to be set",
+			expectedWeakErr:   "ek_certificate_serial requires ekcert_allowed_cas to be set",
 		},
 		{
 			name: "tpm token with serial and certs is allowed",
