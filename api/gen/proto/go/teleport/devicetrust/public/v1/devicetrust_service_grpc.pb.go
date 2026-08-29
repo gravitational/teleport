@@ -63,6 +63,10 @@ type DeviceTrustServiceClient interface {
 	// drops the call before the user accepts the attempt. Note that subsequent
 	// calls with the same enroll pairing token are allowed only if os_type and
 	// serial_number from device_data match those from the initial call.
+	//
+	// Transient backend failures are returned as Unavailable errors and are safe
+	// to retry. FailedPrecondition means that a concurrent request won and
+	// consumed the token.
 	CreatePairedDeviceEnrollToken(ctx context.Context, in *CreatePairedDeviceEnrollTokenRequest, opts ...grpc.CallOption) (*CreatePairedDeviceEnrollTokenResponse, error)
 }
 
@@ -111,6 +115,10 @@ type DeviceTrustServiceServer interface {
 	// drops the call before the user accepts the attempt. Note that subsequent
 	// calls with the same enroll pairing token are allowed only if os_type and
 	// serial_number from device_data match those from the initial call.
+	//
+	// Transient backend failures are returned as Unavailable errors and are safe
+	// to retry. FailedPrecondition means that a concurrent request won and
+	// consumed the token.
 	CreatePairedDeviceEnrollToken(context.Context, *CreatePairedDeviceEnrollTokenRequest) (*CreatePairedDeviceEnrollTokenResponse, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
