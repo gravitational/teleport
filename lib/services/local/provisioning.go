@@ -111,8 +111,8 @@ func (s *ProvisioningService) AppendDeleteProvisionTokenActions(
 // a revision comparison failure.
 //
 // Unlike CreateToken/UpsertToken, this skips validateProvisionToken admission
-// checks. Safe only while no user-facing RPC reaches it; if one is added,
-// validate here too.
+// checks, it is the caller's responsibility to ensure any necessary checks are
+// still performed.
 func (s *ProvisioningService) PatchToken(
 	ctx context.Context,
 	tokenName string,
@@ -147,19 +147,20 @@ func (s *ProvisioningService) PatchToken(
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
-		item, err := itemFromProvisionToken(updated)
+		// Use AtomicWrite so we can inherit the shared ProvisionToken actions
+		// (vs using ConditionalUpdate())
+		actions, err := s.AppendPutProvisionTokenActions(nil, updated, backend.Revision(existing.GetRevision()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		lease, err := s.ConditionalUpdate(ctx, *item)
+		rev, err := s.AtomicWrite(ctx, actions)
 		if trace.IsCompareFailed(err) {
 			continue
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		updated.SetRevision(lease.Revision)
+		updated.SetRevision(rev)
 		return updated, nil
 	}
 
