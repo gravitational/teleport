@@ -1,4 +1,4 @@
-package devicetrustv1_test
+package testenv
 
 import (
 	"context"
@@ -12,21 +12,21 @@ import (
 
 const keyedEmitterKey = "keyedemitter.key"
 
-// withOutgoingEmitterKey assigns a [keyedEmitter] key to an outgoing context.
-func withOutgoingEmitterKey(ctx context.Context, key string) context.Context {
+// WithOutgoingEmitterKey assigns a [KeyedEmitter] key to an outgoing context.
+func WithOutgoingEmitterKey(ctx context.Context, key string) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, keyedEmitterKey, key)
 }
 
-// keyedEmitter is an [apievents.Emitter] that assigns events to user-supplied
+// KeyedEmitter is an [apievents.Emitter] that assigns events to user-supplied
 // keys.
 //
-// See [withOutgoingEmitterKey].
-type keyedEmitter struct {
+// See [WithOutgoingEmitterKey].
+type KeyedEmitter struct {
 	mu     sync.Mutex
 	events map[string][]apievents.AuditEvent // keyed by ctx key
 }
 
-func (e *keyedEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (e *KeyedEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	var key string
 
 	// Find the ctx key. If absent we record the events against the empty string.
@@ -47,7 +47,7 @@ func (e *keyedEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	return nil
 }
 
-func (e *keyedEmitter) Events(key string) []apievents.AuditEvent {
+func (e *KeyedEmitter) Events(key string) []apievents.AuditEvent {
 	e.mu.Lock()
 	val := e.events[key]
 	e.mu.Unlock()
@@ -55,7 +55,7 @@ func (e *keyedEmitter) Events(key string) []apievents.AuditEvent {
 	return slices.Clone(val)
 }
 
-func (e *keyedEmitter) LastEvent(key string) apievents.AuditEvent {
+func (e *KeyedEmitter) LastEvent(key string) apievents.AuditEvent {
 	e.mu.Lock()
 	val := e.events[key]
 	e.mu.Unlock()

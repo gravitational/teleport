@@ -250,7 +250,7 @@ func (k *fakeEnclaveKey) simulator(opts ...fakeEnclaveKeySimOpt) simulator {
 type outgoingContextParams struct {
 	User       string // User used for contextWithUser.
 	SourceIP   string // IP used for testenv.WithOutgoingClientSourceAddr.
-	EmitterKey string // Key used for withOutgoingEmitterKey.
+	EmitterKey string // Key used for testenv.WithOutgoingEmitterKey.
 }
 
 func configureOutgoingContext(parent context.Context, params outgoingContextParams) context.Context {
@@ -269,7 +269,7 @@ func configureOutgoingContext(parent context.Context, params outgoingContextPara
 		)
 	}
 	if params.EmitterKey != "" {
-		outCtx = withOutgoingEmitterKey(outCtx, params.EmitterKey)
+		outCtx = testenv.WithOutgoingEmitterKey(outCtx, params.EmitterKey)
 	}
 
 	return outCtx

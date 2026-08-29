@@ -1,8 +1,11 @@
 package devicetrustpublicv1
 
-import (
-	"github.com/gravitational/trace"
-)
+const EnrollPairingApprovalTimeout = enrollPairingApprovalTimeout
 
-var ErrAwaitingApproval = &trace.CompareFailedError{Message: "enroll pairing is awaiting approval"}
-var ErrPairingClaimed = &trace.AccessDeniedError{Message: "enroll pairing claimed by another device"}
+var ErrPairingClaimed = errPairingClaimed
+var ErrInvalidPairingToken = errInvalidPairingToken
+var ErrPairingLookupUnavailable = errPairingLookupUnavailable
+var ErrPairingDeniedOrExpired = errPairingDeniedOrExpired
+var ErrPairingConsumed = errPairingConsumed
+var ErrEnrollVerificationFailed = errEnrollVerificationFailed
+var ErrEnrollTokenIssuanceFailed = errEnrollTokenIssuanceFailed

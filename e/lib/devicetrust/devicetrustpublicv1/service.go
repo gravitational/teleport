@@ -11,8 +11,8 @@ package devicetrustpublicv1
 
 import (
 	"context"
-	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -28,15 +28,71 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// errAwaitingApproval is an error returned by CreatePairedDeviceEnrollToken
-// when the enroll pairing is not yet approved. It's a temporary solution used
-// only until we implement actual watcher that makes the RPC block until the
-// enroll pairing is approved.
-var errAwaitingApproval = &trace.CompareFailedError{Message: "enroll pairing is awaiting approval"}
+// enrollPairingPollInterval is how often [Service.awaitApproval] re-reads the
+// pairing it waits on.
+const enrollPairingPollInterval = time.Second
+
+// enrollPairingApprovalTimeout bounds the whole approval wait, so that a caller
+// that never cancels cannot block a handler forever. Nothing can legitimately
+// approve a pairing past its TTL. The extra margin absorbs the last poll
+// interval, a slow backend read and clock skew between the Auth Service that
+// stamped the expiry and the one serving the wait. A poll that still sees the
+// pairing this late is looking at storage that missed the expiry.
+const enrollPairingApprovalTimeout = local.EnrollPairingExpireDuration + 30*time.Second
+
 var errPairingClaimed = &trace.AccessDeniedError{Message: "enroll pairing claimed by another device"}
+
+// errInvalidPairingToken is returned for a token that resolves to no pairing,
+// without relaying the underlying NotFound, so that storage state doesn't leak
+// to the unauthenticated caller.
+//
+// It is an AccessDeniedError rather than a NotFoundError because the pairing
+// token is the caller's bearer credential, not a resource identifier.
+var errInvalidPairingToken = &trace.AccessDeniedError{Message: "invalid enroll pairing token"}
+
+// errPairingLookupUnavailable stands in for a pairing lookup that failed for a
+// reason other than a missing pairing, so that backend state doesn't reach the
+// unauthenticated caller. The real error survives in a Debug log.
+//
+// It is a ConnectionProblemError, and thus retryable, so that a transient
+// storage failure doesn't read as a terminal rejection of a token that is
+// still good.
+var errPairingLookupUnavailable = &trace.ConnectionProblemError{Message: "enroll pairing lookup failed"}
+
+// errPairingDeniedOrExpired is returned for a pairing that is gone from storage
+// while a device waits on it, which is either a denial or a TTL expiry.
+var errPairingDeniedOrExpired = &trace.AccessDeniedError{Message: "enroll pairing was denied or has expired"}
+
+// errPairingConsumed goes to a waiter that lost the delete consuming the
+// pairing. Several handlers may wait on the same approval, but only the winner
+// issues a token, so this is a normal concurrency outcome rather than a fault.
+// CompareFailedError gets translated to FailedPrecondition, so that the caller
+// knows it cannot just repeat the request
+var errPairingConsumed = &trace.CompareFailedError{Message: "enroll pairing was already consumed"}
+
+// errEnrollVerificationFailed erases the error behind a failed enrollment token
+// creation, so that neither the device inventory state nor the collected data
+// drift details reach the unauthenticated caller.
+var errEnrollVerificationFailed = &trace.BadParameterError{Message: "device enrollment verifications failed"}
+
+// errEnrollTokenIssuanceFailed erases backend failures observed while consuming
+// the pairing for token issuance. It is a ConnectionProblemError because a
+// retry is always the right next step: it reattaches to the pairing if the
+// failed delete left it in place, and settles on a terminal error otherwise.
+var errEnrollTokenIssuanceFailed = &trace.ConnectionProblemError{Message: "enroll token issuance failed"}
+
+// errUserAuthzUnavailable stands in for a user authorization that failed for a
+// reason other than a missing user or a denial, so that backend state doesn't
+// reach the unauthenticated caller. The real error survives in a Debug log.
+//
+// It is a ConnectionProblemError, and thus retryable, so that a transient
+// storage failure doesn't read as a terminal rejection of a token that is still
+// good.
+var errUserAuthzUnavailable = &trace.ConnectionProblemError{Message: "internal error while authorizing user"}
 
 // Service implements the
 // teleport.devicetrust.public.v1.DeviceTrustService RPC service.
@@ -102,12 +158,15 @@ func New(params ServiceParams) (*Service, error) {
 }
 
 // CreatePairedDeviceEnrollToken claims an enroll pairing on behalf of the
-// device identified by the pairing token, transitioning it to "awaiting
-// approval" state.
+// device identified by the pairing token, then blocks until the owning user
+// approves the request in the Web UI and returns a device enrollment token.
 //
-// The work on enroll pairing approval is deferred, so a successful claim
-// currently returns CompareFailed – the client can keep polling the RPC until
-// the paring is approved.
+// A denial and a TTL expiration are indistinguishable to the caller: both
+// delete the pairing and surface as AccessDenied.
+//
+// The call is retryable from the same device, so that a dropped connection
+// doesn't strand the pairing without a waiter. See the "Interruptibility"
+// section of RFD 32e.
 func (s *Service) CreatePairedDeviceEnrollToken(
 	ctx context.Context,
 	req *devicetrustpublicv1pb.CreatePairedDeviceEnrollTokenRequest,
@@ -124,32 +183,58 @@ func (s *Service) CreatePairedDeviceEnrollToken(
 	if err := storage.ValidateCollectedData(cd); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	deviceMd := deviceMetadataFromCollectedData(cd)
 
+	pairing, err := s.requestEnrollment(ctx, token, cd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pairing, err = s.awaitApproval(ctx, pairing)
+	if err != nil {
+		// No audit event here. The request was audited at claim time. A denial is
+		// audited by DenyEnrollPairing, and a TTL expiry gets no event.
+		return nil, trace.Wrap(err)
+	}
+
+	enrollToken, err := s.issueEnrollToken(ctx, pairing, cd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return devicetrustpublicv1pb.CreatePairedDeviceEnrollTokenResponse_builder{
+		DeviceEnrollToken: enrollToken,
+	}.Build(), nil
+}
+
+// requestEnrollment resolves the pairing behind token, authorizes its user and
+// claims it for the device described by cd, emitting the audit event for every
+// outcome except a retry for an already-auditted claim.
+//
+// The event is emitted at claim time rather than when the RPC finishes so that
+// it carries the request's own timestamp and doesn't ride a context that the
+// approval wait may see canceled.
+func (s *Service) requestEnrollment(ctx context.Context, token string, cd *devicepb.DeviceCollectedData) (_ *devicepb.EnrollPairing, err error) {
+	deviceMd := deviceMetadataFromCollectedData(cd)
 	var user string
-	// TODO(ravicious): Get rid of this var and the errAwaitingApproval handling
-	// below once this RPC no longer returns errAwaitingApproval on success.
-	var requestedApprovalWithinThisCall bool
+	// A retry reattaches to a device enrollment request (EnrollPairing) that was
+	// already audited when it was first made, so only a fresh claim is recorded.
+	var isRetry bool
 	defer func() {
-		// errAwaitingApproval stands in for a successful claim, so it must not
-		// be audited as a failure. The requestedApprovalWithinThisCall check is
-		// there so that a device that merely polls its own pending request gets no
-		// event at all, otherwise we'd emit one on each retry.
-		auditErr := err
-		if errors.Is(err, errAwaitingApproval) {
-			if !requestedApprovalWithinThisCall {
-				return
-			}
-			auditErr = nil
+		if isRetry {
+			return
 		}
-		s.emitRequestEvent(ctx, user, deviceMd, auditErr)
+		s.emitRequestEvent(ctx, user, deviceMd, err)
 	}()
 
 	// The pairing token is what identifies the user, so a failed lookup leaves us
 	// with no user to attribute the failure to.
 	pairing, err := s.enrollPairing.GetEnrollPairingByToken(ctx, token)
 	if err != nil {
-		return nil, trace.Wrap(err, "read enroll pairing token")
+		s.logger.DebugContext(ctx,
+			"CreatePairedDeviceEnrollToken: enroll pairing lookup failed",
+			"error", err,
+		)
+		return nil, maskPairingLookupError(ctx, err, errInvalidPairingToken)
 	}
 	user = pairing.GetMetadata().GetName()
 
@@ -157,7 +242,11 @@ func (s *Service) CreatePairedDeviceEnrollToken(
 	// centralized authz, so create_enroll_token is evaluated through the same
 	// entry point the authenticated service uses.
 	if err := s.authorizeUser(ctx, user); err != nil {
-		return nil, trace.Wrap(err)
+		s.logger.DebugContext(ctx,
+			"CreatePairedDeviceEnrollToken: user authorization failed",
+			"error", err,
+		)
+		return nil, maskUserAuthzError(ctx, err)
 	}
 
 	device := devicepb.EnrollPairingDevice_builder{
@@ -166,58 +255,110 @@ func (s *Service) CreatePairedDeviceEnrollToken(
 		OsVersion:    cd.GetOsVersion(),
 	}.Build()
 
+	pairing, claimed, err := s.claimPairing(ctx, pairing, device)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	isRetry = !claimed
+	return pairing, nil
+}
+
+// claimPairing transitions pairing to AWAITING_APPROVAL on behalf of device,
+// or, for a pairing that has already been claimed, checks that the claim
+// belongs to the same device.
+//
+// claimed reports whether this call is what moved the pairing out of
+// AWAITING_DEVICE, as opposed to reattaching to an existing claim.
+func (s *Service) claimPairing(ctx context.Context, pairing *devicepb.EnrollPairing, device *devicepb.EnrollPairingDevice) (_ *devicepb.EnrollPairing, claimed bool, err error) {
 	// Two attempts: the first can lose the CAS to a concurrent claim, and the
 	// second dispatches on the state the winner left behind. The state machine
 	// only moves forward, so there is nothing for a third attempt to see.
 	for range 2 {
 		// Only meaningful once a device has moved past AWAITING_DEVICE.
-		claimed := pairing.GetStatus().GetDevice()
-		sameDevice := claimed.GetOsType() == device.GetOsType() &&
-			claimed.GetSerialNumber() == device.GetSerialNumber()
+		claimedDevice := pairing.GetStatus().GetDevice()
+		sameDevice := claimedDevice.GetOsType() == device.GetOsType() &&
+			claimedDevice.GetSerialNumber() == device.GetSerialNumber()
 
 		switch state := pairing.GetStatus().GetState(); state {
 		case devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE:
-			_, err := s.enrollPairing.RequestEnrollPairingApproval(ctx, pairing, device)
+			updated, err := s.enrollPairing.RequestEnrollPairingApproval(ctx, pairing, device)
 			if err == nil {
-				requestedApprovalWithinThisCall = true
-				return nil, trace.Wrap(errAwaitingApproval)
+				return updated, true, nil
 			}
 			if !trace.IsCompareFailed(err) {
-				return nil, trace.Wrap(err)
+				s.logger.DebugContext(ctx,
+					"CreatePairedDeviceEnrollToken: enroll pairing claim failed",
+					"error", err,
+				)
+				return nil, false, maskPairingLookupError(ctx, err, errInvalidPairingToken)
 			}
 
-			// A concurrent request claimed the pairing between our read and the
-			// CAS. Re-read so the next attempt dispatches on the winner's state.
-			fresh, err := s.enrollPairing.GetEnrollPairingByToken(ctx, token)
+			// err is CompareFailed. A concurrent request claimed the pairing between
+			// our read and the CAS. Re-read so the next attempt dispatches on the
+			// winner's state.
+			fresh, err := s.enrollPairing.GetEnrollPairingByToken(ctx, pairing.GetStatus().GetToken())
 			if err != nil {
-				return nil, trace.Wrap(err, "re-read enroll pairing token")
+				s.logger.DebugContext(ctx,
+					"CreatePairedDeviceEnrollToken: enroll pairing re-read failed",
+					"error", err,
+				)
+				return nil, false, maskPairingLookupError(ctx, err, errInvalidPairingToken)
 			}
 			pairing = fresh
 			continue
 
-		case devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL:
-			// Either the claiming device polling its own in-progress request or
-			// a different one attempting a hijack.
+		case devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL,
+			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_APPROVED:
+			// Either the claiming device reattaching to its own in-progress
+			// enrollment request or a different one attempting a hijack.
+			// An APPROVED pairing needs no branch of its own: it's what the polling
+			// loop exits on, so the wait returns right away.
 			if !sameDevice {
-				return nil, errPairingClaimed
+				return nil, false, errPairingClaimed
 			}
-			return nil, trace.Wrap(errAwaitingApproval)
-
-		case devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_APPROVED:
-			if !sameDevice {
-				return nil, errPairingClaimed
-			}
-			// TODO(ravicious): Consume the pairing through a conditional delete and
-			// return the enrollment token, as described in the Interruptibility
-			// section of RFD 32e.
-			return nil, trace.NotImplemented("retrieving an enrollment token for an approved enroll pairing")
+			return pairing, false, nil
 
 		default:
-			return nil, trace.Errorf("enroll pairing in unexpected state %v", state)
+			return nil, false, trace.Errorf("enroll pairing in unexpected state %v", state)
 		}
 	}
 
-	return nil, trace.Errorf("enroll pairing claim did not settle, this is a bug")
+	return nil, false, trace.Errorf("enroll pairing claim did not settle, this is a bug")
+}
+
+// maskPairingLookupError maps a pairing lookup or claim failure onto an error
+// fit for the unauthenticated caller: notFound for a pairing that isn't there,
+// whose meaning differs per call site, and errPairingLookupUnavailable for anything
+// else. Callers log the real error at Debug.
+func maskPairingLookupError(ctx context.Context, err error, notFound error) error {
+	switch {
+	case trace.IsNotFound(err):
+		return notFound
+	case ctx.Err() != nil:
+		// Cancellation is the caller's own doing, so it carries no storage state
+		// and is worth telling apart from a server-side failure.
+		return trace.Wrap(ctx.Err())
+	default:
+		// err swallowed on purpose.
+		return errPairingLookupUnavailable
+	}
+}
+
+// maskUserAuthzError maps a user authorization failure onto an error fit for
+// the unauthenticated caller: the deliberate outcomes, a missing user and a
+// denial, pass through, and everything else is a server-side failure masked
+// as errUserAuthzUnavailable. Callers log the real error.
+func maskUserAuthzError(ctx context.Context, err error) error {
+	switch {
+	case trace.IsNotFound(err), trace.IsAccessDenied(err):
+		return trace.Wrap(err)
+	case ctx.Err() != nil:
+		// Cancellation is the caller's own doing, so it carries no storage state
+		// and is worth telling apart from a server-side failure.
+		return trace.Wrap(ctx.Err())
+	default:
+		return errUserAuthzUnavailable
+	}
 }
 
 // authorizeProxy checks that the request is coming from a Proxy Service.
@@ -283,6 +424,81 @@ func deviceMetadataFromCollectedData(cd *devicepb.DeviceCollectedData) *apievent
 	}
 }
 
+// awaitApproval blocks until the owning user approves the pairing in the Web
+// UI. A pairing that is already approved on entry returns right away, covering
+// the case where the user approved while no CreatePairedDeviceEnrollToken
+// handler was active. The wait is bounded by [enrollPairingApprovalTimeout]
+// even for a ctx that never ends.
+func (s *Service) awaitApproval(ctx context.Context, pairing *devicepb.EnrollPairing) (*devicepb.EnrollPairing, error) {
+	timeout := time.After(enrollPairingApprovalTimeout)
+
+	token := pairing.GetStatus().GetToken()
+	for pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_APPROVED {
+		select {
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-timeout:
+			// The pairing is past its TTL, so the outcome is settled for the caller.
+			// This can typically only ever occur if the storage is faulty.
+			s.logger.DebugContext(ctx,
+				"CreatePairedDeviceEnrollToken: approval wait timed out past the pairing TTL",
+			)
+			return nil, errPairingDeniedOrExpired
+		case <-time.After(enrollPairingPollInterval):
+		}
+		var err error
+		pairing, err = s.enrollPairing.GetEnrollPairingByToken(ctx, token)
+		if err != nil {
+			s.logger.DebugContext(ctx,
+				"CreatePairedDeviceEnrollToken: enroll pairing poll failed",
+				"error", err,
+			)
+			return nil, maskPairingLookupError(ctx, err, errPairingDeniedOrExpired)
+		}
+	}
+	return pairing, nil
+}
+
+// issueEnrollToken consumes the approved pairing and creates the enrollment
+// token. Deleting the pairing first makes it single-use: when several handlers
+// wait on the same approval, only the one that wins the conditional delete
+// issues a token.
+func (s *Service) issueEnrollToken(ctx context.Context, pairing *devicepb.EnrollPairing,
+	cd *devicepb.DeviceCollectedData) (*devicepb.DeviceEnrollToken, error) {
+	user := pairing.GetMetadata().GetName()
+
+	if err := s.enrollPairing.DeleteEnrollPairing(ctx, pairing); err != nil {
+		// The errors below do not need to be audited through something like
+		// auditStatusError. CompareFailed is returned in a very specific scenario
+		// and its errPairingConsumed is included in the audit event. Other
+		// errors are likely transient and do not need to be in the audit.
+		if trace.IsCompareFailed(err) {
+			return nil, errPairingConsumed
+		}
+		s.logger.DebugContext(ctx,
+			"CreatePairedDeviceEnrollToken: enroll pairing delete failed",
+			"error", err,
+			"user", user,
+			"asset_tag", cd.GetSerialNumber(),
+		)
+		return nil, errEnrollTokenIssuanceFailed
+	}
+
+	// The device owner rides with the token, as the EnrollDevice ceremony has no
+	// authenticated caller to derive it from.
+	dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, cd, user)
+	deviceMd := deviceMetadataFromCollectedData(cd)
+	if dev != nil {
+		deviceMd.DeviceId = dev.GetId()
+	}
+	s.emitEnrollTokenCreateEvent(ctx, user, deviceMd, err)
+	if err != nil {
+		// err swallowed on purpose.
+		return nil, errEnrollVerificationFailed
+	}
+	return dev.GetEnrollToken(), nil
+}
+
 // emitRequestEvent emits the device enroll pairing request audit event,
 // success or failure. user is empty when the pairing lookup failed before a
 // user could be resolved.
@@ -305,9 +521,41 @@ func (s *Service) emitRequestEvent(ctx context.Context, user string, device *api
 		evt.Status.Success = false
 		evt.Status.Error = err.Error()
 	}
-	if emitErr := s.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+	s.emitAuditEvent(ctx, evt)
+}
+
+// emitEnrollTokenCreateEvent emits the device enroll token creation audit
+// event, success or failure, so that an auditor filtering on the event sees
+// mobile-issued tokens alongside the ones the private service issues.
+//
+// The event has no failure code of its own, so a failed issuance carries the
+// same code with the success flag unset, as in the private service.
+func (s *Service) emitEnrollTokenCreateEvent(ctx context.Context, user string, device *apievents.DeviceMetadata, err error) {
+	evt := &apievents.DeviceEvent2{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEnrollTokenCreateEvent,
+			Code: events.DeviceEnrollTokenCreateCode,
+		},
+		Device: device,
+		Status: apievents.Status{
+			Success: true,
+		},
+		UserMetadata: apievents.UserMetadata{User: user},
+	}
+	if err != nil {
+		// The device gets a redacted error, the audit trail keeps the real one.
+		evt.Status.Success = false
+		evt.Status.UserMessage = err.Error()
+	}
+	s.emitAuditEvent(ctx, evt)
+}
+
+// emitAuditEvent emits evt, reporting a failure to emit through the log rather
+// than through the RPC.
+func (s *Service) emitAuditEvent(ctx context.Context, evt apievents.AuditEvent) {
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit audit event",
-			"error", emitErr,
+			"error", err,
 			"type", evt.GetType(),
 			"code", evt.GetCode(),
 		)

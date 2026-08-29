@@ -81,7 +81,7 @@ func TestService_GetCurrentEnrollPairing(t *testing.T) {
 func TestService_ApproveEnrollPairing(t *testing.T) {
 	t.Parallel()
 
-	emitter := &keyedEmitter{}
+	emitter := &testenv.KeyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAuthorizer(newUserAwareAuthorizer(
 			withKnownUsers("alice", "bob", "dave", "erin"),
@@ -226,7 +226,7 @@ func TestService_ApproveEnrollPairing_adminActionMFA(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			emitter := &keyedEmitter{}
+			emitter := &testenv.KeyedEmitter{}
 			env := testenv.NewUsingT(t,
 				testenv.WithAuthorizer(newUserAwareAuthorizer(
 					withKnownUsers("alice"),
@@ -270,7 +270,7 @@ func TestService_ApproveEnrollPairing_adminActionMFA(t *testing.T) {
 func TestService_DenyEnrollPairing(t *testing.T) {
 	t.Parallel()
 
-	emitter := &keyedEmitter{}
+	emitter := &testenv.KeyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAuthorizer(newUserAwareAuthorizer(
 			withKnownUsers("alice", "bob"),

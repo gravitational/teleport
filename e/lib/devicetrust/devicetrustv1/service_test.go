@@ -2855,7 +2855,7 @@ func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
 	allUsers := []string{userTrustedDevices, userDevicesIndex}
 
 	augmentWebFunc := &fakeAugmentWebFunc{}
-	emitter := &keyedEmitter{}
+	emitter := &testenv.KeyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAugmentWebFunc(augmentWebFunc.function),
 		testenv.WithAuthorizer(newUserAwareAuthorizer(
@@ -2950,7 +2950,7 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 	allUsers := []string{userLlama, userProxy}
 
 	augmentWebFunc := &fakeAugmentWebFunc{}
-	emitter := &keyedEmitter{}
+	emitter := &testenv.KeyedEmitter{}
 	env := testenv.NewUsingT(t,
 		testenv.WithAugmentWebFunc(augmentWebFunc.function),
 		testenv.WithAuthorizer(newUserAwareAuthorizer(
