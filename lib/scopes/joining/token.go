@@ -462,21 +462,20 @@ func validateTPM(spec *joiningv1.TPM) error {
 			)
 		}
 
-		// This is ported from services/local/provisioning.go's
-		// validateTPMToken() which was deliberately separate from the overall
-		// CheckAndSetDefaults() -> validate() path so as to not affect existing
-		// tokens. There are no existing scoped TPM tokens, so we can safely
-		// inline it here.
+		// ek_certificate_serial is a free-form client field and is not on its
+		// own sufficient proof that the device is trusted; they are more useful
+		// for fleet management and identification for devices that have already
+		// established some level of trust. If the serial is set, we'll also
+		// require EKCert CAs so the device is actually verified first.
 		//
-		// This check doesn't apply if CAs are present: per the source impl,
-		// serials are not trustworthy when certificates are verified against a
-		// configured CA, so they're optional if CAs are also set.
-		hasSerialWithoutHash := allowRule.GetEkCertificateSerial() != "" && allowRule.GetEkPublicHash() == ""
-		if !hasCAs && hasSerialWithoutHash {
+		// Note that ProvisionTokenV2 allows serials if either CAs *or* a hash
+		// is specified. This isn't insecure but doesn't make much sense, so we
+		// don't allow it for scoped tokens. This rule change would be a
+		// breaking change for ProvisionTokenV2, so we only enforce it here.
+		if !hasCAs && allowRule.GetEkCertificateSerial() != "" {
 			return trace.BadParameter(
-				"allow[%d]: ek_certificate_serial requires ek_public_hash or "+
-					"ekcert_allowed_cas to be set so that the EK certificate "+
-					"can be verified", i)
+				"allow[%d]: ek_certificate_serial requires ekcert_allowed_cas "+
+					"to be set so that the EK certificate can be verified", i)
 		}
 	}
 	return nil
