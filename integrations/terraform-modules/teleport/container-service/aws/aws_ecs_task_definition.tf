@@ -24,6 +24,12 @@ locals {
     ),
     "v"
   )
+  teleport_environment = merge(
+    var.environment_vars,
+    {
+      TELEPORT_INSTALL_METHOD_TERRAFORM_MODULE = "true"
+    },
+  )
 }
 
 resource "aws_ecs_task_definition" "teleport_agent" {
@@ -43,9 +49,9 @@ resource "aws_ecs_task_definition" "teleport_agent" {
       ]
       entryPoint = ["/usr/bin/dumb-init"]
       environment = [
-        for name in sort(keys(var.environment_vars)) : {
+        for name in sort(keys(local.teleport_environment)) : {
           name  = name
-          value = var.environment_vars[name]
+          value = local.teleport_environment[name]
         }
       ]
       image = "${var.teleport_container_image}:${local.teleport_version}"

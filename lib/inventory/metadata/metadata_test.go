@@ -85,6 +85,21 @@ func TestFetchInstallMethods(t *testing.T) {
 			},
 		},
 		{
+			desc: "terraform if Terraform module",
+			getenv: func(name string) string {
+				if name == "TELEPORT_INSTALL_METHOD_TERRAFORM_MODULE" {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"terraform_module",
+			},
+		},
+		{
 			desc: "awsoidc_deployservice if env var is present",
 			getenv: func(name string) string {
 				return ""

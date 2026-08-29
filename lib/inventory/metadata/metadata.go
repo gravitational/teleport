@@ -179,6 +179,9 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 	if c.nodeScriptInstallMethod() {
 		installMethods = append(installMethods, "node_script")
 	}
+	if c.terraformInstallMethod() {
+		installMethods = append(installMethods, "terraform_module")
+	}
 	if c.systemctlInstallMethod() {
 		installMethods = append(installMethods, "systemctl")
 	}
@@ -204,6 +207,12 @@ func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
 // install-node.sh script.
 func (c *fetchConfig) nodeScriptInstallMethod() bool {
 	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_NODE_SCRIPT")
+}
+
+// terraformInstallMethod returns true if the instance was installed using an
+// official Teleport Terraform module.
+func (c *fetchConfig) terraformInstallMethod() bool {
+	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_TERRAFORM_MODULE")
 }
 
 // AWSOIDCDeployServiceInstallMethod returns true if the instance was installed using
