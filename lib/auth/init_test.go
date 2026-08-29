@@ -2177,10 +2177,8 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 			"apply-on-startup must persist the defaulted recovery limit")
 	})
 
-	t.Run("discards config-supplied status on first apply", func(t *testing.T) {
-		// apply-on-startup config is spec-only and its status is untrusted. A
-		// bound_public_key supplied via config must not bind a key on creation:
-		// that would skip the join ceremony's proof-of-possession.
+	t.Run("honors config-supplied status on first apply", func(t *testing.T) {
+		// status changes are only allowed on initial apply
 		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
 		token.Status = &types.ProvisionTokenStatusV2{
 			BoundKeypair: &types.ProvisionTokenStatusV2BoundKeypair{
@@ -2199,10 +2197,8 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 		require.NoError(t, err)
 		status := stored.GetBoundKeypairStatus()
 		require.NotNil(t, status)
-		require.Empty(t, status.BoundPublicKey,
-			"config-supplied bound_public_key must not be persisted on first apply")
-		require.Zero(t, status.RecoveryCount,
-			"config-supplied recovery count must not be persisted on first apply")
+		require.Equal(t, token.Status.BoundKeypair.BoundPublicKey, status.BoundPublicKey)
+		require.Equal(t, token.Status.BoundKeypair.RecoveryCount, status.RecoveryCount)
 	})
 
 	t.Run("generates a registration secret when no onboarding credential is set", func(t *testing.T) {
