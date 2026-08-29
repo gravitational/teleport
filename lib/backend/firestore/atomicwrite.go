@@ -69,7 +69,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 					return trace.Wrap(ConvertGRPCError(err))
 				}
 			case backend.KindRevision:
-				// verfiy that document exposes exact expected revision
+				// verify that document exposes exact expected revision
 				docSnap, err := tx.Get(docRef)
 				if err != nil {
 					if status.Code(err) == codes.NotFound {
