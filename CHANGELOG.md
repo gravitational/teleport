@@ -47,17 +47,17 @@ Request reviews directly in Slack.
 #### Identity Governance
 
 * Added creation-time validation to disallow Access List names longer than 512 bytes. [#69334](https://github.com/gravitational/teleport/pull/69334)
-* Fixed access list list endpoints to retry with a smaller page size when a gRPC response exceeds the receive limit. [#69327](https://github.com/gravitational/teleport/pull/69327)
+* Fixed access list list endpoints to retry with a smaller page size when a gRPC response exceeds the receive limit.
 * Certificates carrying resource constraints of a kind introduced in a newer Teleport version are no longer rejected entirely by older components. [#69242](https://github.com/gravitational/teleport/pull/69242)
-* Make Okta assignments processing more robust. [#69314](https://github.com/gravitational/teleport/pull/69314)
-* Skip processing provision assignments for deactivated or suspended Okta users, and cleanup for removed Okta users. [#69047](https://github.com/gravitational/teleport/pull/69047)
-* Okta assignment targets output by `tctl` now include their provisioning status when available. [#68420](https://github.com/gravitational/teleport/pull/68420)
+* Make Okta assignments processing more robust.
+* Skip processing provision assignments for deactivated or suspended Okta users, and cleanup for removed Okta users.
+* Okta assignment targets output by `tctl` now include their provisioning status when available.
 * Fixed `tsh request drop` removing roles and traits granted through Access Lists from the reissued certificate. [#69050](https://github.com/gravitational/teleport/pull/69050)
 * Updated the Entra ID plugin status page to show whether the latest directory sync used a `full` or `delta` sync mode. [#69032](https://github.com/gravitational/teleport/pull/69032)
-* Added `tctl integrations awsic accounts ls` for listing AWS Identity Center accounts and its permission sets. [#68975](https://github.com/gravitational/teleport/pull/68975)
+* Added `tctl integrations awsic accounts ls` for listing AWS Identity Center accounts and its permission sets. [#68761](https://github.com/gravitational/teleport/pull/68761)
 * Added `tctl acl create/update/rm` commands for creating, updating, or removing an access list. [#68980](https://github.com/gravitational/teleport/pull/68980)
 * Added RBAC rule `review_requests.submit_for_users` for plugin identities to submit access request reviews for users. [#69386](https://github.com/gravitational/teleport/pull/69386)
-* Sanitized SAML connector creation errors to prevent potential SSRF attacks by malicious administrators. [#69120](https://github.com/gravitational/teleport/pull/69120)
+* Sanitized SAML connector creation errors to prevent potential SSRF attacks by malicious administrators. [#68837](https://github.com/gravitational/teleport/pull/68837)
 * Fixed `tsh proxy aws` not intercepting and signing requests to AWS `.api.aws` endpoints. [#69009](https://github.com/gravitational/teleport/pull/69009)
 
 #### Machine & Workload Identity
