@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -67,6 +68,8 @@ func (m GCPMatcher) GetLabels() Labels {
 }
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
+// The deprecated tags alias is left in place and resolved by GetLabels; it
+// is never copied into or merged with labels.
 func (m *GCPMatcher) CheckAndSetDefaults() error {
 	if len(m.Types) == 0 {
 		return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
@@ -128,15 +131,21 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 	}
 
-	if len(m.Labels) > 0 && len(m.Tags) > 0 {
-		return trace.BadParameter("labels and tags should not both be set.")
+	// tags is a deprecated alias for labels. Defaulting does not mutate either field
+	// (no copy into labels, no clearing), so the stored spec stays identical to what
+	// the user wrote (RFD 153) and GetLabels resolves the alias at read time.
+	// Reject only conflicting values; accept an equal both-set pair, which older versions
+	// persisted by copying tags into labels without clearing tags, so re-validating such a
+	// stored record after an upgrade must not fail. Equality is order-sensitive on purpose:
+	// that legacy copy preserved order, and any other both-set combination is a real configuration error.
+	if len(m.Labels) > 0 && len(m.Tags) > 0 &&
+		!maps.EqualFunc(m.Labels, m.Tags, func(a, b apiutils.Strings) bool { return slices.Equal(a, b) }) {
+		return trace.BadParameter("labels and tags should not both be set with different values; tags is a deprecated alias for labels, set only one")
 	}
 
-	if len(m.Tags) > 0 {
-		m.Labels = m.Tags
-	}
-
-	if len(m.Labels) == 0 {
+	// Default labels only when the user set neither field; a tags-only
+	// matcher is matched through GetLabels and must not be wildcarded.
+	if len(m.Labels) == 0 && len(m.Tags) == 0 {
 		m.Labels = map[string]apiutils.Strings{
 			Wildcard: {Wildcard},
 		}
