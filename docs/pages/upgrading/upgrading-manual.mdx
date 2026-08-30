@@ -109,6 +109,25 @@ Service, then on each of your agents:
    $ curl (=teleport.teleport_install_script_url=) | bash -s <Var name="version" /> <Var name="edition" />
    ```
 
+   If your original installation was a manually-downloaded TAR archive rather
+   than one installed via the script or a package manager, the install script
+   above may fail with an error similar to the following, because
+   `teleport-update` expects to manage the binaries in `/usr/local/bin` as
+   symlinks rather than as regular files:
+
+```code
+   refusing to replace file at /usr/local/bin/fdpass-teleport
+   file present
+```
+
+   If you see this error, remove the existing binaries and re-run the install
+   script:
+
+```code
+   $ sudo rm -f /usr/local/bin/{tsh,teleport,tctl,tbot,fdpass-teleport,teleport-update}
+   $ curl (=teleport.teleport_install_script_url=) | bash -s <Var name="version" /> <Var name="edition" />
+```
+
    The installation script detects the package manager on your Linux server and
    uses it to install Teleport binaries. To customize your installation, learn
    about the Teleport package repositories in the [installation
