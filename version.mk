@@ -12,7 +12,7 @@ func init() { Gitref = \"$(GITREF)\" }\n"
 # setver updates api/version.go and gitref.go with VERSION and GITREF vars
 #
 .PHONY: setver
-setver: validate-semver helm-version tsh-version
+setver: validate-semver helm-version mac-app-version
 	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/apiversion "$(VERSION)" > api/version.go
 	@printf $(GITREF_GO) | gofmt > gitref.go
 	$(MAKE) -C integrations/terraform-modules update-version VERSION=$(VERSION)
@@ -26,12 +26,12 @@ setver: validate-semver helm-version tsh-version
 helm-version:
 	$(HELMJANITOR) update-version $(VERSION)
 
-TSH_APP_PLISTS := $(wildcard build.assets/macos/*/tsh.app/Contents/Info.plist)
-PLIST_FILES := $(abspath $(TSH_APP_PLISTS))
+MACOS_APP_PLISTS := $(wildcard build.assets/macos/*/tsh.app/Contents/Info.plist build.assets/macos/*/tctl.app/Contents/Info.plist)
+PLIST_FILES := $(abspath $(MACOS_APP_PLISTS))
 
-# tsh-version sets CFBundleVersion and CFBundleShortVersionString in the tsh{,dev} Info.plist
-.PHONY:tsh-version
-tsh-version:
+# mac-app-version sets CFBundleVersion and CFBundleShortVersionString in the tsh and tctl Info.plist files
+.PHONY:mac-app-version
+mac-app-version:
 	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
 
 .PHONY:validate-semver
