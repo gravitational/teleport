@@ -34,15 +34,15 @@ modules=(
 )
 
 for module in "${modules[@]}"; do
-    cat > "${script_dir}/../${module}/teleport_version_variable.tf" <<EOF
-variable "teleport_version" {
-  default     = "${VERSION}"
-  description = <<EOD
-The version of Teleport to deploy.
-Generally, the version of Teleport should be controlled by using the appropriate version of this module.
-This variable is intended for development usage.
-EOD
-  type        = string
+    cat > "${script_dir}/../${module}/release_version.tf" <<EOF
+# This file is auto-generated and should not be edited directly.
+# Instead, update integrations/terraform-modules/gen/update-version.sh and then
+# run make -C integrations/terraform-modules update-version
+
+locals {
+  # module_version is updated by gen/update-version.sh for each release.
+  # tflint-ignore: terraform_unused_declarations
+  module_version = "${VERSION}"
 }
 EOF
 done

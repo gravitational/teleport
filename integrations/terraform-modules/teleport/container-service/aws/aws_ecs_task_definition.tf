@@ -17,8 +17,9 @@ locals {
   teleport_version = trimprefix(
     trimspace(
       coalesce(
+        var.teleport_version_override,
         local.managed_updates_version,
-        var.teleport_version
+        local.module_version,
       ),
     ),
     "v"

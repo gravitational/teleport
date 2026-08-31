@@ -29,7 +29,7 @@ module "teleport_db_service" {
   managed_updates_group                         = var.managed_updates_group
   security_group_ids                            = var.security_group_ids
   teleport_container_image                      = var.teleport_container_image
-  teleport_version                              = var.teleport_version
+  teleport_version_override                     = var.teleport_version_override
   vpc_id                                        = var.vpc_id
 
   teleport_config = {
