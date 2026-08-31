@@ -61,6 +61,8 @@ func decodeError(resp *http.Response) error {
 		// returned by the AWS Identity Center SCIM service refers to a group
 		// member, rather than the group itself.
 		return trace.NotFound("%s", cmp.Or(errResp.Detail, "Resource not found"))
+	case http.StatusBadRequest:
+		return trace.BadParameter("%s", cmp.Or(errResp.Detail, "Bad request"))
 	}
 
 	if errResp.Detail == "" {

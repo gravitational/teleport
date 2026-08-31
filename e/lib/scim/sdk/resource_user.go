@@ -29,7 +29,7 @@ type User struct {
 	// DisplayName is the name of the User, suitable for display to end-users.
 	DisplayName string `json:"displayName,omitempty"`
 	// Active is a boolean value indicating the User's administrative status.
-	Active bool `json:"active,omitempty"`
+	Active bool `json:"active"`
 	// WARNING: If you want to store additional fields in the struct, please extend knownStructFields
 	// to not duplicate the fields in the Attributes map.
 

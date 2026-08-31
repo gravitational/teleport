@@ -1,10 +1,12 @@
 package scimsdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,8 +24,15 @@ import (
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
+func activeFieldExists(body map[string]any) error {
+	if body["active"] == nil {
+		return errors.New("active field is required")
+	}
+	return nil
+}
+
 func TestSCIMMockServer(t *testing.T) {
-	mockServer := newSCIMHTTPServer(t)
+	mockServer := newSCIMHTTPServer(t, WithUserJSONCheck(activeFieldExists))
 
 	client := mockServer.newClient()
 
@@ -227,6 +236,39 @@ type scimHTTPServer struct {
 	token  string
 	// The number of PATCH values that can be applied at once
 	maxPatchSize int
+
+	// userJSONChecks an optional list of functions to check the supplied
+	// JSON for a user resource
+	userJSONChecks []func(map[string]any) error
+}
+
+func (s *scimHTTPServer) validateUserJSON(body io.ReadCloser) (io.ReadCloser, error) {
+	if len(s.userJSONChecks) == 0 {
+		return body, nil
+	}
+
+	bodyBytes, err := io.ReadAll(body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var bodyJSON map[string]any
+	if err := json.Unmarshal(bodyBytes, &bodyJSON); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var errs []error
+	for _, check := range s.userJSONChecks {
+		if err := check(bodyJSON); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return nil, trace.NewAggregate(errs...)
+	}
+
+	return io.NopCloser(bytes.NewBuffer(bodyBytes)), nil
 }
 
 type SCIMHTTPServerOption func(*scimHTTPServer)
@@ -234,6 +276,12 @@ type SCIMHTTPServerOption func(*scimHTTPServer)
 func WithMaxPageSize(n int) SCIMHTTPServerOption {
 	return func(mock *scimHTTPServer) {
 		mock.maxPatchSize = n
+	}
+}
+
+func WithUserJSONCheck(check func(map[string]any) error) SCIMHTTPServerOption {
+	return func(mock *scimHTTPServer) {
+		mock.userJSONChecks = append(mock.userJSONChecks, check)
 	}
 }
 
@@ -299,8 +347,16 @@ func (s *scimHTTPServer) URL() string {
 }
 
 func (s *scimHTTPServer) createUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	body, err := s.validateUserJSON(r.Body)
+	if err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "User JSON check failed: %s", err.Error())
+		return
+	}
+
 	var user User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+	if err := json.NewDecoder(body).Decode(&user); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -330,8 +386,16 @@ func (s *scimHTTPServer) getUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *scimHTTPServer) updateUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	body, err := s.validateUserJSON(r.Body)
+	if err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, "User JSON check failed: %s", err.Error())
+		return
+	}
+
 	var updated User
-	if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {
+	if err := json.NewDecoder(body).Decode(&updated); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
