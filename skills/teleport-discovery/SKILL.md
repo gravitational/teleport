@@ -48,8 +48,8 @@ results.
 
 ## Determine the cloud
 
-Set `CLOUD` before anything else. Infer `aws` when the request names EC2, EKS, or an AWS
-account. Infer `azure` when it names VMs, a subscription, a resource group, or a management group. If
+Set `CLOUD` before anything else. Infer `aws` when the request names EC2, EKS, an AWS Organization, or an AWS
+account. Infer `azure` when it names VMs, a subscription,  a resource group, or a management group. If
 the request implies neither, stop and ask the user which cloud. Do not run `aws` or `az` commands
 and do not write Terraform until `CLOUD` is set.
 
