@@ -706,6 +706,42 @@ to AWS, users can access AWS resources through Teleport.
    $ tsh apps logout awsconsole
    ```
 
+### Access AWS resources with other CLI tools using `tsh aws --exec`
+
+`tsh aws --exec` runs `tsh proxy aws` in the background for the duration of a
+command you specify, injecting the AWS credentials and HTTPS proxy
+environment variables into that command's environment. This lets you use
+tools such as `terraform` or `eksctl` without having to start `tsh proxy aws`
+in a separate terminal.
+
+1. Log in to the Teleport AWS App:
+   ```code
+   $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole
+   Logged into AWS app "awsconsole".
+   ```
+
+1. Pass the command you want to run, such as `terraform apply`, to the
+   `--exec` flag:
+
+   ```code
+   $ tsh aws --exec terraform apply
+   ```
+
+   <Admonition type="warning" title="tool compatibility">
+   The tool or library you invoke with `--exec` must support configuring AWS
+   credentials and the CA bundle through the `AWS_ACCESS_KEY_ID`,
+   `AWS_SECRET_ACCESS_KEY`, `AWS_CA_BUNDLE` and the `HTTPS_PROXY` environment variables.
+   Check your tool's documentation to confirm it reads these variables before
+   relying on `tsh aws --exec`.
+   </Admonition>
+
+1. Run the following command to log out of the AWS application and remove
+   credentials:
+
+   ```code
+   $ tsh apps logout awsconsole
+   ```
+
 ### Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
