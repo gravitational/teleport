@@ -1142,16 +1142,18 @@ type RequestValidator struct {
 	// requireReasonForAllRoles indicates that non-empty reason is required for all access
 	// requests. This happens if any of the user roles has options.request_access "reason".
 	requireReasonForAllRoles bool
-	// requiringReasonRoles is a set of role names, which require non-empty reason to be
-	// specified when requested. The same applies to all requested resources allowed by those
-	// roles. Such roles are all requestable roles and search_as_roles allowed by a role
-	// assigned to a user and having spec.allow.request.reason.mode="required" set.
+	// reasonRequiredMatchers holds role matchers that require a non-empty reason to be
+	// specified when a matching role is requested. The same applies to all requested
+	// resources allowed by those roles. The matchers are compiled from spec.allow.request.roles
+	// (including claims_to_roles) and spec.allow.request.search_as_roles of a role assigned to
+	// the user that has spec.allow.request.reason.mode="required" set. Using matchers rather
+	// than literal role names ensures wildcard, regexp and claims_to_roles entries are honored.
 	//
 	// Please note this means, roles having spec.allow.request.reason.mode="required" don't
 	// necessarily require reason when they are requested themselves. Instead they mark roles
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
-	requiringReasonRoles map[string]struct{}
+	reasonRequiredMatchers []parse.Matcher
 	// customPromptRoles is a set of role names, which specifies a custom prompt when requested.
 	// Such roles are all requestable roles and search_as_roles allowed by a user's role
 	// which has spec.allow.request.reason.prompt set.
@@ -1209,12 +1211,11 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 
 func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (RequestValidator, error) {
 	m := RequestValidator{
-		logger:               slog.With(teleport.ComponentKey, "request.validator"),
-		clock:                clock,
-		getter:               getter,
-		userState:            user,
-		requiringReasonRoles: make(map[string]struct{}),
-		customPromptRoles:    make(map[string]string),
+		logger:            slog.With(teleport.ComponentKey, "request.validator"),
+		clock:             clock,
+		getter:            getter,
+		userState:         user,
+		customPromptRoles: make(map[string]string),
 	}
 	for _, opt := range opts {
 		opt(&m.opts)
@@ -1552,12 +1553,19 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 	}
 
 	for _, r := range allApplicableRoles {
-		if _, ok := v.requiringReasonRoles[r]; ok {
+		if matchesAnyRole(v.reasonRequiredMatchers, r) {
 			return true, fmt.Sprintf("request reason must be specified (required for role %q)", r), nil
 		}
 	}
 
 	return false, "", nil
+}
+
+// matchesAnyRole reports whether the role name matches any of the given matchers.
+func matchesAnyRole(matchers []parse.Matcher, role string) bool {
+	return slices.ContainsFunc(matchers, func(m parse.Matcher) bool {
+		return m.Match(role)
+	})
 }
 
 func (v *RequestValidator) populateCustomReasonPrompts(ctx context.Context, requestedRoles []string, requestedResourceAccessIDs []types.ResourceAccessID) error {
@@ -1868,27 +1876,6 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
-	if allow.Reason != nil {
-		if allow.Reason.Mode.Required() {
-			for _, r := range allow.Roles {
-				m.requiringReasonRoles[r] = struct{}{}
-			}
-			for _, r := range allow.SearchAsRoles {
-				m.requiringReasonRoles[r] = struct{}{}
-			}
-		}
-
-		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
-		if len(customPrompt) > 0 {
-			for _, r := range allow.Roles {
-				m.customPromptRoles[r] = customPrompt
-			}
-			for _, r := range allow.SearchAsRoles {
-				m.customPromptRoles[r] = customPrompt
-			}
-		}
-	}
-
 	// NOTE: Not using allow.KubernetesResources as we need to map older roles to new values.
 	setAllowRequestKubeResourceLookup(role.GetRequestKubernetesResources(types.Allow), allow.SearchAsRoles, m.kubernetesResource.allow)
 
@@ -1912,17 +1899,31 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	m.roles.allowSearch = apiutils.Deduplicate(append(m.roles.allowSearch, allow.SearchAsRoles...))
 	m.roles.denySearch = apiutils.Deduplicate(append(m.roles.denySearch, deny.SearchAsRoles...))
 
+	newAllowRequestMatchers := m.roles.allowRequest[astart:]
+	newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+
+	allNewAllowMatchers := slices.Concat(newAllowRequestMatchers, newAllowSearchMatchers)
+
+	if allow.Reason != nil {
+		if allow.Reason.Mode.Required() {
+			m.reasonRequiredMatchers = append(m.reasonRequiredMatchers, allNewAllowMatchers...)
+		}
+
+		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
+		if len(customPrompt) > 0 {
+			for _, r := range allow.Roles {
+				m.customPromptRoles[r] = customPrompt
+			}
+			for _, r := range allow.SearchAsRoles {
+				m.customPromptRoles[r] = customPrompt
+			}
+		}
+	}
+
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newAllowRequestMatchers := m.roles.allowRequest[astart:]
-		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
-
-		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
-
 		if len(allNewAllowMatchers) > 0 {
 			m.thresholdMatchers = append(m.thresholdMatchers, struct {
 				matchers   []parse.Matcher
