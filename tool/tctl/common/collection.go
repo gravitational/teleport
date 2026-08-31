@@ -424,35 +424,47 @@ type pluginResourceWrapper struct {
 	types.PluginV1
 }
 
+var pluginSettingsConstructors = map[string]func(s *types.PluginSpecV1){
+	"slack_access_plugin": func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_SlackAccessPlugin{} },
+	"opsgenie":            func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Opsgenie{} },
+	"openai":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Openai{} },
+	"okta":                func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Okta{} },
+	"jamf":                func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Jamf{} },
+	"intune":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Intune{} },
+	"pager_duty":          func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_PagerDuty{} },
+	"mattermost":          func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Mattermost{} },
+	"jira":                func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Jira{} },
+	"discord":             func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Discord{} },
+	"serviceNow":          func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_ServiceNow{} },
+	"gitlab":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Gitlab{} },
+	"entra_id":            func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_EntraId{} },
+	"datadog":             func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Datadog{} },
+	"email":               func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Email{} },
+	"aws_ic":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_AwsIc{} },
+	"net_iq":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_NetIq{} },
+	"msteams":             func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Msteams{} },
+	"scim":                func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Scim{} },
+	"github":              func(s *types.PluginSpecV1) { s.Settings = &types.PluginSpecV1_Github{} },
+}
+
+var pluginStatusDetailsConstructors = map[string]func(s *types.PluginStatusV1){
+	"gitlab":   func(s *types.PluginStatusV1) { s.Details = &types.PluginStatusV1_Gitlab{} },
+	"entra_id": func(s *types.PluginStatusV1) { s.Details = &types.PluginStatusV1_EntraId{} },
+	"okta":     func(s *types.PluginStatusV1) { s.Details = &types.PluginStatusV1_Okta{} },
+	"aws_ic":   func(s *types.PluginStatusV1) { s.Details = &types.PluginStatusV1_AwsIc{} },
+	"net_iq":   func(s *types.PluginStatusV1) { s.Details = &types.PluginStatusV1_NetIq{} },
+}
+
+var pluginCredentialConstructors = map[string]func(c *types.PluginCredentialsV1){
+	"oauth2_access_token":    func(c *types.PluginCredentialsV1) { c.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{} },
+	"bearer_token":           func(c *types.PluginCredentialsV1) { c.Credentials = &types.PluginCredentialsV1_BearerToken{} },
+	"id_secret":              func(c *types.PluginCredentialsV1) { c.Credentials = &types.PluginCredentialsV1_IdSecret{} },
+	"static_credentials_ref": func(c *types.PluginCredentialsV1) { c.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{} },
+}
+
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
 	// using gogo/jsonpb for the type.
-	const (
-		credOauth2AccessToken             = "oauth2_access_token"
-		credBearerToken                   = "bearer_token"
-		credIdSecret                      = "id_secret"
-		credStaticCredentialsRef          = "static_credentials_ref"
-		settingsSlackAccessPlugin         = "slack_access_plugin"
-		settingsOpsgenie                  = "opsgenie"
-		settingsOpenAI                    = "openai"
-		settingsOkta                      = "okta"
-		settingsJamf                      = "jamf"
-		settingsIntune                    = "intune"
-		settingsPagerDuty                 = "pager_duty"
-		settingsMattermost                = "mattermost"
-		settingsJira                      = "jira"
-		settingsDiscord                   = "discord"
-		settingsServiceNow                = "serviceNow"
-		settingsGitlab                    = "gitlab"
-		settingsEntraID                   = "entra_id"
-		settingsDatadogIncidentManagement = "datadog_incident_management"
-		settingsEmailAccessPlugin         = "email_access_plugin"
-		settingsAWSIdentityCenter         = "aws_ic"
-		settingsNetIQ                     = "net_iq"
-		settingsMsteams                   = "msteams"
-		settingsSCIM                      = "scim"
-		settingsGithub                    = "github"
-	)
 	type unknownPluginType struct {
 		Spec struct {
 			Settings map[string]json.RawMessage `json:"Settings"`
@@ -480,71 +492,22 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	if len(unknownPlugin.Credentials.Credentials) == 1 {
 		p.PluginV1.Credentials = &types.PluginCredentialsV1{}
 		for k := range unknownPlugin.Credentials.Credentials {
-			switch k {
-			case credOauth2AccessToken:
-				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{}
-			case credBearerToken:
-				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_BearerToken{}
-			case credIdSecret:
-				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_IdSecret{}
-			case credStaticCredentialsRef:
-				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{}
-			default:
+			construct, ok := pluginCredentialConstructors[k]
+			if !ok {
 				return trace.BadParameter("unsupported plugin credential type: %v", k)
 			}
+			construct(p.PluginV1.Credentials)
 		}
 	}
 
 	for k := range unknownPlugin.Spec.Settings {
-		switch k {
-		case settingsSlackAccessPlugin:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
-		case settingsOpsgenie:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Opsgenie{}
-		case settingsOpenAI:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
-		case settingsOkta:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
-			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
-		case settingsJamf:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
-		case settingsIntune:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Intune{}
-		case settingsPagerDuty:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
-		case settingsMattermost:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Mattermost{}
-		case settingsJira:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jira{}
-		case settingsDiscord:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Discord{}
-		case settingsServiceNow:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
-		case settingsGitlab:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
-			p.PluginV1.Status.Details = &types.PluginStatusV1_Gitlab{}
-		case settingsEntraID:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
-			p.PluginV1.Status.Details = &types.PluginStatusV1_EntraId{}
-		case settingsDatadogIncidentManagement:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
-		case settingsEmailAccessPlugin:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
-		case settingsAWSIdentityCenter:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
-			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
-		case settingsNetIQ:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
-			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
-		case settingsMsteams:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Msteams{}
-		case settingsSCIM:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Scim{}
-		case settingsGithub:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Github{}
-
-		default:
+		construct, ok := pluginSettingsConstructors[k]
+		if !ok {
 			return trace.BadParameter("unsupported plugin type: %v", k)
+		}
+		construct(&p.PluginV1.Spec)
+		if constructStatus, ok := pluginStatusDetailsConstructors[k]; ok {
+			constructStatus(&p.PluginV1.Status)
 		}
 	}
 
