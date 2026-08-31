@@ -45,10 +45,13 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 		Regions:      []string{"eastus"},
 	}}
 
+	azureSubscritpionClient, err := azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+		Subscriptions: []*armsubscription.Subscription{azureSub},
+	})
+	require.NoError(t, err)
+
 	clients := &azuretest.Clients{
-		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
-			Subscriptions: []*armsubscription.Subscription{azureSub},
-		}),
+		AzureSubscriptionClient: azureSubscritpionClient,
 		AzurePostgres: azure.NewPostgresServerClient(&azure.ARMPostgresMock{
 			NoAuth: true,
 		}),

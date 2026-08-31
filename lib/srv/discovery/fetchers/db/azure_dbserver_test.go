@@ -72,6 +72,11 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
 	azPostgresServerUnknownState, azPostgresDBUnknownState := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
 
+	azureSubscriptionClient, err := azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+		Subscriptions: []*armsubscription.Subscription{azureSub1, azureSub2},
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		inputClients  azure.Clients
@@ -144,9 +149,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					}),
 				},
-				AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
-					Subscriptions: []*armsubscription.Subscription{azureSub1, azureSub2},
-				}),
+				AzureSubscriptionClient: azureSubscriptionClient,
 				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
 					NoAuth: true,
 				}),

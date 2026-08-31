@@ -45,10 +45,13 @@ func TestAzureMySQLFlexFetchers(t *testing.T) {
 		Regions:      []string{"eastus"},
 	}}
 
+	azureSubscritpionClient, err := azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
+		Subscriptions: []*armsubscription.Subscription{azureSub},
+	})
+	require.NoError(t, err)
+
 	clients := &azuretest.Clients{
-		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
-			Subscriptions: []*armsubscription.Subscription{azureSub},
-		}),
+		AzureSubscriptionClient: azureSubscritpionClient,
 		AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 			NoAuth: true,
 		}),

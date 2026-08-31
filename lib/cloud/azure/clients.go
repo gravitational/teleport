@@ -365,7 +365,10 @@ func (c *clients) initSubscriptionsClient(ctx context.Context) (*SubscriptionCli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client := NewSubscriptionClient(armClient)
+	client, err := NewSubscriptionClient(armClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	c.subscriptionsClient = client
 	return client, nil
 }

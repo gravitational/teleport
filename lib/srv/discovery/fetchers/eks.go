@@ -168,11 +168,6 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	return &eksFetcher{EKSFetcherConfig: cfg}, nil
 }
 
-// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
-func (f *eksFetcher) GetIntegration() string {
-	return f.Matcher.Integration
-}
-
 type DiscoveredEKSCluster struct {
 	types.KubeCluster
 	awsCluster *ekstypes.Cluster
