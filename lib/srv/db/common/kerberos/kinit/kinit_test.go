@@ -21,22 +21,33 @@ package kinit
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -148,26 +159,85 @@ func TestUseOrCreateCredentials(t *testing.T) {
 	}
 }
 
-// TestKinitProvider_CreateClient_multipleUserCAs tests a bug where having
-// multiple caCerts would generate an invalid userca.pem file.
-func TestKinitProvider_CreateClient_multipleUserCAs(t *testing.T) {
+// TestKinitProvider_CreateClient_caOverride tests kinit behavior with a typical
+// CA override certificate response.
+//
+// Tests regressions for:
+//   - Invalid PEM concatenation.
+//   - kinit "own certificate" validation.
+func TestKinitProvider_CreateClient_caOverride(t *testing.T) {
 	t.Parallel()
 
-	const chainLength = 3
-	caChain, err := subcaenv.MakeCAChain(chainLength, nil)
+	clock := clockwork.NewFakeClock()
+
+	const clusterName = "zarquon"
+	const username = "alice"
+
+	// External chain:
+	// - Root
+	// - Int1
+	const chainLength = 2
+	externalChain, err := subcaenv.MakeCAChain(chainLength, &subcaenv.CAParams{
+		Clock: clock,
+		ModifyCertificate: func(template *x509.Certificate) {
+			template.MaxPathLen += 1
+		},
+	})
+	require.NoError(t, err)
+	root := externalChain[0]
+	int1 := externalChain[1]
+
+	// Simulate 2 CA overrides (HSM-enabled cluster).
+	// - Chain: Root -> Int1 -> Override1
+	// - Chain: Root -> Int1 -> Override2
+	override1, err := int1.NewIntermediateCA(&subcaenv.CAParams{
+		Clock: clock,
+		Template: &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName:   "override1",
+				Organization: []string{clusterName},
+			},
+		},
+	})
+	require.NoError(t, err)
+	override2, err := int1.NewIntermediateCA(&subcaenv.CAParams{
+		Clock: clock,
+		Template: &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName:   "override2",
+				Organization: []string{clusterName},
+			},
+		},
+	})
 	require.NoError(t, err)
 
-	wantCADERs := make([][]byte, 0, chainLength) // intermediates + ldapCert
-	caCerts := make([][]byte, 0, chainLength-1)
-	for _, ca := range caChain[1:] {
-		caCerts = append(caCerts, bytes.TrimSpace(ca.CertPEM))
-		wantCADERs = append(wantCADERs, ca.Cert.Raw)
-	}
+	// Mint a client certificate from override1.
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.RSA2048)
+	require.NoError(t, err)
+	// This is a rather simplified certificate.
+	// What matters here is that the trust chain is valid.
+	certDER, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{clusterName},
+			CommonName:   username,
+		},
+		NotBefore: clock.Now().Add(-1 * time.Minute),
+		NotAfter:  clock.Now().Add(1 * time.Hour),
+		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageDataEncipherment,
+	}, override1.Cert, priv.Public(), override1.Key)
+	require.NoError(t, err)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv.Signer.(*rsa.PrivateKey)),
+	})
 
 	ldapCertPEM := fixtures.TLSCACertPEM
-	ldapCert, err := tlsutils.ParseCertificatePEM([]byte(ldapCertPEM))
-	require.NoError(t, err)
-	wantCADERs = append(wantCADERs, ldapCert.Raw)
 
 	auth := struct{ winpki.AuthInterface }{}
 	provider, err := newKinitProvider(
@@ -185,21 +255,54 @@ func TestKinitProvider_CreateClient_multipleUserCAs(t *testing.T) {
 	require.NoError(t, err)
 	provider.certGetter = &fakeCertGetter{
 		result: &getCertificateResult{
-			certPEM: []byte(`insert cert pem here`),
-			keyPEM:  []byte(`insert key pem here`),
-			caCerts: caCerts,
+			DatabaseCredentialsResponse: winpki.DatabaseCredentialsResponse{
+				CertPEM: certPEM,
+				KeyPEM:  keyPEM,
+				CACertsPEM: [][]byte{
+					override1.CertPEM,
+					override2.CertPEM,
+				},
+				TrustChainPEM: [][]byte{
+					// Leaf-to-root, including the issuing CA override.
+					override1.CertPEM,
+					int1.CertPEM,
+					root.CertPEM,
+				},
+			},
 		},
 	}
-	runner := &parseUserCAsRunner{}
+	runner := &validateChainRunner{
+		clock: clock,
+	}
 	provider.runner = runner
 
-	const username = "alice"
 	_, err = provider.CreateClient(context.Background(), username)
 	require.NoError(t, err)
 
+	ldapCert, err := tlsutils.ParseCertificatePEM([]byte(ldapCertPEM))
+	require.NoError(t, err)
+
 	// Verify anchors.
-	if diff := cmp.Diff(wantCADERs, runner.anchorsDER); diff != "" {
-		t.Errorf("Method mismatch (-want +got)\n%s", diff)
+	wantAnchors := []string{
+		// Trust chain (roots).
+		root.Cert.Subject.String(),
+		// LDAP.
+		ldapCert.Subject.String(),
+	}
+	if diff := cmp.Diff(wantAnchors, runner.anchorNames); diff != "" {
+		t.Errorf("kinit X509_anchors mismatch (-want +got)\n%s", diff)
+	}
+
+	// Verify pools.
+	wantPools := []string{
+		// CAs (intermediates).
+		override1.Cert.Subject.String(),
+		override2.Cert.Subject.String(),
+		// Trust chain (intermediates).
+		int1.Cert.Subject.String(),
+	}
+	if diff := cmp.Diff(wantPools, runner.poolNames); diff != "" {
+		t.Errorf("kinit pkinit_pool mismatch (-want +got)\n%s", diff)
 	}
 }
 
@@ -223,11 +326,14 @@ func (s *stringsValue) String() string {
 	return strings.Join(*s, " ")
 }
 
-type parseUserCAsRunner struct {
-	anchorsDER [][]byte
+type validateChainRunner struct {
+	clock clockwork.Clock
+
+	anchorNames []string // aka cert.Subject.String()
+	poolNames   []string // aka cert.Subject.String()
 }
 
-func (r *parseUserCAsRunner) runCommand(
+func (r *validateChainRunner) runCommand(
 	ctx context.Context,
 	env map[string]string,
 	command string,
@@ -242,40 +348,111 @@ func (r *parseUserCAsRunner) runCommand(
 		return "", fmt.Errorf("parse args: %w", err)
 	}
 
-	const anchorsPrefix = "X509_anchors=FILE:"
-	var anchorsFile string
-	for _, x := range xFlag {
-		if strings.HasPrefix(x, anchorsPrefix) {
-			anchorsFile = x[len(anchorsPrefix):]
+	krb5ConfigFile := env["KRB5_CONFIG"]
+	if krb5ConfigFile == "" {
+		return "", errors.New("KRB5_CONFIG missing or empty")
+	}
+	krb5ConfigBytes, err := os.ReadFile(krb5ConfigFile)
+	if err != nil {
+		return "", fmt.Errorf("read KRB5_CONFIG: %w", err)
+	}
+	krb5Config := string(krb5ConfigBytes)
+	// Do a superficial config parse.
+	if _, err := config.NewFromString(krb5Config); err != nil {
+		return "", fmt.Errorf("invalid KRB5_CONFIG: %w", err)
+	}
+
+	// Find out if a pkinit_pool file is specified.
+	// gokrb5/config.Config doesn't include pkinit_pool, so we'll look for the
+	// string.
+	const poolPrefix = "pkinit_pool = FILE:"
+	var poolFile string
+	for line := range strings.Lines(krb5Config) {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, poolPrefix) {
+			poolFile = line[len(poolPrefix):]
 			break
 		}
 	}
-	if anchorsFile == "" {
-		return "", fmt.Errorf("anchors not informed (-X %spath", anchorsPrefix)
+	var poolCAs []byte
+	if poolFile != "" {
+		var err error
+		poolCAs, err = os.ReadFile(poolFile)
+		if err != nil {
+			return "", fmt.Errorf("read pkinit_pool: %w", err)
+		}
 	}
+
+	const anchorsPrefix = "X509_anchors=FILE:"
+	const identityPrefix = "X509_user_identity=FILE:"
+	var anchorsFile string
+	var certFile, keyFile string
+	for _, x := range xFlag {
+		switch {
+		case strings.HasPrefix(x, anchorsPrefix):
+			anchorsFile = x[len(anchorsPrefix):]
+
+		case strings.HasPrefix(x, identityPrefix):
+			x = x[len(identityPrefix):]
+			tmp := strings.Split(x, ",")
+			if len(tmp) != 2 {
+				return "", fmt.Errorf("invalid user identity format: %q", x)
+			}
+			certFile = tmp[0]
+			keyFile = tmp[1]
+		}
+	}
+	switch {
+	case anchorsFile == "":
+		return "", fmt.Errorf("anchors not informed (-X %spath)", anchorsPrefix)
+	case certFile == "":
+		return "", errors.New("user_identity certificate not informed")
+	case keyFile == "":
+		return "", errors.New("user_identity private key not informed")
+	}
+
 	anchorsPEM, err := os.ReadFile(anchorsFile)
 	if err != nil {
 		return "", fmt.Errorf("read anchors: %w", err)
 	}
-
-	// Do an explicit check for the improper concatenation.
-	const badLine = "-----END CERTIFICATE----------BEGIN CERTIFICATE-----\n"
-	for line := range bytes.Lines(anchorsPEM) {
-		if string(line) == badLine {
-			return "", fmt.Errorf("found poorly concatenated PEMs in anchors file, data=[%s]", anchorsPEM)
-		}
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return "", fmt.Errorf("read user_identity certificate: %w", err)
 	}
-	// Parse anchors PEMs.
-	for pems := anchorsPEM; true; {
-		block, rest := pem.Decode(pems)
-		if block == nil {
-			return "", fmt.Errorf("failed to decode PEM, data=[%s]", rest)
-		}
-		r.anchorsDER = append(r.anchorsDER, block.Bytes)
-		pems = rest
-		if len(pems) == 0 {
-			break
-		}
+	keyPEM, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", fmt.Errorf("read user_identity private key: %w", err)
+	}
+
+	anchorPool, anchorNames, err := parseCAs(anchorsPEM)
+	if err != nil {
+		return "", fmt.Errorf("parse anchors: %w", err)
+	}
+	r.anchorNames = anchorNames
+
+	poolPool, poolNames, err := parseCAs(poolCAs)
+	if err != nil {
+		return "", fmt.Errorf("parse pkinit_pool: %w", err)
+	}
+	r.poolNames = poolNames
+
+	// Parse and validate certificate/key.
+	identity, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return "", fmt.Errorf("parse user_identity: %w", err)
+	}
+	if l := len(identity.Certificate); l > 1 {
+		return "", fmt.Errorf("found %d user_identity certificates, expected 1", l)
+	}
+
+	// Verify own certificate.
+	if _, err := identity.Leaf.Verify(x509.VerifyOptions{
+		Intermediates: poolPool,
+		Roots:         anchorPool,
+		CurrentTime:   r.clock.Now(),
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}); err != nil {
+		return "", fmt.Errorf("failed to verify own certificate: %w", err)
 	}
 
 	if err := os.WriteFile(*cachePath, validCacheData, 0600); err != nil {
@@ -285,8 +462,48 @@ func (r *parseUserCAsRunner) runCommand(
 	return "", nil
 }
 
-const (
-	expectedConfString = `[libdefaults]
+func parseCAs(casPEM []byte) (_ *x509.CertPool, subjects []string, _ error) {
+	if len(casPEM) == 0 {
+		return nil, nil, nil
+	}
+
+	// Do an explicit check for the improper concatenation.
+	const badLine = "-----END CERTIFICATE----------BEGIN CERTIFICATE-----\n"
+	for line := range bytes.Lines(casPEM) {
+		if string(line) == badLine {
+			return nil, nil, fmt.Errorf("found poorly concatenated PEMs in anchors file, data=[%s]", casPEM)
+		}
+	}
+
+	pool := x509.NewCertPool()
+
+	// Parse CAs.
+	for pems := casPEM; true; {
+		block, rest := pem.Decode(pems)
+		if block == nil {
+			return nil, nil, fmt.Errorf("failed to decode PEM, data=[%s]", rest)
+		}
+		pems = rest
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse anchor certificate: %w", err)
+		}
+		subjects = append(subjects, cert.Subject.String())
+		pool.AddCert(cert)
+
+		if len(pems) == 0 {
+			break
+		}
+	}
+	return pool, subjects, nil
+}
+
+func TestKRBConfString(t *testing.T) {
+	t.Parallel()
+
+	const (
+		expectedNoPool = `[libdefaults]
  default_realm = EXAMPLE.COM
  rdns = false
 
@@ -298,17 +515,54 @@ const (
   pkinit_eku_checking = kpServerAuth
   pkinit_kdc_hostname = instance.host.example.com
  }`
-)
 
-func TestKRBConfString(t *testing.T) {
+		expectedWithPool = `[libdefaults]
+ default_realm = EXAMPLE.COM
+ rdns = false
+
+
+[realms]
+ EXAMPLE.COM = {
+  kdc = example.com
+  admin_server = example.com
+  pkinit_eku_checking = kpServerAuth
+  pkinit_kdc_hostname = instance.host.example.com
+  pkinit_pool = FILE:/path/to/intermediates.pem
+ }`
+	)
+
 	cfg := types.AD{
 		Domain:      "example.com",
 		KDCHostName: "instance.host.example.com",
 	}
 
-	krb5Config, err := newKrb5Config(cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedConfString, krb5Config)
+	tests := []struct {
+		name     string
+		poolPath string
+		hasBool  bool
+		want     string
+	}{
+		{
+			name: "no pool",
+			want: expectedNoPool,
+		},
+		{
+			name:     "with pool",
+			poolPath: "/path/to/intermediates.pem",
+			hasBool:  true,
+			want:     expectedWithPool,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := newKrb5Config(cfg, test.poolPath, test.hasBool)
+			require.NoError(t, err)
+
+			if diff := cmp.Diff(test.want, string(got)); diff != "" {
+				t.Errorf("newKrb5Config mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }
 
 type mockConnector struct {

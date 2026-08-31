@@ -37,6 +37,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/credentials"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -60,17 +61,11 @@ func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig t
 		return nil, trace.Wrap(err)
 	}
 
-	krb5Config, err := newKrb5Config(adConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	provider := &kinitProvider{
-		ldapCertificatePEM: adConfig.LDAPCert,
+		adConfig: adConfig,
 		runner: &execCommandRunner{
 			logger: logger,
 		},
-		krb5Config: krb5Config,
 		certGetter: &dbCertGetter{
 			logger:        logger,
 			auth:          auth,
@@ -82,11 +77,17 @@ func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig t
 	return provider, nil
 }
 
-func newKrb5Config(config types.AD) (string, error) {
-	data := map[string]string{
-		"RealmName":       strings.ToUpper(config.Domain),
-		"KDCHostName":     config.KDCHostName,
-		"AdminServerName": config.Domain,
+func newKrb5Config(
+	adConfig types.AD,
+	poolPath string,
+	hasPool bool,
+) ([]byte, error) {
+	data := map[string]any{
+		"RealmName":       strings.ToUpper(adConfig.Domain),
+		"KDCHostName":     adConfig.KDCHostName,
+		"AdminServerName": adConfig.Domain,
+		"PoolPath":        poolPath,
+		"HasPool":         hasPool,
 	}
 
 	const krb5ConfigTemplate = `[libdefaults]
@@ -100,17 +101,20 @@ func newKrb5Config(config types.AD) (string, error) {
   admin_server = {{ .AdminServerName }}
   pkinit_eku_checking = kpServerAuth
   pkinit_kdc_hostname = {{ .KDCHostName }}
+  {{- if .HasPool}}
+  pkinit_pool = FILE:{{ .PoolPath }}
+  {{- end}}
  }`
 	tpl, err := template.New("krb_conf").Parse(krb5ConfigTemplate)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	b := bytes.NewBuffer([]byte{})
-	err = tpl.Execute(b, data)
+	var b bytes.Buffer
+	err = tpl.Execute(&b, data)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return b.String(), nil
+	return b.Bytes(), nil
 }
 
 type execCommandRunner struct {
@@ -129,13 +133,10 @@ func (e *execCommandRunner) runCommand(ctx context.Context, env map[string]strin
 
 // kinitProvider performs PKINIT using an external, preinstalled kinit binary.
 type kinitProvider struct {
-	krb5Config string
-
+	adConfig   types.AD
 	runner     commandRunner
 	certGetter certGetter
-
-	ldapCertificatePEM string
-	logger             *slog.Logger
+	logger     *slog.Logger
 }
 
 type commandRunner interface {
@@ -154,9 +155,7 @@ type dbCertGetter struct {
 }
 
 type getCertificateResult struct {
-	certPEM []byte
-	keyPEM  []byte
-	caCerts [][]byte
+	winpki.DatabaseCredentialsResponse
 
 	sidLookupError error
 }
@@ -181,16 +180,14 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 		ActiveDirectorySID: sid,
 	}
 
-	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, d.auth, req)
+	credsResp, err := winpki.DatabaseCredentials(ctx, d.auth, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &getCertificateResult{
-		certPEM:        certPEM,
-		keyPEM:         keyPEM,
-		caCerts:        caCerts,
-		sidLookupError: sidLookupError,
+		DatabaseCredentialsResponse: *credsResp,
+		sidLookupError:              sidLookupError,
 	}, nil
 }
 
@@ -212,33 +209,52 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 		}
 	}()
 
-	certPath := filepath.Join(tmp, "cert.pem")
-	keyPath := filepath.Join(tmp, "key.pem")
-	userCAPath := filepath.Join(tmp, "userca.pem")
-	cachePath := filepath.Join(tmp, "login.ccache")
-
 	certResult, err := k.certGetter.getCertificate(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(certPath, certResult.certPEM, 0600)
+	anchorCAs, intCAs, err := k.makeCABundles(certResult)
+	if err != nil {
+		return nil, trace.Wrap(err, "make CA bundles")
+	}
+
+	certPath := filepath.Join(tmp, "cert.pem")
+	keyPath := filepath.Join(tmp, "key.pem")
+	userCAPath := filepath.Join(tmp, "userca.pem")
+	intCAsPath := filepath.Join(tmp, "int_cas.pem")
+	cachePath := filepath.Join(tmp, "login.ccache")
+
+	hasIntCAs := len(intCAs) > 0
+	krb5Config, err := newKrb5Config(k.adConfig, intCAsPath, hasIntCAs)
+	if err != nil {
+		return nil, trace.Wrap(err, "render krb5.conf")
+	}
+
+	err = os.WriteFile(certPath, certResult.CertPEM, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(keyPath, certResult.keyPEM, 0600)
+	err = os.WriteFile(keyPath, certResult.KeyPEM, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCerts), 0600)
+	err = os.WriteFile(userCAPath, anchorCAs, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if hasIntCAs {
+		err = os.WriteFile(intCAsPath, intCAs, 0600)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	krbConfPath := filepath.Join(tmp, "krb5.conf")
-	err = os.WriteFile(krbConfPath, []byte(k.krb5Config), 0600)
+	err = os.WriteFile(krbConfPath, krb5Config, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,16 +294,55 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 	return client.NewFromCCache(ccache, conf, client.DisablePAFXFAST(true))
 }
 
-// buildAnchorsFileContents generates the contents of the anchors file (pkinit).
-// The file must contain the Teleport DB CA and the KDB/LDAP CA, otherwise the
-// connections will fail.
-func (k *kinitProvider) buildAnchorsFileContents(caCerts [][]byte) []byte {
-	var buf bytes.Buffer
-	for _, pem := range caCerts {
-		buf.Write(bytes.TrimSpace(pem))
+// makeCABundles prepares the contents of the anchors and intermediate CA files.
+func (k *kinitProvider) makeCABundles(
+	res *getCertificateResult,
+) (anchors []byte, ints []byte, _ error) {
+	seenPEMs := make(map[string]struct{})
+
+	var anchorsBuf bytes.Buffer
+	var intsBuf bytes.Buffer
+
+	appendNoChecks := func(buf *bytes.Buffer, pemString string) {
+		seenPEMs[pemString] = struct{}{}
+		buf.WriteString(pemString)
 		buf.WriteRune('\n')
 	}
-	buf.WriteString(strings.TrimSpace(k.ldapCertificatePEM))
-	buf.WriteRune('\n')
-	return buf.Bytes()
+	appendRootOrInt := func(certPEM []byte) error {
+		pemString := strings.TrimSpace(string(certPEM))
+		if _, ok := seenPEMs[pemString]; ok {
+			return nil
+		}
+
+		// Parse certPEM instead of pemString to avoid another string->[]byte
+		// conversion. They are equivalent, so this is OK.
+		// The canonical output is still pemString.
+		cert, err := tlsutils.ParseCertificatePEM(certPEM)
+		if err != nil {
+			return trace.Wrap(err, "parse CA certificate")
+		}
+		if err := cert.CheckSignatureFrom(cert); err == nil {
+			// Self-signed means root.
+			appendNoChecks(&anchorsBuf, pemString)
+		} else {
+			appendNoChecks(&intsBuf, pemString)
+		}
+
+		return nil
+	}
+
+	for _, certPEM := range res.CACertsPEM {
+		if err := appendRootOrInt(certPEM); err != nil {
+			return nil, nil, trace.Wrap(err, "append CA cert")
+		}
+	}
+	for _, certPEM := range res.TrustChainPEM {
+		if err := appendRootOrInt(certPEM); err != nil {
+			return nil, nil, trace.Wrap(err, "append trust chain cert")
+		}
+	}
+	// LDAP cert is always the last anchor.
+	appendNoChecks(&anchorsBuf, k.adConfig.LDAPCert)
+
+	return anchorsBuf.Bytes(), intsBuf.Bytes(), nil
 }
