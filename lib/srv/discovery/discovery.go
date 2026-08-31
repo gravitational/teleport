@@ -1029,7 +1029,7 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (azure
 		return nil, trace.BadParameter("cannot create Azure clients with ambient credentials due configuration (this is a bug)")
 	}
 
-	out, err := utils.FnCacheGet(ctx, s.azureClientCache, integration, func(ctx context.Context) (azure.Clients, error) {
+	out, err := s.azureClientCache.Get(ctx, integration, func(ctx context.Context) (azure.Clients, error) {
 		var opts []azure.ClientsOption
 		if integration != "" {
 			opts = append(opts, azure.WithIntegrationCredentials(integration, s.AccessPoint))

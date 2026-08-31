@@ -170,7 +170,7 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 		return users, nil
 	}
 
-	users, err := libutils.FnCacheGet(ctx, f.cache, region, getFunc)
+	users, err := f.cache.Get(ctx, region, getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydbtypes.U
 		return output.TagList, nil
 	}
 
-	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.ToString(user.ARN), getFunc)
+	userTags, err := f.cache.Get(ctx, aws.ToString(user.ARN), getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

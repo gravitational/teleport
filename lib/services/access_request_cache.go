@@ -318,7 +318,7 @@ func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*ty
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
+	temp, err := c.ttlCache.Get(ctx, "access-request-cache", func(ctx context.Context) (*sortcache.SortCache[*types.AccessRequestV3, accessRequestCacheIndex], error) {
 		return c.fetch(ctx)
 	})
 

@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type clusterNameIndex string
@@ -86,7 +85,7 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 		return name.Clone(), nil
 	}
 
-	cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
+	cachedName, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
 		cfg, err := c.Config.ClusterConfig.GetClusterName(ctx)
 		return cfg, err
 	})
@@ -156,7 +155,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 		return cfg.Clone(), nil
 	}
 
-	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
+	cachedCfg, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
 		cfg, err := c.Config.ClusterConfig.GetClusterAuditConfig(ctx)
 		return cfg, err
 	})
@@ -222,7 +221,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 		return cfg.Clone(), nil
 	}
 
-	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	cachedCfg, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 		cfg, err := c.Config.ClusterConfig.GetClusterNetworkingConfig(ctx)
 		return cfg, err
 	})
@@ -401,7 +400,7 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.Ac
 		collection: c.collections.accessGraphSettings,
 		index:      accessGraphSettingsNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*clusterconfigv1.AccessGraphSettings, error) {
-			cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
+			cachedCfg, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
 				cfg, err := c.Config.ClusterConfig.GetAccessGraphSettings(ctx)
 				return cfg, err
 			})

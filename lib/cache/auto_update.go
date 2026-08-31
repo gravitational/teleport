@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type autoUpdateConfigIndex string
@@ -85,7 +84,7 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpda
 		collection: c.collections.autoUpdateConfig,
 		index:      autoUpdateConfigNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateConfig, error) {
-			cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
+			cachedConfig, err := c.fnCache.Get(ctx, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
 				cfg, err := c.Config.AutoUpdateService.GetAutoUpdateConfig(ctx)
 				return cfg, trace.Wrap(err)
 			})
@@ -148,7 +147,7 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpd
 		collection: c.collections.autoUpdateVerion,
 		index:      autoUpdateVersionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateVersion, error) {
-			cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
+			cachedVersion, err := c.fnCache.Get(ctx, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
 				version, err := c.Config.AutoUpdateService.GetAutoUpdateVersion(ctx)
 				return version, trace.Wrap(err)
 			})
@@ -211,7 +210,7 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.Au
 		collection: c.collections.autoUpdateRollout,
 		index:      autoUpdateAgentRolloutNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateAgentRollout, error) {
-			cachedRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
+			cachedRollout, err := c.fnCache.Get(ctx, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
 				rollout, err := c.Config.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)
 				return rollout, trace.Wrap(err)
 			})

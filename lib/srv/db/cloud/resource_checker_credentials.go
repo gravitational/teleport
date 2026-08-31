@@ -115,7 +115,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 		return aws.IdentityFromArn(meta.AssumeRoleARN)
 	}
 
-	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
+	identity, err := c.cache.Get(ctx, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
 		awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region, awsconfig.WithAmbientCredentials())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -127,7 +127,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 }
 
 func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Database) {
-	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
+	allSubIDs, err := c.cache.Get(ctx, types.CloudAzure, func(ctx context.Context) ([]string, error) {
 		return azure.ExpandSubscriptionIDs(ctx, c.azureClients, []string{types.Wildcard})
 	})
 	if err != nil {

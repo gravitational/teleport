@@ -1032,7 +1032,7 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 	// leases can cause problems for etcd at scale.
 	// TODO(fspmarshall): make bucket size configurable.
 	bucket := roundUp(item.Expires, b.leaseBucket)
-	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
+	leaseID, err := b.leaseCache.Get(ctx, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
 		ttl := b.ttl(bucket)
 		elease, err := b.clients.Next().Grant(ctx, seconds(ttl))
 		if err != nil {
@@ -1082,7 +1082,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	// same lease since the leases are bucketed to the nearest multiple of 10s. To
 	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
-		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
+		ttl, err := b.leaseCache.Get(ctx, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
 			re, err := b.clients.Next().TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
 			if err != nil {
 				return 0, convertErr(err)

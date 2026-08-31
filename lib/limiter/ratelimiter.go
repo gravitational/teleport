@@ -127,7 +127,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds.
 	ttl := l.rates.MaxPeriod()*10 + 1
-	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
+	bucketSet, err := l.rateLimits.GetWithTTL(context.TODO(), token, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
 			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
 		},

@@ -1223,7 +1223,7 @@ func (s *WindowsService) generateUserCert(
 		if !strings.Contains(username, "@") {
 			cacheKey = fmt.Sprintf("%s@%s", username, desktop.GetDomain())
 		}
-		entry, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (entry, error) {
+		entry, err := s.sidCache.Get(ctx, cacheKey, func(ctx context.Context) (entry, error) {
 			tc, err := s.loadTLSConfigForLDAP()
 			if err != nil {
 				return entry{}, trace.Wrap(err)

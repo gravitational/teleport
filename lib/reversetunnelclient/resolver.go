@@ -53,7 +53,7 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 	}
 
 	return func(ctx context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-		d, err := utils.FnCacheGet(ctx, cache, "resolver", func(ctx context.Context) (data, error) {
+		d, err := cache.Get(ctx, "resolver", func(ctx context.Context) (data, error) {
 			addr, mode, err := resolver(ctx)
 
 			return data{addr: addr, mode: mode}, err

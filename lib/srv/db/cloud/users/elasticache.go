@@ -171,7 +171,7 @@ func (f *elastiCacheFetcher) getUsersForRegion(ctx context.Context, region strin
 		return users, nil
 	}
 
-	users, err := libutils.FnCacheGet(ctx, f.cache, region, getFunc)
+	users, err := f.cache.Get(ctx, region, getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (f *elastiCacheFetcher) getUserTags(ctx context.Context, user *ectypes.User
 		return output.TagList, nil
 	}
 
-	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.ToString(user.ARN), getFunc)
+	userTags, err := f.cache.Get(ctx, aws.ToString(user.ARN), getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

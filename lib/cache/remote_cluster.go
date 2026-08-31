@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
@@ -207,7 +206,7 @@ func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, e
 		return remotes, nil
 	}
 
-	cachedRemotes, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
+	cachedRemotes, err := c.fnCache.Get(ctx, remoteClustersCacheKey{}, func(ctx context.Context) ([]types.RemoteCluster, error) {
 		var out []types.RemoteCluster
 		var startKey string
 
@@ -249,7 +248,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 		index:      remoteClusterNameIndex,
 		upstreamGet: func(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 			upstreamRead = true
-			cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
+			cachedRemote, err := c.fnCache.Get(ctx, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
 				remote, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName)
 				return remote, err
 			})

@@ -308,7 +308,7 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	for org := range orgs {
-		usesSSO, err := utils.FnCacheGet(ctx, orgCache, org, func(ctx context.Context) (bool, error) {
+		usesSSO, err := orgCache.Get(ctx, org, func(ctx context.Context) (bool, error) {
 			return orgUsesExternalSSO(ctx, conn.GetEndpointURL(), org, client)
 		})
 		if err != nil {

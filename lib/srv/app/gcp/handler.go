@@ -271,7 +271,7 @@ func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credent
 	defer cancel()
 
 	go func() {
-		token, err := utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+		token, err := s.tokenCache.Get(ctx, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
 		})
 		resultChan <- result{

@@ -484,7 +484,7 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 	}
 
 	// the cache is not ready, load a frozen readonly copy via ttl cache
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-cache", func(ctx context.Context) (state, error) {
+	temp, err := c.ttlCache.Get(ctx, "access-cache", func(ctx context.Context) (state, error) {
 		state, _, err := c.fetch(ctx)
 		return state, err
 	})

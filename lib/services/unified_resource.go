@@ -824,7 +824,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 	}
 
 	c.rw.RUnlock()
-	ttlCache, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (*UnifiedResourceCache, error) {
+	ttlCache, err := c.cache.Get(ctx, "unified_resources", func(ctx context.Context) (*UnifiedResourceCache, error) {
 		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
 			nameTree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {

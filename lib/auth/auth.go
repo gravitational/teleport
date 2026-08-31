@@ -1088,7 +1088,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 		Integration: o.integration,
 	}
 
-	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+	describeAccountOutput, err := o.describeAccountAPICache.Get(ctx, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
 		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
 		return remoteDescribeAccountOutput, trace.Wrap(err)
 	})
@@ -8035,7 +8035,7 @@ const agentWindowLookahead = 3
 // are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
 // the encoded schedule values for a few seconds.
 func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
-	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
+	return a.ttlCache.Get(ctx, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
 		var rsp proto.ExportUpgradeWindowsResponse
 		cmc, err := a.GetClusterMaintenanceConfig(ctx)
 		if err != nil {

@@ -76,7 +76,7 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	// kubernetes cluster name: <teleport-cluster-name>/<scope>/<kubernetes-cluster-name>.
 	key := transportCacheKey(sess)
 
-	t, err := utils.FnCacheGet(f.ctx, f.cachedTransport, key, func(ctx context.Context) (*cachedTransportEntry, error) {
+	t, err := f.cachedTransport.Get(f.ctx, key, func(ctx context.Context) (*cachedTransportEntry, error) {
 		var (
 			httpTransport http.RoundTripper
 			tlsConfig     *tls.Config

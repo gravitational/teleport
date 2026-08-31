@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type nodeIndex string
@@ -198,7 +197,7 @@ func (c *Cache) RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServ
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
 func (c *Cache) getNodesWithTTLCache(ctx context.Context) ([]types.Server, error) {
-	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{defaults.Namespace}, func(ctx context.Context) ([]types.Server, error) {
+	cachedNodes, err := c.fnCache.Get(ctx, getNodesCacheKey{defaults.Namespace}, func(ctx context.Context) ([]types.Server, error) {
 		nodes, err := c.Config.Presence.GetNodes(ctx, defaults.Namespace)
 		return nodes, err
 	})

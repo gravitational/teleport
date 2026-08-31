@@ -137,7 +137,7 @@ func (v *CachingTokenValidator[C, K]) GetValidatorWithKey(
 	key K,
 	opts ...ClientMutator,
 ) (*CachingValidatorInstance[C], error) {
-	instance, err := utils.FnCacheGet(ctx, v.cache, key, func(ctx context.Context) (*CachingValidatorInstance[C], error) {
+	instance, err := v.cache.Get(ctx, key, func(ctx context.Context) (*CachingValidatorInstance[C], error) {
 		transport, err := defaults.Transport()
 		if err != nil {
 			return nil, trace.Wrap(err)

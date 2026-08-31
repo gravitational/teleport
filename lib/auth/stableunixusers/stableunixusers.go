@@ -197,7 +197,7 @@ func (s *server) obtainUIDForUsernameCached(ctx context.Context, username string
 		idGetter = nil
 	}
 
-	uid, err := utils.FnCacheGet(ctx, s.uidCache, username, func(ctx context.Context) (int32, error) {
+	uid, err := s.uidCache.Get(ctx, username, func(ctx context.Context) (int32, error) {
 		ctx, cancel := context.WithTimeout(ctx, uidCacheTTL)
 		defer cancel()
 		if idGetter != nil {

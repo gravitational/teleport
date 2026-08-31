@@ -98,7 +98,7 @@ func CachingUpstreamNameserverSource(src UpstreamNameserverSource, ttl time.Dura
 		return nil, trace.Wrap(err)
 	}
 	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
-		return utils.FnCacheGet(ctx, cache, 0, src.UpstreamNameservers)
+		return cache.Get(ctx, 0, src.UpstreamNameservers)
 	}), nil
 }
 

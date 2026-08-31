@@ -65,7 +65,7 @@ func NewSubscriptionClient(api ARMSubscriptions) (*SubscriptionClient, error) {
 
 // ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
 func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
-	ids, err := utils.FnCacheGet(ctx, c.cache, struct{}{}, c.listSubscriptionIDsWithoutCache)
+	ids, err := c.cache.Get(ctx, struct{}{}, c.listSubscriptionIDsWithoutCache)
 	return slices.Clone(ids), trace.Wrap(err)
 }
 

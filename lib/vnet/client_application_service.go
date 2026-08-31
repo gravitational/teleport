@@ -433,7 +433,7 @@ func (s *clientApplicationService) setSignerForSSHSession(signer crypto.Signer) 
 }
 
 func (s *clientApplicationService) getSignerForSSHSession(ctx context.Context, sessionID string) (crypto.Signer, error) {
-	signer, err := utils.FnCacheGet(ctx, s.sshSigners, sessionID, func(ctx context.Context) (crypto.Signer, error) {
+	signer, err := s.sshSigners.Get(ctx, sessionID, func(ctx context.Context) (crypto.Signer, error) {
 		return nil, trace.NotFound("session key expired")
 	})
 	return signer, trace.Wrap(err)

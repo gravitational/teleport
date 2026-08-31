@@ -938,7 +938,7 @@ func (g *genericCollector[T, R]) refreshStaleResources(ctx context.Context) erro
 		return nil
 	}
 
-	_, err := utils.FnCacheGet(ctx, g.cache, g.GenericWatcherConfig.ResourceKind, func(ctx context.Context) (any, error) {
+	_, err := g.cache.Get(ctx, g.GenericWatcherConfig.ResourceKind, func(ctx context.Context) (any, error) {
 		newCurrent, err := g.getResources(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)

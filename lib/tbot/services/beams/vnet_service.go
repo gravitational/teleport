@@ -277,7 +277,7 @@ func (v *vnetApplicationService) getOSConfiguration(ctx context.Context) (*vnetO
 			}.Build(),
 		}, nil
 	}
-	return utils.FnCacheGet(ctx, v.cache, "", uncached)
+	return v.cache.Get(ctx, "", uncached)
 }
 
 type vnetOSConfiguration struct {
