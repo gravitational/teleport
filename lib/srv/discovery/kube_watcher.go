@@ -36,7 +36,7 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
+	if len(s.getKubeFetchersUsingKubernetesServiceAsProxy()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -83,14 +83,15 @@ func (s *Server) startKubeWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn: func() []common.Fetcher {
-			kubeNonIntegrationFetchers := s.getKubeNonIntegrationFetchers()
-			s.submitFetchersEvent(kubeNonIntegrationFetchers)
-			return kubeNonIntegrationFetchers
+			kubeFetchersUsingKubernetesServiceAsProxy := s.getKubeFetchersUsingKubernetesServiceAsProxy()
+			s.submitFetchersEvent(kubeFetchersUsingKubernetesServiceAsProxy)
+			return kubeFetchersUsingKubernetesServiceAsProxy
 		},
 		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
+		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		Clock:          s.clock,
 	})
 	if err != nil {
