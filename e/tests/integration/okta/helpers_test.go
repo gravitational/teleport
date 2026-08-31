@@ -509,3 +509,53 @@ func assignmentHasTarget(a types.OktaAssignment, typ, id string) bool {
 	}
 	return false
 }
+
+// waitForUserSync waits until a successful user sync plugin status.
+func waitForUserSync(t *testing.T, w types.Watcher, after time.Time) {
+	t.Helper()
+
+	common.WaitForPutEvent(t, w, func(p types.Plugin) bool {
+		if !isOkta(p) {
+			return false
+		}
+
+		d := p.GetStatus().GetOkta().UsersSyncDetails
+		if d == nil {
+			return false
+		}
+		if d.StatusCode == types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR &&
+			d.LastFailed != nil && d.LastFailed.After(after) {
+			t.Fatalf("Okta user sync failed: %s", d.Error)
+		}
+		return d.StatusCode == types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS &&
+			d.LastSuccessful != nil &&
+			d.LastSuccessful.After(after)
+	})
+}
+
+// waitForAccessListSync waits until a successful Access List sync plugin status.
+func waitForAccessListSync(t *testing.T, w types.Watcher, after time.Time) {
+	t.Helper()
+
+	common.WaitForPutEvent(t, w, func(p types.Plugin) bool {
+		if !isOkta(p) {
+			return false
+		}
+
+		d := p.GetStatus().GetOkta().AccessListsSyncDetails
+		if d == nil {
+			return false
+		}
+		if d.StatusCode == types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR &&
+			d.LastFailed != nil && d.LastFailed.After(after) {
+			t.Fatalf("Okta access list sync failed: %s", d.Error)
+		}
+		return d.StatusCode == types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS &&
+			d.LastSuccessful != nil &&
+			d.LastSuccessful.After(after)
+	})
+}
+
+func isOkta(p types.Plugin) bool {
+	return p.GetName() == types.PluginTypeOkta && p.GetStatus().GetOkta() != nil
+}

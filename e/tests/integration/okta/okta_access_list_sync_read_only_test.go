@@ -54,9 +54,10 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
 	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
 	memberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
+	pluginWatcher := sut.NewResourceWatcher(t, types.KindPlugin)
 
 	// 1. Create the integration with bidirectional sync disabled
-	beforeCreateIntegrationTime := time.Now()
+	beforeCreateIntegrationTimePoint := time.Now()
 	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
@@ -75,15 +76,16 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	})
 
 	// 2. Verify users (user1 - ghost) are synchronized
-	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(beforeCreateIntegrationTime))
+	waitForUserSync(t, pluginWatcher, beforeCreateIntegrationTimePoint)
+	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(beforeCreateIntegrationTimePoint))
 
 	waitForResourceCount(t, userWatcher, 1, func(u types.User) bool {
 		return u.Origin() == types.OriginOkta
 	})
 
 	// 3. Remember the name of the AL
-
-	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+	waitForAccessListSync(t, pluginWatcher, beforeCreateIntegrationTimePoint)
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(beforeCreateIntegrationTimePoint))
 
 	accessLists := waitForResourceCount(t, accessListWatcher, 1, func(*accesslist.AccessList) bool {
 		return true
@@ -225,6 +227,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 	userWatcher := sut.NewResourceWatcher(t, types.KindUser)
 	accessListWatcher := sut.NewResourceWatcher(t, types.KindAccessList)
 	memberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
+	pluginWatcher := sut.NewResourceWatcher(t, types.KindPlugin)
 
 	// 1. Create the integration with bidirectional sync disabled
 
@@ -247,6 +250,8 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 
+	waitForUserSync(t, pluginWatcher, beforeCreationTime)
+	waitForAccessListSync(t, pluginWatcher, beforeCreationTime)
 	waitForOktaSync(t, sut, withTimePoint(beforeCreationTime))
 
 	// 2. Verify users (user1 - ghost) are synchronized
@@ -273,14 +278,15 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	// 5. Assign user2 (specter) to the SAML app for user sync and the app on the Okta side
 
+	beforeAssignmentTimePoint := time.Now()
 	err = fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, specterUser.Id)
 	require.NoError(t, err)
 	err = fakeOkta.AssignUserToApplication(app.Id, specterUser.Id)
 	require.NoError(t, err)
 
 	// 6. Verify user2 (specter) is synchronized to the Access List
-
-	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+	waitForAccessListSync(t, pluginWatcher, beforeAssignmentTimePoint)
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(beforeAssignmentTimePoint))
 
 	waitForResource(t, memberWatcher, func(m *accesslist.AccessListMember) bool {
 		return m.Spec.AccessList == accessList.GetName() && m.GetName() == specterEmail
