@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -48,6 +49,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -499,7 +501,7 @@ func TestKubeMiddleware(t *testing.T) {
 		withClock(clock),
 	)
 
-	certReissuer := func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	certReissuer := func(ctx context.Context, _ KubeCertReissueRequest) (tls.Certificate, error) {
 		select {
 		case <-ctx.Done():
 			return tls.Certificate{}, ctx.Err()
@@ -798,4 +800,435 @@ func (m addUserAgentSignedHeaderMiddleware) HandleFinalize(
 	authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
 	req.Header.Set("Authorization", authHeader)
 	return next.HandleFinalize(ctx, in)
+}
+
+// TestKubeMiddlewareSharedCert covers cert resolution when a single unrouted certificate,
+// stored under the empty kube cluster key, serves every Kubernetes cluster whose per-session MFA is off,
+// while MFA-gated clusters keep their own.
+func TestKubeMiddlewareSharedCert(t *testing.T) {
+	t.Parallel()
+
+	const teleportCluster = "localhost"
+
+	now := time.Now()
+	ca := mustGenSelfSignedCert(t)
+	genCert := func(kubeCluster string, clock clockwork.Clock) tls.Certificate {
+		return mustGenCertSignedWithCA(t, ca,
+			withIdentity(tlsca.Identity{
+				Username:          "test-user",
+				Groups:            []string{"test-group"},
+				KubernetesCluster: kubeCluster,
+			}),
+			withClock(clock),
+		)
+	}
+	fresh := clockwork.NewFakeClockAt(now)
+	stale := clockwork.NewFakeClockAt(now.Add(-24 * time.Hour)) // Issued in the past, so considered as expired.
+	var (
+		sharedCert         = genCert(UnroutedKubeCluster, fresh)
+		staleSharedCert    = genCert(UnroutedKubeCluster, stale)
+		mfaCert            = genCert("kube-mfa", fresh)
+		reissuedCert       = genCert("reissued", fresh)
+		reissuedSharedCert = genCert(UnroutedKubeCluster, fresh)
+		reissuedKubeACert  = genCert("kube-a", fresh)
+	)
+
+	requestFor := func(t *testing.T, kubeCluster string) *http.Request {
+		u, err := url.Parse("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster) + "/api/v1/namespaces")
+		require.NoError(t, err)
+		return &http.Request{URL: u}
+	}
+
+	label := func(req KubeCertReissueRequest) string {
+		if req.Held.KubeCluster == UnroutedKubeCluster {
+			return "shared:" + req.RequestedKubeCluster
+		}
+		return "routed:" + req.Held.KubeCluster
+	}
+
+	for _, tt := range []struct {
+		name            string
+		seed            map[string]tls.Certificate
+		requests        []string
+		reissued        tls.Certificate
+		wantReissuedFor []string
+		wantCerts       map[string]tls.Certificate
+	}{
+		{
+			name:      "shared cert serves clusters with no entry of their own",
+			seed:      map[string]tls.Certificate{UnroutedKubeCluster: sharedCert},
+			requests:  []string{"kube-a", "kube-b"},
+			wantCerts: map[string]tls.Certificate{"kube-a": sharedCert, "kube-b": sharedCert},
+		},
+		{
+			name:      "per-cluster cert wins over the shared cert",
+			seed:      map[string]tls.Certificate{UnroutedKubeCluster: sharedCert, "kube-mfa": mfaCert},
+			requests:  []string{"kube-mfa"},
+			wantCerts: map[string]tls.Certificate{"kube-mfa": mfaCert},
+		},
+		{
+			name:            "expired shared cert is reissued against the shared key",
+			seed:            map[string]tls.Certificate{UnroutedKubeCluster: staleSharedCert},
+			requests:        []string{"kube-a"},
+			reissued:        reissuedSharedCert,
+			wantReissuedFor: []string{"shared:kube-a"},
+			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedSharedCert, "kube-b": reissuedSharedCert},
+		},
+		{
+			name:            "expired per-cluster cert is reissued against its own key",
+			seed:            map[string]tls.Certificate{UnroutedKubeCluster: sharedCert, "kube-mfa": genCert("kube-mfa", stale)},
+			requests:        []string{"kube-mfa"},
+			wantReissuedFor: []string{"routed:kube-mfa"},
+			wantCerts:       map[string]tls.Certificate{"kube-mfa": reissuedCert, "kube-a": sharedCert},
+		},
+		{
+			name:            "reissue stays per-cluster when no shared cert exists",
+			seed:            map[string]tls.Certificate{},
+			requests:        []string{"kube-a"},
+			wantReissuedFor: []string{"routed:kube-a"},
+			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedCert},
+		},
+		{
+			name:            "shared reissue can move one cluster onto its own key",
+			seed:            map[string]tls.Certificate{UnroutedKubeCluster: staleSharedCert},
+			requests:        []string{"kube-a"},
+			reissued:        reissuedKubeACert,
+			wantReissuedFor: []string{"shared:kube-a"},
+			wantCerts:       map[string]tls.Certificate{"kube-a": reissuedKubeACert, "kube-b": staleSharedCert},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				certs := KubeClientCerts{}
+				for kubeCluster, cert := range tt.seed {
+					certs.Add(teleportCluster, kubeCluster, cert)
+				}
+
+				reissued := tt.reissued
+				if len(reissued.Certificate) == 0 {
+					reissued = reissuedCert
+				}
+
+				var mu sync.Mutex
+				var reissuedFor []string
+				cfg := KubeMiddlewareConfig{
+					Certs: certs,
+					CertReissuer: func(_ context.Context, req KubeCertReissueRequest) (tls.Certificate, error) {
+						mu.Lock()
+						defer mu.Unlock()
+						reissuedFor = append(reissuedFor, label(req))
+						return reissued, nil
+					},
+					Logger:       logtest.NewLogger(),
+					Clock:        clockwork.NewFakeClockAt(now),
+					CloseContext: context.Background(),
+				}
+				km := NewKubeMiddleware(cfg)
+				require.NoError(t, km.CheckAndSetDefaults())
+
+				for _, kubeCluster := range tt.requests {
+					require.False(t, km.HandleRequest(responsewriters.NewMemoryResponseWriter(), requestFor(t, kubeCluster)),
+						"request for %q should not have been handled with an error", kubeCluster)
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+				require.Equal(t, tt.wantReissuedFor, reissuedFor)
+
+				for kubeCluster, want := range tt.wantCerts {
+					got, ok, err := km.GetClientCerts(requestFor(t, kubeCluster))
+					require.NoError(t, err)
+					require.True(t, ok)
+					require.Len(t, got, 1)
+					require.Equal(t, want, got[0], "unexpected cert served for kube cluster %q", kubeCluster)
+				}
+			})
+		})
+	}
+}
+
+// TestKubeMiddlewareConcurrentReissue covers a burst of requests that all find the same cert expired.
+// They drive one reissue between them and wait on it, rather than all but one being turned away.
+func TestKubeMiddlewareConcurrentReissue(t *testing.T) {
+	t.Parallel()
+
+	const teleportCluster = "localhost"
+	clusters := []string{"kube-a", "kube-b", "kube-c", "kube-d", "kube-e"}
+
+	now := time.Now()
+	ca := mustGenSelfSignedCert(t)
+	genCert := func(kubeCluster string, clock clockwork.Clock) tls.Certificate {
+		return mustGenCertSignedWithCA(t, ca,
+			withIdentity(tlsca.Identity{
+				Username:          "test-user",
+				Groups:            []string{"test-group"},
+				KubernetesCluster: kubeCluster,
+			}),
+			withClock(clock),
+		)
+	}
+	// Issued in the past, so considered as expired.
+	staleSharedCert := genCert(UnroutedKubeCluster, clockwork.NewFakeClockAt(now.Add(-24*time.Hour)))
+	// A reissue is held under the route its cert carries, so a refreshed shared cert carries none.
+	reissuedSharedCert := genCert(UnroutedKubeCluster, clockwork.NewFakeClockAt(now))
+
+	requests := make(map[string]*http.Request, len(clusters))
+	for _, kubeCluster := range clusters {
+		u, err := url.Parse("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster) + "/api/v1/namespaces")
+		require.NoError(t, err)
+		requests[kubeCluster] = &http.Request{URL: u}
+	}
+
+	// handleBurst fires one request per cluster at once and reports which of them the middleware
+	// answered itself instead of letting through. Under synctest the fake clock only advances once
+	// every request is blocked, so they are guaranteed to meet on the same reissue.
+	handleBurst := func(km LocalProxyHTTPMiddleware) map[string]bool {
+		var mu sync.Mutex
+		handled := make(map[string]bool)
+		var wg sync.WaitGroup
+		for _, kubeCluster := range clusters {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if km.HandleRequest(responsewriters.NewMemoryResponseWriter(), requests[kubeCluster]) {
+					mu.Lock()
+					defer mu.Unlock()
+					handled[kubeCluster] = true
+				}
+			}()
+		}
+		wg.Wait()
+		return handled
+	}
+
+	seededMiddleware := func(t *testing.T, cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
+		certs := KubeClientCerts{}
+		certs.Add(teleportCluster, UnroutedKubeCluster, staleSharedCert)
+		cfg.Certs = certs
+		cfg.Logger = logtest.NewLogger()
+		cfg.Clock = clockwork.NewFakeClockAt(now)
+		cfg.CloseContext = context.Background()
+		km := NewKubeMiddleware(cfg)
+		require.NoError(t, km.CheckAndSetDefaults())
+		return km
+	}
+
+	t.Run("one reissue serves the whole burst", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var reissuedFor []string
+			km := seededMiddleware(t, KubeMiddlewareConfig{
+				CertReissuer: func(_ context.Context, req KubeCertReissueRequest) (tls.Certificate, error) {
+					// Held open long enough for the rest of the burst to arrive, but well inside
+					// the wait after which a client is told to look at the local proxy.
+					time.Sleep(time.Second)
+					mu.Lock()
+					defer mu.Unlock()
+					reissuedFor = append(reissuedFor, req.Held.KubeCluster)
+					return reissuedSharedCert, nil
+				},
+			})
+
+			require.Empty(t, handleBurst(km), "no request should have been turned away")
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Equal(t, []string{UnroutedKubeCluster}, reissuedFor, "the burst should have driven exactly one reissue")
+
+			for _, kubeCluster := range clusters {
+				got, ok, err := km.GetClientCerts(requests[kubeCluster])
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.Len(t, got, 1)
+				require.Equal(t, reissuedSharedCert, got[0], "unexpected cert served for kube cluster %q", kubeCluster)
+			}
+		})
+	})
+
+	t.Run("a reissue that moves its cluster onto its own key serves only that cluster", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var reissuedFor []string
+			var reissuedCert tls.Certificate
+			km := seededMiddleware(t, KubeMiddlewareConfig{
+				// Stands in for a cluster whose per-session MFA was turned on while the proxy ran:
+				// it takes a cert routed to itself and leaves the shared cert as it was.
+				CertReissuer: func(_ context.Context, req KubeCertReissueRequest) (tls.Certificate, error) {
+					time.Sleep(time.Second)
+					mu.Lock()
+					defer mu.Unlock()
+					reissuedFor = append(reissuedFor, req.RequestedKubeCluster)
+					reissuedCert = genCert(req.RequestedKubeCluster, clockwork.NewFakeClockAt(now))
+					return reissuedCert, nil
+				},
+			})
+
+			handled := handleBurst(km)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Len(t, reissuedFor, 1, "the burst should have driven exactly one reissue")
+			driver := reissuedFor[0]
+
+			// The rest waited on a reissue that never refreshed the cert they need, so they are asked
+			// for user input rather than let through with the expired shared cert.
+			require.False(t, handled[driver], "the cluster that drove the reissue should have been let through")
+			require.Len(t, handled, len(clusters)-1)
+
+			for _, kubeCluster := range clusters {
+				want := staleSharedCert
+				if kubeCluster == driver {
+					want = reissuedCert
+				}
+				got, ok, err := km.GetClientCerts(requests[kubeCluster])
+				require.NoError(t, err)
+				require.True(t, ok)
+				require.Len(t, got, 1)
+				require.Equal(t, want, got[0], "unexpected cert served for kube cluster %q", kubeCluster)
+			}
+		})
+	})
+}
+
+// TestKubeMiddlewareReissuedCertServedUnvalidated pins that a reissued cert is taken as issued rather
+// than checked against the local clock, which a fresh cert fails whenever that clock is behind the issuer.
+func TestKubeMiddlewareReissuedCertServedUnvalidated(t *testing.T) {
+	t.Parallel()
+
+	const teleportCluster = "localhost"
+	const kubeCluster = "kube-a"
+
+	now := time.Now()
+	ca := mustGenSelfSignedCert(t)
+	genCert := func(name string, clock clockwork.Clock) tls.Certificate {
+		return mustGenCertSignedWithCA(t, ca,
+			withIdentity(tlsca.Identity{
+				Username:          "test-user",
+				Groups:            []string{"test-group"},
+				KubernetesCluster: name,
+			}),
+			withClock(clock),
+		)
+	}
+	// Both certs sit outside the middleware clock's window: the first because it really has expired,
+	// the second standing in for a freshly issued cert that a lagging local clock rejects.
+	behind := clockwork.NewFakeClockAt(now.Add(-24 * time.Hour))
+	expiredCert := genCert(kubeCluster, behind)
+	reissuedCert := genCert("reissued", behind)
+
+	u, err := url.Parse("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster) + "/api/v1/namespaces")
+	require.NoError(t, err)
+	req := &http.Request{URL: u}
+
+	synctest.Test(t, func(t *testing.T) {
+		certs := KubeClientCerts{}
+		certs.Add(teleportCluster, kubeCluster, expiredCert)
+
+		var mu sync.Mutex
+		reissues := 0
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs: certs,
+			CertReissuer: func(context.Context, KubeCertReissueRequest) (tls.Certificate, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				reissues++
+				return reissuedCert, nil
+			},
+			Logger:       logtest.NewLogger(),
+			Clock:        clockwork.NewFakeClockAt(now),
+			CloseContext: context.Background(),
+		})
+		require.NoError(t, km.CheckAndSetDefaults())
+
+		require.False(t, km.HandleRequest(responsewriters.NewMemoryResponseWriter(), req),
+			"the reissued cert should be served even though it does not validate against the middleware clock")
+
+		mu.Lock()
+		defer mu.Unlock()
+		require.Equal(t, 1, reissues, "the request should have driven exactly one reissue")
+
+		got, ok, err := km.GetClientCerts(req)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Len(t, got, 1)
+		require.Equal(t, reissuedCert, got[0])
+	})
+}
+
+// TestKubeMiddlewareRelayServerName covers relay mode while a shared certificate is in use. The
+// certificate names no Kubernetes cluster, so the SNI is the only thing telling the relay which
+// cluster a request is for.
+func TestKubeMiddlewareRelayServerName(t *testing.T) {
+	t.Parallel()
+
+	const teleportCluster = "localhost"
+	clusters := []string{"kube-a", "kube-b", "kube-c"}
+
+	now := time.Now()
+	ca := mustGenSelfSignedCert(t)
+	sharedCert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: UnroutedKubeCluster,
+		}),
+		withClock(clockwork.NewFakeClockAt(now)),
+	)
+
+	requestFor := func(t *testing.T, kubeCluster string) *http.Request {
+		u, err := url.Parse("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster) + "/api/v1/namespaces")
+		require.NoError(t, err)
+		return &http.Request{URL: u}
+	}
+
+	newMiddleware := func(t *testing.T, relay bool) LocalProxyHTTPMiddleware {
+		certs := KubeClientCerts{}
+		certs.Add(teleportCluster, UnroutedKubeCluster, sharedCert)
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        certs,
+			Relay:        relay,
+			Logger:       logtest.NewLogger(),
+			Clock:        clockwork.NewFakeClockAt(now),
+			CloseContext: context.Background(),
+		})
+		require.NoError(t, km.CheckAndSetDefaults())
+		return km
+	}
+
+	t.Run("one shared cert yields a distinct SNI per cluster", func(t *testing.T) {
+		t.Parallel()
+		km := newMiddleware(t, true)
+
+		sniFor := make(map[string]string, len(clusters))
+		for _, kubeCluster := range clusters {
+			req := requestFor(t, kubeCluster)
+
+			sni, ok, err := km.GetServerName(req)
+			require.NoError(t, err)
+			require.True(t, ok, "relay mode should override the SNI")
+			require.Equal(t, kuberelay.FullSNIForKubeCluster(teleportCluster, kubeCluster), sni)
+			sniFor[sni] = kubeCluster
+
+			// The same unrouted cert serves every cluster, so the SNI carries the routing alone.
+			certs, ok, err := km.GetClientCerts(req)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Len(t, certs, 1)
+			require.Equal(t, sharedCert, certs[0], "every cluster should be served the shared cert")
+		}
+		require.Len(t, sniFor, len(clusters), "each cluster needs an SNI of its own")
+	})
+
+	t.Run("no SNI override without a relay", func(t *testing.T) {
+		t.Parallel()
+		km := newMiddleware(t, false)
+
+		sni, ok, err := km.GetServerName(requestFor(t, clusters[0]))
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Empty(t, sni)
+	})
 }

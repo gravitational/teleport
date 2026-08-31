@@ -191,7 +191,7 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, k.cfg.Cert)
 	middleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
 		Certs: certs,
-		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		CertReissuer: func(ctx context.Context, _ alpnproxy.KubeCertReissueRequest) (tls.Certificate, error) {
 			cert, err := k.cfg.OnExpiredCert(ctx, k)
 			return cert, trace.Wrap(err)
 		},

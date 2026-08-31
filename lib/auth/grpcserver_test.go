@@ -29,7 +29,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -99,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -7741,4 +7744,151 @@ func TestScopedWatchEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGenerateUserCerts_unroutedKube covers
+// the shared unrouted Kubernetes certificate used by the multi-cluster kube local proxy.
+func TestGenerateUserCerts_unroutedKube(t *testing.T) {
+	t.Parallel()
+	testServer := newTestTLSServer(t)
+
+	const username = "kube-multi-user"
+	_, _, err := authtest.CreateUserAndRole(testServer.Auth(), username, []string{username}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
+
+	for _, tt := range []struct {
+		name        string
+		requester   proto.UserCertsRequest_Requester
+		purpose     proto.UserCertsRequest_CertPurpose
+		mfaResponse *proto.MFAAuthenticateResponse
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			name:      "issued for the multi requester",
+			requester: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+			assertErr: require.NoError,
+		},
+		{
+			name:      "rejected for any other requester",
+			requester: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+				require.ErrorContains(t, err, "missing KubernetesCluster field")
+			},
+		},
+		{
+			name:        "rejected when carrying MFA state",
+			requester:   proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+			purpose:     proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+			mfaResponse: &proto.MFAAuthenticateResponse{},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+				require.ErrorContains(t, err, "cannot request MFA-verified certificates without a Kubernetes cluster")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel() // Each case dials a client of its own and changes nothing the others read.
+
+			userClient, err := testServer.NewClient(authtest.TestUser(username))
+			require.NoError(t, err, "NewClient failed")
+			t.Cleanup(func() { require.NoError(t, userClient.Close()) })
+
+			resp, err := userClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
+				TLSPublicKey: publicKeyPEM,
+				Username:     username,
+				Expires:      testServer.Clock().Now().Add(time.Hour),
+				Usage:        proto.UserCertsRequest_Kubernetes,
+				// No KubernetesCluster. The target is chosen per request by path routing at the proxy.
+				RequesterName: tt.requester,
+				Purpose:       tt.purpose,
+				MFAResponse:   tt.mfaResponse,
+			})
+			tt.assertErr(t, err)
+			if err != nil {
+				return
+			}
+
+			cert, err := tlsca.ParseCertificatePEM(resp.TLS)
+			require.NoError(t, err, "ParseCertificatePEM failed")
+			identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+			require.NoError(t, err, "FromSubject failed")
+
+			require.Empty(t, identity.KubernetesCluster, "shared cert must carry no Kubernetes cluster route")
+			require.NotEmpty(t, identity.RouteToCluster, "shared cert must still be routed to a Teleport cluster")
+			require.Empty(t, identity.MFAVerified, "shared cert must carry no MFA state")
+			require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+		})
+	}
+}
+
+// certIssuedUsageReporter collects the certificate issuance events submitted for usage reporting.
+type certIssuedUsageReporter struct {
+	mu     sync.Mutex
+	events []*usagereporter.UserCertificateIssuedEvent
+}
+
+func (r *certIssuedUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, event := range events {
+		if certEvent, ok := event.(*usagereporter.UserCertificateIssuedEvent); ok {
+			r.events = append(r.events, certEvent)
+		}
+	}
+}
+
+func (r *certIssuedUsageReporter) collected() []*usagereporter.UserCertificateIssuedEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.events)
+}
+
+// TestGenerateUserCerts_unroutedKubeUsageEvent covers how the shared unrouted Kubernetes certificate is
+// counted for usage reporting. It names no Kubernetes cluster, so its usage restriction is the only
+// thing marking it as a Kubernetes certificate, and without that it would be reported as no kind of
+// certificate at all.
+func TestGenerateUserCerts_unroutedKubeUsageEvent(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t)
+
+	const username = "kube-multi-usage-user"
+	_, _, err := authtest.CreateUserAndRole(testServer.Auth(), username, []string{username}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
+
+	userClient, err := testServer.NewClient(authtest.TestUser(username))
+	require.NoError(t, err, "NewClient failed")
+	t.Cleanup(func() { require.NoError(t, userClient.Close()) })
+
+	// Collect only the issuance under test: building the client above issues a certificate of its own.
+	reporter := &certIssuedUsageReporter{}
+	testServer.Auth().SetUsageReporter(reporter)
+
+	_, err = userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: publicKeyPEM,
+		Username:     username,
+		Expires:      testServer.Clock().Now().Add(time.Hour),
+		Usage:        proto.UserCertsRequest_Kubernetes,
+		// No KubernetesCluster: the target is chosen per request by path routing at the proxy.
+		RequesterName: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+	})
+	require.NoError(t, err, "GenerateUserCerts failed")
+
+	events := reporter.collected()
+	require.Len(t, events, 1, "one certificate issuance should be reported")
+	require.True(t, events[0].UsageKubernetes, "the shared unrouted cert must be reported as a Kubernetes certificate")
+	require.False(t, events[0].UsageDatabase)
+	require.False(t, events[0].UsageApp)
+	require.False(t, events[0].UsageDesktop)
 }

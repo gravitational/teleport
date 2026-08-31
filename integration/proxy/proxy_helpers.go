@@ -564,7 +564,7 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 
 	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
 		Certs: certs,
-		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		CertReissuer: func(ctx context.Context, _ alpnproxy.KubeCertReissueRequest) (tls.Certificate, error) {
 			return tls.Certificate{}, nil
 		},
 		CloseContext: context.Background(),

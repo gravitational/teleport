@@ -658,6 +658,13 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 	}
 }
 
+// WithUsage restricts the identity to the given usages.
+func WithUsage(usage ...string) GenTestKubeClientTLSCertOptions {
+	return func(i *tlsca.Identity) {
+		i.Usage = usage
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeCluster, opts...)
