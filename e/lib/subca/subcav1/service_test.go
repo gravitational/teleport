@@ -775,6 +775,7 @@ func newExpectedCSR(caCert *x509.Certificate, subj *pkix.Name) *x509.Certificate
 }
 func normalizeCSRForCompare(csr *x509.CertificateRequest) {
 	csr.Raw = nil
+	csr.RawSignatureAlgorithm = nil
 	csr.RawTBSCertificateRequest = nil
 	csr.RawSubject = nil
 	csr.Signature = nil

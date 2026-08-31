@@ -39,7 +39,6 @@ func TestEventHandler(t *testing.T) {
 	// user and role.
 	// Start the Teleport Auth server and get the admin client.
 	adminClient := authHelper.StartServer(t)
-	t.Cleanup(func() { require.NoError(t, authHelper.Auth().Close()) })
 	_, err := adminClient.Ping(t.Context())
 	require.NoError(t, err)
 

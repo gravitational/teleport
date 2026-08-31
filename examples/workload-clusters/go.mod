@@ -1,6 +1,6 @@
 module workload-clusters
 
-go 1.26.7
+go 1.27.0
 
 require github.com/gravitational/teleport/api v0.0.0-20260428152919-24b2608bf3f5
 

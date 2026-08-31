@@ -213,14 +213,16 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		hwSigner, err := mockService.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{})
 		require.NoError(t, err)
 
+		digest := make([]byte, 32)
+
 		// Mark the hardware key as unknown by the Hardware Key Service.
 		mockService.AddUnknownAgentKey(hwSigner.Ref)
-		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, []byte{}, crypto.Hash(0))
+		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, digest, crypto.Hash(0))
 		require.Error(t, err)
 
 		// Make the hardware key as known by the  Hardware Key Agent Server.
 		serverKnownKeySlots = append(serverKnownKeySlots, hwSigner.Ref.SlotKey)
-		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, []byte{}, crypto.Hash(0))
+		_, err = agentServiceNoFallback.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, digest, crypto.Hash(0))
 		require.NoError(t, err)
 	})
 

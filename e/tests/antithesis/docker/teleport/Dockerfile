@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.26.7
+ARG GO_VERSION=1.27.0
 FROM golang:${GO_VERSION} AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive

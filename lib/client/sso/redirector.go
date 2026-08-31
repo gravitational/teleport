@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/netip"
 	"net/url"
 	"os"
@@ -134,8 +133,10 @@ type RedirectorConfig struct {
 type Redirector struct {
 	RedirectorConfig
 
-	server *httptest.Server
-	mux    *http.ServeMux
+	server *http.Server
+	// serverURL is the base URL (http://host:port) of the local callback server.
+	serverURL string
+	mux       *http.ServeMux
 
 	// ClientCallbackURL is set once the redirector's local http server is running.
 	ClientCallbackURL string
@@ -222,26 +223,33 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 
 // startServer starts an http server to handle the sso client callback.
 func (rd *Redirector) startServer() error {
+	var listener net.Listener
 	if rd.BindAddr != "" {
 		slog.DebugContext(context.Background(), "Binding to provided bind address.", "addr", rd.BindAddr)
-		listener, err := net.Listen("tcp", rd.BindAddr)
+		var err error
+		listener, err = net.Listen("tcp", rd.BindAddr)
 		if err != nil {
 			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
 		}
-		rd.server = &httptest.Server{
-			Listener: listener,
-			Config: &http.Server{
-				Handler:           rd.mux,
-				ReadTimeout:       apidefaults.DefaultIOTimeout,
-				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-				WriteTimeout:      apidefaults.DefaultIOTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			},
-		}
-		rd.server.Start()
 	} else {
-		rd.server = httptest.NewServer(rd.mux)
+		var err error
+		listener, err = net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			if listener, err = net.Listen("tcp6", "[::1]:0"); err != nil {
+				return trace.Wrap(err, "failed to bind to a local port")
+			}
+		}
 	}
+
+	rd.serverURL = "http://" + listener.Addr().String()
+	rd.server = &http.Server{
+		Handler:           rd.mux,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+	}
+	go rd.server.Serve(listener)
 
 	// Prepare callback URL.
 	u, err := url.Parse(rd.baseURL() + "/callback")
@@ -349,7 +357,7 @@ func (rd *Redirector) baseURL() string {
 	if rd.CallbackAddr != "" {
 		return rd.CallbackAddr
 	}
-	return rd.server.URL
+	return rd.serverURL
 }
 
 // OpenURLInBrowser opens a URL in a web browser.
@@ -388,7 +396,7 @@ func OpenURLInBrowser(browser string, URL string) error {
 
 // WaitForResponse waits for a response from the callback handler.
 func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.CLILoginResponse, error) {
-	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.server.URL)
+	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.serverURL)
 	select {
 	case err := <-rd.ErrorC():
 		slog.DebugContext(ctx, "Got an error", "err", err)
@@ -455,7 +463,12 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authcli
 // Close closes redirector and releases all resources
 func (rd *Redirector) Close() {
 	close(rd.doneC)
-	rd.server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := rd.server.Shutdown(ctx); err != nil {
+		rd.server.Close()
+	}
 }
 
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler

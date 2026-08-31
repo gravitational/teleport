@@ -318,18 +318,17 @@ func TestAuditSQLServer(t *testing.T) {
 
 // TestAuditClickHouseHTTP verifies proper audit events are emitted for Clickhouse HTTP connections.
 func TestAuditClickHouseHTTP(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withClickhouseHTTP(defaults.ProtocolClickHouseHTTP))
+	testCtx := setupTestContext(t.Context(), t, withClickhouseHTTP(defaults.ProtocolClickHouseHTTP))
 	go testCtx.startHandlingConnections()
 
-	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
+	testCtx.createUserAndRole(t.Context(), t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
 
-	_, _, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
+	_, _, err := testCtx.clickHouseHTTPClient(t.Context(), "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
 	require.Error(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	t.Run("successful flow", func(t *testing.T) {
-		conn, proxy, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		conn, proxy, err := testCtx.clickHouseHTTPClient(t.Context(), "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, proxy.Close())
@@ -347,13 +346,20 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 	})
 
 	t.Run("successful flow native http client", func(t *testing.T) {
-		proxy, _, err := testCtx.startLocalProxy(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		proxy, _, err := testCtx.startLocalProxy(t.Context(), "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
 		require.NoError(t, err)
 		defer proxy.Close()
 
 		r := bytes.NewBufferString("SELECT 1")
 		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s", proxy.GetAddr()), r)
 		require.NoError(t, err)
+		// Indicate that the connection should be closed instead of
+		// added to the idle pool. Go 1.27 introduced a behavior change
+		// allowing requests with unconsumed response bodies to be
+		// drained and added to the idle pool instead of closed which
+		// caused the test to fail because the server never terminated
+		// the connection, which prevented the session end event.
+		req.Close = true
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)

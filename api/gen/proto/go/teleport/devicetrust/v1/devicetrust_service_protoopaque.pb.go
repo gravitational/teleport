@@ -3393,16 +3393,16 @@ type AuthenticateDeviceInit_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// In-band user certificates to augment with device extensions.
-	//   - The x509 certificate is acquired from the mTLS connection, thus the
-	//     in-band certificate is ignored.
-	//   - All certificates must be valid and issued by the Teleport CA.
-	//   - TLS and SSH certificates must match (same Teleport user, plus whatever
-	//     additional checks the backend sees fit).
-	//   - TLS and SSH certificates must either have matching public keys, or
-	//     (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
-	//     signature over the challenge by the SSH private key.
-	//   - Augmented certificates have the same expiration as the original
-	//     certificates.
+	// - The x509 certificate is acquired from the mTLS connection, thus the
+	//   in-band certificate is ignored.
+	// - All certificates must be valid and issued by the Teleport CA.
+	// - TLS and SSH certificates must match (same Teleport user, plus whatever
+	//   additional checks the backend sees fit).
+	// - TLS and SSH certificates must either have matching public keys, or
+	//   (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
+	//   signature over the challenge by the SSH private key.
+	// - Augmented certificates have the same expiration as the original
+	//   certificates.
 	UserCertificates *UserCertificates
 	// ID of the enrolled device credential.
 	CredentialId string

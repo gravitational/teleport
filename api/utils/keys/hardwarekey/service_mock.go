@@ -163,6 +163,13 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, k
 		return nil, trace.Wrap(err)
 	}
 
+	// As of Go 1.27, [ecdsa.PrivateKey.Sign] rejects a zero opts.HashFunc().
+	// Real PIV hardware signs a raw pre-hashed digest without knowing the
+	// hash function, so mimic that with [ecdsa.SignASN1].
+	if ecdsaPriv, ok := priv.Signer.(*ecdsa.PrivateKey); ok && opts.HashFunc() == 0 {
+		return ecdsa.SignASN1(rand, ecdsaPriv, digest)
+	}
+
 	return priv.Sign(rand, digest, opts)
 }
 

@@ -1378,10 +1378,13 @@ lint-tools: lint-build-tooling lint-backport
 #
 # Checks that testing symbols and the testify library is not included in binaries.
 #
+# Packages that reach "testing" via net/http/httptest are ignored because, as of
+# Go 1.27, httptest imports "testing" for its synctest support, which unavoidably
+# pulls "testing" into any binary that uses httptest (e.g. via github.com/mark3labs/mcp-go).
 #
 .PHONY: lint-test-symbols
 lint-test-symbols:
-	@testing_count=`$(GODA)  tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	@testing_count=`$(GODA)  tree "reach(github.com/gravitational/teleport/tool/...:all, testing) - reach(github.com/gravitational/teleport/tool/...:all, net/http/httptest)" | tee /dev/stderr | wc -l | tr -d ' '`; \
 	if [ "$$testing_count" -gt 0 ]; then \
 		echo ""; \
 		echo "FAIL: \"testing\" is included in binaries"; \

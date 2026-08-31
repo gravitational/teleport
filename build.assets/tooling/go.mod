@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.26.7
+go 1.27.0
 
 tool (
 	github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
@@ -17,6 +17,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.4
@@ -31,8 +32,6 @@ require (
 	howett.net/plist v1.0.1
 	k8s.io/apiextensions-apiserver v0.37.0
 )
-
-require github.com/google/go-cmp v0.7.0
 
 require (
 	buf.build/gen/go/bufbuild/bufplugin/protocolbuffers/go v1.36.11-20250718181942-e35f9b667443.1 // indirect

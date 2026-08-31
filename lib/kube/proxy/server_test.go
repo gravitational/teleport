@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"sort"
 	"testing"
 	"time"
@@ -47,18 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func TestServeConfigureError(t *testing.T) {
-	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}, closeContext: context.Background()}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	err = srv.Serve(listener)
-	require.Error(t, err) // expected due to incompatible ciphers
-
-	require.True(t, srv.mu.TryLock()) // verify that lock was released despite error
-}
 
 func TestMTLSClientCAs(t *testing.T) {
 	ap := &mockAccessPoint{

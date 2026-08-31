@@ -580,6 +580,7 @@ type CheckAttempt struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// status represents the status of an attempt at running a particular diagnostic check. This is
 	// not the same as the status of CheckReport.
+	//
 	Status CheckAttemptStatus `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.CheckAttemptStatus" json:"status,omitempty"`
 	// error is present if the check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR).
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -684,6 +685,7 @@ type CheckAttempt_builder struct {
 
 	// status represents the status of an attempt at running a particular diagnostic check. This is
 	// not the same as the status of CheckReport.
+	//
 	Status CheckAttemptStatus
 	// error is present if the check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR).
 	Error string

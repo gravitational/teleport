@@ -1519,10 +1519,15 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	require.Equal(t, "HTTP/1.1", resp1.Proto)
 
 	// call proxy with an HTTP2 client
-	err = http2.ConfigureTransport(trans)
+	trans2 := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+	client2 := &http.Client{Transport: trans2}
+
+	err = http2.ConfigureTransport(trans2)
 	require.NoError(t, err)
 
-	resp2, err := client.Get(u.String())
+	resp2, err := client2.Get(u.String())
 	require.NoError(t, err)
 	defer resp2.Body.Close()
 	require.Equal(t, 200, resp2.StatusCode)

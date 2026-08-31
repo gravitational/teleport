@@ -71,12 +71,12 @@ type TeleportReportingServiceClient interface {
 	// encodes and forwards usage events to the PostHog event database; each
 	// event is annotated with some properties that depend on the identity of the
 	// caller:
-	//   - tp.account_id (UUID in string form, can be empty if missing from the
-	//     license)
-	//   - tp.license_name (should always be a UUID)
-	//   - tp.license_authority (name of the authority that signed the license file
-	//     used for authentication)
-	//   - tp.is_cloud (boolean)
+	// - tp.account_id (UUID in string form, can be empty if missing from the
+	//   license)
+	// - tp.license_name (should always be a UUID)
+	// - tp.license_authority (name of the authority that signed the license file
+	//   used for authentication)
+	// - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect.Request[v1alpha.SubmitEventsRequest]) (*connect.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect.Request[v1alpha.HelloTeleportRequest]) (*connect.Response[v1alpha.HelloTeleportResponse], error)
 }
@@ -147,12 +147,12 @@ type TeleportReportingServiceHandler interface {
 	// encodes and forwards usage events to the PostHog event database; each
 	// event is annotated with some properties that depend on the identity of the
 	// caller:
-	//   - tp.account_id (UUID in string form, can be empty if missing from the
-	//     license)
-	//   - tp.license_name (should always be a UUID)
-	//   - tp.license_authority (name of the authority that signed the license file
-	//     used for authentication)
-	//   - tp.is_cloud (boolean)
+	// - tp.account_id (UUID in string form, can be empty if missing from the
+	//   license)
+	// - tp.license_name (should always be a UUID)
+	// - tp.license_authority (name of the authority that signed the license file
+	//   used for authentication)
+	// - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect.Request[v1alpha.SubmitEventsRequest]) (*connect.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect.Request[v1alpha.HelloTeleportRequest]) (*connect.Response[v1alpha.HelloTeleportResponse], error)
 }

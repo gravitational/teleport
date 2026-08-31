@@ -666,6 +666,7 @@ type CheckAttempt_builder struct {
 
 	// status represents the status of an attempt at running a particular diagnostic check. This is
 	// not the same as the status of CheckReport.
+	//
 	Status CheckAttemptStatus
 	// error is present if the check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR).
 	Error string

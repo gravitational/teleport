@@ -63,17 +63,16 @@ type SessionSearchServiceClient interface {
 	// Results are ordered by session_start descending (most recent first).
 	//
 	// Receive loop (pseudo-Go):
-	//
-	//	var sessions []SessionSummary
-	//	for {
-	//	  resp, err := stream.Recv()
-	//	  if err == io.EOF { break }
-	//	  if err != nil   { return err }
-	//	  switch p := resp.Payload.(type) {
-	//	  case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
-	//	  case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
-	//	  }
-	//	}
+	//   var sessions []SessionSummary
+	//   for {
+	//     resp, err := stream.Recv()
+	//     if err == io.EOF { break }
+	//     if err != nil   { return err }
+	//     switch p := resp.Payload.(type) {
+	//     case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
+	//     case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
+	//     }
+	//   }
 	SearchSessionSummaries(ctx context.Context, in *SearchSessionSummariesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchSessionSummariesResponse], error)
 	// IsEnabled reports whether the session search feature is active in the
 	// access graph backing this Teleport cluster. Clients should call this before
@@ -148,17 +147,16 @@ type SessionSearchServiceServer interface {
 	// Results are ordered by session_start descending (most recent first).
 	//
 	// Receive loop (pseudo-Go):
-	//
-	//	var sessions []SessionSummary
-	//	for {
-	//	  resp, err := stream.Recv()
-	//	  if err == io.EOF { break }
-	//	  if err != nil   { return err }
-	//	  switch p := resp.Payload.(type) {
-	//	  case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
-	//	  case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
-	//	  }
-	//	}
+	//   var sessions []SessionSummary
+	//   for {
+	//     resp, err := stream.Recv()
+	//     if err == io.EOF { break }
+	//     if err != nil   { return err }
+	//     switch p := resp.Payload.(type) {
+	//     case *SearchSessionSummariesResponse_Summary:       sessions = append(sessions, p.Summary)
+	//     case *SearchSessionSummariesResponse_BatchComplete: // has_more and next_batch_token available here
+	//     }
+	//   }
 	SearchSessionSummaries(*SearchSessionSummariesRequest, grpc.ServerStreamingServer[SearchSessionSummariesResponse]) error
 	// IsEnabled reports whether the session search feature is active in the
 	// access graph backing this Teleport cluster. Clients should call this before

@@ -1,6 +1,6 @@
 module github.com/gravitational/os-package-repo-tool
 
-go 1.26.7
+go 1.27.0
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8

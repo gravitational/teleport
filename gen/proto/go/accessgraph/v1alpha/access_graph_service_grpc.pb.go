@@ -89,12 +89,12 @@ type AccessGraphServiceClient interface {
 	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
-	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
-	//     `events` (with resume state updates) or `bulk_sync` commands.
+	// 1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possibly empty).
+	// 4. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//    `events` (with resume state updates) or `bulk_sync` commands.
 	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
 	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
 	// audit log events from a client (teleport) to a server (access-graph).
@@ -106,11 +106,11 @@ type AccessGraphServiceClient interface {
 	// - Server providing the initial resume state to the client upon connection.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
-	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
+	// 1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possilby empty).
+	// 4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error)
 	// KubeAuditLogStream establishes a persistent bidirectional stream for exporting
 	// Kubernetes audit logs from a client (teleport) to a server (access-graph). This stream
@@ -126,16 +126,16 @@ type AccessGraphServiceClient interface {
 	// - Logs for multiple clusters can be streamed across the one grpc stream.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
-	//  2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
-	//     a cluster, with a timestamp of the oldest logs it wants.
-	//  4. Server responds with a `KubeAuditLogResumeState` message containing either
-	//     a resumption cursor indicating when logs should be streamed from, or if
-	//     a new cluster or an old outdated resumption point has been stored, sends
-	//     the timestamp from which logs should be sent.
-	//  5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
+	// 1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
+	// 2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
+	//    a cluster, with a timestamp of the oldest logs it wants.
+	// 4. Server responds with a `KubeAuditLogResumeState` message containing either
+	//    a resumption cursor indicating when logs should be streamed from, or if
+	//    a new cluster or an old outdated resumption point has been stored, sends
+	//    the timestamp from which logs should be sent.
+	// 5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
 	KubeAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -174,11 +174,11 @@ type AccessGraphServiceClient interface {
 	// - Server providing the initial resume state to the client upon connection.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
-	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
+	// 1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possibly empty).
+	// 4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
 	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
 	// GitHubEventsStream establishes a client-to-server stream for continuously
 	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
@@ -196,11 +196,11 @@ type AccessGraphServiceClient interface {
 	// to the AccessGraphService.
 	//
 	// This stream facilitates:
-	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
-	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
-	//     the client to the server.
-	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
-	//     allowing the client to continue from where it left off after an interruption.
+	// - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	// - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//   the client to the server.
+	// - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//   allowing the client to continue from where it left off after an interruption.
 	OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error)
 	// OktaEventsStream establishes a client-to-server stream for continuously
 	// syncing Okta resource states (ex.: users, groups, applications, API tokens)
@@ -478,12 +478,12 @@ type AccessGraphServiceServer interface {
 	// - Client requests for server-side bulk export state cleanup.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
-	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
-	//     `events` (with resume state updates) or `bulk_sync` commands.
+	// 1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possibly empty).
+	// 4. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//    `events` (with resume state updates) or `bulk_sync` commands.
 	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
 	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
 	// audit log events from a client (teleport) to a server (access-graph).
@@ -495,11 +495,11 @@ type AccessGraphServiceServer interface {
 	// - Server providing the initial resume state to the client upon connection.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
-	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
+	// 1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possilby empty).
+	// 4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
 	AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error
 	// KubeAuditLogStream establishes a persistent bidirectional stream for exporting
 	// Kubernetes audit logs from a client (teleport) to a server (access-graph). This stream
@@ -515,16 +515,16 @@ type AccessGraphServiceServer interface {
 	// - Logs for multiple clusters can be streamed across the one grpc stream.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
-	//  2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
-	//     a cluster, with a timestamp of the oldest logs it wants.
-	//  4. Server responds with a `KubeAuditLogResumeState` message containing either
-	//     a resumption cursor indicating when logs should be streamed from, or if
-	//     a new cluster or an old outdated resumption point has been stored, sends
-	//     the timestamp from which logs should be sent.
-	//  5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
+	// 1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
+	// 2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
+	//    a cluster, with a timestamp of the oldest logs it wants.
+	// 4. Server responds with a `KubeAuditLogResumeState` message containing either
+	//    a resumption cursor indicating when logs should be streamed from, or if
+	//    a new cluster or an old outdated resumption point has been stored, sends
+	//    the timestamp from which logs should be sent.
+	// 5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
 	KubeAuditLogStream(grpc.BidiStreamingServer[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -563,11 +563,11 @@ type AccessGraphServiceServer interface {
 	// - Server providing the initial resume state to the client upon connection.
 	//
 	// Basic Interaction Flow:
-	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
-	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
-	//     effective configuration.
-	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
-	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
+	// 1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	// 2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//    effective configuration.
+	// 3. Server sends second response providing the starting `resume_state` (possibly empty).
+	// 4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
 	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
 	// GitHubEventsStream establishes a client-to-server stream for continuously
 	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
@@ -585,11 +585,11 @@ type AccessGraphServiceServer interface {
 	// to the AccessGraphService.
 	//
 	// This stream facilitates:
-	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
-	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
-	//     the client to the server.
-	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
-	//     allowing the client to continue from where it left off after an interruption.
+	// - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	// - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//   the client to the server.
+	// - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//   allowing the client to continue from where it left off after an interruption.
 	OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error
 	// OktaEventsStream establishes a client-to-server stream for continuously
 	// syncing Okta resource states (ex.: users, groups, applications, API tokens)

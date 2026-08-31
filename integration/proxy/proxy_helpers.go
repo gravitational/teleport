@@ -717,7 +717,10 @@ func mustConnectWebAppGateway(ctx context.Context, t *testing.T, _ *daemon.Servi
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gatewayURL, nil)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	// The gateway middleware inspects certs only when a new downstream connection
+	// is accepted, so force a fresh, unpooled connection rather than relying on
+	// http.DefaultTransport's reuse behavior which breaks tests.
+	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()

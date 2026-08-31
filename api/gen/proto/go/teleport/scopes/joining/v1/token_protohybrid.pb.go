@@ -2423,8 +2423,7 @@ type GenericOIDC struct {
 	// is technically an OIDC spec violation, but is common), use the value they
 	// provide. Otherwise, we recommend using a value that uniquely identifies the
 	// Teleport cluster and join token. For example, you can use this scheme:
-	//
-	//	$clusterName/$tokenName
+	//   $clusterName/$tokenName
 	//
 	// For a cluster named `example.teleport.sh` and a token named `example`, this
 	// would result in an audience of `example.teleport.sh/example`. If you
@@ -2610,8 +2609,7 @@ type GenericOIDC_builder struct {
 	// is technically an OIDC spec violation, but is common), use the value they
 	// provide. Otherwise, we recommend using a value that uniquely identifies the
 	// Teleport cluster and join token. For example, you can use this scheme:
-	//
-	//	$clusterName/$tokenName
+	//   $clusterName/$tokenName
 	//
 	// For a cluster named `example.teleport.sh` and a token named `example`, this
 	// would result in an audience of `example.teleport.sh/example`. If you
@@ -4054,18 +4052,18 @@ type BoundKeypairSpec_RecoverySpec struct {
 	Limit uint32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	// Mode sets the recovery rule enforcement mode. It may be one of these
 	// values:
-	//   - standard (or unset): all configured rules enforced. The recovery limit
-	//     and client join state are required and verified. This is the most
-	//     secure recovery mode.
-	//   - relaxed: recovery limit is not enforced, but client join state is still
-	//     required. This effectively allows unlimited recovery attempts, but
-	//     client join state still helps mitigate stolen credentials.
-	//   - insecure: neither the recovery limit nor client join state are
-	//     enforced. This allows any client with the private key to join freely.
-	//     This is less secure, but can be useful in certain situations, like in
-	//     otherwise unsupported CI/CD providers. This mode should be used with
-	//     care, and RBAC rules should be configured to heavily restrict which
-	//     resources this identity can access.
+	// - standard (or unset): all configured rules enforced. The recovery limit
+	//   and client join state are required and verified. This is the most
+	//   secure recovery mode.
+	// - relaxed: recovery limit is not enforced, but client join state is still
+	//   required. This effectively allows unlimited recovery attempts, but
+	//   client join state still helps mitigate stolen credentials.
+	// - insecure: neither the recovery limit nor client join state are
+	//   enforced. This allows any client with the private key to join freely.
+	//   This is less secure, but can be useful in certain situations, like in
+	//   otherwise unsupported CI/CD providers. This mode should be used with
+	//   care, and RBAC rules should be configured to heavily restrict which
+	//   resources this identity can access.
 	Mode          string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4131,18 +4129,18 @@ type BoundKeypairSpec_RecoverySpec_builder struct {
 	Limit uint32
 	// Mode sets the recovery rule enforcement mode. It may be one of these
 	// values:
-	//   - standard (or unset): all configured rules enforced. The recovery limit
-	//     and client join state are required and verified. This is the most
-	//     secure recovery mode.
-	//   - relaxed: recovery limit is not enforced, but client join state is still
-	//     required. This effectively allows unlimited recovery attempts, but
-	//     client join state still helps mitigate stolen credentials.
-	//   - insecure: neither the recovery limit nor client join state are
-	//     enforced. This allows any client with the private key to join freely.
-	//     This is less secure, but can be useful in certain situations, like in
-	//     otherwise unsupported CI/CD providers. This mode should be used with
-	//     care, and RBAC rules should be configured to heavily restrict which
-	//     resources this identity can access.
+	// - standard (or unset): all configured rules enforced. The recovery limit
+	//   and client join state are required and verified. This is the most
+	//   secure recovery mode.
+	// - relaxed: recovery limit is not enforced, but client join state is still
+	//   required. This effectively allows unlimited recovery attempts, but
+	//   client join state still helps mitigate stolen credentials.
+	// - insecure: neither the recovery limit nor client join state are
+	//   enforced. This allows any client with the private key to join freely.
+	//   This is less secure, but can be useful in certain situations, like in
+	//   otherwise unsupported CI/CD providers. This mode should be used with
+	//   care, and RBAC rules should be configured to heavily restrict which
+	//   resources this identity can access.
 	Mode string
 }
 

@@ -495,7 +495,7 @@ type NetIQObject_builder struct {
 	User *NetIQUser
 	// resource_role_ref represents a resource assignment to a role.
 	ResourceRoleRef *NetIQResourceAssignmentRef
-	// role_member_ref represents a member being member of a role.
+	//role_member_ref represents a member being member of a role.
 	RoleMemberRef *NetIQMemberAssignmentRef
 	// -- end of xxx_hidden_Object
 }
@@ -581,7 +581,7 @@ type netIQObject_ResourceRoleRef struct {
 }
 
 type netIQObject_RoleMemberRef struct {
-	// role_member_ref represents a member being member of a role.
+	//role_member_ref represents a member being member of a role.
 	RoleMemberRef *NetIQMemberAssignmentRef `protobuf:"bytes,8,opt,name=role_member_ref,json=roleMemberRef,proto3,oneof"`
 }
 
