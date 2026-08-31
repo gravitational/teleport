@@ -3482,7 +3482,7 @@ func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfi
 // use process.storage.GetState directly, instead (writes to the state that this
 // process knows about will invalidate the cache, however).
 func (process *TeleportProcess) GetRotation(role types.SystemRole) (*types.Rotation, error) {
-	rotation, err := utils.FnCacheGet(process.ExitContext(), process.rotationCache, role, func(ctx context.Context) (*types.Rotation, error) {
+	rotation, err := process.rotationCache.Get(process.ExitContext(), role, func(ctx context.Context) (*types.Rotation, error) {
 		state, err := process.storage.GetState(ctx, role)
 		if err != nil {
 			return nil, trace.Wrap(err)

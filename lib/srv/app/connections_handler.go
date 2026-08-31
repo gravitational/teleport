@@ -446,7 +446,7 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
 	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
-	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
+	session, err := c.cache.GetWithTTL(r.Context(), identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
 		// The FnCache loader runs on a context detached from the request, which
 		// drops request-scoped values. Re-inject the user certificate so
 		// session opts (e.g. managed upstream client certs) can read it.

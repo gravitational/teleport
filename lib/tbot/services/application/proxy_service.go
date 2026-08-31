@@ -304,21 +304,14 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// specified within an absolute-form request-target over the Host header
 	// when setting req.Host - which means we can safely use req.Host here.
 	appName := req.Host
-
-	var appCert *tls.Certificate
-	var err error
-	appCert, err = utils.FnCacheGet(
-		ctx,
-		s.cache,
-		appName,
-		func(ctx context.Context) (*tls.Certificate, error) {
-			s.log.InfoContext(
-				ctx, "Issuing app cert",
-				"app", appName,
-			)
-			cert, _, err := s.issueCert(ctx, appName)
-			return cert, err
-		})
+	appCert, err := s.cache.Get(ctx, appName, func(ctx context.Context) (*tls.Certificate, error) {
+		s.log.InfoContext(
+			ctx, "Issuing app cert",
+			"app", appName,
+		)
+		cert, _, err := s.issueCert(ctx, appName)
+		return cert, err
+	})
 	if err != nil {
 		return trace.Wrap(err, "fetching certificate")
 	}

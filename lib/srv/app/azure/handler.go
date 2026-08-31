@@ -289,7 +289,7 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	timeoutChan := s.Clock.After(getTokenTimeout)
 
 	go func() {
-		token, err := utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
+		token, err := s.tokenCache.Get(ctx, key, func(ctx context.Context) (*azcore.AccessToken, error) {
 			return s.getAccessToken(ctx, managedIdentity, scope)
 		})
 		resultChan <- result{

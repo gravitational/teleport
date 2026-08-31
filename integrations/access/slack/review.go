@@ -243,7 +243,7 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 		}
 	}
 
-	username, err := utils.FnCacheGet(ctx, a.userCache, slackUserID, func(ctx context.Context) (string, error) {
+	username, err := a.userCache.Get(ctx, slackUserID, func(ctx context.Context) (string, error) {
 		return a.resolveTeleportUser(ctx, slackUserID)
 	})
 	if err != nil {

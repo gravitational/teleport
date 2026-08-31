@@ -109,7 +109,7 @@ func (o *OktaConnected) IsConnected(ctx context.Context) bool {
 	if o.fnCache == nil {
 		isConnected, err = o.load(ctx)
 	} else {
-		isConnected, err = utils.FnCacheGet(ctx, o.fnCache, "", o.load)
+		isConnected, err = o.fnCache.Get(ctx, "", o.load)
 	}
 	if err != nil {
 		o.log.ErrorContext(ctx, "Error trying to get plugins to test for Okta service connectivity", "error", err)

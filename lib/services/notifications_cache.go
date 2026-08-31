@@ -294,7 +294,7 @@ func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "user-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex], error) {
+	temp, err := c.ttlCache.Get(ctx, "user-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.Notification, notificationsCacheIndex], error) {
 		return c.fetch(ctx)
 	})
 
@@ -392,7 +392,7 @@ func (c *GlobalNotificationCache) read(ctx context.Context) (*sortcache.SortCach
 		return primary, nil
 	}
 
-	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "global-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex], error) {
+	temp, err := c.ttlCache.Get(ctx, "global-notification-cache", func(ctx context.Context) (*sortcache.SortCache[*notificationsv1.GlobalNotification, notificationsCacheIndex], error) {
 		return c.fetch(ctx)
 	})
 

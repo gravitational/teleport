@@ -1176,7 +1176,7 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 		return "", trace.BadParameter("empty identity name")
 	}
 
-	vm, err := utils.FnCacheGet(ctx, a.azureVirtualMachineCache, "", a.getCurrentAzureVM)
+	vm, err := a.azureVirtualMachineCache.Get(ctx, "", a.getCurrentAzureVM)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

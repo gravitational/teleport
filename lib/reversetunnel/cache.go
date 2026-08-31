@@ -72,7 +72,7 @@ func (c *certificateCache) getHostCertificate(ctx context.Context, addr string, 
 	principals := append([]string{addr}, additionalPrincipals...)
 	key := strings.Join(principals, ".")
 
-	certificate, err := utils.FnCacheGet(ctx, c.cache, key, func(ctx context.Context) (ssh.Signer, error) {
+	certificate, err := c.cache.Get(ctx, key, func(ctx context.Context) (ssh.Signer, error) {
 		certificate, err := c.generateHostCert(ctx, principals)
 		return certificate, trace.Wrap(err)
 	})

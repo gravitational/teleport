@@ -116,7 +116,7 @@ func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options)
 		return aws.Config{}, trace.Wrap(err)
 	}
 	var reloaded bool
-	cfg, err := utils.FnCacheGet(ctx, c.awsConfigCache, cacheKey,
+	cfg, err := c.awsConfigCache.Get(ctx, cacheKey,
 		func(ctx context.Context) (aws.Config, error) {
 			reloaded = true
 			cfg, err := getBaseConfig(ctx, region, opts)
@@ -146,7 +146,7 @@ func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts 
 		if err != nil {
 			return aws.Config{}, trace.Wrap(err)
 		}
-		credProvider, err := utils.FnCacheGet(ctx, c.awsConfigCache, cacheKey,
+		credProvider, err := c.awsConfigCache.Get(ctx, cacheKey,
 			func(ctx context.Context) (aws.CredentialsProvider, error) {
 				clt := opts.stsClientProvider(cfg)
 				credProvider := getAssumeRoleProvider(ctx, clt, r)

@@ -262,19 +262,19 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 	}
 }
 
-// FnCacheGet loads the result associated with the supplied key. If no result is currently stored, or the stored result
+// Get loads the result associated with the supplied key. If no result is currently stored, or the stored result
 // was acquired >TTL ago, then loadfn is used to reload it. Subsequent calls while the value is being loaded/reloaded
 // block until the first call updates the entry. Note that the supplied context can cancel the call to Get, but will
 // not cancel loading. The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func FnCacheGet[K comparable, T any](ctx context.Context, cache *FnCache, key K, loadfn func(ctx context.Context) (T, error)) (T, error) {
-	return FnCacheGetWithTTL(ctx, cache, key, cache.cfg.TTL, loadfn)
+func (c *FnCache) Get[K comparable, T any](ctx context.Context, key K, loadfn func(context.Context) (T, error)) (T, error) {
+	return c.GetWithTTL(ctx, key, c.cfg.TTL, loadfn)
 }
 
-// FnCacheGetWithTTL is identical to FnCacheGet except that it allows individual keys to specify
+// GetWithTTL is identical to (FnCache) Get except that it allows individual keys to specify
 // a TTL that is used instead of the configured TTL for the FnCache.
-func FnCacheGetWithTTL[K comparable, T any](ctx context.Context, cache *FnCache, key K, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
-	t, err := cache.get(ctx, key, ttl, func(ctx context.Context) (any, error) {
+func (c *FnCache) GetWithTTL[K comparable, T any](ctx context.Context, key K, ttl time.Duration, loadfn func(context.Context) (T, error)) (T, error) {
+	t, err := c.get(ctx, key, ttl, func(ctx context.Context) (any, error) {
 		return loadfn(ctx)
 	})
 

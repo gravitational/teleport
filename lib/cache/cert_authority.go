@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
@@ -142,7 +141,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
-	cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
+	cachedCA, err := c.fnCache.Get(ctx, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
 		ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, err
 	})
@@ -194,7 +193,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
-	cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
+	cachedCAs, err := c.fnCache.Get(ctx, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
 		cas, err := c.Config.Trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
 		return cas, trace.Wrap(err)
 	})

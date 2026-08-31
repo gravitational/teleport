@@ -267,26 +267,21 @@ func (c *WorkloadIdentityX509IssuerOverrideCache) GetWorkloadIdentityX509CAOverr
 		return nil, nil, trace.NotFound(apitypes.KindWorkloadIdentityX509IssuerOverride+" %q doesn't exist", name)
 	}
 
-	r, err := utils.FnCacheGet(
-		ctx,
-		c.cache,
-		"default",
-		func(ctx context.Context) (workloadIdentityX509IssuerOverrideCacheItem, error) {
-			resource, err := c.storage.GetX509IssuerOverride(ctx, "default")
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return workloadIdentityX509IssuerOverrideCacheItem{err: err}, nil
-				}
-				return workloadIdentityX509IssuerOverrideCacheItem{}, err
-			}
-
-			parsed, err := ParseWorkloadIdentityX509IssuerOverride(resource)
-			if err != nil {
+	r, err := c.cache.Get(ctx, "default", func(ctx context.Context) (workloadIdentityX509IssuerOverrideCacheItem, error) {
+		resource, err := c.storage.GetX509IssuerOverride(ctx, "default")
+		if err != nil {
+			if trace.IsNotFound(err) {
 				return workloadIdentityX509IssuerOverrideCacheItem{err: err}, nil
 			}
-			return workloadIdentityX509IssuerOverrideCacheItem{parsed: parsed}, nil
-		},
-	)
+			return workloadIdentityX509IssuerOverrideCacheItem{}, err
+		}
+
+		parsed, err := ParseWorkloadIdentityX509IssuerOverride(resource)
+		if err != nil {
+			return workloadIdentityX509IssuerOverrideCacheItem{err: err}, nil
+		}
+		return workloadIdentityX509IssuerOverrideCacheItem{parsed: parsed}, nil
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

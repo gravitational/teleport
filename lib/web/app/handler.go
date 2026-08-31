@@ -611,7 +611,7 @@ func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, 
 func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
-	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
+	sess, err := h.cache.GetWithTTL(ctx, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
 		sess, err := h.newSession(ctx, ws)
 		return sess, trace.Wrap(err)
 	})

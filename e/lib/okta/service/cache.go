@@ -8,7 +8,6 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsRequest) ([]*oktaResourceItem, error) {
@@ -32,7 +31,7 @@ func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsR
 		return groups, trace.Wrap(err)
 	}
 	cacheKey := fmt.Sprintf("%s-groups", req.GetOktaOrganizationUrl())
-	groups, err := utils.FnCacheGet(ctx, s.cache, cacheKey, fetchFn)
+	groups, err := s.cache.Get(ctx, cacheKey, fetchFn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,7 +63,7 @@ func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsReque
 		return apps, trace.Wrap(err)
 	}
 	cacheKey := fmt.Sprintf("%s-apps", req.GetOktaOrganizationUrl())
-	apps, err := utils.FnCacheGet(ctx, s.cache, cacheKey, fetchFn)
+	apps, err := s.cache.Get(ctx, cacheKey, fetchFn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

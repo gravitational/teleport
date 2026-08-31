@@ -46,7 +46,7 @@ func newLeafClusterCache(clock clockwork.Clock) (*leafClusterCache, error) {
 }
 
 func (c *leafClusterCache) getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
-	return utils.FnCacheGet(ctx, c.fnCache, rootClient.ClusterName(), func(ctx context.Context) ([]string, error) {
+	return c.fnCache.Get(ctx, rootClient.ClusterName(), func(ctx context.Context) ([]string, error) {
 		return c.getLeafClustersUncached(ctx, rootClient)
 	})
 }

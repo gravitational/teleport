@@ -112,7 +112,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -2112,7 +2111,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			// verify usage of integration credentials.
 			for _, matcher := range tc.azureMatchers {
 				require.NotNil(t, discServer.azureClientCache)
-				_, err = libutils.FnCacheGet(t.Context(), discServer.azureClientCache, matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
+				_, err = discServer.azureClientCache.Get(t.Context(), matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
 					return nil, trace.NotFound("cache key %q not found", matcher.Integration)
 				})
 				require.NoError(t, err)
@@ -3260,7 +3259,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				// verify usage of integration credentials.
 				for _, matcher := range tc.azureMatchers {
 					require.NotNil(t, srv.azureClientCache)
-					_, err = libutils.FnCacheGet(t.Context(), srv.azureClientCache, matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
+					_, err = srv.azureClientCache.Get(t.Context(), matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
 						return nil, trace.NotFound("cache key %q not found", matcher.Integration)
 					})
 					require.NoError(t, err)
@@ -4037,7 +4036,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				// make sure azure client cache has expected entries
 				for _, integrationName := range tc.expectedIntegrationNames {
 					require.NotNil(t, server.azureClientCache)
-					_, err = libutils.FnCacheGet(t.Context(), server.azureClientCache, integrationName, func(ctx context.Context) (azure.Clients, error) {
+					_, err = server.azureClientCache.Get(t.Context(), integrationName, func(ctx context.Context) (azure.Clients, error) {
 						return nil, trace.NotFound("cache key %q not found", integrationName)
 					})
 					require.NoError(t, err)

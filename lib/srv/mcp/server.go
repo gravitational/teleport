@@ -276,7 +276,7 @@ func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *Sessi
 		SessionID: sessionCtx.sessionID,
 	}
 	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
-	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, key, ttl, func(ctx context.Context) (*sessionHandler, error) {
+	return s.sessionCache.GetWithTTL(ctx, key, ttl, func(ctx context.Context) (*sessionHandler, error) {
 		return s.makeSessionHandler(ctx, sessionCtx)
 	})
 }

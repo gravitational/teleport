@@ -93,7 +93,7 @@ func (c *Cache) GetReadOnlyAuthPreference(ctx context.Context) (AuthPreference, 
 		cfg, err := c.cfg.Upstream.GetAuthPreference(ctx)
 		return sealAuthPreference(cfg), trace.Wrap(err)
 	}
-	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindClusterAuthPreference}, func(ctx context.Context) (AuthPreference, error) {
+	cfg, err := c.ttlCache.Get(ctx, ttlCacheKey{kind: types.KindClusterAuthPreference}, func(ctx context.Context) (AuthPreference, error) {
 		cfg, err := c.cfg.Upstream.GetAuthPreference(ctx)
 		return sealAuthPreference(cfg), trace.Wrap(err)
 	})
@@ -106,7 +106,7 @@ func (c *Cache) GetReadOnlyClusterNetworkingConfig(ctx context.Context) (Cluster
 		cfg, err := c.cfg.Upstream.GetClusterNetworkingConfig(ctx)
 		return sealClusterNetworkingConfig(cfg), trace.Wrap(err)
 	}
-	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindClusterNetworkingConfig}, func(ctx context.Context) (ClusterNetworkingConfig, error) {
+	cfg, err := c.ttlCache.Get(ctx, ttlCacheKey{kind: types.KindClusterNetworkingConfig}, func(ctx context.Context) (ClusterNetworkingConfig, error) {
 		cfg, err := c.cfg.Upstream.GetClusterNetworkingConfig(ctx)
 		return sealClusterNetworkingConfig(cfg), trace.Wrap(err)
 	})
@@ -119,7 +119,7 @@ func (c *Cache) GetReadOnlySessionRecordingConfig(ctx context.Context) (SessionR
 		cfg, err := c.cfg.Upstream.GetSessionRecordingConfig(ctx)
 		return sealSessionRecordingConfig(cfg), trace.Wrap(err)
 	}
-	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindSessionRecordingConfig}, func(ctx context.Context) (SessionRecordingConfig, error) {
+	cfg, err := c.ttlCache.Get(ctx, ttlCacheKey{kind: types.KindSessionRecordingConfig}, func(ctx context.Context) (SessionRecordingConfig, error) {
 		cfg, err := c.cfg.Upstream.GetSessionRecordingConfig(ctx)
 		return sealSessionRecordingConfig(cfg), trace.Wrap(err)
 	})
@@ -132,7 +132,7 @@ func (c *Cache) GetReadOnlyAccessGraphSettings(ctx context.Context) (AccessGraph
 		cfg, err := c.cfg.Upstream.GetAccessGraphSettings(ctx)
 		return sealAccessGraphSettings(cfg), trace.Wrap(err)
 	}
-	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindAccessGraphSettings}, func(ctx context.Context) (AccessGraphSettings, error) {
+	cfg, err := c.ttlCache.Get(ctx, ttlCacheKey{kind: types.KindAccessGraphSettings}, func(ctx context.Context) (AccessGraphSettings, error) {
 		cfg, err := c.cfg.Upstream.GetAccessGraphSettings(ctx)
 		return sealAccessGraphSettings(cfg), trace.Wrap(err)
 	})

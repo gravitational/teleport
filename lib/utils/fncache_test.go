@@ -73,23 +73,23 @@ func TestFnCacheGet(t *testing.T) {
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:     time.Second,
 		Clock:   clockwork.NewFakeClock(),
-		Context: context.Background(),
+		Context: t.Context(),
 	})
 	require.NoError(t, err)
 
-	value, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (any, error) {
+	value, err := cache.Get(t.Context(), "test", func(ctx context.Context) (any, error) {
 		return 123, nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, 123, value)
 
-	value2, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (int, error) {
+	value2, err := cache.Get(t.Context(), "test", func(ctx context.Context) (int, error) {
 		return value.(int), nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, 123, value2)
 
-	value3, err := FnCacheGet(context.Background(), cache, "test", func(ctx context.Context) (string, error) {
+	value3, err := cache.Get(t.Context(), "test", func(ctx context.Context) (string, error) {
 		return "123", nil
 	})
 	require.ErrorIs(t, err, trace.BadParameter("value retrieved was int, expected string"))
@@ -112,7 +112,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 
 	for i := range workers {
 		go func(n int) {
-			val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (any, error) {
+			val, err := cache.Get(ctx, "key", func(context.Context) (any, error) {
 				// return a unique value for each worker so that we can verify whether
 				// the values we get come from the same loadfn or not.
 				return fmt.Sprintf("val-%d", n), nil
@@ -147,7 +147,7 @@ func TestFnCacheExpiry(t *testing.T) {
 
 	// get is helper for checking if we hit/miss
 	get := func() (load bool) {
-		val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
+		val, err := cache.Get(ctx, "key", func(context.Context) (string, error) {
 			load = true
 			return "val", nil
 		})
@@ -157,7 +157,7 @@ func TestFnCacheExpiry(t *testing.T) {
 	}
 
 	ttlGet := func() (load bool) {
-		val, err := FnCacheGetWithTTL(ctx, cache, "key2", 20*time.Minute, func(context.Context) (string, error) {
+		val, err := cache.GetWithTTL(ctx, "key2", 20*time.Minute, func(context.Context) (string, error) {
 			load = true
 			return "val2", nil
 		})
@@ -234,9 +234,6 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	const workers = int64(100) // number of concurrent workers
 	const rounds = int64(10)   // number of full ttl cycles to go through
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cache, err := NewFnCache(FnCacheConfig{TTL: ttl})
 	require.NoError(t, err)
 
@@ -265,7 +262,7 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 				case <-done:
 					return
 				}
-				vi, err := FnCacheGet(ctx, cache, "key", func(context.Context) (int64, error) {
+				vi, err := cache.Get(t.Context(), "key", func(context.Context) (int64, error) {
 					if delay > 0 {
 						<-time.After(delay)
 					}
@@ -317,10 +314,10 @@ func TestFnCacheCancellation(t *testing.T) {
 	// set up a context that we can cancel from within the load function to
 	// simulate a scenario where the calling context is canceled or times out.
 	// if we actually hit the timeout, that is a bug.
-	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), longTimeout)
 	defer cancel()
 
-	v, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
+	v, err := cache.Get(ctx, "key", func(context.Context) (string, error) {
 		cancel()
 		<-blocker
 		return "val", nil
@@ -335,11 +332,11 @@ func TestFnCacheCancellation(t *testing.T) {
 	// since we unblocked the loadfn, we expect the next Get to return almost
 	// immediately.  we still use a fairly long timeout just to ensure that failure
 	// is due to an actual bug and not due to resource constraints in the test env.
-	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel = context.WithTimeout(t.Context(), longTimeout)
 	defer cancel()
 
 	var loadFnWasRun atomic.Bool
-	v, err = FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
+	v, err = cache.Get(ctx, "key", func(context.Context) (string, error) {
 		loadFnWasRun.Store(true)
 		return "", nil
 	})
@@ -353,21 +350,21 @@ func TestFnCacheCancellation(t *testing.T) {
 func TestFnCacheContext(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:     time.Minute,
 		Context: ctx,
 	})
 	require.NoError(t, err)
 
-	_, err = FnCacheGet(context.Background(), cache, "key", func(context.Context) (any, error) {
+	_, err = cache.Get(t.Context(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.NoError(t, err)
 
 	cancel()
 
-	_, err = FnCacheGet(context.Background(), cache, "key", func(context.Context) (any, error) {
+	_, err = cache.Get(t.Context(), "key", func(context.Context) (any, error) {
 		return "val", nil
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
@@ -388,12 +385,12 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 	// test synchronous case, all sad path loads should result in
 	// calls to loadfn.
 	for range 100 {
-		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+		cache.Get(ctx, "happy", func(ctx context.Context) (string, error) {
 			happy.Add(1)
 			return "yay!", nil
 		})
 
-		FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+		cache.Get(ctx, "sad", func(ctx context.Context) (string, error) {
 			sad.Add(1)
 			return "", fmt.Errorf("uh-oh")
 		})
@@ -407,7 +404,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
+			cache.Get(ctx, "happy", func(ctx context.Context) (string, error) {
 				happy.Add(1)
 				return "yay!", nil
 			})
@@ -415,7 +412,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-			FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
+			cache.Get(ctx, "sad", func(ctx context.Context) (string, error) {
 				sad.Add(1)
 				return "", fmt.Errorf("uh-oh")
 			})
@@ -448,13 +445,13 @@ func TestFnCacheEviction(t *testing.T) {
 	require.NoError(t, err)
 
 	// Populate the cache with items that have varying TTL.
-	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err := cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, 100, out)
 
-	out2, err := FnCacheGetWithTTL(ctx, cache, 100, 24*time.Hour, func(ctx context.Context) (string, error) {
+	out2, err := cache.GetWithTTL(ctx, 100, 24*time.Hour, func(ctx context.Context) (string, error) {
 		return "test", nil
 	})
 	require.NoError(t, err)
@@ -495,14 +492,14 @@ func TestFnCacheEviction(t *testing.T) {
 	}
 
 	// Add a value with the default TTL again.
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, 100, out)
 
 	// Shutdown the cache and validate all items are expired.
-	cache.Shutdown(context.Background())
+	cache.Shutdown(t.Context())
 	timeout := time.After(10 * time.Second)
 	for range 2 {
 		select {
@@ -526,7 +523,7 @@ func TestFnCacheEviction(t *testing.T) {
 	}
 
 	// Assert that once the cache is shutdown that it does not accept any new values.
-	_, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	_, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
@@ -555,7 +552,7 @@ func TestFnCacheOnExpiryReloadReplace(t *testing.T) {
 	require.NoError(t, err)
 
 	// Populate the cache.
-	val, err := FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+	val, err := cache.Get(ctx, "key1", func(ctx context.Context) (string, error) {
 		return "old-value", nil
 	})
 	require.NoError(t, err)
@@ -567,7 +564,7 @@ func TestFnCacheOnExpiryReloadReplace(t *testing.T) {
 	// OnExpiry for the old entry.
 	clock.Advance(2 * time.Hour)
 
-	val, err = FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+	val, err = cache.Get(ctx, "key1", func(ctx context.Context) (string, error) {
 		return "new-value", nil
 	})
 	require.NoError(t, err)
@@ -610,7 +607,7 @@ func TestFnCacheRemove(t *testing.T) {
 	require.NoError(t, err)
 
 	// Populate an entry in the cache.
-	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err := cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -618,7 +615,7 @@ func TestFnCacheRemove(t *testing.T) {
 
 	// Retrieve the entry and validate the loadFn isn't called
 	// and that the previously stored value is returned instead.
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 0, nil
 	})
 	require.NoError(t, err)
@@ -629,7 +626,7 @@ func TestFnCacheRemove(t *testing.T) {
 
 	// Retrieve the entry again, this time the loadFn should
 	// be called because the item was explicitly removed.
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 0, nil
 	})
 	require.NoError(t, err)
@@ -658,7 +655,7 @@ func TestFnCacheSet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Populate an entry in the cache.
-	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err := cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -669,7 +666,7 @@ func TestFnCacheSet(t *testing.T) {
 
 	// Retrieve the item again and validate the loadFn isn't called
 	// and our manually set value is returned.
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -680,7 +677,7 @@ func TestFnCacheSet(t *testing.T) {
 
 	// Retrieve the item again and validate the loadFn is called
 	// since the old item should have expired
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -691,7 +688,7 @@ func TestFnCacheSet(t *testing.T) {
 
 	// Retrieve the item again and validate the loadFn isn't called
 	// and our manually set value is returned.
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -702,7 +699,7 @@ func TestFnCacheSet(t *testing.T) {
 
 	// Retrieve the item again and validate the loadFn is called
 	// since the old item should have expired
-	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+	out, err = cache.Get(ctx, "test", func(ctx context.Context) (int, error) {
 		return 100, nil
 	})
 	require.NoError(t, err)
@@ -808,10 +805,10 @@ func TestGetIfExists(t *testing.T) {
 			Clock: clockwork.NewFakeClock(),
 		})
 		require.NoError(t, err)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Load an entry that results in an error
-		_, err = FnCacheGet(ctx, cache, "error-key", func(ctx context.Context) (string, error) {
+		_, err = cache.Get(ctx, "error-key", func(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("load error")
 		})
 		require.Error(t, err)
@@ -855,7 +852,7 @@ func TestGetIfExists(t *testing.T) {
 
 		// Start a load operation that will block
 		go func() {
-			_, err := FnCacheGet(context.Background(), cache, "loading-key", func(ctx context.Context) (string, error) {
+			_, err := cache.Get(t.Context(), "loading-key", func(ctx context.Context) (string, error) {
 				close(loadStarted)
 				<-loadContinue
 				return "loaded-value", nil

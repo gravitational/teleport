@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // getVersionFromChannel gets the target version from the RFD109 channels.
@@ -41,7 +40,7 @@ func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Chann
 func (h *Resolver) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
 	// Caching the CMC for 60 seconds because this resource is cached neither by the auth nor the proxy.
 	// And this function can be accessed via unauthenticated endpoints.
-	cmc, err := utils.FnCacheGet(ctx, h.cmcCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	cmc, err := h.cmcCache.Get(ctx, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
 		return h.cfg.CMCGetter.GetClusterMaintenanceConfig(ctx)
 	})
 

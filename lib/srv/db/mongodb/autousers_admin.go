@@ -80,7 +80,7 @@ func getShareableAdminClient(ctx context.Context, cache *utils.FnCache, sessionC
 		databaseURI: sessionCtx.Database.GetURI(),
 	}
 
-	shareableClient, err := utils.FnCacheGet(ctx, cache, key, func(ctx context.Context) (*shareableAdminClient, error) {
+	shareableClient, err := cache.Get(ctx, key, func(ctx context.Context) (*shareableAdminClient, error) {
 		rawClient, err := makeBasicClient(ctx, sessionCtx, e)
 		if err != nil {
 			return nil, trace.Wrap(err)

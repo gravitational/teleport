@@ -221,7 +221,7 @@ func (w *workloadIdentityCredentialProvider) MapScope(scope string) string {
 }
 
 func (w *workloadIdentityCredentialProvider) getClientID(ctx context.Context, identityResourceID string) (string, error) {
-	clientID, err := utils.FnCacheGet(ctx, w.cache, identityResourceID, func(ctx context.Context) (string, error) {
+	clientID, err := w.cache.Get(ctx, identityResourceID, func(ctx context.Context) (string, error) {
 		resourceID, err := arm.ParseResourceID(identityResourceID)
 		if err != nil {
 			return "", trace.Wrap(err)
