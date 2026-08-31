@@ -986,6 +986,7 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 		const maxRetries = 3
 		var err error
 		for i := 0; i < maxRetries; i++ {
+			start := time.Now()
 			err = callback(dev, info, pin)
 			if err == nil {
 				return nil
@@ -996,6 +997,15 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 			if errors.Is(err, libfido2.ErrOperationDenied) {
 				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
 				fidoLog.DebugContext(context.Background(), "Retrying libfido2 error 'operation denied'")
+				continue
+			}
+
+			// A security key may be temporarily busy, so we retry on "rx" errors.
+			// The ErrRX error can also be thrown on a touch timeout, so we only retry
+			// if we are within half of the device timeout.
+			if errors.Is(err, libfido2.ErrRX) && time.Since(start) < fido2DeviceTimeout/2 {
+				fidoLog.DebugContext(context.Background(), "Retrying libfido2 error 'rx' (device was temporarily busy)")
+				time.Sleep(fido2RetryInterval)
 				continue
 			}
 
