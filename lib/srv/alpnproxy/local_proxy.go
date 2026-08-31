@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -314,10 +315,21 @@ func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certifi
 }
 
 func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certificate) *httputil.ReverseProxy {
+	target := &url.URL{
+		Scheme: "https",
+		Host:   l.cfg.RemoteProxyAddr,
+	}
 	return &httputil.ReverseProxy{
-		Director: func(outReq *http.Request) {
-			outReq.URL.Scheme = "https"
-			outReq.URL.Host = l.cfg.RemoteProxyAddr
+		Rewrite: func(proxyReq *httputil.ProxyRequest) {
+			proxyReq.SetURL(target)
+			proxyReq.Out.Host = proxyReq.In.Host
+			// ReverseProxy strips X-Forwarded-* headers from the outbound
+			// request before calling Rewrite. Restore the X-Forwarded-Host
+			// header sanitized in startHTTPAccessProxy, which the app service
+			// cloud API handlers use to select the upstream endpoint.
+			if host := proxyReq.In.Header.Get("X-Forwarded-Host"); host != "" {
+				proxyReq.Out.Header.Set("X-Forwarded-Host", host)
+			}
 		},
 		ModifyResponse: func(response *http.Response) error {
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)

@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"fmt"
-	"math/big"
 )
 
 // ECDSAPublicKeyFromRaw reads an ECDSA public key from a raw Apple public key,
@@ -46,14 +45,9 @@ func ECDSAPublicKeyFromRaw(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
 	// representations use constant size integers, including leading zeros as
 	// needed."
 	// https://developer.apple.com/documentation/security/1643698-seckeycopyexternalrepresentation?language=objc
-	pubKeyRaw = pubKeyRaw[1:] // skip 0x4
-	l := len(pubKeyRaw) / 2
-	x := pubKeyRaw[:l]
-	y := pubKeyRaw[l:]
-
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     (&big.Int{}).SetBytes(x),
-		Y:     (&big.Int{}).SetBytes(y),
-	}, nil
+	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), pubKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("parsing ECDSA public key: %w", err)
+	}
+	return pub, nil
 }

@@ -22,45 +22,18 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 )
-
-// jwk is a JSON Web Key, described in detail in RFC 7517.
-type jwk struct {
-	// KeyType is the type of asymmetric key used.
-	KeyType string `json:"kty"`
-	// Algorithm used to sign.
-	Algorithm string `json:"alg"`
-
-	// N is the modulus of the public key.
-	N string `json:"n"`
-	// E is the exponent of the public key.
-	E string `json:"e"`
-
-	// Curve identifies the cryptographic curve used with an ECDSA public key.
-	Curve string `json:"crv,omitempty"`
-	// X is the x coordinate parameter of an ECDSA public key.
-	X string `json:"x,omitempty"`
-	// Y is the y coordinate parameter of an ECDSA public key.
-	Y string `json:"y,omitempty"`
-}
-
-// jwksResponse is the response format for the JWK endpoint.
-type jwksResponse struct {
-	// Keys is a list of public keys in JWK format.
-	Keys []jwk `json:"keys"`
-}
 
 // claims represents public and private claims for a JWT token.
 type claims struct {
@@ -94,7 +67,7 @@ func getPublicKey(url string, insecureSkipVerify bool) (crypto.PublicKey, error)
 	defer resp.Body.Close()
 
 	// Parse JWKs response.
-	var response jwksResponse
+	var response jose.JSONWebKeySet
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
@@ -104,58 +77,23 @@ func getPublicKey(url string, insecureSkipVerify bool) (crypto.PublicKey, error)
 
 	// Construct a crypto.PublicKey from the response.
 	jwk := response.Keys[0]
-	switch jwk.KeyType {
-	case "RSA":
-		return unmarshalRSAJWK(jwk)
-	case "EC":
-		return unmarshalECDSAJWK(jwk)
+	switch key := jwk.Key.(type) {
+	case *rsa.PublicKey:
+		if jwk.Algorithm != string(jose.RS256) {
+			return nil, fmt.Errorf("unsupported algorithm %v", jwk.Algorithm)
+		}
+		return key, nil
+	case *ecdsa.PublicKey:
+		if jwk.Algorithm != string(jose.ES256) {
+			return nil, fmt.Errorf("unsupported algorithm %v", jwk.Algorithm)
+		}
+		if key.Curve != elliptic.P256() {
+			return nil, fmt.Errorf("unsupported curve %v", key.Curve.Params().Name)
+		}
+		return key, nil
 	default:
-		return nil, fmt.Errorf("unsupported key type %v", jwk.KeyType)
+		return nil, fmt.Errorf("unsupported key type %T", jwk.Key)
 	}
-}
-
-func unmarshalRSAJWK(jwk jwk) (*rsa.PublicKey, error) {
-	if jwk.Algorithm != "RS256" {
-		return nil, fmt.Errorf("unsupported algorithm %v", jwk.Algorithm)
-	}
-
-	n, err := base64.RawURLEncoding.DecodeString(jwk.N)
-	if err != nil {
-		return nil, err
-	}
-	e, err := base64.RawURLEncoding.DecodeString(jwk.E)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rsa.PublicKey{
-		N: new(big.Int).SetBytes(n),
-		E: int(new(big.Int).SetBytes(e).Uint64()),
-	}, nil
-}
-
-func unmarshalECDSAJWK(jwk jwk) (*ecdsa.PublicKey, error) {
-	if jwk.Algorithm != "ES256" {
-		return nil, fmt.Errorf("unsupported algorithm %v", jwk.Algorithm)
-	}
-	if jwk.Curve != elliptic.P256().Params().Name {
-		return nil, fmt.Errorf("unsupported curve %v", jwk.Curve)
-	}
-
-	x, err := base64.RawURLEncoding.DecodeString(jwk.X)
-	if err != nil {
-		return nil, err
-	}
-	y, err := base64.RawURLEncoding.DecodeString(jwk.Y)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     new(big.Int).SetBytes(x),
-		Y:     new(big.Int).SetBytes(y),
-	}, nil
 }
 
 // verify will verify the JWT.

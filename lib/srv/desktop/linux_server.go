@@ -899,7 +899,8 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 			return 0, trace.Wrap(err, "couldn't get image from backend")
 		}
 
-		frames, err := rdpclient.EncodeQOIZ(img.Pix, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+		frames, err := rdpclient.EncodeQOIZ(img.Pix, uint16(change.X), uint16(change.Y), change.Width, change.Height) //nolint:staticcheck // SA4023 depends on desktop client build tags.
+		//nolint:staticcheck // SA4023. The check appears always-true because EncodeQOIZ always returns err in builds without the desktop client.
 		if err != nil {
 			return 0, trace.Wrap(err, "couldn't encode image frame")
 		}

@@ -593,12 +593,12 @@ const sentTimestampAttribute = "SentTimestamp"
 
 func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
 	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-		QueueUrl:              aws.String(s.cfg.queueURL),
-		MaxNumberOfMessages:   maxNumberOfMessagesFromReceive,
-		WaitTimeSeconds:       s.cfg.waitOnReceiveTimeout,
-		VisibilityTimeout:     s.cfg.visibilityTimeout,
-		MessageAttributeNames: []string{payloadTypeAttr},
-		AttributeNames:        []sqsTypes.QueueAttributeName{sentTimestampAttribute},
+		QueueUrl:                    aws.String(s.cfg.queueURL),
+		MaxNumberOfMessages:         maxNumberOfMessagesFromReceive,
+		WaitTimeSeconds:             s.cfg.waitOnReceiveTimeout,
+		VisibilityTimeout:           s.cfg.visibilityTimeout,
+		MessageAttributeNames:       []string{payloadTypeAttr},
+		MessageSystemAttributeNames: []sqsTypes.MessageSystemAttributeName{sentTimestampAttribute},
 	})
 	if err != nil {
 		// We don't need handle canceled errors anyhow.
