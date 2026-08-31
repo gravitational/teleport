@@ -54,28 +54,27 @@ type SessionRecordingServiceClient interface {
 	// searching of session summaries.
 	//
 	// Basic interaction flow:
-	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, max_summaries, and an optional resume_token to continue a
-	//     previous search from a known checkpoint.
-	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
-	//     messages (one summary per message to respect gRPC size limits), then
-	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
-	//  3. If batch_complete.has_more is true, the client can send
-	//     SearchSessionSummariesRequest{fetch_more} to receive the next batch.
-	//     The server again streams results followed by batch_complete.
-	//  4. Steps 2–3 repeat until batch_complete.has_more is false or the client
-	//     is no longer interested, at which point the client closes the stream.
+	//   1. Client sends SearchSessionSummariesRequest{search_params} with filter
+	//      criteria, max_summaries, and an optional resume_token to continue a
+	//      previous search from a known checkpoint.
+	//   2. Server streams zero or more SearchSessionSummariesResponse{summary}
+	//      messages (one summary per message to respect gRPC size limits), then
+	//      sends exactly one SearchSessionSummariesResponse{batch_complete}.
+	//   3. If batch_complete.has_more is true, the client can send
+	//      SearchSessionSummariesRequest{fetch_more} to receive the next batch.
+	//      The server again streams results followed by batch_complete.
+	//   4. Steps 2–3 repeat until batch_complete.has_more is false or the client
+	//      is no longer interested, at which point the client closes the stream.
 	//
 	// Results are ordered by session_start descending (most recent first) and
 	// this order is stable across batches.
 	//
 	// Resuming across streams:
-	//
-	//	Every summary message carries a checkpoint_token representing the cursor
-	//	position immediately after that summary. Storing the token from the last
-	//	successfully processed SummaryAndCheckpoint and passing it as
-	//	search_params.resume_token in a new stream resumes the search from
-	//	exactly that position, skipping already-processed summaries.
+	//   Every summary message carries a checkpoint_token representing the cursor
+	//   position immediately after that summary. Storing the token from the last
+	//   successfully processed SummaryAndCheckpoint and passing it as
+	//   search_params.resume_token in a new stream resumes the search from
+	//   exactly that position, skipping already-processed summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding
@@ -146,28 +145,27 @@ type SessionRecordingServiceServer interface {
 	// searching of session summaries.
 	//
 	// Basic interaction flow:
-	//  1. Client sends SearchSessionSummariesRequest{search_params} with filter
-	//     criteria, max_summaries, and an optional resume_token to continue a
-	//     previous search from a known checkpoint.
-	//  2. Server streams zero or more SearchSessionSummariesResponse{summary}
-	//     messages (one summary per message to respect gRPC size limits), then
-	//     sends exactly one SearchSessionSummariesResponse{batch_complete}.
-	//  3. If batch_complete.has_more is true, the client can send
-	//     SearchSessionSummariesRequest{fetch_more} to receive the next batch.
-	//     The server again streams results followed by batch_complete.
-	//  4. Steps 2–3 repeat until batch_complete.has_more is false or the client
-	//     is no longer interested, at which point the client closes the stream.
+	//   1. Client sends SearchSessionSummariesRequest{search_params} with filter
+	//      criteria, max_summaries, and an optional resume_token to continue a
+	//      previous search from a known checkpoint.
+	//   2. Server streams zero or more SearchSessionSummariesResponse{summary}
+	//      messages (one summary per message to respect gRPC size limits), then
+	//      sends exactly one SearchSessionSummariesResponse{batch_complete}.
+	//   3. If batch_complete.has_more is true, the client can send
+	//      SearchSessionSummariesRequest{fetch_more} to receive the next batch.
+	//      The server again streams results followed by batch_complete.
+	//   4. Steps 2–3 repeat until batch_complete.has_more is false or the client
+	//      is no longer interested, at which point the client closes the stream.
 	//
 	// Results are ordered by session_start descending (most recent first) and
 	// this order is stable across batches.
 	//
 	// Resuming across streams:
-	//
-	//	Every summary message carries a checkpoint_token representing the cursor
-	//	position immediately after that summary. Storing the token from the last
-	//	successfully processed SummaryAndCheckpoint and passing it as
-	//	search_params.resume_token in a new stream resumes the search from
-	//	exactly that position, skipping already-processed summaries.
+	//   Every summary message carries a checkpoint_token representing the cursor
+	//   position immediately after that summary. Storing the token from the last
+	//   successfully processed SummaryAndCheckpoint and passing it as
+	//   search_params.resume_token in a new stream resumes the search from
+	//   exactly that position, skipping already-processed summaries.
 	//
 	// Each SessionSummary includes the raw session_end_event, which the Auth
 	// server uses to evaluate the requesting user's visibility before forwarding

@@ -1609,10 +1609,9 @@ type SessionSummary struct {
 	// May be empty if not available.
 	ResourceName string `protobuf:"bytes,12,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
 	// resource_properties contains additional kind-specific properties:
-	//
-	//	SSH sessions:        {server_addr, server_hostname}
-	//	Kubernetes sessions: {pod_namespace, pod_name}
-	//	Database sessions:   {database_name}
+	//   SSH sessions:        {server_addr, server_hostname}
+	//   Kubernetes sessions: {pod_namespace, pod_name}
+	//   Database sessions:   {database_name}
 	ResourceProperties *ResourceProperties `protobuf:"bytes,13,opt,name=resource_properties,json=resourceProperties,proto3" json:"resource_properties,omitempty"`
 	// severity is the computed severity level of the session.
 	Severity v1.RiskLevel `protobuf:"varint,14,opt,name=severity,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"severity,omitempty"`
@@ -1920,10 +1919,9 @@ type SessionSummary_builder struct {
 	// May be empty if not available.
 	ResourceName string
 	// resource_properties contains additional kind-specific properties:
-	//
-	//	SSH sessions:        {server_addr, server_hostname}
-	//	Kubernetes sessions: {pod_namespace, pod_name}
-	//	Database sessions:   {database_name}
+	//   SSH sessions:        {server_addr, server_hostname}
+	//   Kubernetes sessions: {pod_namespace, pod_name}
+	//   Database sessions:   {database_name}
 	ResourceProperties *ResourceProperties
 	// severity is the computed severity level of the session.
 	Severity v1.RiskLevel

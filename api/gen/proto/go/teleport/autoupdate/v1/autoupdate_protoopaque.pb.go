@@ -1456,15 +1456,15 @@ type AutoUpdateAgentRolloutSpec_builder struct {
 	// - "suspended": Teleport will temporarily stop updating existing agents.
 	AutoupdateMode string
 	// strategy to use for updating the agents. Supported strategies are:
-	//   - "time-based": agents update as soon as their maintenance window starts. There is no dependency between groups.
-	//     This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the maintenance window
-	//     more strictly. A group finishes its update at the end of the maintenance window, regardless of the new version
-	//     adoption rate. Agents that missed the maintenance window will not attempt to update until the next maintenance
-	//     window.
-	//   - "halt-on-failure": the update proceeds from the first group to the last group, ensuring that each group
-	//     successfully updates before allowing the next group to proceed. This is the strategy that offers the best
-	//     availability. A group finishes its update once most of its agents are running the correct version. Agents that
-	//     missed the group update will try to catch back as soon as possible.
+	// - "time-based": agents update as soon as their maintenance window starts. There is no dependency between groups.
+	//   This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the maintenance window
+	//   more strictly. A group finishes its update at the end of the maintenance window, regardless of the new version
+	//   adoption rate. Agents that missed the maintenance window will not attempt to update until the next maintenance
+	//   window.
+	// - "halt-on-failure": the update proceeds from the first group to the last group, ensuring that each group
+	//   successfully updates before allowing the next group to proceed. This is the strategy that offers the best
+	//   availability. A group finishes its update once most of its agents are running the correct version. Agents that
+	//   missed the group update will try to catch back as soon as possible.
 	Strategy string
 	// maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
 	// Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next

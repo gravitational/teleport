@@ -1918,10 +1918,9 @@ type SessionSummary_builder struct {
 	// May be empty if not available.
 	ResourceName string
 	// resource_properties contains additional kind-specific properties:
-	//
-	//	SSH sessions:        {server_addr, server_hostname}
-	//	Kubernetes sessions: {pod_namespace, pod_name}
-	//	Database sessions:   {database_name}
+	//   SSH sessions:        {server_addr, server_hostname}
+	//   Kubernetes sessions: {pod_namespace, pod_name}
+	//   Database sessions:   {database_name}
 	ResourceProperties *ResourceProperties
 	// severity is the computed severity level of the session.
 	Severity v1.RiskLevel

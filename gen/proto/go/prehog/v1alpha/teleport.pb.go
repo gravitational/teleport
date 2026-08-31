@@ -5413,7 +5413,7 @@ func (x *BotJoinEvent) GetBotInstanceId() string {
 // UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
 type UICreateNewRoleClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized
+	//anonymized
 	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5459,7 +5459,7 @@ func (x *UICreateNewRoleClickEvent) GetUserName() string {
 // UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
 type UICreateNewRoleSaveClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized
+	//anonymized
 	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	// StandardUsed indicates if the user interacted with the standard editor
 	// tab.
@@ -5548,7 +5548,7 @@ func (x *UICreateNewRoleSaveClickEvent) GetFieldsWithConversionErrors() []string
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 type UICreateNewRoleCancelClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized
+	//anonymized
 	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5594,7 +5594,7 @@ func (x *UICreateNewRoleCancelClickEvent) GetUserName() string {
 // UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 type UICreateNewRoleViewDocumentationClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized
+	//anonymized
 	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5640,7 +5640,7 @@ func (x *UICreateNewRoleViewDocumentationClickEvent) GetUserName() string {
 // UICallToActionClickEvent is a click in a Teleport Web UI's CTA
 type UICallToActionClickEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// anonymized
+	//anonymized
 	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	Cta           CTA    `protobuf:"varint,2,opt,name=cta,proto3,enum=prehog.v1alpha.CTA" json:"cta,omitempty"`
 	unknownFields protoimpl.UnknownFields

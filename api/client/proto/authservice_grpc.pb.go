@@ -582,7 +582,7 @@ type AuthServiceClient interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(ctx context.Context, in *DatabaseCertRequest, opts ...grpc.CallOption) (*DatabaseCertResponse, error)
-	// / GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+	/// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
 	GenerateSnowflakeJWT(ctx context.Context, in *SnowflakeJWTRequest, opts ...grpc.CallOption) (*SnowflakeJWTResponse, error)
 	// GetRole retrieves a role described by the given request.
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
@@ -642,11 +642,11 @@ type AuthServiceClient interface {
 	//
 	// A typical MFA deletion sequence calls the following RPCs:
 	//
-	//  1. (optional) CreateAuthenticateChallenge
-	//     (may be skipped depending on the token used, but is usually called
-	//     regardless)
-	//  2. (optional) CreatePrivilegeToken
-	//  3. DeleteMFADeviceSync (using either authn challenge or token)
+	// 1. (optional) CreateAuthenticateChallenge
+	//    (may be skipped depending on the token used, but is usually called
+	//    regardless)
+	// 2. (optional) CreatePrivilegeToken
+	// 3. DeleteMFADeviceSync (using either authn challenge or token)
 	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
@@ -4270,7 +4270,7 @@ type AuthServiceServer interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *DatabaseCertRequest) (*DatabaseCertResponse, error)
-	// / GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+	/// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
 	GenerateSnowflakeJWT(context.Context, *SnowflakeJWTRequest) (*SnowflakeJWTResponse, error)
 	// GetRole retrieves a role described by the given request.
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV6, error)
@@ -4330,11 +4330,11 @@ type AuthServiceServer interface {
 	//
 	// A typical MFA deletion sequence calls the following RPCs:
 	//
-	//  1. (optional) CreateAuthenticateChallenge
-	//     (may be skipped depending on the token used, but is usually called
-	//     regardless)
-	//  2. (optional) CreatePrivilegeToken
-	//  3. DeleteMFADeviceSync (using either authn challenge or token)
+	// 1. (optional) CreateAuthenticateChallenge
+	//    (may be skipped depending on the token used, but is usually called
+	//    regardless)
+	// 2. (optional) CreatePrivilegeToken
+	// 3. DeleteMFADeviceSync (using either authn challenge or token)
 	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*emptypb.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
