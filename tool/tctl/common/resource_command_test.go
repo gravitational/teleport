@@ -3906,6 +3906,38 @@ func TestPluginResourceWrapper(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "scim",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "scim",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Scim{
+						Scim: &types.PluginSCIMSettings{},
+					},
+				},
+			},
+		},
+		{
+			name: "github",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "github",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Github{
+						Github: &types.PluginGithubSettings{
+							OrganizationName: "acme",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
