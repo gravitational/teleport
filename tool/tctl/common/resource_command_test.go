@@ -24,10 +24,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -3953,6 +3956,48 @@ func TestPluginResourceWrapper(t *testing.T) {
 			require.Empty(t, cmp.Diff(tc.plugin, item.PluginV1))
 		})
 	}
+}
+
+// TestPluginTCTLUnmarshalerCompatibility guards against the
+// bugs when oneof type is extended but the unmarshaling was not extended to the wrapper type.
+// So the flow can't deduce the correct type for oneof value.
+func TestPluginTCTLUnmarshalerCompatibility(t *testing.T) {
+	settingsKeys, err := oneofJSONKeys((*types.PluginSpecV1)(nil))
+	require.NoError(t, err)
+	require.ElementsMatch(t, settingsKeys, slices.Collect(maps.Keys(pluginSettingsConstructors)),
+		"New plugin settings type found but not register in pluginSettingsConstructors")
+
+	statusDetailsKeys, err := oneofJSONKeys((*types.PluginStatusV1)(nil))
+	require.NoError(t, err)
+	require.ElementsMatch(t, statusDetailsKeys, slices.Collect(maps.Keys(pluginStatusDetailsConstructors)),
+		"New plugin status details type found but not register in pluginStatusDetailsConstructors")
+
+	credentialKeys, err := oneofJSONKeys((*types.PluginCredentialsV1)(nil))
+	require.NoError(t, err)
+	require.ElementsMatch(t, credentialKeys, slices.Collect(maps.Keys(pluginCredentialConstructors)),
+		"New plugin credentials type found but not register in pluginCredentialsConstructors")
+}
+
+type oneofWrapperLister interface {
+	XXX_OneofWrappers() []any
+}
+
+func oneofJSONKeys(msg oneofWrapperLister) ([]string, error) {
+	out := make([]string, 0, len(msg.XXX_OneofWrappers()))
+	for _, v := range msg.XXX_OneofWrappers() {
+		vt := reflect.TypeOf(v)
+		et := vt.Elem()
+		if et.NumField() != 1 {
+			return nil, trace.BadParameter("invalid number of fields for oneof wrapper %s: %d", vt, et.NumField())
+		}
+		jsonTag := et.Field(0).Tag.Get("json")
+		key, _, found := strings.Cut(jsonTag, ",")
+		if !found || key == "" {
+			return nil, trace.BadParameter("invalid json tag for oneof wrapper %s: %q", vt, jsonTag)
+		}
+		out = append(out, key)
+	}
+	return out, nil
 }
 
 func TestParseScopedRef(t *testing.T) {
