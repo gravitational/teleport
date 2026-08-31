@@ -333,10 +333,14 @@ func GenerateWindowsDesktopCredentials(
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certDER, keyDER []byte, caCerts [][]byte, err error) {
+func generateDatabaseCredentials(
+	ctx context.Context,
+	auth AuthInterface,
+	req *GenerateCredentialsRequest,
+) (_ *proto.DatabaseCertResponse, keyDER []byte, _ error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	genResp, err := auth.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
@@ -353,33 +357,49 @@ func generateDatabaseCredentials(ctx context.Context, auth AuthInterface, req *G
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// NOTE: genResp.TrustChain is purposefully ignored here. CAs must be directly
-	// known by the NTAuth store, so there is no point in setting the trust chain.
-	// https://github.com/gravitational/teleport/blob/25f2d6c0b4e8fd6cebf5c9da014c0e344cd14fc2/rfd/0237-sub-ca-support.md?plain=1#L441-L447
+	return genResp, certReq.keyDER, nil
+}
 
-	certBlock, _ := pem.Decode(genResp.Cert)
-	if certBlock == nil {
-		return nil, nil, nil, trace.BadParameter("failed to decode certificate")
-	}
-	certDER = certBlock.Bytes
-	keyDER = certReq.keyDER
-	return certDER, keyDER, genResp.CACerts, nil
+// DatabaseCredentialsResponse is the result of [DatabaseCredentials].
+type DatabaseCredentialsResponse struct {
+	// CertPEM is the X.509 certificate in PEM form.
+	CertPEM []byte
+	// KeyPEM is a PKCS#1 RSA private key in PEM form.
+	KeyPEM []byte
+	// CACertsPEM are the CA certificates the user of CertPEM itself should trust.
+	CACertsPEM [][]byte
+	// TrustChainPEM are the CA certificates the user of CertPEM itself should
+	// present, alongside CertPEM.
+	//
+	// PKINIT based solutions the need the direct issuer of CertPEM to be known by
+	// the NTAuth store, so passing the trust chain forward is typically not
+	// necessary.
+	//
+	// The trust chain may still prove useful for tools that validate CertPEM
+	// themselves, such as kinit.
+	TrustChainPEM [][]byte
 }
 
 // DatabaseCredentials returns certificate and private key bytes encoded in PEM format for use with `kinit`.
-func DatabaseCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
-	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, auth, req)
+func DatabaseCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (*DatabaseCredentialsResponse, error) {
+	genResp, keyDER, err := generateDatabaseCredentials(ctx, auth, req)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyDER})
-
-	return
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyDER,
+	})
+	return &DatabaseCredentialsResponse{
+		CertPEM:       genResp.Cert,
+		KeyPEM:        keyPEM,
+		CACertsPEM:    genResp.CACerts,
+		TrustChainPEM: genResp.TrustChain,
+	}, nil
 }
 
 // The following vars contain the various object identifiers required for smartcard
