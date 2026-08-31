@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -29,6 +30,10 @@ type enrollCeremony struct {
 	storage          *storage.S
 	auditCallback    func(d *devicepb.Device, err error)
 	ekCertAllowedCAs []string
+	// allowedOSTypes gates which device OS types may enroll through the calling
+	// RPC surface: desktop OS types belong to the private Device Trust service,
+	// mobile ones to the public service. See RFD 32e.
+	allowedOSTypes []devicepb.OSType
 }
 
 // EnrollDevice implements the device enrollment ceremony, as described by
@@ -86,6 +91,11 @@ func (c *enrollCeremony) enrollDevice(
 		return nil, trace.BadParameter("device OS type required")
 	case initReq.GetDeviceData().GetSerialNumber() == "":
 		return nil, trace.BadParameter("device serial number required")
+	}
+
+	if !slices.Contains(c.allowedOSTypes, initReq.GetDeviceData().GetOsType()) {
+		return nil, trace.BadParameter("unsupported OS type: %v",
+			dtoss.FriendlyOSType(initReq.GetDeviceData().GetOsType()))
 	}
 
 	// ...fetch the device...

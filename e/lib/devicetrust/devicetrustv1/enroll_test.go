@@ -181,6 +181,29 @@ func TestService_EnrollDevice(t *testing.T) {
 			wantAuditEvents: wantEnrollFailure,
 		},
 		{
+			// Mobile devices enroll through the public Device Trust service.
+			name:           "init: iOS DeviceData.OsType",
+			deviceTemplate: macOSFailDev,
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
+					r.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_IOS)
+				},
+			}),
+			assertInitErr:   trace.IsBadParameter,
+			wantAuditEvents: wantEnrollFailure,
+		},
+		{
+			name:           "init: iPadOS DeviceData.OsType",
+			deviceTemplate: macOSFailDev,
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
+					r.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_IPADOS)
+				},
+			}),
+			assertInitErr:   trace.IsBadParameter,
+			wantAuditEvents: wantEnrollFailure,
+		},
+		{
 			name:           "init: empty DeviceData.SerialNumber",
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{

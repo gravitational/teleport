@@ -817,6 +817,11 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		logger:           s.logger,
 		storage:          s.storage,
 		ekCertAllowedCAs: ekCertAllowedCAs,
+		allowedOSTypes: []devicepb.OSType{
+			devicepb.OSType_OS_TYPE_MACOS,
+			devicepb.OSType_OS_TYPE_LINUX,
+			devicepb.OSType_OS_TYPE_WINDOWS,
+		},
 		auditCallback: func(dev *devicepb.Device, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
