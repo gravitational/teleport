@@ -22,14 +22,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // newScopedCheckerWithRole is a test helper that builds a minimal ScopedAccessChecker
@@ -891,6 +894,74 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			require.Equal(t, tt.expectShell, decision.Info.GetShell())
 			require.Equal(t, tt.expectUID, decision.Info.GetUid())
 			require.Equal(t, tt.expectGID, decision.Info.GetGid())
+		})
+	}
+}
+
+func TestSSHAccessCheckerGetAllowedLoginsForServer(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect []string
+	}{
+		{
+			name: "matching scoped role",
+			spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"alice", "ubuntu"},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   "env",
+							Values: []string{"prod"},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+			expect: []string{"alice", "ubuntu"},
+		},
+		{
+			name: "non-matching scoped role",
+			spec: scopedaccessv1.ScopedRoleSpec_builder{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"alice", "ubuntu"},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   "env",
+							Values: []string{"dev"},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+			expect: nil,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := &types.ServerV2{
+				Kind: types.KindNode,
+				Metadata: types.Metadata{
+					Name: "test-server",
+					Labels: map[string]string{
+						"env": "prod",
+					},
+				},
+				Scope: "/test",
+				Spec:  types.ServerSpecV2{},
+			}
+			require.NoError(t, server.CheckAndSetDefaults())
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			unscopedRole, err := scopedaccess.ScopedRoleToRole(checker.checker.role, "/test")
+			require.NoError(t, err)
+			checker.checker.scopedCompatChecker = newAccessChecker(&AccessInfo{}, "local", newScopedRoleSet(unscopedRole))
+
+			logins, err := checker.GetAllowedLoginsForServer(server)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.expect, logins)
 		})
 	}
 }
