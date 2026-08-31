@@ -1,6 +1,8 @@
 ---
 name: flaky-test
 description: Run when the user asks to investigate, troubleshoot, or fix a flaky Go test.
+metadata:
+  internal: true
 ---
 
 # Flaky Test
