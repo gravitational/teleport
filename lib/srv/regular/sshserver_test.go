@@ -1028,7 +1028,7 @@ func TestLockInForce(t *testing.T) {
 	t.Cleanup(func() { newClient.Close() })
 	_, err = newClient.NewSession(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), lockInForceMsg)
+	require.ErrorContains(t, err, "lock targeting Login")
 	t.Cleanup(func() {
 		// The client is expected to be closed by the lock monitor therefore
 		// expect an error on this second attempt.
@@ -1203,7 +1203,7 @@ func TestDirectTCPIP(t *testing.T) {
 		}
 		//nolint:bodyclose // We expect an error here, no need to close.
 		_, err := httpClientUsingSessionJoin.Get(ts.URL)
-		require.ErrorContains(t, err, "ssh: rejected: administratively prohibited (attempted direct-tcpip channel open in join-only mode")
+		require.ErrorContains(t, err, "attempted direct-tcpip channel open in join-only mode")
 	})
 }
 

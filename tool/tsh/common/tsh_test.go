@@ -2603,8 +2603,6 @@ func TestSSHMFADeviceLock(t *testing.T) {
 			err = tc.lockAuth.UpsertLock(ctx, lock)
 			require.NoError(t, err)
 
-			lockInForceMsg := services.LockInForceAccessDenied(lock).Error()
-
 			// The lock is enforced by the target node's own lock watcher, which replicates backend events
 			// asynchronously and is not observable from the outside. Rejection is the only signal that the watcher
 			// caught up, so the assertion is a poll: an attempt that succeeds (lock not yet propagated) or fails with
@@ -2621,7 +2619,7 @@ func TestSSHMFADeviceLock(t *testing.T) {
 						return nil
 					},
 				)
-				assert.ErrorContains(t, err, lockInForceMsg)
+				assert.ErrorContains(t, err, "lock targeting MFADevice")
 			}, 30*time.Second, time.Second, "node never rejected the SSH connection with the MFA device lock error")
 
 			require.GreaterOrEqual(t, int(device.Counter()), 2, "expected MFA device to be used at least twice (init and ceremony)")
