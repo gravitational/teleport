@@ -8,8 +8,8 @@ on:
       - .github/workflows/test-teleport-updater.yaml
       - .github/actions/load-gpg-key/action.yaml
       - .github/actions/deploy-os-package/action.yaml
-      - assets/systemd-unit-upgrader/**
-      - assets/systemd-unit-upgrader-tests/scripts/**
+      - e/assets/systemd-unit-upgrader/**
+      - e/assets/systemd-unit-upgrader-tests/scripts/**
 
 jobs:
   setup:

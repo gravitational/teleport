@@ -37,6 +37,10 @@ jobs:
       contents: read
       id-token: write   # Required for aws-actions/configure-aws-credentials
     runs-on: ubuntu-latest
+    # This used to run in teleport.e which was moved to `e` directory.
+    defaults:
+      run:
+        working-directory: ./e
     environment: ${{ inputs.environment }}
     strategy:
       fail-fast: true
@@ -77,13 +81,14 @@ jobs:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
           value-sets: gpg-signing
+          environments-directory: e/.environments
       - name: Install fpm and dependencies
         run: |
           sudo apt update
           sudo apt install -y ruby binutils rpm gpg
           sudo gem install fpm
       - name: Create the default package configuration for the package manager type (${{ matrix.package.manager }}) that the service should use 
-        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        working-directory: ./e/assets/systemd-unit-upgrader/rootfs
         env:
           CONFIG_FOLDER_PATH: "etc/teleport-upgrade.d"
           SCRIPT_PATH: "usr/sbin/teleport-upgrade"
@@ -97,7 +102,7 @@ jobs:
           echo "$INSTALLER_CONFIG_PATH contents:"
           sudo cat "$INSTALLER_CONFIG_PATH"
       - name: Set the script version number
-        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        working-directory: ./e/assets/systemd-unit-upgrader/rootfs
         env:
           SCRIPT_PATH: "usr/sbin/teleport-upgrade"
         run: |
@@ -111,7 +116,7 @@ jobs:
             echo "Updater version number matches the artifact version ($ARTIFACT_VERSION)"
           fi
       - name: Set the TELEPORT_EXT_UPGRADER_VERSION env variable
-        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        working-directory: ./e/assets/systemd-unit-upgrader/rootfs
         env:
           ENV_CONFIG_PATH: "etc/systemd/system/teleport.service.d/teleport-upgrader-env.conf"
         run: |
@@ -125,7 +130,7 @@ jobs:
             echo "Updater version matches the artifact version ($ARTIFACT_VERSION)"
           fi
       - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         id: build-package
         # This must be ran as root because the directories are owned by root
         run: |
@@ -137,10 +142,10 @@ jobs:
             --package "$PACKAGE_NAME"
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
       - name: Update package file ownership
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: sudo chown -Rv "$(id -un):$(id -gn)" ./*."${PACKAGE_FILE_EXTENSION}"
       - name: Log created file info
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: ls -laht "$PACKAGE_NAME"
       # When RPM artifact, sign the RPM
       - name: Setup GPG signing key for rpm signing
@@ -181,7 +186,7 @@ jobs:
           rm -fv "$SIGNING_KEY_PATH"
       - name: Sign the RPM
         if: matrix.package.file-extension == 'rpm'
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: |
           # shellcheck disable=SC2155
           export GPG_TTY="$(tty || true)"
@@ -192,7 +197,7 @@ jobs:
       # When tarball artifact, gzip the tarchive
       - name: GZip the tarchive
         if: matrix.package.file-extension == 'tar'
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: |
           GZ_PACKAGE_NAME="$PACKAGE_NAME.gz"
           echo "GZipping $PACKAGE_NAME to $GZ_PACKAGE_NAME"
@@ -200,7 +205,7 @@ jobs:
           echo "PACKAGE_NAME=$GZ_PACKAGE_NAME" >> "$GITHUB_ENV"
       # Generate a checksum of the final artifact
       - name: Generate the sha256 checksum
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: |
           PACKAGE_CHECKSUM_NAME="$PACKAGE_NAME.sha256"
           sha256sum "$PACKAGE_NAME" > "$PACKAGE_CHECKSUM_NAME"
@@ -225,8 +230,8 @@ jobs:
           role-session-name: "gha-package-auto-updater-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
           role-duration-seconds: 900
       - name: Upload the artifact to S3
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: aws s3 cp "$PACKAGE_NAME" "$ARTIFACT_BUCKET_PATH"
       - name: Upload the artifact checksum to S3
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./e/assets/systemd-unit-upgrader/
         run: aws s3 cp "$PACKAGE_CHECKSUM_NAME" "$ARTIFACT_CHECKSUM_BUCKET_PATH"

@@ -29,13 +29,14 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
         with:
           tool-version: v0.0.5
           environment-name: stage/automation/ami-cleanup
+          environments-directory: e/.environments
 
       - name: Assume AWS role for cleaning up AMIs
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1

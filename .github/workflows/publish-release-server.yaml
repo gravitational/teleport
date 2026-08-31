@@ -35,7 +35,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
@@ -43,6 +43,7 @@ jobs:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
           value-sets: release-server
+          environments-directory: e/.environments
 
       # Setup
       - name: Assume AWS ECR pull role

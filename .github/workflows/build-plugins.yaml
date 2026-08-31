@@ -369,13 +369,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
+          environments-directory: e/.environments
 
       # generic-arm64 may need a bit of setup before using
       - name: Ensure required packages are installed
@@ -439,13 +440,14 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
+          environments-directory: e/.environments
 
       - uses: gravitational/core/.github/actions/smoke-test-plugin-tarballs@master
         with:
@@ -475,18 +477,19 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Checkout env files
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .environments
+          sparse-checkout: e/.environments
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
+          environments-directory: e/.environments
 
       - name: Smoke-test Windows AMD64 plugin
         uses: gravitational/core/.github/actions/smoke-test-plugin-tarballs@master
