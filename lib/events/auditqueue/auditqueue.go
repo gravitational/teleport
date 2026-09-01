@@ -123,6 +123,18 @@ type Stats struct {
 	OldestDeadLetterTime time.Time
 }
 
+// Sealer encrypts audit event payloads before they are written to disk.
+type Sealer interface {
+	// Seal encrypts the plaintext and returns cyphertext if and only if
+	// encryption is enabled, typically by setting
+	// auth_service.session_recording_config.encryption.enabled to true.
+	// If encryption is enabled, then the sealed return value will be true.
+	// It will be false otherwise.
+	Seal(ctx context.Context, plaintext []byte) (payload []byte, sealed bool, err error)
+	// Close closes the Sealer
+	Close() error
+}
+
 // Handler is the function type that the caller of the auditqueue implements.
 // It will take a batch of items to forward to the inner EmitAuditEvent.
 // It will return the slice of items that were successfully delivered.

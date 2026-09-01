@@ -142,7 +142,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -3509,22 +3509,39 @@ func isAuditQueueEnabled() bool {
 
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatcher recordingencryption.SessionRecordingConfigWatcher) (*events.CheckingAsyncEmitter, error) {
+	asyncCfg := events.AsyncEmitterConfig{
+		Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+		DataDir:            process.Config.DataDir,
+		EnableAuditQueue:   isAuditQueueEnabled(),
+		AuditQueueCfg:      process.auditQueueConfig(),
+		AuditQueueBackends: process.auditQueueBackends(),
+	}
+	if asyncCfg.EnableAuditQueue {
+		sealer, err := recordingencryption.NewAuditQueueSealer(process.ExitContext(), srcWatcher)
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing audit queue encryption")
+		}
+		asyncCfg.Sealer = sealer
+	}
+
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
 	emitter, err := events.NewCheckingAsyncEmitter(
 		events.CheckingEmitterConfig{
 			Clock: process.Clock,
 		},
-		events.AsyncEmitterConfig{
-			Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-			DataDir:            process.Config.DataDir,
-			EnableAuditQueue:   isAuditQueueEnabled(),
-			AuditQueueCfg:      process.auditQueueConfig(),
-			AuditQueueBackends: process.auditQueueBackends(),
-		},
+		asyncCfg,
 	)
 	if err != nil {
+		if asyncCfg.Sealer != nil {
+			if closeErr := asyncCfg.Sealer.Close(); closeErr != nil {
+				process.logger.DebugContext(process.ExitContext(),
+					"Failed to close audit queue sealer.",
+					"error", closeErr,
+				)
+			}
+		}
 		return nil, trace.Wrap(err)
 	}
 	process.registerEmitter(emitter)
@@ -3796,7 +3813,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		// asyncEmitter makes sure that sessions do not block
 		// in case if connections are slow
-		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client, authClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5270,7 +5287,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7224,7 +7241,7 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client, accessPoint)
 		if err != nil {
 			return trace.Wrap(err)
 		}
