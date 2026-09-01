@@ -129,6 +129,12 @@ type FileLog struct {
 }
 
 // EmitAuditEvent adds a new event to the log.
+//
+// FileLog performs no de-duplication. With the audit pipeline's at-least-once
+// delivery, a redelivered event is appended again. This is intentional, as
+// durability is prioritized over de-duplication. Deployments sensitive to
+// duplicate events should use a database-backed audit backend which
+// implement de-duplication.
 func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	l.rw.RLock()
 	defer l.rw.RUnlock()
