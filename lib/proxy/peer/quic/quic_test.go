@@ -222,6 +222,10 @@ func TestCertificateVerification(t *testing.T) {
 }
 
 func TestBasicFunctionality(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("skipped in race detector mode because of https://github.com/quic-go/quic-go/issues/4303")
+	}
+
 	t.Parallel()
 
 	hostCA := newCA(t)
