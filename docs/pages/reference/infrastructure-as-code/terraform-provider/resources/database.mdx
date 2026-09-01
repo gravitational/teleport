@@ -96,8 +96,10 @@ Optional:
 - `keytab_file` (String) KeytabFile is the path to the Kerberos keytab file.
 - `krb5_file` (String) Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
 - `ldap_cert` (String) LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+- `ldap_host` (String) LDAPHost is the host used for LDAP queries, optionally including a port. (Optional, defaults to KDCHostName; useful when the LDAP server and KDC are reachable under different names.)
 - `ldap_service_account_name` (String) LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
 - `ldap_service_account_sid` (String) LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+- `ldap_tls_server_name` (String) LDAPTLSServerName is the server name used for the TLS handshake with the LDAP server. (Optional, defaults to the host part of LDAPHost, falling back to KDCHostName.)
 - `pki_domain` (String) PKIDomain is the Active Directory domain where CRLs are published. (Optional, defaults to Domain; useful when PKI lives in a root domain but Teleport accesses resources in a child domain.)
 - `spn` (String) SPN is the service principal name for the database.
 

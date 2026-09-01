@@ -17,10 +17,12 @@
 package kinit
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 
@@ -76,9 +78,17 @@ func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adCo
 		return nil, trace.Wrap(err, "cannot find valid LDAP certificate block in AD configuration")
 	}
 
+	address := cmp.Or(adConfig.LDAPHost, adConfig.KDCHostName)
+
+	// Trim any port before using the address as a TLS server name.
+	serverName, _, err := net.SplitHostPort(address)
+	if err != nil {
+		serverName = address
+	}
+
 	cfg := ldapConnectionConfig{
-		address:           adConfig.KDCHostName,
-		tlsServerName:     adConfig.KDCHostName,
+		address:           address,
+		tlsServerName:     cmp.Or(adConfig.LDAPTLSServerName, serverName),
 		domain:            adConfig.Domain,
 		pkiDomain:         adConfig.PKIDomain,
 		serviceAccount:    adConfig.LDAPServiceAccountName,
