@@ -95,7 +95,7 @@ endif
 		-n database-agents \
 		--create-namespace \
 		teleport/teleport-kube-agent \
-		--set teleportVersionOverride="${TELEPORT_VERSION}" \
+		--version="${TELEPORT_VERSION}" \
 		--set highAvailability.replicaCount=${NODE_REPLICAS} \
 		--set roles=db \
 		--set proxyAddr=${PROXY_SERVER} \
