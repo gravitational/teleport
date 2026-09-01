@@ -13,7 +13,8 @@ enterprise: Device Trust
 ---
 
 The Device Trust Microsoft Intune integration lets you automatically sync your managed devices from
-Intune into Teleport. This guide explains how to set up the integration.
+Intune into Teleport, including macOS, Windows, Linux, iOS, and iPadOS devices. This guide explains
+how to set up the integration.
 
 ## How it works
 
@@ -119,7 +120,7 @@ syncs.
 ### Device requirements
 
 For a device to be synced, it must have a serial number, its device registration state must be set
-to "registered" and its operating system must be either macOS, Windows, or Linux.
+to "registered" and its operating system must be either macOS, Windows, Linux, iOS, or iPadOS.
 
 ### Device ownership and removal
 
@@ -177,8 +178,8 @@ Asset Tag    OS      Source Enroll Status Owner Device ID
 CXXXXXXXXX17 macOS   Intune not enrolled        20ec6373-9e8e-46e0-8f1c-47ad6b06a768
 CXXXXXXXXX2T macOS   Intune not enrolled        79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
 CXXXXXXXXX3T Windows Intune not enrolled        665e59d5-393a-4894-841d-edad06329717
-CXXXXXXXXX4T macOS   Intune not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
-CXXXXXXXXX5T Windows Intune not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
+DXXXXXXXXX01 iPadOS  Intune not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
+DXXXXXXXXX02 iOS     Intune not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
 (...)
 ```
 
