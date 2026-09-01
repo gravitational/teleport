@@ -6,7 +6,7 @@ batch = 20
 ca = "{{index .CaCertPath}}"
 cert = "{{index .ClientCertPath}}"
 key = "{{index .ClientKeyPath}}"
-url = "https://localhost:8888/test.log"
+url = "https://localhost:8888/events.log"
 session-url = "https://localhost:8888/session"
 
 [teleport]
