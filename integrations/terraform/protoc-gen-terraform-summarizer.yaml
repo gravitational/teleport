@@ -130,6 +130,7 @@ required_fields:
   - "Classifier.spec"
   - "Classifier.spec.criteria"
   - "Classifier.spec.kinds"
+  - "Classifier.spec.rules.name"
   - "RetrievalModel.spec"
 
 plan_modifiers:
@@ -158,6 +159,9 @@ custom_types:
   "Classifier.spec.actions.emit_audit_event": ClassifierActionMode
   "Classifier.spec.actions.flag_for_review": ClassifierActionMode
   "Classifier.spec.actions.risk_level_floor": RiskLevel
+  "Classifier.spec.rules.actions.emit_audit_event": ClassifierActionMode
+  "Classifier.spec.rules.actions.flag_for_review": ClassifierActionMode
+  "Classifier.spec.rules.actions.risk_level_floor": RiskLevel
   "RetrievalModel.metadata.expires": Timestamp
 
 sensitive_fields:

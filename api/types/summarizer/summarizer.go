@@ -15,6 +15,7 @@
 package summarizer
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -289,27 +290,49 @@ func ValidateClassifier(c *summarizerv1.Classifier) error {
 		return trace.BadParameter("spec.criteria is required")
 	}
 
-	if a := c.GetSpec().GetActions(); a != nil {
-		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetEmitAuditEvent())]; !ok {
-			return trace.BadParameter(
-				"spec.actions.emit_audit_event has an unsupported value %d",
-				a.GetEmitAuditEvent(),
-			)
+	if err := validateClassifierActions("spec.actions", c.GetSpec().GetActions()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ruleNames := make(map[string]struct{})
+	for i, r := range c.GetSpec().GetRules() {
+		path := fmt.Sprintf("spec.rules[%d]", i)
+		name := r.GetName()
+		if strings.TrimSpace(name) == "" {
+			return trace.BadParameter("%s.name is required", path)
 		}
-		if _, ok := summarizerv1.RiskLevel_name[int32(a.GetRiskLevelFloor())]; !ok {
-			return trace.BadParameter(
-				"spec.actions.risk_level_floor has an unsupported value %d",
-				a.GetRiskLevelFloor(),
-			)
+		if _, dup := ruleNames[name]; dup {
+			return trace.BadParameter("%s.name %q is used by more than one rule", path, name)
 		}
-		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetFlagForReview())]; !ok {
-			return trace.BadParameter(
-				"spec.actions.flag_for_review has an unsupported value %d",
-				a.GetFlagForReview(),
-			)
+		ruleNames[name] = struct{}{}
+		// An empty criteria means the rule relies on the top-level one, so only a whitespace-only value is a
+		// mistake.
+		if r.GetCriteria() != "" && strings.TrimSpace(r.GetCriteria()) == "" {
+			return trace.BadParameter("%s.criteria must not be blank", path)
+		}
+		if err := validateClassifierActions(path+".actions", r.GetActions()); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
+	return nil
+}
+
+// validateClassifierActions checks that every enum in a ClassifierActions message holds a known value. path is
+// the YAML path of the message, used in error messages.
+func validateClassifierActions(path string, a *summarizerv1.ClassifierActions) error {
+	if a == nil {
+		return nil
+	}
+	if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetEmitAuditEvent())]; !ok {
+		return trace.BadParameter("%s.emit_audit_event has an unsupported value %d", path, a.GetEmitAuditEvent())
+	}
+	if _, ok := summarizerv1.RiskLevel_name[int32(a.GetRiskLevelFloor())]; !ok {
+		return trace.BadParameter("%s.risk_level_floor has an unsupported value %d", path, a.GetRiskLevelFloor())
+	}
+	if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetFlagForReview())]; !ok {
+		return trace.BadParameter("%s.flag_for_review has an unsupported value %d", path, a.GetFlagForReview())
+	}
 	return nil
 }
 
