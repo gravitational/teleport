@@ -872,6 +872,7 @@
     "pgaadauth",
     "pgada",
     "pgbouncer",
+    "pgoutput",
     "pgpass",
     "pgrep",
     "pguser",
