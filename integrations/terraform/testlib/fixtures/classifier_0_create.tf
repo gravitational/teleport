@@ -10,5 +10,15 @@ resource "teleport_classifier" "test-classifier" {
     actions = {
       emit_audit_event = true
     }
+    rules = [
+      {
+        name     = "backups"
+        criteria = "The destroyed resource was a backup or snapshot."
+        actions = {
+          risk_level_floor = "critical"
+          emit_audit_event = true
+        }
+      },
+    ]
   }
 }

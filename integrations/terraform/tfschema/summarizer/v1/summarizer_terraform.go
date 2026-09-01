@@ -438,13 +438,20 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						}),
 					}),
-					Description: "Actions configures the effects of a match. If unset, a match is only recorded on the stored session summary.",
+					Description: "Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary.",
 					Optional:    true,
 				},
 				"criteria": {
 					Description: "Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"disabled": {
+					Computed:      true,
+					Description:   "Disabled, if true, excludes the classifier from evaluation without deleting it.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
 				"filter": {
 					Computed:      true,
@@ -457,6 +464,57 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Description: "Kinds are session kinds matched by this classifier, e.g., \"ssh\", \"k8s\", \"db\".",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"rules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"actions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"emit_audit_event": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:      true,
+									Description:   "EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								}),
+								"flag_for_review": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:      true,
+									Description:   "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								}),
+								"risk_level_floor": GenSchemaRiskLevel(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:      true,
+									Description:   "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								}),
+							}),
+							Description: "Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule.",
+							Optional:    true,
+						},
+						"criteria": {
+							Computed:      true,
+							Description:   "Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"filter": {
+							Computed:      true,
+							Description:   "Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Description: "Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.",
+							Required:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:      true,
+					Description:   "Rules escalate the response to a match for a subset of sessions. A rule applies when the criteria matched and the rule's own filter and criteria both hold. The top-level actions and the actions of every applicable rule combine: risk level floors combine by taking the highest and toggles combine by OR, so a rule can only add effects and order is not significant.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 			}),
 			Description: "Spec selects the sessions that this classifier applies to and defines what the classifier matches.",
@@ -3032,6 +3090,142 @@ func CopyClassifierFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["disabled"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"Classifier.spec.disabled"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"Classifier.spec.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.Disabled = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["rules"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"Classifier.spec.rules"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.Rules = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.ClassifierRule, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.ClassifierRule
+											if !v.Null && !v.Unknown {
+												tf := v
+												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.ClassifierRule{}
+												obj := t
+												{
+													a, ok := tf.Attrs["name"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"Classifier.spec.rules.name"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Name = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["filter"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"Classifier.spec.rules.filter"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules.filter", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Filter = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["criteria"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"Classifier.spec.rules.criteria"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules.criteria", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.Criteria = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["actions"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"Classifier.spec.rules.actions"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"Classifier.spec.rules.actions", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+														} else {
+															obj.Actions = nil
+															if !v.Null && !v.Unknown {
+																tf := v
+																obj.Actions = &github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.ClassifierActions{}
+																obj := obj.Actions
+																{
+																	a, ok := tf.Attrs["emit_audit_event"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"Classifier.spec.rules.actions.emit_audit_event"})
+																	}
+																	CopyFromClassifierActionMode(diags, a, &obj.EmitAuditEvent)
+																}
+																{
+																	a, ok := tf.Attrs["risk_level_floor"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"Classifier.spec.rules.actions.risk_level_floor"})
+																	}
+																	CopyFromRiskLevel(diags, a, &obj.RiskLevelFloor)
+																}
+																{
+																	a, ok := tf.Attrs["flag_for_review"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"Classifier.spec.rules.actions.flag_for_review"})
+																	}
+																	CopyFromClassifierActionMode(diags, a, &obj.FlagForReview)
+																}
+															}
+														}
+													}
+												}
+											}
+											obj.Rules[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -3524,6 +3718,243 @@ func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 									v.Unknown = false
 								}
 								tf.Attrs["actions"] = v
+							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["disabled"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"Classifier.spec.disabled"})
+						} else {
+							v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								if tf.Attrs["disabled"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Classifier.spec.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"Classifier.spec.disabled", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+							}
+
+							v.Null = false
+							v.Value = bool(obj.Disabled)
+							if !preserveUnknown {
+								v.Unknown = false
+							}
+							tf.Attrs["disabled"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["rules"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"Classifier.spec.rules"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.rules", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["rules"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Rules)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Rules))
+									}
+								}
+								{
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if len(obj.Rules) != len(c.Elems) {
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Rules))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
+									}
+									for k, a := range obj.Rules {
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										if a == nil {
+											v.Null = true
+										} else {
+											v.Null = false
+											obj := a
+											tf := &v
+											{
+												t, ok := tf.AttrTypes["name"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.name"})
+												} else {
+													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														if tf.Attrs["name"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"Classifier.spec.rules.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"Classifier.spec.rules.name", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.rules.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+													}
+
+													v.Null = false
+													v.Value = string(obj.Name)
+													if !preserveUnknown {
+														v.Unknown = false
+													}
+													tf.Attrs["name"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["filter"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.filter"})
+												} else {
+													v, ok := tf.Attrs["filter"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														if tf.Attrs["filter"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"Classifier.spec.rules.filter", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"Classifier.spec.rules.filter", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.rules.filter", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+													}
+
+													v.Null = false
+													v.Value = string(obj.Filter)
+													if !preserveUnknown {
+														v.Unknown = false
+													}
+													tf.Attrs["filter"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["criteria"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.criteria"})
+												} else {
+													v, ok := tf.Attrs["criteria"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														if tf.Attrs["criteria"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"Classifier.spec.rules.criteria", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"Classifier.spec.rules.criteria", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.rules.criteria", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+													}
+
+													v.Null = false
+													v.Value = string(obj.Criteria)
+													if !preserveUnknown {
+														v.Unknown = false
+													}
+													tf.Attrs["criteria"] = v
+												}
+											}
+											{
+												a, ok := tf.AttrTypes["actions"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.actions"})
+												} else {
+													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if !ok {
+														diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.rules.actions", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+													} else {
+														v, ok := tf.Attrs["actions"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if obj.Actions == nil {
+															v.Null = true
+														} else {
+															v.Null = false
+															obj := obj.Actions
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["emit_audit_event"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.actions.emit_audit_event"})
+																} else {
+																	v := CopyToClassifierActionMode(diags, obj.EmitAuditEvent, t, tf.Attrs["emit_audit_event"], preserveUnknown)
+																	tf.Attrs["emit_audit_event"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["risk_level_floor"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.actions.risk_level_floor"})
+																} else {
+																	v := CopyToRiskLevel(diags, obj.RiskLevelFloor, t, tf.Attrs["risk_level_floor"], preserveUnknown)
+																	tf.Attrs["risk_level_floor"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["flag_for_review"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"Classifier.spec.rules.actions.flag_for_review"})
+																} else {
+																	v := CopyToClassifierActionMode(diags, obj.FlagForReview, t, tf.Attrs["flag_for_review"], preserveUnknown)
+																	tf.Attrs["flag_for_review"] = v
+																}
+															}
+														}
+														if !preserveUnknown {
+															v.Unknown = false
+														}
+														tf.Attrs["actions"] = v
+													}
+												}
+											}
+										}
+										if !preserveUnknown {
+											v.Unknown = false
+										}
+										c.Elems[k] = v
+									}
+								}
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
+								tf.Attrs["rules"] = c
 							}
 						}
 					}

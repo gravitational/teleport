@@ -181,9 +181,20 @@ message ClassifierSpec {
   // matches. It is evaluated by the inference model against the session
   // summary and, when available, the per-command analysis.
   string criteria = 3;
-  // Actions configures the effects of a match. If unset, a match is only
-  // recorded on the stored session summary.
+  // Actions configures the effects of every match. Rules can add to these
+  // effects but never remove them. If unset and no rule applies, a match is
+  // only recorded on the stored session summary.
   ClassifierActions actions = 4;
+  // Disabled, if true, excludes the classifier from evaluation without
+  // deleting it.
+  bool disabled = 5;
+  // Rules escalate the response to a match for a subset of sessions. A rule
+  // applies when the criteria matched and the rule's own filter and criteria
+  // both hold. The top-level actions and the actions of every applicable rule
+  // combine: risk level floors combine by taking the highest and toggles
+  // combine by OR, so a rule can only add effects and order is not
+  // significant.
+  repeated ClassifierRule rules = 6;
 }
 
 // ClassifierActions configures the effects of a classifier match. Matches are
@@ -215,6 +226,28 @@ enum ClassifierActionMode {
   CLASSIFIER_ACTION_MODE_DISABLED = 2;
 }
 
+// ClassifierRule escalates the response to a classifier match for a subset of
+// the sessions the classifier applies to. A rule never causes a match on its
+// own: the top-level criteria must match first.
+message ClassifierRule {
+  // Name identifies the rule. It must be unique within the classifier and is
+  // recorded on the session summary when the rule applies.
+  string name = 1;
+  // Filter is an optional filter expression using Teleport Predicate Language
+  // that narrows the sessions this rule applies to. It uses the same language
+  // and matching context as the top-level filter and is evaluated in addition
+  // to it.
+  string filter = 2;
+  // Criteria is an optional natural-language refinement of the top-level
+  // criteria. It is evaluated by the inference model in the same pass as the
+  // top-level criteria, and the rule applies only if both match.
+  string criteria = 3;
+  // Actions configures the additional effects of a match to which this rule
+  // applies. They combine with the top-level actions and with the actions of
+  // every other applicable rule.
+  ClassifierActions actions = 4;
+}
+
 // ClassifierMatch records a classifier that matched a session summary.
 message ClassifierMatch {
   // ClassifierName is the name of the matching classifier resource.
@@ -225,6 +258,9 @@ message ClassifierMatch {
   // that triggered the match. Empty for simple summaries, which carry no
   // per-command analysis.
   repeated int32 matched_command_indexes = 3;
+  // MatchedRules are the names of the classifier's rules that applied to this
+  // match, if any.
+  repeated string matched_rules = 4;
 }
 
 // SummaryState is the state of the summarization process.

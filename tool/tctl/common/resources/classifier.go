@@ -50,7 +50,7 @@ func (c classifierCollection) Resources() []types.Resource {
 	return out
 }
 
-// classifierResource renders a Classifier's spec.actions in friendly form for "tctl get".
+// classifierResource renders a Classifier's enum-valued fields in friendly form for "tctl get".
 type classifierResource struct {
 	types.Resource
 	classifier *summarizerv1.Classifier
@@ -61,7 +61,7 @@ func (r classifierResource) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return classifierActionsToFriendly(data)
+	return classifierToFriendly(data)
 }
 
 func (c classifierCollection) WriteText(w io.Writer, verbose bool) error {
@@ -104,7 +104,7 @@ func classifierHandler() Handler {
 func createClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
-	rawJSON, err := classifierActionsFromFriendly(raw.Raw)
+	rawJSON, err := classifierFromFriendly(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,7 +137,7 @@ func createClassifier(
 func updateClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
-	rawJSON, err := classifierActionsFromFriendly(raw.Raw)
+	rawJSON, err := classifierFromFriendly(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -223,55 +223,66 @@ var riskLevelFromShort = map[string]string{
 	"critical": "RISK_LEVEL_CRITICAL",
 }
 
-// classifierActionsToFriendly converts spec.actions enums to booleans and a short risk level.
-func classifierActionsToFriendly(data []byte) ([]byte, error) {
-	return rewriteClassifierActions(data, func(field string, v any) (any, error) {
+// classifierFieldConverter converts one enum-valued classifier field between its protojson form and the friendly
+// form used in YAML. path is the JSON path of the object holding the field, for error messages. The boolean
+// reports whether the value was converted.
+type classifierFieldConverter func(path, field string, v any) (any, bool, error)
+
+// classifierToFriendly converts classifier enums to booleans and short strings for "tctl get". Values it does not
+// recognize are passed through untouched.
+func classifierToFriendly(data []byte) ([]byte, error) {
+	return rewriteClassifierFields(data, func(_, field string, v any) (any, bool, error) {
 		switch field {
 		case "emit_audit_event", "flag_for_review":
 			switch v {
 			case classifierActionModeEnabled:
-				return true, nil
+				return true, true, nil
 			case classifierActionModeDisabled:
-				return false, nil
+				return false, true, nil
 			}
 		case "risk_level_floor":
-			if s, ok := v.(string); ok {
-				if short, ok := riskLevelToShort[s]; ok {
-					return short, nil
-				}
+			if short, ok := riskLevelToShort[jsonString(v)]; ok {
+				return short, true, nil
 			}
 		}
-		return v, nil
+		return v, false, nil
 	})
 }
 
-// classifierActionsFromFriendly converts spec.actions booleans and short risk levels back to enums, rejecting any other value.
-func classifierActionsFromFriendly(data []byte) ([]byte, error) {
-	return rewriteClassifierActions(data, func(field string, v any) (any, error) {
+// classifierFromFriendly converts friendly booleans and short strings back to enum names, rejecting any other
+// value so that raw enum names and integers cannot sneak in.
+func classifierFromFriendly(data []byte) ([]byte, error) {
+	return rewriteClassifierFields(data, func(path, field string, v any) (any, bool, error) {
 		switch field {
 		case "emit_audit_event", "flag_for_review":
 			b, ok := v.(bool)
 			if !ok {
-				return nil, trace.BadParameter("spec.actions.%s must be true or false", field)
+				return nil, false, trace.BadParameter("%s.%s must be true or false", path, field)
 			}
 			if b {
-				return classifierActionModeEnabled, nil
+				return classifierActionModeEnabled, true, nil
 			}
-			return classifierActionModeDisabled, nil
+			return classifierActionModeDisabled, true, nil
 		case "risk_level_floor":
-			if s, ok := v.(string); ok {
-				if enum, ok := riskLevelFromShort[strings.ToLower(s)]; ok {
-					return enum, nil
-				}
+			if enum, ok := riskLevelFromShort[strings.ToLower(jsonString(v))]; ok {
+				return enum, true, nil
 			}
-			return nil, trace.BadParameter(
-				`spec.actions.risk_level_floor must be one of "low", "medium", "high", "critical"`)
+			return nil, false, trace.BadParameter(
+				`%s.risk_level_floor must be one of "low", "medium", "high", "critical"`, path)
 		}
-		return v, nil
+		return v, false, nil
 	})
 }
 
-func rewriteClassifierActions(data []byte, convert func(field string, v any) (any, error)) ([]byte, error) {
+// jsonString returns v as a string, or "" when it is not one, so that lookups in the friendly maps simply miss.
+func jsonString(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+// rewriteClassifierFields applies convert to the enum-valued fields of spec.actions and of every rule's actions.
+// The input is returned unchanged when nothing was converted.
+func rewriteClassifierFields(data []byte, convert classifierFieldConverter) ([]byte, error) {
 	var root map[string]any
 	if err := json.Unmarshal(data, &root); err != nil {
 		return nil, trace.Wrap(err)
@@ -280,25 +291,47 @@ func rewriteClassifierActions(data []byte, convert func(field string, v any) (an
 	if !ok {
 		return data, nil
 	}
-	actions, ok := spec["actions"].(map[string]any)
-	if !ok {
-		return data, nil
-	}
+
 	changed := false
-	for _, field := range classifierActionFields {
-		v, ok := actions[field]
+	// Both the spec and each rule carry the same optional actions block.
+	rewriteActions := func(parent map[string]any, path string) error {
+		actions, ok := parent["actions"].(map[string]any)
 		if !ok {
-			continue
+			return nil
 		}
-		nv, err := convert(field, v)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, field := range classifierActionFields {
+			v, ok := actions[field]
+			if !ok {
+				continue
+			}
+			nv, converted, err := convert(path+".actions", field, v)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if converted {
+				actions[field] = nv
+				changed = true
+			}
 		}
-		if nv != v {
-			actions[field] = nv
-			changed = true
+		return nil
+	}
+
+	if err := rewriteActions(spec, "spec"); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if rules, ok := spec["rules"].([]any); ok {
+		for i, r := range rules {
+			// Anything that is not an object is left for protojson to reject with its own error.
+			rule, ok := r.(map[string]any)
+			if !ok {
+				continue
+			}
+			if err := rewriteActions(rule, fmt.Sprintf("spec.rules[%d]", i)); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
+
 	if !changed {
 		return data, nil
 	}

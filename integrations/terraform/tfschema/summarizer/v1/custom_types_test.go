@@ -19,7 +19,9 @@ package v1
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
 
@@ -188,6 +190,42 @@ func TestCopyToRiskLevelPreserveUnknown(t *testing.T) {
 			value := CopyToRiskLevel(diags, tc.input, terraformType, valueInitial, true)
 			require.Empty(t, diags)
 			require.Equal(t, tc.expected, value)
+		})
+	}
+}
+
+func TestStringEnumValidator(t *testing.T) {
+	t.Parallel()
+
+	validator := stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels}
+
+	for _, tc := range []struct {
+		name    string
+		config  attr.Value
+		wantErr string
+	}{
+		{name: "nil config", config: nil},
+		{name: "null string", config: types.String{Null: true}},
+		{name: "unknown string", config: types.String{Unknown: true}},
+		{name: "valid string, case-insensitive", config: types.String{Value: "High"}},
+		{
+			name:    "invalid string",
+			config:  types.String{Value: "severe"},
+			wantErr: `"severe" must be one of "low", "medium", "high", "critical"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := &tfsdk.ValidateAttributeResponse{}
+			validator.Validate(t.Context(), tfsdk.ValidateAttributeRequest{AttributeConfig: tc.config}, resp)
+			if tc.wantErr == "" {
+				require.Empty(t, resp.Diagnostics)
+				return
+			}
+			require.Len(t, resp.Diagnostics, 1)
+			require.Equal(t, "Invalid risk_level_floor", resp.Diagnostics[0].Summary())
+			require.Contains(t, resp.Diagnostics[0].Detail(), tc.wantErr)
 		})
 	}
 }

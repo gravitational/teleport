@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types/summarizer"
@@ -87,7 +89,7 @@ func TestClassifierActionsRoundTrip(t *testing.T) {
 			data, err := classifierResource{classifier: c}.MarshalJSON()
 			require.NoError(t, err)
 
-			back, err := classifierActionsFromFriendly(data)
+			back, err := classifierFromFriendly(data)
 			require.NoError(t, err)
 			got, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](back, services.DisallowUnknown())
 			require.NoError(t, err)
@@ -115,10 +117,110 @@ func TestClassifierActionsFromFriendlyRejectsInvalid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			in := []byte(`{"kind":"classifier","version":"v1","metadata":{"name":"t"},` +
 				`"spec":{"kinds":["ssh"],"criteria":"c","actions":` + tt.actions + `}}`)
-			_, err := classifierActionsFromFriendly(in)
+			_, err := classifierFromFriendly(in)
 			require.Error(t, err)
 		})
 	}
+}
+
+func makeClassifierWithRules() *summarizerv1.Classifier {
+	return summarizer.NewClassifier("test", summarizerv1.ClassifierSpec_builder{
+		Kinds:    []string{"ssh"},
+		Criteria: "The session destroyed persistent data.",
+		Actions: summarizerv1.ClassifierActions_builder{
+			RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_MEDIUM,
+		}.Build(),
+		Rules: []*summarizerv1.ClassifierRule{
+			summarizerv1.ClassifierRule_builder{
+				Name:     "backups",
+				Criteria: "The destroyed resource was a backup or snapshot.",
+				Actions: summarizerv1.ClassifierActions_builder{
+					RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
+					EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+				}.Build(),
+			}.Build(),
+			summarizerv1.ClassifierRule_builder{
+				Name:   "unjustified",
+				Filter: `equals(resource.metadata.labels["env"], "prod")`,
+				Actions: summarizerv1.ClassifierActions_builder{
+					FlagForReview: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
+				}.Build(),
+			}.Build(),
+		},
+	}.Build())
+}
+
+// Rule actions get the same friendly rendering as the top-level actions.
+func TestClassifierRulesMarshalFriendly(t *testing.T) {
+	data, err := classifierResource{classifier: makeClassifierWithRules()}.MarshalJSON()
+	require.NoError(t, err)
+
+	spec := unmarshalSpec(t, data)
+	rules, ok := spec["rules"].([]any)
+	require.True(t, ok, "spec.rules missing from marshaled classifier")
+	require.Len(t, rules, 2)
+
+	backups := rules[0].(map[string]any)
+	require.Equal(t, "backups", backups["name"])
+	require.Equal(t, map[string]any{"risk_level_floor": "critical", "emit_audit_event": true},
+		backups["actions"])
+
+	unjustified := rules[1].(map[string]any)
+	require.Equal(t, `equals(resource.metadata.labels["env"], "prod")`, unjustified["filter"])
+	require.Equal(t, map[string]any{"flag_for_review": false}, unjustified["actions"])
+}
+
+func TestClassifierRulesRoundTrip(t *testing.T) {
+	c := makeClassifierWithRules()
+
+	data, err := classifierResource{classifier: c}.MarshalJSON()
+	require.NoError(t, err)
+
+	back, err := classifierFromFriendly(data)
+	require.NoError(t, err)
+	got, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](back, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(c, got, protocmp.Transform()))
+}
+
+func TestClassifierFromFriendlyRejectsInvalidRules(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		spec string
+		err  string
+	}{
+		{
+			name: "rule toggle as enum string",
+			spec: `"rules":[{"name":"r","actions":{"flag_for_review":"CLASSIFIER_ACTION_MODE_ENABLED"}}]`,
+			err:  "spec.rules[0].actions.flag_for_review must be true or false",
+		},
+		{
+			name: "second rule risk level unknown",
+			spec: `"rules":[{"name":"a"},{"name":"b","actions":{"risk_level_floor":"severe"}}]`,
+			err:  "spec.rules[1].actions.risk_level_floor must be one of",
+		},
+		{
+			name: "rule risk level as integer",
+			spec: `"rules":[{"name":"r","actions":{"risk_level_floor":3}}]`,
+			err:  "spec.rules[0].actions.risk_level_floor must be one of",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			in := []byte(`{"kind":"classifier","version":"v1","metadata":{"name":"t"},` +
+				`"spec":{"kinds":["ssh"],"criteria":"c",` + tt.spec + `}}`)
+			_, err := classifierFromFriendly(in)
+			require.ErrorContains(t, err, tt.err)
+		})
+	}
+}
+
+func unmarshalSpec(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(data, &doc))
+	spec, ok := doc["spec"].(map[string]any)
+	require.True(t, ok, "spec missing from marshaled classifier")
+	return spec
 }
 
 func unmarshalActions(t *testing.T, data []byte) map[string]any {

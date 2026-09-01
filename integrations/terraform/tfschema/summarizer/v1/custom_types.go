@@ -19,6 +19,8 @@ package v1
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -111,7 +113,7 @@ func GenSchemaRiskLevel(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute
 		Description:   attr.Description,
 		Computed:      attr.Computed,
 		PlanModifiers: attr.PlanModifiers,
-		Validators:    append(attr.Validators, riskLevelValidator{}),
+		Validators:    append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels}),
 	}
 }
 
@@ -150,23 +152,34 @@ func CopyToRiskLevel(_ diag.Diagnostics, o summarizerv1.RiskLevel, _ attr.Type, 
 	return types.String{Value: s}
 }
 
-const riskLevelAllowed = `must be one of "low", "medium", "high", "critical"`
+// riskLevels lists the accepted risk_level_floor values in documentation order.
+var riskLevels = []string{"low", "medium", "high", "critical"}
 
-// riskLevelValidator rejects risk_level_floor values outside the allowed set at plan time.
-type riskLevelValidator struct{}
+// stringEnumValidator rejects, at plan time, string values outside a fixed set.
+type stringEnumValidator struct {
+	// attribute names the attribute in error summaries.
+	attribute string
+	// allowed lists the accepted values, compared case-insensitively.
+	allowed []string
+}
 
-func (riskLevelValidator) Description(context.Context) string         { return riskLevelAllowed }
-func (riskLevelValidator) MarkdownDescription(context.Context) string { return riskLevelAllowed }
+func (v stringEnumValidator) Description(context.Context) string         { return v.message() }
+func (v stringEnumValidator) MarkdownDescription(context.Context) string { return v.message() }
 
-func (riskLevelValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
+func (v stringEnumValidator) message() string {
+	quoted := make([]string, len(v.allowed))
+	for i, a := range v.allowed {
+		quoted[i] = strconv.Quote(a)
 	}
+	return "must be one of " + strings.Join(quoted, ", ")
+}
+
+func (v stringEnumValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
 	value, ok := req.AttributeConfig.(types.String)
 	if !ok || value.Null || value.Unknown {
 		return
 	}
-	if _, ok := riskLevelFromString[strings.ToLower(value.Value)]; !ok {
-		resp.Diagnostics.AddError("Invalid risk_level_floor", fmt.Sprintf("%q "+riskLevelAllowed, value.Value))
+	if !slices.Contains(v.allowed, strings.ToLower(value.Value)) {
+		resp.Diagnostics.AddError("Invalid "+v.attribute, fmt.Sprintf("%q %s", value.Value, v.message()))
 	}
 }

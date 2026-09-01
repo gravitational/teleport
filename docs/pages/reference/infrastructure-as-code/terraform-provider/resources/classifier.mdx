@@ -54,10 +54,33 @@ Required:
 
 Optional:
 
-- `actions` (Attributes) Actions configures the effects of a match. If unset, a match is only recorded on the stored session summary. (see [below for nested schema](#nested-schema-for-specactions))
+- `actions` (Attributes) Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary. (see [below for nested schema](#nested-schema-for-specactions))
+- `disabled` (Boolean) Disabled, if true, excludes the classifier from evaluation without deleting it.
 - `filter` (String) Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels["env"], "prod")`. If empty, the classifier applies to all sessions of matching kinds.
+- `rules` (Attributes List) Rules escalate the response to a match for a subset of sessions. A rule applies when the criteria matched and the rule's own filter and criteria both hold. The top-level actions and the actions of every applicable rule combine: risk level floors combine by taking the highest and toggles combine by OR, so a rule can only add effects and order is not significant. (see [below for nested schema](#nested-schema-for-specrules))
 
 ### Nested Schema for `spec.actions`
+
+Optional:
+
+- `emit_audit_event` (Boolean) EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.
+- `flag_for_review` (Boolean) FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.
+- `risk_level_floor` (String) RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.
+
+
+### Nested Schema for `spec.rules`
+
+Required:
+
+- `name` (String) Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.
+
+Optional:
+
+- `actions` (Attributes) Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule. (see [below for nested schema](#nested-schema-for-specrulesactions))
+- `criteria` (String) Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.
+- `filter` (String) Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.
+
+### Nested Schema for `spec.rules.actions`
 
 Optional:
 

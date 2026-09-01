@@ -234,6 +234,23 @@ func TestValidateClassifier(t *testing.T) {
 			RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
 			FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
 		},
+		Rules: []*summarizerv1.ClassifierRule{
+			{
+				Name:     "backups",
+				Criteria: "The modified schema belongs to a backup or replica.",
+				Actions: &summarizerv1.ClassifierActions{
+					RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
+					EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+				},
+			},
+			{
+				Name:   "unjustified",
+				Filter: `equals(user.metadata.name, "alice")`,
+				Actions: &summarizerv1.ClassifierActions{
+					FlagForReview: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+				},
+			},
+		},
 	})
 	require.NoError(t, ValidateClassifier(valid))
 	// Empty filter should also be valid.
@@ -241,6 +258,12 @@ func TestValidateClassifier(t *testing.T) {
 	require.NoError(t, ValidateClassifier(valid))
 	// Actions are optional.
 	valid.Spec.Actions = nil
+	require.NoError(t, ValidateClassifier(valid))
+	// So are rules.
+	valid.Spec.Rules = nil
+	require.NoError(t, ValidateClassifier(valid))
+	// Disabling a classifier does not relax validation, but is valid in itself.
+	valid.Spec.Disabled = true
 	require.NoError(t, ValidateClassifier(valid))
 
 	cases := []struct {
@@ -314,6 +337,45 @@ func TestValidateClassifier(t *testing.T) {
 				}
 			},
 			msg: "spec.actions.flag_for_review has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Rules = []*summarizerv1.ClassifierRule{{Name: " "}}
+			},
+			msg: "spec.rules[0].name is required",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Rules = []*summarizerv1.ClassifierRule{{Name: "prod"}, {Name: "prod"}}
+			},
+			msg: `spec.rules[1].name "prod" is used by more than one rule`,
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Rules = []*summarizerv1.ClassifierRule{{Name: "prod", Criteria: "  "}}
+			},
+			msg: "spec.rules[0].criteria must not be blank",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Rules = []*summarizerv1.ClassifierRule{{
+					Name:    "prod",
+					Actions: &summarizerv1.ClassifierActions{RiskLevelFloor: summarizerv1.RiskLevel(42)},
+				}}
+			},
+			msg: "spec.rules[0].actions.risk_level_floor has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Rules = []*summarizerv1.ClassifierRule{
+					{Name: "ok"},
+					{
+						Name:    "prod",
+						Actions: &summarizerv1.ClassifierActions{FlagForReview: summarizerv1.ClassifierActionMode(42)},
+					},
+				}
+			},
+			msg: "spec.rules[1].actions.flag_for_review has an unsupported value 42",
 		},
 	}
 

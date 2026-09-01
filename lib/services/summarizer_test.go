@@ -342,11 +342,15 @@ func TestMatchingClassifiers(t *testing.T) {
 		Resource: server,
 	}
 
+	disabled := newTestClassifier("ssh-disabled", []string{"ssh"}, "")
+	disabled.GetSpec().SetDisabled(true)
+
 	all := []*summarizerv1.Classifier{
 		newTestClassifier("ssh-any", []string{"ssh"}, ""),
 		newTestClassifier("ssh-prod", []string{"ssh"}, `equals(resource.metadata.labels["env"], "prod")`),
 		newTestClassifier("ssh-dev", []string{"ssh"}, `equals(resource.metadata.labels["env"], "dev")`),
 		newTestClassifier("ssh-alice", []string{"ssh"}, `equals(user.metadata.name, "alice")`),
+		disabled,
 		newTestClassifier("db-any", []string{"db"}, ""),
 	}
 	classifiers := func(yield func(*summarizerv1.Classifier, error) bool) {
@@ -420,8 +424,25 @@ func TestValidateClassifier(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "spec.filter has to be a boolean expression")
 
-	// Errors from the api-level validation propagate.
+	// Rule filters are checked the same way as the top-level filter.
 	c.GetSpec().SetFilter("")
+	c.GetSpec().SetRules([]*summarizerv1.ClassifierRule{
+		summarizerv1.ClassifierRule_builder{Name: "alice", Filter: `equals(user.metadata.name, "alice")`}.Build(),
+		summarizerv1.ClassifierRule_builder{Name: "broken", Filter: "$%^@$"}.Build(),
+	})
+	err = ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.rules[1].filter has to be a valid predicate")
+
+	c.GetSpec().GetRules()[1].SetFilter("user.metadata.name")
+	err = ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.rules[1].filter has to be a boolean expression")
+
+	c.GetSpec().GetRules()[1].SetFilter("")
+	require.NoError(t, ValidateClassifier(c))
+
+	// Errors from the api-level validation propagate.
 	c.GetSpec().SetCriteria("")
 	assert.ErrorContains(t, ValidateClassifier(c), "spec.criteria is required")
 }

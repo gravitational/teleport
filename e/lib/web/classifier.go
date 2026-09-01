@@ -84,6 +84,11 @@ func (h *Plugin) createClassifier(
 		return nil, trace.Wrap(err)
 	}
 
+	classifier, err := uiClassifier.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,7 +96,7 @@ func (h *Plugin) createClassifier(
 
 	response, err := clt.SummarizerServiceClient().CreateClassifier(
 		r.Context(),
-		summarizerv1.CreateClassifierRequest_builder{Classifier: uiClassifier.ToProto()}.Build(),
+		summarizerv1.CreateClassifierRequest_builder{Classifier: classifier}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,6 +124,11 @@ func (h *Plugin) updateClassifier(
 	}
 	uiClassifier.Name = name
 
+	classifier, err := uiClassifier.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +136,7 @@ func (h *Plugin) updateClassifier(
 
 	response, err := clt.SummarizerServiceClient().UpsertClassifier(
 		r.Context(),
-		summarizerv1.UpsertClassifierRequest_builder{Classifier: uiClassifier.ToProto()}.Build(),
+		summarizerv1.UpsertClassifierRequest_builder{Classifier: classifier}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"slices"
 	"strings"
@@ -266,8 +267,8 @@ func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd event
 // apply to a session of the given kind and matching context. Classifiers are
 // matched by session kind and filter expression the same way inference
 // policies are, except that all matching classifiers are returned rather than
-// the first one. The sequence is typically
-// [SummarizerServiceGetter.RangeClassifiers].
+// the first one. Disabled classifiers are never returned. The sequence is
+// typically [SummarizerServiceGetter.RangeClassifiers].
 func MatchingClassifiers(
 	classifiers iter.Seq2[*summarizerv1.Classifier, error],
 	sessionKind types.SessionKind,
@@ -282,6 +283,9 @@ func MatchingClassifiers(
 	for c, err := range classifiers {
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if c.GetSpec().GetDisabled() {
+			continue
 		}
 		if !slices.Contains(c.GetSpec().GetKinds(), string(sessionKind)) {
 			continue
@@ -308,31 +312,48 @@ func MatchingClassifiers(
 	return matched, nil
 }
 
-// ValidateClassifier validates a classifier, including checking filter
-// syntax. This function wraps [apisummarizer.ValidateClassifier], as no
-// function in the api/types tree can depend on the lib/services package.
+// ValidateClassifier validates a classifier, including checking the syntax of
+// the top-level and per-rule filters. This function wraps
+// [apisummarizer.ValidateClassifier], as no function in the api/types tree can
+// depend on the lib/services package.
 func ValidateClassifier(c *summarizerv1.Classifier) error {
 	err := apisummarizer.ValidateClassifier(c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s := c.GetSpec()
-	if s.GetFilter() != "" {
-		parser, err := NewWhereParser(&InferencePolicyMatchingContext{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	parser, err := NewWhereParser(&InferencePolicyMatchingContext{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		parseResult, err := parser.Parse(s.GetFilter())
-		if err != nil {
-			return trace.Wrap(err, "spec.filter has to be a valid predicate")
-		}
-		if _, ok := parseResult.(predicate.BoolPredicate); !ok {
-			return trace.BadParameter("spec.filter has to be a boolean expression")
+	s := c.GetSpec()
+	if err := validateClassifierFilter(parser, "spec.filter", s.GetFilter()); err != nil {
+		return trace.Wrap(err)
+	}
+	for i, r := range s.GetRules() {
+		path := fmt.Sprintf("spec.rules[%d].filter", i)
+		if err := validateClassifierFilter(parser, path, r.GetFilter()); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
+	return nil
+}
+
+// validateClassifierFilter checks that a non-empty filter parses to a boolean
+// predicate. path names the field in error messages.
+func validateClassifierFilter(parser predicate.Parser, path, filter string) error {
+	if filter == "" {
+		return nil
+	}
+	parseResult, err := parser.Parse(filter)
+	if err != nil {
+		return trace.Wrap(err, "%s has to be a valid predicate", path)
+	}
+	if _, ok := parseResult.(predicate.BoolPredicate); !ok {
+		return trace.BadParameter("%s has to be a boolean expression", path)
+	}
 	return nil
 }
 
