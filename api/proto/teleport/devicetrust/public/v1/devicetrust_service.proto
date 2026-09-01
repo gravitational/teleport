@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.devicetrust.public.v1;
 
+import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 
@@ -49,6 +50,23 @@ service DeviceTrustService {
   // to retry. FailedPrecondition means that a concurrent request won and
   // consumed the token.
   rpc CreatePairedDeviceEnrollToken(CreatePairedDeviceEnrollTokenRequest) returns (CreatePairedDeviceEnrollTokenResponse);
+
+  // EnrollDevice performs the device enrollment ceremony.
+  //
+  // Enrollment requires a previously-registered Device and a device enrollment
+  // token, see CreatePairedDeviceEnrollToken. The caller is identified by the
+  // token: the ceremony enrolls the device for the user the token was issued
+  // to, who must still pass authorization checks at ceremony time. Tokens not
+  // bound to a user, such as admin-issued tokens, are rejected.
+  //
+  // Only iOS and iPadOS devices may enroll through this RPC.
+  //
+  // iOS/iPadOS enrollment flow:
+  // -> EnrollDeviceInit (client)
+  // <- IOSEnrollChallenge (server)
+  // -> IOSEnrollChallengeResponse
+  // <- EnrollDeviceSuccess
+  rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
 }
 
 // Request for CreatePairedDeviceEnrollToken.
@@ -64,4 +82,63 @@ message CreatePairedDeviceEnrollTokenRequest {
 // Response for CreatePairedDeviceEnrollToken.
 message CreatePairedDeviceEnrollTokenResponse {
   teleport.devicetrust.v1.DeviceEnrollToken device_enroll_token = 1;
+}
+
+// Request for EnrollDevice.
+message EnrollDeviceRequest {
+  oneof payload {
+    EnrollDeviceInit init = 1;
+    IOSEnrollChallengeResponse ios_challenge_response = 2;
+  }
+}
+
+// Response for EnrollDevice.
+message EnrollDeviceResponse {
+  oneof payload {
+    EnrollDeviceSuccess success = 1;
+    IOSEnrollChallenge ios_challenge = 2;
+  }
+}
+
+// EnrollDeviceInit initiates the enrollment ceremony.
+message EnrollDeviceInit {
+  // Device enrollment token.
+  // See CreatePairedDeviceEnrollToken.
+  string token = 1;
+
+  // ID of the device credential.
+  string credential_id = 2;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  teleport.devicetrust.v1.DeviceCollectedData device_data = 3;
+
+  // Payload for data specific to iOS and iPadOS.
+  IOSEnrollPayload ios = 4;
+}
+
+// EnrollDeviceSuccess marks a successful device enrollment ceremony.
+message EnrollDeviceSuccess {
+  // The enrolled device.
+  teleport.devicetrust.v1.Device device = 1;
+}
+
+// IOSEnrollPayload is the iOS- and iPadOS-specific enrollment payload.
+message IOSEnrollPayload {
+  // Device public key marshaled as a PKIX, ASN.1 DER.
+  bytes public_key_der = 1;
+}
+
+// IOSEnrollChallenge is an iOS and iPadOS enrollment challenge.
+message IOSEnrollChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// IOSEnrollChallengeResponse is an iOS and iPadOS enrollment challenge
+// response.
+message IOSEnrollChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 1;
 }
