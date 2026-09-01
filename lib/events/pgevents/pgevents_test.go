@@ -139,17 +139,14 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 	// events, so we must use searchEvents instead.
 	before := eventTime.Add(-1 * time.Second)
 	after := eventTime.Add(1 * time.Second)
-	appEvents, _, err := eventsLog.searchEvents(ctx,
-		before,                                // fromTime
-		after,                                 // toTime
-		[]string{appStartEvent.Metadata.Type}, // eventTypes
-		nil,                                   // cond
-		appStartEvent.SessionID,
-		"", // search
-		2,  // limit
-		types.EventOrderAscending,
-		"", // startKey
-	)
+	appEvents, _, err := eventsLog.searchEvents(ctx, searchEventsRequest{
+		fromTime:   before,
+		toTime:     after,
+		eventTypes: []string{appStartEvent.Metadata.Type},
+		sessionID:  appStartEvent.SessionID,
+		limit:      2,
+		order:      types.EventOrderAscending,
+	})
 	require.NoError(t, err, "search session events")
 	wantFields, err := events.ToEventFields(appStartEvent)
 	require.NoError(t, err, "convert event to fields")
@@ -194,17 +191,14 @@ func TestLog_EmitAuditEvents(t *testing.T) {
 		t.Helper()
 		before := baseTime.Add(-1 * time.Second)
 		after := baseTime.Add(time.Duration(len(batch)) * time.Second)
-		got, _, err := eventsLog.searchEvents(ctx,
-			before,                                // fromTime
-			after,                                 // toTime
-			[]string{events.AppSessionStartEvent}, // eventTypes
-			nil,                                   // cond
-			sessionID,                             // sessionID
-			"",                                    // search
-			len(batch)+1,                          // limit
-			types.EventOrderAscending,
-			"", // startKey
-		)
+		got, _, err := eventsLog.searchEvents(ctx, searchEventsRequest{
+			fromTime:   before,
+			toTime:     after,
+			eventTypes: []string{events.AppSessionStartEvent},
+			sessionID:  sessionID,
+			limit:      len(batch) + 1,
+			order:      types.EventOrderAscending,
+		})
 		require.NoError(t, err, "search session events")
 		return got
 	}

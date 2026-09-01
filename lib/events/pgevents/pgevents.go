@@ -572,18 +572,36 @@ func (l *Log) pipelineInsert(ctx context.Context, rows []eventRow) ([]insertResu
 	})
 }
 
+// searchEventsRequest provides the parameters needed to search the Postgresql
+// audit log.
+type searchEventsRequest struct {
+	fromTime, toTime time.Time
+	// eventTypes filters for the given event types.
+	eventTypes []string
+	// cond is an optional generic condition applied to the event fields.
+	cond *utils.ToFieldsConditionConfig
+	// sessionID, when not empty, restricts the results to the given session.
+	sessionID string
+	// search is an optional list of whitespace separated terms that must all
+	// appear in an event's data for it to match.
+	search string
+	// limit caps the number of returned events. It defaults to
+	// defaults.EventsIterationLimit when it is unset.
+	limit int
+	// order sorts the results by event time, defaulting to ascending.
+	order types.EventOrder
+	// startKey is used to continue a previous search.
+	startKey string
+}
+
 // searchEvents returns events within the time range, filtering (optionally) by
 // event types, session id, and a generic condition, limiting results by a count
 // and by a maximum size of the underlying json data of
 // events.MaxEventBytesInResponse, sorting by time, session id and event index
 // either ascending or descending, and returning an opaque, URL-safe string that
 // can be passed to the same function to continue fetching data.
-func (l *Log) searchEvents(
-	ctx context.Context,
-	fromTime, toTime time.Time,
-	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID, search string,
-	limit int, order types.EventOrder, startKey string,
-) ([]events.EventFields, string, error) {
+func (l *Log) searchEvents(ctx context.Context, req searchEventsRequest) (_ []events.EventFields, nextStartKey string, _ error) {
+	limit := req.limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -593,26 +611,26 @@ func (l *Log) searchEvents(
 
 	var startTime time.Time
 	var startID uuid.UUID
-	if startKey != "" {
+	if req.startKey != "" {
 		var err error
-		startTime, startID, err = fromStartKey(startKey)
+		startTime, startID, err = fromStartKey(req.startKey)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
 
 	var condFn utils.FieldsCondition
-	if cond != nil {
+	if req.cond != nil {
 		var err error
-		condFn, err = utils.ToFieldsCondition(*cond)
+		condFn, err = utils.ToFieldsCondition(*req.cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
 
-	searchTerms := strings.Fields(strings.ToLower(search))
+	searchTerms := strings.Fields(strings.ToLower(req.search))
 
-	sessionUUID := l.deriveSessionID(ctx, sessionID)
+	sessionUUID := l.deriveSessionID(ctx, req.sessionID)
 
 	var qb strings.Builder
 	qb.WriteString("DECLARE cur CURSOR FOR SELECT" +
@@ -620,10 +638,10 @@ func (l *Log) searchEvents(
 		" FROM events" +
 		" WHERE events.event_time BETWEEN @from_time AND @to_time")
 
-	if len(eventTypes) > 0 {
+	if len(req.eventTypes) > 0 {
 		qb.WriteString(" AND events.event_type = ANY(@event_types)")
 	}
-	if sessionID != "" {
+	if req.sessionID != "" {
 		// hint to the query planner, it can use the partial index on session_id
 		// no matter what the argument is
 		qb.WriteString(" AND events.session_id != '00000000-0000-0000-0000-000000000000' AND events.session_id = @session_id")
@@ -631,13 +649,13 @@ func (l *Log) searchEvents(
 	for i := range searchTerms {
 		fmt.Fprintf(&qb, " AND POSITION(@search_term_%d IN lower(events.event_data::text)) > 0", i)
 	}
-	if order != types.EventOrderDescending {
-		if startKey != "" {
+	if req.order != types.EventOrderDescending {
+		if req.startKey != "" {
 			qb.WriteString(" AND (events.event_time, events.event_id) > (@start_time, @start_id)")
 		}
 		qb.WriteString(" ORDER BY events.event_time, events.event_id")
 	} else {
-		if startKey != "" {
+		if req.startKey != "" {
 			qb.WriteString(" AND (events.event_time, events.event_id) < (@start_time, @start_id)")
 		}
 		qb.WriteString(" ORDER BY events.event_time DESC, events.event_id DESC")
@@ -645,9 +663,9 @@ func (l *Log) searchEvents(
 
 	queryString := qb.String()
 	queryArgs := pgx.NamedArgs{
-		"from_time":   fromTime,
-		"to_time":     toTime,
-		"event_types": eventTypes,
+		"from_time":   req.fromTime,
+		"to_time":     req.toTime,
+		"event_types": req.eventTypes,
 		"session_id":  sessionUUID,
 		"start_time":  startTime,
 		"start_id":    startID,
@@ -749,10 +767,15 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	if req.BeamID != "" {
 		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
 	}
-	var emptyCond *utils.ToFieldsConditionConfig
-	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, searchEventsRequest{
+		fromTime:   req.From,
+		toTime:     req.To,
+		eventTypes: req.EventTypes,
+		search:     req.Search,
+		limit:      req.Limit,
+		order:      req.Order,
+		startKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
@@ -769,10 +792,15 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 	if req.BeamID != "" {
 		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
 	}
-	var emptyCond *utils.ToFieldsConditionConfig
-	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Search, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, searchEventsRequest{
+		fromTime:   req.From,
+		toTime:     req.To,
+		eventTypes: req.EventTypes,
+		search:     req.Search,
+		limit:      req.Limit,
+		order:      req.Order,
+		startKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
@@ -793,8 +821,16 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	const emptySearch = ""
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, emptySearch, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, searchEventsRequest{
+		fromTime:   req.From,
+		toTime:     req.To,
+		eventTypes: events.SessionRecordingEvents,
+		cond:       req.Cond,
+		sessionID:  req.SessionID,
+		limit:      req.Limit,
+		order:      req.Order,
+		startKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
