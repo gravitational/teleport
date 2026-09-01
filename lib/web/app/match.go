@@ -20,11 +20,13 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"math/rand/v2"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -121,6 +123,11 @@ func ResolveFQDN(
 	fqdn string,
 	canAccess func(types.Application) bool,
 ) (types.AppServer, string, error) {
+	hostname, err := extractHostname(fqdn)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	clusterClient, err := clusterGetter.Cluster(ctx, localClusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -134,23 +141,22 @@ func ResolveFQDN(
 		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
 		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
 		if srv.GetApp().GetScope() != "" {
-			host := strings.Split(fqdn, ":")[0]
 			// In the case where FindMatchingProxyDNS finds an actual found proxy match, this check is redundant.
 			// In the case where it finds no matches, FindMatchingProxyDNS returns the first element of proxyDNSNames,
 			// we must recheck to make sure that the proxy found matches, and reject if it doesn't.
 			proxyMatch := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
-			if host != proxyMatch && !strings.HasSuffix(host, "."+proxyMatch) {
+			if !hostIsProxyOrSubdomain(hostname, proxyMatch) {
 				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 			}
 		}
 		return srv, localClusterName, nil
 	}
 
-	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
-	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
+	proxyPublicAddr := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
+	if !hostIsProxyOrSubdomain(hostname, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
+	appName := strings.TrimSuffix(hostname, "."+proxyPublicAddr)
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.
@@ -166,6 +172,30 @@ func ResolveFQDN(
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+}
+
+// extractHostname checks that fqdn is a well-formed hostname with an optional
+// numeric port and returns its hostname without the port.
+func extractHostname(fqdn string) (string, error) {
+	hostname := fqdn
+	// An error here means the fqdn isn't in proper host:port form. In that case
+	// let the hostname check below reject anything bad.
+	if h, port, err := net.SplitHostPort(fqdn); err == nil {
+		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+			return "", trace.BadParameter("invalid FQDN %q", fqdn)
+		}
+		hostname = h
+	}
+	if errs := validation.IsDNS1123SubdomainWithUnderscore(hostname); len(errs) > 0 {
+		return "", trace.BadParameter("invalid FQDN %q", fqdn)
+	}
+	return hostname, nil
+}
+
+// hostIsProxyOrSubdomain returns true if the host is the proxy DNS name
+// itself or if it's a subdomain of the proxy.
+func hostIsProxyOrSubdomain(host, proxy string) bool {
+	return host == proxy || strings.HasSuffix(host, "."+proxy)
 }
 
 // pickAppServer chooses one app server from a set of matches. When canAccess is
