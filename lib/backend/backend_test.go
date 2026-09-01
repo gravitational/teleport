@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,6 +70,66 @@ func TestRangeEnd(t *testing.T) {
 		t.Run(test.key.String(), func(t *testing.T) {
 			end := RangeEnd(test.key)
 			require.Empty(t, cmp.Diff(test.expected, end, cmp.AllowUnexported(Key{})))
+		})
+	}
+}
+
+func TestHostIDPaginationKey(t *testing.T) {
+	t.Parallel()
+
+	const (
+		expectedHostID        = "host-id"
+		expectedServerName    = "server-name"
+		expectedPaginationKey = expectedHostID + SeparatorString + expectedServerName
+	)
+
+	key := HostIDPaginationKey(expectedHostID, expectedServerName)
+	require.Equal(t, expectedPaginationKey, key)
+
+	hostID, name, err := ParseHostIDPaginationKey(key)
+	require.NoError(t, err)
+	require.Equal(t, expectedHostID, hostID)
+	require.Equal(t, expectedServerName, name)
+
+	_, _, err = ParseHostIDPaginationKey("invalid")
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+}
+
+func TestParseHostIDPaginationKeyRejectsInvalidKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{
+			name: "empty key",
+			key:  "",
+		},
+		{
+			name: "separator only",
+			key:  SeparatorString,
+		},
+		{
+			name: "missing separator",
+			key:  "invalid",
+		},
+		{
+			name: "missing name",
+			key:  "host-id" + SeparatorString,
+		},
+		{
+			name: "missing host ID",
+			key:  SeparatorString + "server-name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := ParseHostIDPaginationKey(tt.key)
+			require.ErrorAs(t, err, new(*trace.BadParameterError))
 		})
 	}
 }
