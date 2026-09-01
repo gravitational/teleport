@@ -19,6 +19,8 @@ package recordingencryption_test
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
@@ -113,6 +115,27 @@ func (u *testKeyUnwrapper) UnwrapKey(ctx context.Context, in recordingencryption
 	return fileKey, trace.Wrap(err)
 }
 
+// auditQueueTestIdentity unwraps file keys from the audit queue stanza only,
+// mirroring how audit queue payloads are expected to be decrypted.
+type auditQueueTestIdentity struct {
+	key *rsa.PrivateKey
+}
+
+func (i *auditQueueTestIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	for _, stanza := range stanzas {
+		if stanza.Type != recordingencryption.AuditQueueStanza {
+			continue
+		}
+		fileKey, err := i.key.Decrypt(rand.Reader, stanza.Body, &rsa.OAEPOptions{Hash: crypto.SHA256})
+		if err != nil {
+			// The stanza was wrapped for a different recipient; keep looking.
+			continue
+		}
+		return fileKey, nil
+	}
+	return nil, age.ErrIncorrectIdentity
+}
+
 func TestNewAuditQueueSealer(t *testing.T) {
 	plaintext := []byte("audit event payload")
 
@@ -143,8 +166,8 @@ func TestNewAuditQueueSealer(t *testing.T) {
 		payload, sealed, err := sealer.Seal(ctx, plaintext)
 		require.NoError(t, err)
 		assert.True(t, sealed)
-		assert.Equal(t, plaintext, decryptPayload(t, ctx, keyA, payload))
-		assert.Equal(t, plaintext, decryptPayload(t, ctx, keyB, payload))
+		assert.Equal(t, plaintext, decryptPayload(t, keyA, payload))
+		assert.Equal(t, plaintext, decryptPayload(t, keyB, payload))
 	})
 
 	t.Run("enabled without keys fails", func(t *testing.T) {
@@ -177,10 +200,9 @@ func TestNewAuditQueueSealer(t *testing.T) {
 	})
 }
 
-func decryptPayload(t *testing.T, ctx context.Context, key *rsa.PrivateKey, payload []byte) []byte {
+func decryptPayload(t *testing.T, key *rsa.PrivateKey, payload []byte) []byte {
 	t.Helper()
-	identity := recordingencryption.NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key})
-	reader, err := age.Decrypt(bytes.NewReader(payload), identity)
+	reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
 	require.NoError(t, err)
 	decrypted, err := io.ReadAll(reader)
 	require.NoError(t, err)
@@ -192,9 +214,8 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 	const testTimeout = 5 * time.Second
 	plaintext := []byte("audit event payload")
 
-	tryDecrypt := func(ctx context.Context, key *rsa.PrivateKey, payload []byte) bool {
-		identity := recordingencryption.NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key})
-		reader, err := age.Decrypt(bytes.NewReader(payload), identity)
+	tryDecrypt := func(key *rsa.PrivateKey, payload []byte) bool {
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
 		if err != nil {
 			return false
 		}
@@ -215,7 +236,11 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, sealed)
 		assert.NotEqual(t, plaintext, payload)
-		assert.Equal(t, plaintext, decryptPayload(t, ctx, key, payload))
+		assert.Equal(t, plaintext, decryptPayload(t, key, payload))
+
+		_, err = age.Decrypt(bytes.NewReader(payload), recordingencryption.NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key}))
+		require.Error(t, err,
+			"sealed payloads must carry the audit queue stanza, not the recording stanza")
 	})
 
 	t.Run("seal passes through when encryption is disabled", func(t *testing.T) {
@@ -245,12 +270,12 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 		payload, sealed, err := sealer.Seal(ctx, plaintext)
 		require.NoError(t, err)
 		require.True(t, sealed)
-		require.Equal(t, plaintext, decryptPayload(t, ctx, keyA, payload))
+		require.Equal(t, plaintext, decryptPayload(t, keyA, payload))
 
 		upsertSRC(t, clt, encryptedSRC(t, true, pubB))
 		require.Eventually(t, func() bool {
 			payload, sealed, err := sealer.Seal(ctx, plaintext)
-			return err == nil && sealed && tryDecrypt(ctx, keyB, payload)
+			return err == nil && sealed && tryDecrypt(keyB, payload)
 		}, testTimeout, 10*time.Millisecond)
 	})
 
@@ -283,13 +308,13 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 		payload, sealed, err := sealer.Seal(ctx, plaintext)
 		require.NoError(t, err)
 		require.True(t, sealed)
-		require.Equal(t, plaintext, decryptPayload(t, ctx, keyA, payload))
+		require.Equal(t, plaintext, decryptPayload(t, keyA, payload))
 
 		bk.CloseWatchers()
 		upsertSRC(t, clt, encryptedSRC(t, true, pubB))
 		require.Eventually(t, func() bool {
 			payload, sealed, err := sealer.Seal(ctx, plaintext)
-			return err == nil && sealed && tryDecrypt(ctx, keyB, payload)
+			return err == nil && sealed && tryDecrypt(keyB, payload)
 		}, testTimeout, 10*time.Millisecond)
 	})
 
@@ -306,7 +331,7 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 			payload, sealed, err := sealer.Seal(ctx, plaintext)
 			require.NoError(t, err)
 			assert.True(t, sealed)
-			assert.Equal(t, plaintext, decryptPayload(t, ctx, key, payload))
+			assert.Equal(t, plaintext, decryptPayload(t, key, payload))
 		}
 	})
 }

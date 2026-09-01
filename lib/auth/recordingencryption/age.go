@@ -32,6 +32,10 @@ import (
 // RecordingStanza is the type used for the identifying stanza added by RecordingRecipient.
 const RecordingStanza = "teleport-recording-rsa4096"
 
+// AuditQueueStanza is the type used for the identifying stanza added by
+// AuditQueueRecipient.
+const AuditQueueStanza = "teleport-audit-queue-rsa4096"
+
 // UnwrapInput represents a request to decrypt a wrapped file key.
 type UnwrapInput struct {
 	// Fingerprint of the public key used to find the related private key.
@@ -103,13 +107,28 @@ func (i *RecordingIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 	return nil, trace.NewAggregate(errs...)
 }
 
-// RecordingRecipient wraps file keys using an RSA 40960public key.
-type RecordingRecipient struct {
-	*rsa.PublicKey
+func wrapFileKey(pubKey *rsa.PublicKey, stanzaType string, fileKey []byte) ([]*age.Stanza, error) {
+	cipher, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubKey, fileKey, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fp, err := Fingerprint(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []*age.Stanza{
+		{
+			Type: stanzaType,
+			Args: []string{fp},
+			Body: cipher,
+		},
+	}, nil
 }
 
-// ParseRecordingRecipient parses a PEM encoded RSA 4096 public key into a RecordingRecipient.
-func ParseRecordingRecipient(in []byte) (*RecordingRecipient, error) {
+// parseRSAPublicKey parses a PKIX encoded RSA 4096 public key.
+func parseRSAPublicKey(in []byte) (*rsa.PublicKey, error) {
 	pubKey, err := x509.ParsePKIXPublicKey(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -120,27 +139,46 @@ func ParseRecordingRecipient(in []byte) (*RecordingRecipient, error) {
 		return nil, trace.BadParameter("recording encryption key must be a public RSA 4096")
 	}
 
+	return rsaKey, nil
+}
+
+// RecordingRecipient wraps file keys using an RSA 4096 public key.
+type RecordingRecipient struct {
+	*rsa.PublicKey
+}
+
+// ParseRecordingRecipient parses a PEM encoded RSA 4096 public key into a RecordingRecipient.
+func ParseRecordingRecipient(in []byte) (*RecordingRecipient, error) {
+	rsaKey, err := parseRSAPublicKey(in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &RecordingRecipient{PublicKey: rsaKey}, nil
 }
 
 // Wrap a fileKey using an RSA public key. The fingerprint of the key will be included in the stanza
 // to aid in fetching the correct private key during [Unwrap].
 func (r *RecordingRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
-	cipher, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, r.PublicKey, fileKey, nil)
+	return wrapFileKey(r.PublicKey, RecordingStanza, fileKey)
+}
+
+// AuditQueueRecipient wraps file keys using an RSA 4096 public key with the
+// audit queue stanza type.
+type AuditQueueRecipient struct {
+	*rsa.PublicKey
+}
+
+// ParseAuditQueueRecipient parses a public key into an AuditQueueRecipient.
+// Currently, we only support RSA public keys.
+func ParseAuditQueueRecipient(in []byte) (*AuditQueueRecipient, error) {
+	pk, err := parseRSAPublicKey(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &AuditQueueRecipient{PublicKey: pk}, nil
+}
 
-	fp, err := Fingerprint(r.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return []*age.Stanza{
-		{
-			Type: RecordingStanza,
-			Args: []string{fp},
-			Body: cipher,
-		},
-	}, nil
+// Wrap a fileKey using an RSA public key.
+func (r *AuditQueueRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
+	return wrapFileKey(r.PublicKey, AuditQueueStanza, fileKey)
 }
