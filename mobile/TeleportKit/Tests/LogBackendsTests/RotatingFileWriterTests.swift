@@ -18,6 +18,7 @@ import Dependencies
 import Foundation
 @testable import LogBackends
 import Logging
+import Synchronization
 import SystemClients
 import Testing
 
@@ -53,6 +54,91 @@ struct RotatingFileWriterTests {
 			let expectedContents = "firstsecond"
 			let gotContents = try? String(contentsOf: fileURL, encoding: .utf8)
 			#expect(expectedContents == gotContents)
+		}
+	}
+
+	@Test
+	func `a failed write is reported by the next flush exactly once`() async throws {
+		struct WriteError: Error, Equatable {}
+
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let expectedError = WriteError()
+			let fileSystemClient = FileSystemClient.liveValue.failingFirstWrite(with: expectedError)
+			let writer = makeWriter(fileURL: fileURL, fileSystemClient: fileSystemClient)
+
+			writer.enqueue(logMessage: "record")
+			await #expect(throws: expectedError) {
+				try await writer.flush()
+			}
+			try await writer.flush()
+		}
+	}
+
+	@Test
+	func `multiple failed writes report the first error`() async throws {
+		struct FirstWriteError: Error, Equatable {}
+		struct SecondWriteError: Error {}
+
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let expectedError = FirstWriteError()
+			let fileSystemClient = FileSystemClient.liveValue.failingWrites(with: [
+				expectedError,
+				SecondWriteError(),
+			])
+			let writer = makeWriter(fileURL: fileURL, fileSystemClient: fileSystemClient)
+
+			writer.enqueue(logMessage: "first")
+			writer.enqueue(logMessage: "second")
+			await #expect(throws: expectedError) {
+				try await writer.flush()
+			}
+			try await writer.flush()
+		}
+	}
+
+	@Test
+	func `a failed record is not retried and later records continue`() async throws {
+		struct WriteError: Error, Equatable {}
+
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let expectedError = WriteError()
+			let fileSystemClient = FileSystemClient.liveValue.failingFirstWrite(with: expectedError)
+			let writer = makeWriter(fileURL: fileURL, fileSystemClient: fileSystemClient)
+
+			writer.enqueue(logMessage: "failed")
+			writer.enqueue(logMessage: "succeeded")
+			await #expect(throws: expectedError) {
+				try await writer.flush()
+			}
+			try await writer.flush()
+
+			let expectedContents = "succeeded"
+			let gotContents = try String(contentsOf: fileURL, encoding: .utf8)
+			#expect(expectedContents == gotContents)
+		}
+	}
+
+	@Test
+	func `a synchronization error takes precedence over a previous write failure`() async throws {
+		struct WriteError: Error {}
+		struct SynchronizeError: Error, Equatable {}
+
+		try await withTemporaryDirectory { directoryURL in
+			let fileURL = directoryURL.appending(path: "events.log")
+			let expectedError = SynchronizeError()
+			let fileSystemClient = FileSystemClient.liveValue
+				.failingFirstWrite(with: WriteError())
+				.failingFirstSynchronize(with: expectedError)
+			let writer = makeWriter(fileURL: fileURL, fileSystemClient: fileSystemClient)
+
+			writer.enqueue(logMessage: "record")
+			await #expect(throws: expectedError) {
+				try await writer.flush()
+			}
+			try await writer.flush()
 		}
 	}
 
@@ -560,6 +646,56 @@ struct RotatingFileWriterTests {
 // MARK: - Private Test Helpers
 
 extension FileSystemClient {
+	/// Returns this client with only its first file-write operation replaced by the provided error.
+	fileprivate func failingFirstWrite(with error: any Error & Sendable) -> Self {
+		failingWrites(with: [error])
+	}
+
+	/// Returns this client with its initial file-write operations replaced by the provided errors, in order.
+	fileprivate func failingWrites(with errors: [any Error & Sendable]) -> Self {
+		let nextErrorIndex = Mutex(0)
+		var client = self
+		let openFileForWriting = client.openFileForWriting
+		client.openFileForWriting = { url in
+			var fileClient = try openFileForWriting(url)
+			let write = fileClient.write
+			fileClient.write = { data in
+				let error = nextErrorIndex.withLock { nextErrorIndex -> (any Error & Sendable)? in
+					guard nextErrorIndex < errors.count else { return nil }
+					defer { nextErrorIndex += 1 }
+					return errors[nextErrorIndex]
+				}
+				if let error { throw error }
+
+				try write(data)
+			}
+			return fileClient
+		}
+		return client
+	}
+
+	/// Returns this client with only its first file-synchronization operation replaced by the provided error.
+	fileprivate func failingFirstSynchronize(with error: any Error & Sendable) -> Self {
+		let shouldFailNextSynchronize = Mutex(true)
+		var client = self
+		let openFileForWriting = client.openFileForWriting
+		client.openFileForWriting = { url in
+			var fileClient = try openFileForWriting(url)
+			let synchronize = fileClient.synchronize
+			fileClient.synchronize = {
+				let shouldFail = shouldFailNextSynchronize.withLock { shouldFailNextSynchronize in
+					defer { shouldFailNextSynchronize = false }
+					return shouldFailNextSynchronize
+				}
+				guard !shouldFail else { throw error }
+
+				try synchronize()
+			}
+			return fileClient
+		}
+		return client
+	}
+
 	/// Returns this client with only its first file-synchronization operation paused, along with the gate controlling
 	/// it.
 	fileprivate func blockingFirstSynchronize() -> (client: Self, gate: BlockingCallGate) {
