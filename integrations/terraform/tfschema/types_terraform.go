@@ -159,6 +159,13 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"pki_domain": {
+							Computed:      true,
+							Description:   "PKIDomain is the Active Directory domain where CRLs are published. (Optional, defaults to Domain; useful when PKI lives in a root domain but Teleport accesses resources in a child domain.)",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"spn": {
 							Computed:      true,
 							Description:   "SPN is the service principal name for the database.",
@@ -9731,6 +9738,23 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["pki_domain"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.PKIDomain"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.PKIDomain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.PKIDomain = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -12788,6 +12812,34 @@ func CopyDatabaseV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 												v.Unknown = false
 											}
 											tf.Attrs["ldap_service_account_sid"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["pki_domain"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.PKIDomain"})
+										} else {
+											v, ok := tf.Attrs["pki_domain"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												if tf.Attrs["pki_domain"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseV3.Spec.AD.PKIDomain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.PKIDomain", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.PKIDomain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+											}
+
+											v.Null = false
+											v.Value = string(obj.PKIDomain)
+											if !preserveUnknown {
+												v.Unknown = false
+											}
+											tf.Attrs["pki_domain"] = v
 										}
 									}
 								}
