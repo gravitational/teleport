@@ -2348,6 +2348,14 @@ type DatabaseAD struct {
 	// (Optional, defaults to Domain; useful when PKI lives in a root domain
 	// but Teleport accesses resources in a child domain.)
 	PKIDomain string `yaml:"pki_domain,omitempty"`
+	// LDAPHost is the host used for LDAP queries, optionally including a port.
+	// (Optional, defaults to KDCHostName; useful when the LDAP server and KDC
+	// are reachable under different names.)
+	LDAPHost string `yaml:"ldap_host,omitempty"`
+	// LDAPTLSServerName is the server name used for the TLS handshake with the
+	// LDAP server. (Optional, defaults to the host part of LDAPHost, falling
+	// back to KDCHostName.)
+	LDAPTLSServerName string `yaml:"ldap_tls_server_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
