@@ -358,7 +358,7 @@ func TestService_CreatePairedDeviceEnrollToken_errors(t *testing.T) {
 		t.Parallel()
 		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "unknown-token")
 		_, err := client.CreatePairedDeviceEnrollToken(ctx, makeRequest("does-not-exist", makeCollectedData()))
-		assert.ErrorIs(t, err, devicetrustpublicv1.ErrInvalidPairingToken)
+		assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrInvalidPairingToken)
 
 		last := lastDeviceEvent(t, emitter.LastEvent("unknown-token"))
 		assert.False(t, last.Status.Success)
@@ -378,8 +378,7 @@ func TestService_CreatePairedDeviceEnrollToken_errors(t *testing.T) {
 
 		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "grace")
 		_, err := client.CreatePairedDeviceEnrollToken(ctx, makeRequest(token, cd))
-		assert.ErrorIs(t, err, devicetrustpublicv1.ErrEnrollVerificationFailed)
-		assert.NotContains(t, err.Error(), "device not found")
+		assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollVerificationFailed)
 
 		// The redaction stops at the RPC boundary: the audit trail keeps the real
 		// reason the token was not issued.
@@ -515,13 +514,15 @@ func TestService_CreatePairedDeviceEnrollToken_concurrentClaim(t *testing.T) {
 func TestService_CreatePairedDeviceEnrollToken_lookupFailure(t *testing.T) {
 	t.Parallel()
 
-	// Message asserted absent from every error the RPC returns.
+	// Message that must not reach the caller through any error the RPC returns.
 	backendErr := errors.New("the database is down at the moment")
 	verifyErr := func(t *testing.T, err error) {
 		t.Helper()
-		require.ErrorIs(t, err, devicetrustpublicv1.ErrPairingLookupUnavailable)
-		assert.NotErrorAs(t, err, new(*trace.AccessDeniedError))
-		assert.NotContains(t, err.Error(), backendErr.Error())
+		assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrPairingLookupUnavailable)
+		// In case someone would change the type of ErrPairingLookupUnavailable, pin
+		// its error type to ConnectionProblem. This error maps to Unavailable over
+		// the wire and the client knows that it can retry the req.
+		assert.ErrorAs(t, err, new(*trace.ConnectionProblemError))
 	}
 
 	t.Run("at claim time", func(t *testing.T) {
@@ -717,8 +718,7 @@ func TestService_CreatePairedDeviceEnrollToken_deleteFailure(t *testing.T) {
 
 	_, err = env.PublicDevicesClient.CreatePairedDeviceEnrollToken(t.Context(),
 		makeRequest(token, cd))
-	assert.ErrorIs(t, err, devicetrustpublicv1.ErrEnrollTokenIssuanceFailed)
-	assert.NotContains(t, err.Error(), backendErr.Error())
+	assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollTokenIssuanceFailed)
 }
 
 // fakeAuthorizer stands in for both Authorize calls the handler makes: to
@@ -968,6 +968,16 @@ func lastDeviceEvent(t *testing.T, last apievents.AuditEvent) *apievents.DeviceE
 	evt, ok := last.(*apievents.DeviceEvent2)
 	require.True(t, ok, "expected *apievents.DeviceEvent2, got %T", last)
 	return evt
+}
+
+// assertErrorIsAndEqual asserts that err matches sentinel and that the entire
+// user-visible message is the sentinel's, with nothing leaked around it.
+// [assert.ErrorIs] alone stops pinning the exact message once the sentinel is
+// wrapped with added context. [assert.EqualError] alone ignores the error type.
+func assertErrorIsAndEqual(t *testing.T, err, sentinel error) {
+	t.Helper()
+	assert.ErrorIs(t, err, sentinel)
+	assert.EqualError(t, err, sentinel.Error())
 }
 
 // createPairing seeds an AWAITING_DEVICE pairing for user and returns its token.
