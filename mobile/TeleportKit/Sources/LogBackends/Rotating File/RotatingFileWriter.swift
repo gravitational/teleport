@@ -125,7 +125,7 @@ extension RotatingFileWriter {
 	/// - Parameter record: The record to write to disk.
 	private func append(record: String) throws {
 		let record = truncateIfNeeded(record, toMaximumByteCount: configuration.maximumFileSize)
-		try write(Data(record.utf8))
+		try writeToActiveFile(Data(record.utf8))
 	}
 
 	/// Appends a line to the log file indicating that some number of records were dropped, perhaps due to overflowing
@@ -133,7 +133,11 @@ extension RotatingFileWriter {
 	/// - Parameter droppedRecordCount: The number of log records that were dropped
 	private func append(droppedRecordNoticeFor droppedRecordCount: Int) throws {
 		let droppedRecordMessage = Data(Self.droppedRecordDescription(for: droppedRecordCount).utf8)
-		try write(droppedRecordMessage)
+		try writeToActiveFile(droppedRecordMessage)
+	}
+
+	private static func droppedRecordDescription(for count: Int) -> String {
+		"🗑️ Dropped \(count) record\(count == 1 ? "" : "s")\n"
 	}
 
 	/// Truncates a record when its UTF-8 byte count exceeds the supplied limit.
@@ -291,7 +295,15 @@ extension RotatingFileWriter {
 	private func processFlushRequest(_ continuation: CheckedContinuation<Void, any Error>) {
 		do {
 			try fileState.withLock { fileState in
+				// We attempt to surface earlier filesystem errors at `flush` callsites, so we keep track of
+				// `firstReportedError` during normal operation, and throw it here if it's non-nil. However, if file
+				// synchronization fails, that supersedes the previously reported error. Regardless, we always clear
+				// `firstReportedError` since either it or the synchronization error must have been thrown.
+				defer { fileState.firstReportedError = nil }
 				try fileState.fileClient?.synchronize()
+				if let firstReportedError = fileState.firstReportedError {
+					throw firstReportedError
+				}
 			}
 			continuation.resume()
 		} catch {
@@ -299,20 +311,29 @@ extension RotatingFileWriter {
 		}
 	}
 
-	private func recordFailure(_ error: any Error) {}
+	private func recordFailure(_ error: any Error) {
+		fileState.withLock { fileState in
+			guard fileState.firstReportedError == nil else { return }
+			fileState.firstReportedError = error
+		}
+	}
 
-	private func write(_ record: Data) throws {
+	private func writeToActiveFile(_ record: Data) throws {
 		try openActiveFileIfNeeded()
 		try rotateActiveFileIfNeeded(forAppendingByteCount: record.count)
 
 		try fileState.withLock { fileState in
-			guard let fileClient = fileState.fileClient else {
-				assertionFailure("Active file should be open before appending")
-				return
-			}
-			_ = try fileClient.seekToEnd()
-			try fileClient.write(data: record)
+			try write(data: record, to: &fileState)
 		}
+	}
+
+	private func write(data: Data, to fileState: inout FileState) throws {
+		guard let fileClient = fileState.fileClient else {
+			assertionFailure("Active file should be open before appending")
+			return
+		}
+		_ = try fileClient.seekToEnd()
+		try fileClient.write(data: data)
 	}
 }
 
@@ -616,6 +637,7 @@ extension RotatingFileWriter {
 	/// Contains mutable state that the worker needs in order to write to disk.
 	struct FileState {
 		var fileClient: WritableFileClient? = nil
+		var firstReportedError: any Error? = nil
 	}
 
 	/// An enumeration of the various items that can be enqueued in the inbox
@@ -635,10 +657,6 @@ extension RotatingFileWriter {
 				.zero
 			}
 		}
-	}
-
-	private static func droppedRecordDescription(for count: Int) -> String {
-		"🗑️ Dropped \(count) record\(count == 1 ? "" : "s")\n"
 	}
 }
 
