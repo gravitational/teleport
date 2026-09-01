@@ -87,7 +87,7 @@ func (process *TeleportProcess) runRelayService() error {
 		return err
 	}
 
-	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client, accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
