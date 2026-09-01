@@ -341,6 +341,33 @@ func makeTestKubeCluster(t *testing.T, labels map[string]string) types.KubeClust
 	return s
 }
 
+func TestMakeKubeClusterDescription(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name        string
+		description string
+	}{
+		{name: "with description", description: "Production cluster for the payments team"},
+		{name: "without description"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cluster, err := types.NewKubernetesClusterV3(
+				types.Metadata{
+					Name:        "production-us-east",
+					Description: test.description,
+				},
+				types.KubernetesClusterSpecV3{},
+			)
+			require.NoError(t, err)
+
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", nil)
+			require.Equal(t, test.description, MakeKubeCluster(cluster, accessChecker, false).Description)
+			require.Equal(t, test.description, MakeKubeClusters([]types.KubeCluster{cluster}, accessChecker)[0].Description)
+		})
+	}
+}
+
 func TestMakeClusterHiddenLabels(t *testing.T) {
 	type testCase struct {
 		name           string

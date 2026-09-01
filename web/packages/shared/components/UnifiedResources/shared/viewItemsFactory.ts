@@ -103,9 +103,11 @@ export function makeUnifiedResourceViewItemKube(
     labels: resource.labels,
     cardViewProps: {
       primaryDesc: 'Kubernetes',
+      secondaryDesc: resource.description,
     },
     listViewProps: {
       resourceType: 'Kubernetes',
+      description: resource.description,
     },
     requiresRequest: resource.requiresRequest,
     status: resource.targetHealth?.status,
