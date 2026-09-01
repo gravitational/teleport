@@ -34,7 +34,7 @@ use ironrdp_rdpdr::pdu::efs::{
     DeviceControlRequest, NtStatus, ServerDeviceAnnounceResponse, ServerDriveIoRequest,
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
-use ironrdp_rdpdr::pdu::RdpdrPdu;
+use ironrdp_rdpdr::pdu::RdpdrPdu::{self, ClientDeviceListRemove};
 use ironrdp_rdpdr::RdpdrBackend;
 use ironrdp_svc::SvcMessage;
 
@@ -74,6 +74,20 @@ impl RdpdrBackend for TeleportRdpdrBackend {
 
         // Nothing to send back to the server in either case
         Ok(())
+    }
+
+    fn handle_user_logged_on(
+        &mut self,
+        rdpdr: &mut ironrdp_rdpdr::Rdpdr,
+    ) -> PduResult<Vec<SvcMessage>> {
+        // Removing the smart card device after receiving the logged on message
+        // seems to fix an issue with newer RDP servers (Ex. Windows Server 2025)
+        // where the server ignores device announcements shortly after logon.
+        let mut result = vec![];
+        if let Some(rm) = rdpdr.remove_device(1) {
+            result.push(SvcMessage::from(ClientDeviceListRemove(rm)));
+        }
+        Ok(result)
     }
 
     fn handle_scard_call(
