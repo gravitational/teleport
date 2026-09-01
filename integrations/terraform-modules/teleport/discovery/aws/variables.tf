@@ -42,7 +42,15 @@ variable "match_aws_resource_types" {
 }
 
 variable "aws_matchers" {
-  description = "AWS resource discovery matchers. Valid values for aws_matchers.types are: ec2, eks, rds."
+  description = <<EOF
+AWS resource discovery matchers.
+Each matcher supports the following fields:
+- `types` (required): AWS resource types to discover. Allowed values: `ec2`, `eks`, `rds`, and `rdsproxy`.
+- `regions` (optional): AWS regions to search. Defaults to `["*"]`, which searches all regions.
+- `tags` (optional): AWS resource tags to match. Defaults to `{ "*" = ["*"] }`, which matches all resources.
+- `setup_access_for_arn` (optional): ARN to configure access for discovered EKS clusters. Only supported for EKS matchers.
+- `kube_app_discovery` (optional): Configures Kubernetes App Discovery for discovered EKS clusters.
+EOF
   type = list(object({
     types                = list(string)
     regions              = optional(list(string), ["*"])
@@ -69,10 +77,11 @@ variable "aws_matchers" {
           "ec2",
           "eks",
           "rds",
+          "rdsproxy",
         ], rt)
       ]
     ]))
-    error_message = "Allowed values for aws_matchers.types are: ec2, eks, rds."
+    error_message = "Allowed values for aws_matchers.types are: ec2, eks, rds, rdsproxy."
   }
 
   validation {
