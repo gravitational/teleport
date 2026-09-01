@@ -91,6 +91,14 @@ type Config struct {
 	// UpdateID is used to vary the webapi response based on the
 	// client's Managed Update ID.
 	UpdateID string
+	// ServerTimestampCallback is an optional callback that, if present,
+	// is given the parsed timestamp from the returned Date header, along with
+	// any parsing errors.
+	// Note that this should not be used for precise time sync, and is intended
+	// to help identify significant clock drift in clients. This does not
+	// account for round trip time, and the HTTP Date header only guarantees
+	// second precision, so assume +/- 1 second.
+	ServerTimestampCallback func(serverTime time.Time, err error)
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -296,6 +304,10 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ServerTimestampCallback != nil {
+		handleTimestampCallback(resp, cfg.ServerTimestampCallback)
+	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -362,6 +374,10 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	}
 	defer resp.Body.Close()
 
+	if cfg.ServerTimestampCallback != nil {
+		handleTimestampCallback(resp, cfg.ServerTimestampCallback)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
 	}
@@ -377,6 +393,24 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	}
 
 	return pr, nil
+}
+
+// handleTimestampCallback extracts the date header from the response and calls
+// the callback with the parse result (or parse error)
+func handleTimestampCallback(resp *http.Response, cb func(serverTime time.Time, err error)) {
+	val := resp.Header.Get("Date")
+	if val == "" {
+		cb(time.Time{}, trace.BadParameter("no date header in response"))
+		return
+	}
+
+	t, err := http.ParseTime(val)
+	if err != nil {
+		cb(time.Time{}, trace.BadParameter("could not parse date header: %v", err))
+		return
+	}
+
+	cb(t, nil)
 }
 
 // GetMOTD retrieves the Message Of The Day from the web proxy.
