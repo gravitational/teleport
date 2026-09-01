@@ -1,0 +1,120 @@
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db0-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db1-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db2-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db3-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db4-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db5-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db6-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db7-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db8-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---
+kind: db
+version: v3
+metadata:
+  description: 'Dummy database'
+  labels:
+    owner: test
+    real: "false"
+  name: db9-@@JOB_INDEX@@
+spec:
+  protocol: postgres
+  uri: localhost:5432
+---

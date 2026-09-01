@@ -1,0 +1,6 @@
+teleportConfig:
+  db_service:
+    enabled: true
+    resources:
+    - labels:
+        '*': '*'
