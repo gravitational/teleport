@@ -302,7 +302,7 @@ data:
     services:
       - type: workload-identity-api
         listen: unix:///run/tbot/sockets/workload.sock
-        attestor:
+        attestors:
           kubernetes:
             enabled: true
             kubelet:
