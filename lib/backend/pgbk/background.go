@@ -21,13 +21,17 @@ package pgbk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -105,7 +109,20 @@ func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 		if ctx.Err() != nil {
 			break
 		}
-		b.log.ErrorContext(ctx, "Change feed stream lost.", "error", err)
+		// PostgreSQL after August 2026 requires a server side parameter to
+		// allow wal2json, and since it was not part of our original pgbk docs
+		// we do our best to expand on the error message in the logs about it
+		if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) &&
+			pgErr != nil &&
+			pgErr.Code == pgerrcode.InsufficientPrivilege &&
+			strings.Contains(pgErr.Message, "may not be used as an output plugin") {
+			b.log.ErrorContext(ctx,
+				"Change feed stream lost. This might be caused by a misconfiguration of PostgreSQL versions 18.6, 17.11, 16.15, 15.19, 14.24 or later which require the output_plugin_libraries parameter to be set to allow the wal2json output plugin. Please refer to the Teleport documentation at https://goteleport.com/docs/reference/deployment/backends/#postgresql or the PostgreSQL docs for the output_plugin_libraries parameter.",
+				"error", err,
+			)
+		} else {
+			b.log.ErrorContext(ctx, "Change feed stream lost.", "error", err)
+		}
 
 		select {
 		case <-ctx.Done():
