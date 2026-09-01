@@ -52,6 +52,7 @@ func (c *workloadIdentityX509IssuerOverrideCollection) WriteText(w io.Writer, ve
 	return trace.Wrap(t.WriteTo(w))
 }
 
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 func workloadIdentityX509IssuerOverrideHandler() Handler {
 	return Handler{
 		getHandler:    getWorkloadIdentityX509IssuerOverride,
@@ -60,7 +61,7 @@ func workloadIdentityX509IssuerOverrideHandler() Handler {
 		deleteHandler: deleteWorkloadIdentityX509IssuerOverride,
 		singleton:     false,
 		mfaRequired:   false,
-		description:   "Overrides the issuers used for X.509 SVIDs",
+		description:   "Overrides the issuers used for X.509 SVIDs. Deprecated as of Teleport 19.0.0: existing resources can be read and deleted, but no longer created or updated.",
 	}
 }
 
@@ -123,6 +124,7 @@ func createWorkloadIdentityX509IssuerOverride(
 
 	c := client.WorkloadIdentityX509OverridesClient()
 	if opts.Force {
+		//nolint:staticcheck // This RPC is deprecated for v19 clusters but still supported for v18 clusters.
 		if _, err := c.UpsertX509IssuerOverride(
 			ctx,
 			workloadidentityv1pb.UpsertX509IssuerOverrideRequest_builder{
@@ -132,6 +134,7 @@ func createWorkloadIdentityX509IssuerOverride(
 			return trace.Wrap(err)
 		}
 	} else {
+		//nolint:staticcheck // This RPC is deprecated for v19 clusters but still supported for v18 clusters.
 		if _, err := c.CreateX509IssuerOverride(
 			ctx,
 			workloadidentityv1pb.CreateX509IssuerOverrideRequest_builder{
@@ -161,6 +164,7 @@ func updateWorkloadIdentityX509IssuerOverride(
 	}
 
 	c := client.WorkloadIdentityX509OverridesClient()
+	//nolint:staticcheck // This RPC is deprecated for v19 clusters but still supported for v18 clusters.
 	if _, err = c.UpdateX509IssuerOverride(
 		ctx,
 		workloadidentityv1pb.UpdateX509IssuerOverrideRequest_builder{

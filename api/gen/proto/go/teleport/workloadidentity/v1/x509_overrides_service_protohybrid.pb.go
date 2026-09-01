@@ -727,14 +727,14 @@ const file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDesc = "
 	"\x0fCSRCreationMode\x12!\n" +
 	"\x1dCSR_CREATION_MODE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CSR_CREATION_MODE_EMPTY\x10\x01\x12\x1a\n" +
-	"\x16CSR_CREATION_MODE_SAME\x10\x022\xef\a\n" +
+	"\x16CSR_CREATION_MODE_SAME\x10\x022\xfc\a\n" +
 	"\x14X509OverridesService\x12\x89\x01\n" +
 	"\x11SignX509IssuerCSR\x126.teleport.workloadidentity.v1.SignX509IssuerCSRRequest\x1a7.teleport.workloadidentity.v1.SignX509IssuerCSRResponse\"\x03\x90\x02\x01\x12\x8a\x01\n" +
 	"\x15GetX509IssuerOverride\x12:.teleport.workloadidentity.v1.GetX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x03\x90\x02\x01\x12\x9b\x01\n" +
-	"\x17ListX509IssuerOverrides\x12<.teleport.workloadidentity.v1.ListX509IssuerOverridesRequest\x1a=.teleport.workloadidentity.v1.ListX509IssuerOverridesResponse\"\x03\x90\x02\x01\x12\x8b\x01\n" +
-	"\x18CreateX509IssuerOverride\x12=.teleport.workloadidentity.v1.CreateX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\x12\x8b\x01\n" +
-	"\x18UpdateX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpdateX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\x12\x90\x01\n" +
-	"\x18UpsertX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpsertX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x03\x90\x02\x02\x12q\n" +
+	"\x17ListX509IssuerOverrides\x12<.teleport.workloadidentity.v1.ListX509IssuerOverridesRequest\x1a=.teleport.workloadidentity.v1.ListX509IssuerOverridesResponse\"\x03\x90\x02\x01\x12\x90\x01\n" +
+	"\x18CreateX509IssuerOverride\x12=.teleport.workloadidentity.v1.CreateX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x03\x88\x02\x01\x12\x90\x01\n" +
+	"\x18UpdateX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpdateX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x03\x88\x02\x01\x12\x93\x01\n" +
+	"\x18UpsertX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpsertX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x06\x88\x02\x01\x90\x02\x02\x12q\n" +
 	"\x18DeleteX509IssuerOverride\x12=.teleport.workloadidentity.v1.DeleteX509IssuerOverrideRequest\x1a\x16.google.protobuf.EmptyBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var file_teleport_workloadidentity_v1_x509_overrides_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)

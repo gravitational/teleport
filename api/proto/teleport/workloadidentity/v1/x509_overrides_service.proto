@@ -24,6 +24,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // This service contains RPCs for the configuration resources related to X.509
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
+//
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 service X509OverridesService {
   // Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
   rpc SignX509IssuerCSR(SignX509IssuerCSRRequest) returns (SignX509IssuerCSRResponse) {
@@ -42,14 +44,25 @@ service X509OverridesService {
   // Create a new workload_identity_x509_issuer_override. An ALREADY_EXISTS
   // error will be returned if an item with the same name already exists in the
   // cluster state storage.
-  rpc CreateX509IssuerOverride(CreateX509IssuerOverrideRequest) returns (X509IssuerOverride);
+  //
+  // Deprecated: Use teleport.subca.v1.
+  rpc CreateX509IssuerOverride(CreateX509IssuerOverrideRequest) returns (X509IssuerOverride) {
+    option deprecated = true;
+  }
   // Update a workload_identity_x509_issuer_override; an item with the same name
   // must exist and the revision of the new item must match the revision of the
   // existing item. A FAILED_PRECONDITION error will be returned otherwise.
-  rpc UpdateX509IssuerOverride(UpdateX509IssuerOverrideRequest) returns (X509IssuerOverride);
+  //
+  // Deprecated: Use teleport.subca.v1.
+  rpc UpdateX509IssuerOverride(UpdateX509IssuerOverrideRequest) returns (X509IssuerOverride) {
+    option deprecated = true;
+  }
   // Create a new workload_identity_x509_issuer_override or overwrite an
   // existing one with the same name.
+  //
+  // Deprecated: Use teleport.subca.v1.
   rpc UpsertX509IssuerOverride(UpsertX509IssuerOverrideRequest) returns (X509IssuerOverride) {
+    option deprecated = true;
     option idempotency_level = IDEMPOTENT;
   }
   // Delete an existing workload_identity_x509_issuer_override that has a given

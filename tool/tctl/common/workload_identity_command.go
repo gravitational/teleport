@@ -184,7 +184,11 @@ func (c *WorkloadIdentityCommand) Initialize(
 		Short('f').
 		BoolVar(&c.overridesSignForce)
 
-	c.overridesCreateCmd = overridesCmd.Command("create", "Create an issuer override from the given certificate chains.")
+	c.overridesCreateCmd = overridesCmd.Command(
+		"create",
+		"Create an issuer override from the given certificate chains. "+
+			"Deprecated: creation is rejected by Teleport v19 clusters; only --dry-run remains functional.",
+	)
 	c.overridesCreateCmd.
 		Flag("force", "Overwrite the existing override if it exists.").
 		Short('f').
@@ -560,6 +564,7 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 	}
 }
 
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client *authclient.Client) error {
 	oclt := client.WorkloadIdentityX509OverridesClient()
 
@@ -663,12 +668,14 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 	}
 
 	if c.overridesCreateForce {
+		//nolint:staticcheck // This RPC is deprecated for v19 clusters but still supported for v18 clusters.
 		if _, err := oclt.UpsertX509IssuerOverride(ctx, workloadidentityv1pb.UpsertX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
 		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
+		//nolint:staticcheck // This RPC is deprecated for v19 clusters but still supported for v18 clusters.
 		if _, err := oclt.CreateX509IssuerOverride(ctx, workloadidentityv1pb.CreateX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
 		}.Build()); err != nil {
@@ -686,6 +693,7 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 	return nil
 }
 
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, client *authclient.Client) error {
 	oclt := client.WorkloadIdentityX509OverridesClient()
 

@@ -50,6 +50,8 @@ const (
 // This service contains RPCs for the configuration resources related to X.509
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
+//
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 type X509OverridesServiceClient interface {
 	// Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
 	SignX509IssuerCSR(ctx context.Context, in *SignX509IssuerCSRRequest, opts ...grpc.CallOption) (*SignX509IssuerCSRResponse, error)
@@ -57,16 +59,25 @@ type X509OverridesServiceClient interface {
 	GetX509IssuerOverride(ctx context.Context, in *GetX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error)
 	// List a page of workload_identity_x509_issuer_override items.
 	ListX509IssuerOverrides(ctx context.Context, in *ListX509IssuerOverridesRequest, opts ...grpc.CallOption) (*ListX509IssuerOverridesResponse, error)
+	// Deprecated: Do not use.
 	// Create a new workload_identity_x509_issuer_override. An ALREADY_EXISTS
 	// error will be returned if an item with the same name already exists in the
 	// cluster state storage.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	CreateX509IssuerOverride(ctx context.Context, in *CreateX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error)
+	// Deprecated: Do not use.
 	// Update a workload_identity_x509_issuer_override; an item with the same name
 	// must exist and the revision of the new item must match the revision of the
 	// existing item. A FAILED_PRECONDITION error will be returned otherwise.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	UpdateX509IssuerOverride(ctx context.Context, in *UpdateX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error)
+	// Deprecated: Do not use.
 	// Create a new workload_identity_x509_issuer_override or overwrite an
 	// existing one with the same name.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	UpsertX509IssuerOverride(ctx context.Context, in *UpsertX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error)
 	// Delete an existing workload_identity_x509_issuer_override that has a given
 	// name. A NOT_FOUND error is returned if the item didn't exist.
@@ -111,6 +122,7 @@ func (c *x509OverridesServiceClient) ListX509IssuerOverrides(ctx context.Context
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *x509OverridesServiceClient) CreateX509IssuerOverride(ctx context.Context, in *CreateX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(X509IssuerOverride)
@@ -121,6 +133,7 @@ func (c *x509OverridesServiceClient) CreateX509IssuerOverride(ctx context.Contex
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *x509OverridesServiceClient) UpdateX509IssuerOverride(ctx context.Context, in *UpdateX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(X509IssuerOverride)
@@ -131,6 +144,7 @@ func (c *x509OverridesServiceClient) UpdateX509IssuerOverride(ctx context.Contex
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *x509OverridesServiceClient) UpsertX509IssuerOverride(ctx context.Context, in *UpsertX509IssuerOverrideRequest, opts ...grpc.CallOption) (*X509IssuerOverride, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(X509IssuerOverride)
@@ -158,6 +172,8 @@ func (c *x509OverridesServiceClient) DeleteX509IssuerOverride(ctx context.Contex
 // This service contains RPCs for the configuration resources related to X.509
 // issuer overrides, and for operations that require the auth's help or
 // involvement in generating overrides.
+//
+// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
 type X509OverridesServiceServer interface {
 	// Create a CSR with the key associated with an internal X.509 SPIFFE issuer.
 	SignX509IssuerCSR(context.Context, *SignX509IssuerCSRRequest) (*SignX509IssuerCSRResponse, error)
@@ -165,16 +181,25 @@ type X509OverridesServiceServer interface {
 	GetX509IssuerOverride(context.Context, *GetX509IssuerOverrideRequest) (*X509IssuerOverride, error)
 	// List a page of workload_identity_x509_issuer_override items.
 	ListX509IssuerOverrides(context.Context, *ListX509IssuerOverridesRequest) (*ListX509IssuerOverridesResponse, error)
+	// Deprecated: Do not use.
 	// Create a new workload_identity_x509_issuer_override. An ALREADY_EXISTS
 	// error will be returned if an item with the same name already exists in the
 	// cluster state storage.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	CreateX509IssuerOverride(context.Context, *CreateX509IssuerOverrideRequest) (*X509IssuerOverride, error)
+	// Deprecated: Do not use.
 	// Update a workload_identity_x509_issuer_override; an item with the same name
 	// must exist and the revision of the new item must match the revision of the
 	// existing item. A FAILED_PRECONDITION error will be returned otherwise.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	UpdateX509IssuerOverride(context.Context, *UpdateX509IssuerOverrideRequest) (*X509IssuerOverride, error)
+	// Deprecated: Do not use.
 	// Create a new workload_identity_x509_issuer_override or overwrite an
 	// existing one with the same name.
+	//
+	// Deprecated: Use teleport.subca.v1.
 	UpsertX509IssuerOverride(context.Context, *UpsertX509IssuerOverrideRequest) (*X509IssuerOverride, error)
 	// Delete an existing workload_identity_x509_issuer_override that has a given
 	// name. A NOT_FOUND error is returned if the item didn't exist.
