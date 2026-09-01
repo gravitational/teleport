@@ -1024,6 +1024,127 @@ add_headers:
       "Authorization": "Bearer tokentokentoken"
 ```
 
+### Presets
+
+If you work with more than one Teleport cluster, you can define named
+*presets* in the `tsh` configuration file. A preset is a reusable bundle of
+global connection settings (proxy address, cluster, user, and other global
+overrides) that you select at invocation time with the `--preset` flag (or the
+`TELEPORT_PRESET` environment variable):
+
+```yaml
+presets:
+  prod:
+    proxy: teleport.prod.example.com:443
+    cluster: prod
+    user: alice
+    mfa_mode: sso
+  staging:
+    proxy: teleport.staging.example.com:443
+    user: alice
+# Optionally select a preset to use when --preset is not provided.
+default_preset: staging
+```
+
+With the configuration above, the following are equivalent:
+
+```code
+$ tsh --preset prod login
+$ tsh --proxy teleport.prod.example.com:443 --cluster prod --user alice --mfa-mode sso login
+```
+
+Each preset supports the following fields, all optional. At minimum a preset
+typically sets `proxy`. Every field overrides the corresponding `tsh` global
+flag:
+
+| Field                  | Equivalent flag         |
+| ---------------------- | ----------------------- |
+| `proxy`                | `--proxy`               |
+| `cluster`              | `--cluster`             |
+| `user`                 | `--user`                |
+| `login`                | `--login`               |
+| `auth`                 | `--auth`                |
+| `kube_cluster`         | `--kube-cluster`        |
+| `mfa_mode`             | `--mfa-mode`            |
+| `headless`             | `--headless`            |
+| `add_keys_to_agent`    | `--add-keys-to-agent`   |
+| `use_local_ssh_agent`  | `--use-local-ssh-agent` |
+| `home`                 | `TELEPORT_HOME`         |
+
+Selection precedence, from highest to lowest, is: an explicit command-line flag
+or environment variable, then the selected preset, then `tsh` defaults. In
+other words, a value you pass explicitly always wins over a preset, so you can
+select a preset and still override individual settings:
+
+```code
+# Use the "prod" preset but connect as a different user.
+$ tsh --preset prod --user bob login
+```
+
+If `--preset` (or `TELEPORT_PRESET`) is not set, `tsh` falls back to
+`default_preset` when it is defined. Selecting a preset that does not exist,
+or defining a `default_preset` that is not present in `presets`, is an error.
+
+List the available presets and see which one is the default:
+
+```code
+$ tsh preset ls
+```
+
+When a logged-in profile's URL matches the proxy configured by one or more
+presets, `tsh status` lists those preset names below the profile URL:
+
+```code
+> Profile URL:        https://teleport.prod.example.com:443
+  Presets:            prod, production-admin
+  Logged in as:       alice
+```
+
+A preset proxy without an explicit web port matches profiles by hostname. If
+the preset specifies a web port, both the hostname and port must match.
+
+You can create a preset directly from a profile URL shown by `tsh status`:
+
+```code
+$ tsh preset add prod https://teleport.prod.example.com:443
+Preset "prod" added for proxy "teleport.prod.example.com:443".
+```
+
+The command normalizes the URL and adds a proxy-only preset to the
+user-specific `tsh` configuration. It does not copy credentials, login state,
+the active user, or the active cluster. Edit the preset in the configuration
+file if you want it to select additional settings. Existing preset names are
+not overwritten.
+
+Set the default preset in your user-specific `tsh` configuration:
+
+```code
+$ tsh preset use prod
+```
+
+The command can select a preset from either the shared or user-specific
+configuration, but it writes `default_preset` only to the user-specific
+configuration file.
+
+<Admonition type="note">
+A preset is a convenience bundle of connection settings you author yourself.
+It does not contain credentials or login state. `tsh` manages that information
+separately in per-cluster login profiles under `$TELEPORT_HOME` (`~/.tsh`).
+
+Unless a preset changes `home`, presets share the existing key store. Keys and
+certificates are separated by Proxy Service address, Teleport user, and cluster.
+Two presets that select the same proxy, user, and cluster therefore reuse the
+same valid key ring. Presets for different clusters can share the proxy/user
+private keys while loading cluster-specific certificates. Presets for different
+users on the same proxy keep separate key material, while the proxy's login
+profile records the most recently active user. Setting a different `home` gives
+the preset a completely separate set of login profiles, keys, and certificates.
+The `auth` and `mfa_mode` fields control how a new login is performed; they do
+not create separate copies of an existing certificate. Use
+`tsh --preset <name> login --force` when you need to force a new authentication
+ceremony for a preset.
+</Admonition>
+
 ### Aliases
 
 You can configure `tsh` to define aliases, custom commands and command-specific
