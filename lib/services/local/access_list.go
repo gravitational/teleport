@@ -1261,17 +1261,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					}
 				}
 			} else {
-				// Preserve the membership metadata for any existing members
-				// to suppress member records flipping back and forth due
-				// due SCIM pushes or Sync Service updates.
-				if !existingMember.Spec.Expires.IsZero() {
-					newMember.Spec.Expires = existingMember.Spec.Expires
-				}
-				if existingMember.Spec.Reason != "" {
-					newMember.Spec.Reason = existingMember.Spec.Reason
-				}
-				keepAWSIdentityCenterLabels(existingMember, newMember)
-				newMember.Spec.AddedBy = existingMember.Spec.AddedBy
+				preserveExistingMemberMetadata(existingMember, newMember)
 
 				// Compare members and update if necessary.
 				if !newMember.IsEqual(existingMember) {
@@ -1772,6 +1762,24 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
+}
+
+// preserveExistingMemberMetadata copies membership metadata from an existing
+// member onto its replacement, to suppress member records flipping back and
+// forth due to SCIM pushes or Sync Service updates.
+func preserveExistingMemberMetadata(existingMember, newMember *accesslist.AccessListMember) {
+	if !existingMember.Spec.Expires.IsZero() {
+		newMember.Spec.Expires = existingMember.Spec.Expires
+	}
+	if existingMember.Spec.Reason != "" {
+		newMember.Spec.Reason = existingMember.Spec.Reason
+	}
+	keepAWSIdentityCenterLabels(existingMember, newMember)
+	newMember.Spec.AddedBy = existingMember.Spec.AddedBy
+	newMember.Spec.Joined = existingMember.Spec.Joined
+	// IneligibleStatus is access list ineligibility status reconcile owned filed.
+	// The old value should be propagated same as immutable fields.
+	newMember.Spec.IneligibleStatus = existingMember.Spec.IneligibleStatus
 }
 
 // ListUserAccessLists is not implemented in the local service.

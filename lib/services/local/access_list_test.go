@@ -1687,13 +1687,79 @@ func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForEx
 	require.NoError(t, err)
 	require.Equal(t, "bar", updatedMembers[0].GetMetadata().Labels["foo"])
 
+	upsertedMember, err := service.UpsertAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+	require.NoError(t, err)
+	require.Equal(t, "bar", upsertedMember.GetMetadata().Labels["foo"])
+
 	updatedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
 	require.NoError(t, err)
 	require.Equal(t, "bar", updatedMember.GetMetadata().Labels["foo"])
+}
 
-	upsertedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+func TestUpsertAndUpdateAccessListWithMembers_PreservesFields(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
 	require.NoError(t, err)
-	require.Equal(t, "bar", upsertedMember.GetMetadata().Labels["foo"])
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	t.Run("UpsertAccessListWithMembers", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list-preserve-joined-upsert", clock)
+		_, err := service.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+
+		originalMember := newAccessListMember(t, accessList.GetName(), "alice")
+		originalMember.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
+		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{originalMember.Clone()})
+		require.NoError(t, err)
+
+		resentMember := newAccessListMember(t, accessList.GetName(), "alice")
+		resentMember.Spec.Joined = originalMember.Spec.Joined.Add(time.Hour)
+		resentMember.Spec.AddedBy = "bob_updater1"
+
+		_, upsertedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{resentMember})
+		require.NoError(t, err)
+		require.Len(t, upsertedMembers, 1)
+		require.True(t, originalMember.Spec.Joined.Equal(upsertedMembers[0].Spec.Joined))
+		require.Equal(t, originalMember.Spec.AddedBy, upsertedMembers[0].Spec.AddedBy)
+
+		gotMember, err := service.GetAccessListMember(ctx, accessList.GetName(), "alice")
+		require.NoError(t, err)
+		require.True(t, originalMember.Spec.Joined.Equal(gotMember.Spec.Joined))
+		require.Equal(t, originalMember.Spec.AddedBy, gotMember.Spec.AddedBy)
+	})
+
+	t.Run("UpdateAccessListAndOverwriteMembers", func(t *testing.T) {
+		accessList := newAccessList(t, "access-list-preserve-joined-update", clock)
+		_, err := service.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+
+		originalMember := newAccessListMember(t, accessList.GetName(), "alice")
+
+		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{originalMember.Clone()})
+		require.NoError(t, err)
+
+		currentACL, err := service.GetAccessList(ctx, accessList.GetName())
+		require.NoError(t, err)
+
+		secondResend := newAccessListMember(t, accessList.GetName(), "alice")
+		secondResend.Spec.Joined = originalMember.Spec.Joined.Add(2 * time.Hour)
+		secondResend.Spec.AddedBy = "bob_updater2"
+
+		_, updatedMembers, err := service.UpdateAccessListAndOverwriteMembers(ctx, currentACL, []*accesslist.AccessListMember{secondResend})
+		require.NoError(t, err)
+		require.Len(t, updatedMembers, 1)
+		require.True(t, originalMember.Spec.Joined.Equal(updatedMembers[0].Spec.Joined))
+		require.Equal(t, originalMember.Spec.AddedBy, updatedMembers[0].Spec.AddedBy)
+
+		gotMember, err := service.GetAccessListMember(ctx, accessList.GetName(), "alice")
+		require.NoError(t, err)
+		require.True(t, originalMember.Spec.Joined.Equal(gotMember.Spec.Joined))
+		require.Equal(t, originalMember.Spec.AddedBy, gotMember.Spec.AddedBy)
+	})
 }
 
 func TestAccessListReviewCRUD(t *testing.T) {

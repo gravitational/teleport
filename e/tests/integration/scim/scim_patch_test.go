@@ -290,6 +290,132 @@ func TestSCIMPatch(t *testing.T) {
 	})
 }
 
+// TestAddMemberDoesNotRewriteExistingMembers asserts that adding a new member
+// to a Group - whether via the SCIM PATCH operation or full SCIM
+// PUT - does not cause pre-existing members to be rewritten
+// in the backend.
+func TestAddMemberDoesNotRewriteExistingMembers(t *testing.T) {
+	t.Parallel()
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	aclClient := sut.Teleport.Process.GetAuthServer().AccessListsInternal
+
+	scimToken := createGenericSCIMPlugin(t, sut)
+	baseURL := url.URL{
+		Scheme: "https",
+		Host:   sut.ProxyAddr,
+		Path:   "/v1/webapi/scim/generic",
+	}
+	httpClient := &http.Client{
+		Transport: &bearerAuthTransport{
+			Token: scimToken,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
+	}
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	snapshotRevisions := func(t *testing.T, groupName string, names []string) map[string]string {
+		t.Helper()
+		revisions := make(map[string]string, len(names))
+		for _, name := range names {
+			member, err := aclClient.GetAccessListMember(t.Context(), groupName, name)
+			require.NoError(t, err)
+			revisions[name] = member.GetRevision()
+			require.NotEmpty(t, revisions[name])
+		}
+		return revisions
+	}
+
+	requireRevisionsUnchanged := func(t *testing.T, groupName string, revisionsBefore map[string]string) {
+		t.Helper()
+		for name, revision := range revisionsBefore {
+			member, err := aclClient.GetAccessListMember(t.Context(), groupName, name)
+			require.NoError(t, err)
+			require.Equal(t, revision, member.GetRevision())
+		}
+	}
+
+	requireMemberExists := func(t *testing.T, groupName, name string) {
+		t.Helper()
+		_, err := aclClient.GetAccessListMember(t.Context(), groupName, name)
+		require.NoError(t, err)
+	}
+
+	t.Run("PATCH add member", func(t *testing.T) {
+		t.Parallel()
+		groupName := "patch-group"
+		existingMembers := []string{"existing-member-1", "existing-member-2"}
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+			common.WithMembers(existingMembers...),
+		)
+
+		revisionsBefore := snapshotRevisions(t, groupName, existingMembers)
+
+		patchedGroup := mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]any{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": "new-member"},
+				},
+			},
+		})
+		require.Len(t, patchedGroup.Members, 3)
+
+		requireMemberExists(t, groupName, "new-member")
+		requireRevisionsUnchanged(t, groupName, revisionsBefore)
+	})
+
+	t.Run("Update group add member", func(t *testing.T) {
+		t.Parallel()
+		groupName := "put-group"
+
+		existingUser1, err := scimClient.CreateUser(t.Context(), newSCIMUser("put-existing-user-001"))
+		require.NoError(t, err)
+		existingUser2, err := scimClient.CreateUser(t.Context(), newSCIMUser("put-existing-user-002"))
+		require.NoError(t, err)
+		newUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("put-new-user-001"))
+		require.NoError(t, err)
+
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+		group, err := scimClient.GetGroup(t.Context(), groupName)
+		require.NoError(t, err)
+		group.Members = []*scimsdk.GroupMember{
+			{ExternalID: existingUser1.UserName},
+			{ExternalID: existingUser2.UserName},
+		}
+		_, err = scimClient.UpdateGroup(t.Context(), group)
+		require.NoError(t, err)
+
+		revisionsBefore := snapshotRevisions(t, groupName, []string{existingUser1.UserName, existingUser2.UserName})
+
+		group, err = scimClient.GetGroup(t.Context(), groupName)
+		require.NoError(t, err)
+		group.Members = append(group.Members, &scimsdk.GroupMember{ExternalID: newUser.UserName})
+		updatedGroup, err := scimClient.UpdateGroup(t.Context(), group)
+		require.NoError(t, err)
+		require.Len(t, updatedGroup.Members, 3)
+
+		requireMemberExists(t, groupName, newUser.UserName)
+		requireRevisionsUnchanged(t, groupName, revisionsBefore)
+	})
+}
+
 func patchUserExpectError(t *testing.T, httpClient *http.Client, baseURL, userID string, ops []map[string]interface{}, expectedStatus int) {
 	t.Helper()
 	patchOps := map[string]interface{}{

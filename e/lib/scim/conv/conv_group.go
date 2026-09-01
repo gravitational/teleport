@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -121,6 +122,11 @@ func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc
 				Name:       m.Value,
 				Joined:     options.clock.Now(),
 				AddedBy:    options.memberAddedBy,
+				// Set IneligibleStatus to Eligible because SCIM access lists are not expected to use requirement fields.
+				// IneligibleStatus is a backend-owned field and will be overwritten with the existing value during updates.
+				// Setting it explicitly for new members avoids unnecessary work by the access list reconsideration
+				// background process, which reacts to newly added members and determines their eligibility state.
+				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
 			},
 		}
 		members[i] = newMember
