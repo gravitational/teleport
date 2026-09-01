@@ -123,7 +123,9 @@ jobs:
             has_file_config:
               - '.github/workflows/lint.yaml'
               - 'build.assets/tooling/cmd/config-doc-check/**'
-              - 'lib/config/**.go'
+              # FileConfig can include any reachable types declared in the repository,
+              # so match all possible Go source files.
+              - '**.go'
               - 'docs/pages/includes/config-reference/**.yaml'
               - 'Makefile'
 
