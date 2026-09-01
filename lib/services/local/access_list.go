@@ -466,11 +466,6 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	var upserted *accesslist.AccessList
 	var existingAccessList *accesslist.AccessList
 
-	membersService, err := a.membersServiceForAccessList(accesslists.ScopeQualifiedName(accessList))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	validateAccessList := func() error {
 		var err error
 
@@ -483,12 +478,11 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		}
 		preserveAccessListFields(existingAccessList, accessList)
 
-		listMembers, err := membersService.getResources(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
+		// Existing members are deliberately not re-validated here. This operation
+		// can't add/modify member edges so re-validating stored members can only
+		// turn pre-existing backend inconsistency, e.g., a stale Spec.AccessList,
+		// into permanent failure to update the access list itself.
+		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, nil, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
 		}
 
