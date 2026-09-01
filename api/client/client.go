@@ -1221,9 +1221,40 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.grpc.EmitAuditEvent(context.WithoutCancel(ctx), grpcEvent)
+	emitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaults.DefaultIOTimeout)
+	defer cancel()
+	_, err = c.grpc.EmitAuditEvent(emitCtx, grpcEvent)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// EmitAuditEvents sends a batch of auditable event to the auth server.
+func (c *Client) EmitAuditEvents(ctx context.Context, batch []events.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+	grpcEvents := make([]*events.OneOf, 0, len(batch))
+	for _, event := range batch {
+		grpcEvent, err := events.ToOneOf(event)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		grpcEvents = append(grpcEvents, grpcEvent)
+	}
+	_, err := c.grpc.EmitAuditEvents(ctx, &proto.EmitAuditEventsRequest{Events: grpcEvents})
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// The auth server predates the batch RPC. Fall back to emitting each event
+	// individually so events are still delivered.
+	for _, event := range batch {
+		if err := c.EmitAuditEvent(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
