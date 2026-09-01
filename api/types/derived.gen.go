@@ -1057,7 +1057,8 @@ func deriveTeleportEqual_55(this, that *AD) bool {
 			this.LDAPCert == that.LDAPCert &&
 			this.KDCHostName == that.KDCHostName &&
 			this.LDAPServiceAccountName == that.LDAPServiceAccountName &&
-			this.LDAPServiceAccountSID == that.LDAPServiceAccountSID
+			this.LDAPServiceAccountSID == that.LDAPServiceAccountSID &&
+			this.PKIDomain == that.PKIDomain
 }
 
 // deriveTeleportEqual_56 returns whether this and that are equal.
