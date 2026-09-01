@@ -59,6 +59,18 @@ type UsersService interface {
 	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(u types.User) (changed bool, err error)) (types.User, error)
 }
 
+const (
+	fakeEnrollTokenPassword = "fake-device-enroll-token"
+
+	// defaultFakeEnrollTokenHash is the bcrypt hash of [fakeEnrollTokenPassword]
+	// with the default bcrypt cost, precomputed so [New] doesn't pay for a hash
+	// generation on startup.
+	//
+	// TestDefaultFakeEnrollTokenHash keeps the hash in sync with the default cost
+	// and the password.
+	defaultFakeEnrollTokenHash = `$2a$10$LqbmLVYqfx7Bx71Urm/9wuccWyF.OiRn/zB377fN/XRGoCDCYW8Uu`
+)
+
 // Params are creational params for [S].
 type Params struct {
 	Logger       *slog.Logger
@@ -66,16 +78,21 @@ type Params struct {
 	UsersService UsersService
 	Modules      modules.Modules
 	// BCryptCostOverride allows overriding the default bcrypt cost.
+	//
+	// Setting it to a value different than [bcrypt.DefaultCost] makes [New]
+	// generate a fake enrollment token hash rather than using the precomputed
+	// [defaultFakeEnrollTokenHash].
 	BCryptCostOverride int
 }
 
 // S implements the Device Trust storage, backed by a backend.Backend.
 type S struct {
-	logger     *slog.Logger
-	backend    backend.Backend
-	users      UsersService
-	bcryptCost int
-	modules    modules.Modules
+	logger              *slog.Logger
+	backend             backend.Backend
+	users               UsersService
+	bcryptCost          int
+	fakeEnrollTokenHash []byte
+	modules             modules.Modules
 }
 
 // New returns a new Device Trust storage instance.
@@ -93,6 +110,17 @@ func New(params Params) (*S, error) {
 	if params.BCryptCostOverride > 0 {
 		cost = params.BCryptCostOverride
 	}
+	// The fake hash must match the cost of the real hashes so comparing against
+	// either takes the same time. Generation is only paid when the cost is
+	// overridden (in practice by tests running at [bcrypt.MinCost]).
+	fakeEnrollTokenHash := []byte(defaultFakeEnrollTokenHash)
+	if cost != bcrypt.DefaultCost {
+		var err error
+		fakeEnrollTokenHash, err = bcrypt.GenerateFromPassword([]byte(fakeEnrollTokenPassword), cost)
+		if err != nil {
+			return nil, trace.Wrap(err, "generate fake enroll token hash")
+		}
+	}
 
 	baseLogger := params.Logger
 	if baseLogger == nil {
@@ -100,11 +128,12 @@ func New(params Params) (*S, error) {
 	}
 
 	return &S{
-		logger:     baseLogger.With(teleport.ComponentKey, "devicetrust.storage"),
-		backend:    params.Backend,
-		users:      params.UsersService,
-		bcryptCost: cost,
-		modules:    params.Modules,
+		logger:              baseLogger.With(teleport.ComponentKey, "devicetrust.storage"),
+		backend:             params.Backend,
+		users:               params.UsersService,
+		bcryptCost:          cost,
+		fakeEnrollTokenHash: fakeEnrollTokenHash,
+		modules:             params.Modules,
 	}, nil
 }
 
@@ -1561,28 +1590,9 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := s.GetDevicesByAssetTag(ctx, cd.GetSerialNumber())
+	targetDev, err := s.findDeviceByCollectedData(ctx, cd)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if len(devs) == 0 {
-		return nil, trace.NotFound("device not found")
-	}
-
-	// Find the one specific device we are looking for, or otherwise error.
-	var targetDev *devicepb.Device
-	for _, dev := range devs {
-		if dev.GetOsType() == cd.GetOsType() {
-			// Sanity check: we should get exactly 0 or 1 match, but let's
-			// double-check to be safe.
-			if targetDev != nil {
-				return nil, trace.BadParameter("collected data matches more than one device, aborting")
-			}
-			targetDev = dev
-		}
-	}
-	if targetDev == nil {
-		return nil, trace.NotFound("device not found")
 	}
 	// From this point onwards return `targetDev`, it allows for richer logging
 	// in the outer layers.
@@ -1610,6 +1620,35 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 
 	targetDev.SetEnrollToken(token)
 	return targetDev, trace.Wrap(err)
+}
+
+// findDeviceByCollectedData resolves the single device matching the OS type
+// and serial number of cd, erroring out on an ambiguous match.
+func (s *S) findDeviceByCollectedData(ctx context.Context, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
+	devs, err := s.GetDevicesByAssetTag(ctx, cd.GetSerialNumber())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(devs) == 0 {
+		return nil, trace.NotFound("device not found")
+	}
+
+	// Find the one specific device we are looking for, or otherwise error.
+	var targetDev *devicepb.Device
+	for _, dev := range devs {
+		if dev.GetOsType() == cd.GetOsType() {
+			// Sanity check: we should get exactly 0 or 1 match, but let's
+			// double-check to be safe.
+			if targetDev != nil {
+				return nil, trace.BadParameter("collected data matches more than one device, aborting")
+			}
+			targetDev = dev
+		}
+	}
+	if targetDev == nil {
+		return nil, trace.NotFound("device not found")
+	}
+	return targetDev, nil
 }
 
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for
@@ -1704,6 +1743,19 @@ type DeviceEnrollTokenData struct {
 // Callers are encouraged to "erase" the resulting errors with a constant
 // type/message, as to avoid leaking information about storage state.
 func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) (*DeviceEnrollTokenData, error) {
+	data, err := s.readDeviceEnrollToken(ctx, deviceID, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.backend.Delete(ctx, deviceTokenKey(deviceID)); err != nil {
+		return nil, trace.Wrap(err, "failed to spend enrollment token")
+	}
+	return data, nil
+}
+
+// readDeviceEnrollToken reads and verifies the enrollment token of deviceID,
+// leaving the token in place.
+func (s *S) readDeviceEnrollToken(ctx context.Context, deviceID, token string) (*DeviceEnrollTokenData, error) {
 	switch {
 	case deviceID == "":
 		return nil, trace.BadParameter("device ID required")
@@ -1713,12 +1765,21 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 
 	// Device must exist, the easiest way to check is to read the key.
 	if _, err := s.backend.Get(ctx, deviceKey(deviceID)); err != nil {
+		if trace.IsNotFound(err) {
+			// No device found by deviceID. Burn a comparison so that this rejection
+			// takes as long as rejecting a mismatched token.
+			s.fakeCompareDeviceEnrollToken(token)
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	key := deviceTokenKey(deviceID)
-	item, err := s.backend.Get(ctx, key)
+	item, err := s.backend.Get(ctx, deviceTokenKey(deviceID))
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// The device has no enrollment token. Burn a comparison so that this
+			// rejection takes as long as rejecting a mismatched token.
+			s.fakeCompareDeviceEnrollToken(token)
+		}
 		return nil, trace.Wrap(err)
 	}
 	stored := &storedEnrollToken{}
@@ -1729,14 +1790,15 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 	if err := bcrypt.CompareHashAndPassword(stored.HashedToken, []byte(token)); err != nil {
 		return nil, trace.BadParameter("invalid token")
 	}
-	if err := s.backend.Delete(ctx, key); err != nil {
-		return nil, trace.Wrap(err, "failed to spend enrollment token")
-	}
 
 	return &DeviceEnrollTokenData{
 		CreatedByAutoEnroll: stored.CreatedByAutoEnroll,
 		User:                stored.User,
 	}, nil
+}
+
+func (s *S) fakeCompareDeviceEnrollToken(token string) {
+	_ = bcrypt.CompareHashAndPassword(s.fakeEnrollTokenHash, []byte(token))
 }
 
 // CreateDeviceWebToken writes webToken to storage, as part of a new device

@@ -10,6 +10,13 @@ import (
 // for testing.
 var ValidateCollectedDataAgainstDeviceStrict = validateCollectedDataAgainstDeviceStrict
 
+// DefaultFakeEnrollTokenHash and FakeEnrollTokenPassword expose the
+// precomputed fake enroll token hash and its password for testing.
+const (
+	DefaultFakeEnrollTokenHash = defaultFakeEnrollTokenHash
+	FakeEnrollTokenPassword    = fakeEnrollTokenPassword
+)
+
 // GetDeviceCollecteDataForTests gets collected data for the specified deviceID,
 // regardless of the device itself existing.
 // Used to assert collected data deletion in tests.

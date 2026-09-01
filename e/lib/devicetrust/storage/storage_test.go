@@ -3927,6 +3927,101 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	}
 }
 
+func TestDefaultFakeEnrollTokenHash(t *testing.T) {
+	t.Parallel()
+
+	hash := []byte(storage.DefaultFakeEnrollTokenHash)
+
+	// The precomputed hash must match the cost of the real hashes, otherwise fake
+	// comparisons take a different time than real ones.
+	cost, err := bcrypt.Cost(hash)
+	if err != nil {
+		t.Fatalf("Cost failed: %v", err)
+	}
+	if cost != bcrypt.DefaultCost {
+		t.Errorf("Cost returned %v, want %v", cost, bcrypt.DefaultCost)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(hash, []byte(storage.FakeEnrollTokenPassword)); err != nil {
+		t.Errorf("CompareHashAndPassword failed, hash doesn't match its documented password: %v", err)
+	}
+}
+
+func TestS_SpendDeviceEnrollToken_rejectionTiming(t *testing.T) {
+	t.Parallel()
+
+	// Rejections must take at least as long as a bcrypt comparison, otherwise
+	// their timing reveals whether the device and its token exist. Run at the
+	// default cost so a comparison takes tens of milliseconds, far enough from
+	// minElapsed that fast machines cannot dip below it.
+	env := mustNewEnv(withBCryptCost(bcrypt.DefaultCost))
+	t.Cleanup(func() { require.NoError(t, env.Close()) })
+	s := env.S
+
+	ctx := t.Context()
+
+	// Create a device with an enrollment token and a device without one.
+	var devs []*devicepb.Device
+	for _, asset := range []string{"llama", "alpaca"} {
+		dev, err := s.CreateDevice(ctx, devicepb.Device_builder{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: asset,
+		}.Build(), false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		devs = append(devs, dev)
+	}
+	devWithToken := devs[0]
+	devWithoutToken := devs[1]
+	token, err := s.CreateDeviceEnrollToken(ctx, devWithToken.GetId(), time.Time{} /* expiresAt */)
+	if err != nil {
+		t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+	}
+
+	// minElapsed is well below a bcrypt comparison at the default cost, but
+	// well above what the rejections do apart from the comparison.
+	const minElapsed = 10 * time.Millisecond
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		token     string
+		errTarget any
+	}{
+		{
+			name:      "device not found",
+			deviceID:  "unknown",
+			token:     token.GetToken(),
+			errTarget: new(*trace.NotFoundError),
+		},
+		{
+			name:      "device without token",
+			deviceID:  devWithoutToken.GetId(),
+			token:     token.GetToken(),
+			errTarget: new(*trace.NotFoundError),
+		},
+		{
+			name:      "mismatched token",
+			deviceID:  devWithToken.GetId(),
+			token:     token.GetToken() + "bad",
+			errTarget: new(*trace.BadParameterError),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			start := time.Now()
+			_, err := s.SpendDeviceEnrollToken(ctx, test.deviceID, test.token)
+			elapsed := time.Since(start)
+			require.ErrorAs(t, err, test.errTarget)
+			if elapsed < minElapsed {
+				t.Errorf("SpendDeviceEnrollToken rejected in %v, want at least %v (a bcrypt comparison)", elapsed, minElapsed)
+			}
+		})
+	}
+}
+
 func TestS_AssignDeviceOwner(t *testing.T) {
 	t.Parallel()
 
@@ -4777,6 +4872,8 @@ type storageEnv struct {
 	modules         *modulestest.Modules
 	memClock        clockwork.Clock // actual mem clock, always set.
 	mem             *memory.Memory
+
+	bcryptCostOverride int
 }
 
 func (e *storageEnv) Close() error {
@@ -4788,6 +4885,14 @@ func (e *storageEnv) Close() error {
 
 type opt func(*storageEnv)
 
+// withBCryptCost makes the storage hash enrollment tokens with the given
+// bcrypt cost instead of bcrypt.MinCost.
+func withBCryptCost(cost int) opt {
+	return func(e *storageEnv) {
+		e.bcryptCostOverride = cost
+	}
+}
+
 func mustNewEnv(opts ...opt) *storageEnv {
 	env, err := newEnv(opts...)
 	if err != nil {
@@ -4798,7 +4903,8 @@ func mustNewEnv(opts ...opt) *storageEnv {
 
 func newEnv(opts ...opt) (*storageEnv, error) {
 	env := &storageEnv{
-		modules: modulestest.EnterpriseModules(),
+		modules:            modulestest.EnterpriseModules(),
+		bcryptCostOverride: bcrypt.MinCost,
 	}
 	for _, opt := range opts {
 		opt(env)
@@ -4842,7 +4948,7 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 		Logger:             logger,
 		Backend:            env.mem,
 		UsersService:       env.IdentityService,
-		BCryptCostOverride: bcrypt.MinCost,
+		BCryptCostOverride: env.bcryptCostOverride,
 		Modules:            env.modules,
 	})
 	if err != nil {
