@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,29 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint @typescript-eslint/no-explicit-any: off */
-
-declare module '*.svg' {
-  const content: string;
-  export default content;
-}
-
-declare module '*.svg?no-inline' {
-  const content: string;
-  export default content;
-}
-
-declare module '*.png' {
-  const content: string;
-  export default content;
-}
-
-declare module '*.png?no-inline' {
-  const content: string;
-  export default content;
-}
-
-declare module '*.jpg' {
-  const content: string;
-  export default content;
-}
+export { AuthenticatorIcon } from './AuthenticatorIcon';
+export { resolveAuthenticatorName, authenticatorSpec } from './authenticator';
