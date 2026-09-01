@@ -524,6 +524,10 @@ func (s *Server) makeResult(
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (messages.Response, error) {
+	// Validate the requested SystemRole with the payload the client sent.
+	if err := clientParams.CheckForRole(types.SystemRole(clientInit.SystemRole)); err != nil {
+		return nil, trace.Wrap(err, "validating client parameters")
+	}
 	switch types.SystemRole(clientInit.SystemRole) {
 	case types.RoleInstance:
 		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, token, rawClaims)
@@ -575,6 +579,9 @@ func makeHostCertsParams(
 	joinMethod types.JoinMethod,
 	rawClaims any,
 ) (*HostCertsParams, error) {
+	if hostParams == nil {
+		return nil, trace.BadParameter("HostParams is required to join as an Instance")
+	}
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
 	tlsPub, err := x509.ParsePKIXPublicKey(hostParams.PublicKeys.PublicTLSKey)
 	if err != nil {
@@ -663,6 +670,9 @@ func makeBotCertsParams(
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (*BotCertsParams, error) {
+	if botParams == nil {
+		return nil, trace.BadParameter("BotParams is required to join as a Bot")
+	}
 	// GenerateBotCertsForJoin requires the TLS key to be PEM-encoded.
 	tlsPub, err := x509.ParsePKIXPublicKey(botParams.PublicKeys.PublicTLSKey)
 	if err != nil {
