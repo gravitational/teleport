@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
@@ -228,7 +229,10 @@ func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 		return nil, trace.Errorf("account:ListRegions returned no enabled regions")
 	}
 
-	var resources types.ResourcesWithLabels
+	var (
+		resources        types.ResourcesWithLabels
+		permissionErrors []error
+	)
 	for _, region := range regions {
 		eksClient, err := f.regionClient(ctx, region)
 		if err != nil {
@@ -236,17 +240,38 @@ func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 				"region", region, "error", err)
 			continue
 		}
-		clusters, err := f.findClustersInRegion(ctx, eksClient)
+		clusters, err := f.findClustersInRegion(ctx, region, eksClient)
 		if err != nil {
-			f.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
-				"region", region, "error", err)
-			continue
+			if len(EKSDiscoveryPermissionErrors(err)) > 0 {
+				permissionErrors = append(permissionErrors, err)
+			} else {
+				f.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
+					"region", region, "error", err)
+			}
 		}
 		for _, cluster := range clusters {
 			resources = append(resources, cluster)
 		}
 	}
-	return resources, nil
+	return resources, trace.Wrap(trace.NewAggregate(permissionErrors...))
+}
+
+func (f *eksFetcher) newPermissionError(err error, region, cluster string) *EKSDiscoveryPermissionError {
+	accountID := "unknown"
+	if f.Matcher.AssumeRole != nil {
+		if roleARN, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
+			accountID = roleARN.AccountID
+		}
+	}
+	return &EKSDiscoveryPermissionError{
+		Integration:         f.Matcher.Integration,
+		AccountID:           accountID,
+		Region:              region,
+		Cluster:             cluster,
+		Operation:           EKSDiscoveryOperationDescribeCluster,
+		DiscoveryConfigName: f.DiscoveryConfigName,
+		Err:                 err,
+	}
 }
 
 // regionClient builds an EKS client scoped to one region with the matcher's
@@ -272,26 +297,34 @@ func matcherCredentialOpts(m types.AWSMatcher) []awsconfig.OptionsFn {
 }
 
 // findClustersInRegion lists EKS clusters reachable through eksClient and returns
-// the ones matching the matcher. Per-cluster errors are logged and swallowed so one
-// bad cluster cannot abort the region.
-func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClient) ([]*DiscoveredEKSCluster, error) {
+// the ones matching the matcher. Per-cluster permission errors are returned with
+// the partial result so one inaccessible cluster cannot abort the region.
+func (f *eksFetcher) findClustersInRegion(ctx context.Context, region string, eksClient EKSClient) ([]*DiscoveredEKSCluster, error) {
 	var (
-		clusters        []*DiscoveredEKSCluster
-		mu              sync.Mutex
-		group, groupCtx = errgroup.WithContext(ctx)
+		clusters         []*DiscoveredEKSCluster
+		permissionErrors []error
+		listErr          error
+		mu               sync.Mutex
+		group, groupCtx  = errgroup.WithContext(ctx)
 	)
 	group.SetLimit(concurrencyLimit)
 
 	for p := eks.NewListClustersPaginator(eksClient, nil); p.HasMorePages(); {
 		out, err := p.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			listErr = err
+			break
 		}
 		for _, clusterName := range out.Clusters {
 			group.Go(func() error {
 				cluster, err := f.getMatchingKubeCluster(groupCtx, eksClient, clusterName)
 				if trace.IsCompareFailed(err) {
 					f.Logger.DebugContext(groupCtx, "Cluster did not match the filtering criteria", "error", err, "cluster", clusterName)
+					return nil
+				} else if trace.IsAccessDenied(err) {
+					mu.Lock()
+					permissionErrors = append(permissionErrors, f.newPermissionError(err, region, clusterName))
+					mu.Unlock()
 					return nil
 				} else if err != nil {
 					f.Logger.WarnContext(groupCtx, "Failed to discover EKS cluster", "error", err, "cluster", clusterName)
@@ -308,7 +341,10 @@ func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClie
 
 	// The closures always return nil, so the group error is too.
 	_ = group.Wait()
-	return clusters, nil
+	if listErr != nil {
+		return nil, trace.Wrap(listErr)
+	}
+	return clusters, trace.Wrap(trace.NewAggregate(permissionErrors...))
 }
 
 func (f *eksFetcher) ResourceType() string {
@@ -347,6 +383,7 @@ func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSCl
 		},
 	)
 	if err != nil {
+		err = awslib.ConvertRequestFailureError(err)
 		return nil, trace.WrapWithMessage(err, "Unable to describe EKS cluster %q", clusterName)
 	}
 
