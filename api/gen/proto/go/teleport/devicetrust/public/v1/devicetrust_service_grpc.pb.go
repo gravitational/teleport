@@ -34,6 +34,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	DeviceTrustService_CreatePairedDeviceEnrollToken_FullMethodName = "/teleport.devicetrust.public.v1.DeviceTrustService/CreatePairedDeviceEnrollToken"
+	DeviceTrustService_EnrollDevice_FullMethodName                  = "/teleport.devicetrust.public.v1.DeviceTrustService/EnrollDevice"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -68,6 +69,22 @@ type DeviceTrustServiceClient interface {
 	// to retry. FailedPrecondition means that a concurrent request won and
 	// consumed the token.
 	CreatePairedDeviceEnrollToken(ctx context.Context, in *CreatePairedDeviceEnrollTokenRequest, opts ...grpc.CallOption) (*CreatePairedDeviceEnrollTokenResponse, error)
+	// EnrollDevice performs the device enrollment ceremony.
+	//
+	// Enrollment requires a previously-registered Device and a device enrollment
+	// token, see CreatePairedDeviceEnrollToken. The caller is identified by the
+	// token: the ceremony enrolls the device for the user the token was issued
+	// to, who must still pass authorization checks at ceremony time. Tokens not
+	// bound to a user, such as admin-issued tokens, are rejected.
+	//
+	// Only iOS and iPadOS devices may enroll through this RPC.
+	//
+	// iOS/iPadOS enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- IOSEnrollChallenge (server)
+	// -> IOSEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
+	EnrollDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EnrollDeviceRequest, EnrollDeviceResponse], error)
 }
 
 type deviceTrustServiceClient struct {
@@ -87,6 +104,19 @@ func (c *deviceTrustServiceClient) CreatePairedDeviceEnrollToken(ctx context.Con
 	}
 	return out, nil
 }
+
+func (c *deviceTrustServiceClient) EnrollDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EnrollDeviceRequest, EnrollDeviceResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &DeviceTrustService_ServiceDesc.Streams[0], DeviceTrustService_EnrollDevice_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[EnrollDeviceRequest, EnrollDeviceResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DeviceTrustService_EnrollDeviceClient = grpc.BidiStreamingClient[EnrollDeviceRequest, EnrollDeviceResponse]
 
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
@@ -120,6 +150,22 @@ type DeviceTrustServiceServer interface {
 	// to retry. FailedPrecondition means that a concurrent request won and
 	// consumed the token.
 	CreatePairedDeviceEnrollToken(context.Context, *CreatePairedDeviceEnrollTokenRequest) (*CreatePairedDeviceEnrollTokenResponse, error)
+	// EnrollDevice performs the device enrollment ceremony.
+	//
+	// Enrollment requires a previously-registered Device and a device enrollment
+	// token, see CreatePairedDeviceEnrollToken. The caller is identified by the
+	// token: the ceremony enrolls the device for the user the token was issued
+	// to, who must still pass authorization checks at ceremony time. Tokens not
+	// bound to a user, such as admin-issued tokens, are rejected.
+	//
+	// Only iOS and iPadOS devices may enroll through this RPC.
+	//
+	// iOS/iPadOS enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- IOSEnrollChallenge (server)
+	// -> IOSEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
+	EnrollDevice(grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]) error
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -132,6 +178,9 @@ type UnimplementedDeviceTrustServiceServer struct{}
 
 func (UnimplementedDeviceTrustServiceServer) CreatePairedDeviceEnrollToken(context.Context, *CreatePairedDeviceEnrollTokenRequest) (*CreatePairedDeviceEnrollTokenResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreatePairedDeviceEnrollToken not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) EnrollDevice(grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]) error {
+	return status.Error(codes.Unimplemented, "method EnrollDevice not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -172,6 +221,13 @@ func _DeviceTrustService_CreatePairedDeviceEnrollToken_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeviceTrustService_EnrollDevice_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DeviceTrustServiceServer).EnrollDevice(&grpc.GenericServerStream[EnrollDeviceRequest, EnrollDeviceResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DeviceTrustService_EnrollDeviceServer = grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -184,6 +240,13 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DeviceTrustService_CreatePairedDeviceEnrollToken_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "EnrollDevice",
+			Handler:       _DeviceTrustService_EnrollDevice_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "teleport/devicetrust/public/v1/devicetrust_service.proto",
 }
