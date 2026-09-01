@@ -208,6 +208,14 @@ func generateResource(
 	// a header field, while other resources expect these fields as top-level fields.
 	_, hasHeaderField := resource.(*headerResourceWrapper)
 	if hasHeaderField {
+		// Access list resources have top level scope field:
+		scope := msg.AttributeNamed("scope")
+		if scope != nil && !opts.fieldsToOmit["scope"] {
+			tokens := valueToTokens(fieldPath{"scope"}, scope.Value, opts, false /* emitZeroVal */)
+			if tokens != nil {
+				resourceBlock.Body().SetAttributeRaw("scope", tokens)
+			}
+		}
 		if header := msg.AttributeNamed("header"); header != nil && !opts.fieldsToOmit["header"] {
 			tokens := messageToTokens(fieldPath{"header"}, header.Value, opts)
 			if tokens != nil {
@@ -538,4 +546,20 @@ func (p fieldPath) withoutIndexes() fieldPath {
 		result = append(result, part)
 	}
 	return result
+}
+
+func ProviderBlock(majorVersion int64, proxyAddr string) string {
+	return fmt.Sprintf(`terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> %d.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = %q
+}
+`, majorVersion, proxyAddr)
 }
