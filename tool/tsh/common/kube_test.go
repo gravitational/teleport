@@ -59,7 +59,7 @@ import (
 )
 
 func TestKube(t *testing.T) {
-	pack := setupKubeTestPack(t, true)
+	pack := setupKubeTestPack(t, kubeFixtureKey{multiplexMode: true})
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
 	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
@@ -91,14 +91,14 @@ func TestKubeLogin(t *testing.T) {
 	}
 
 	t.Run("kube login with multiplex mode", func(t *testing.T) {
-		pack := setupKubeTestPack(t, true /* withMultiplexMode */)
+		pack := setupKubeTestPack(t, kubeFixtureKey{multiplexMode: true})
 		webProxyAddr, err := pack.root.ProxyWebAddr()
 		require.NoError(t, err)
 		testKubeLogin(t, pack.rootKubeCluster1, webProxyAddr.String())
 	})
 
 	t.Run("kube login without multiplex mode", func(t *testing.T) {
-		pack := setupKubeTestPack(t, false /* withMultiplexMode */)
+		pack := setupKubeTestPack(t, kubeFixtureKey{multiplexMode: false})
 		proxyAddr, err := pack.root.ProxyKubeAddr()
 		require.NoError(t, err)
 		addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", proxyAddr.Port(defaults.KubeListenPort)))
@@ -116,77 +116,22 @@ type kubeTestPack struct {
 	leafKubeCluster  string
 }
 
-func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
+// setupKubeTestPack returns a pack over the shared kube suite for key, logging
+// the current test in against it. The suite itself is built once per distinct
+// key and reused across -count iterations — see getKubeFixture.
+func setupKubeTestPack(t *testing.T, key kubeFixtureKey) *kubeTestPack {
 	t.Helper()
 
-	ctx := context.Background()
-	rootKubeCluster1 := "root-cluster"
-	rootKubeCluster2 := "first-cluster"
-	// mock a discovered kube cluster name in the leaf Teleport cluster.
-	leafKubeCluster := "leaf-cluster-some-suffix-added-by-discovery-service"
-	rootLabels := map[string]string{
-		"label1": "val1",
-		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
-	}
-	leafLabels := map[string]string{
-		"label1": "val1",
-		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
-		// mock a discovered kube cluster in the leaf Teleport cluster.
-		types.DiscoveredNameLabel: "leaf-cluster",
-	}
-
-	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			if withMultiplexMode {
-				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			}
-			cfg.InsecureMode = true
-			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-			cfg.Kube.StaticLabels = rootLabels
-			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
-			cfg.SSH.Enabled = false
-		}),
-		withLeafCluster(),
-		withLeafConfigFunc(
-			func(cfg *servicecfg.Config) {
-				if withMultiplexMode {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-				}
-				cfg.InsecureMode = true
-				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
-				cfg.Kube.StaticLabels = leafLabels
-				cfg.SSH.Enabled = false
-			},
-		),
-		withValidationFunc(func(s *suite) bool {
-			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
-			var foundRoot1, foundRoot2, foundLeaf bool
-			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
-				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
-			}
-
-			for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
-			}
-
-			return foundRoot1 && foundRoot2 && foundLeaf
-		}),
-	)
+	s := getKubeFixture(t, key)
 
 	mustLoginSetEnvLegacy(t, s)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
 		leafClusterName:  s.leaf.Config.Auth.ClusterName.GetClusterName(),
-		rootKubeCluster1: rootKubeCluster1,
-		rootKubeCluster2: rootKubeCluster2,
-		leafKubeCluster:  leafKubeCluster,
+		rootKubeCluster1: sharedRootKubeCluster1,
+		rootKubeCluster2: sharedRootKubeCluster2,
+		leafKubeCluster:  sharedLeafKubeCluster,
 	}
 }
 
@@ -249,11 +194,11 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
 					[][]string{
-						// "leaf-cluster" should be displayed instead of the
+						// The discovered name should be displayed instead of the
 						// full leaf cluster name, since it is mocked as a
 						// discovered resource and the discovered resource name
 						// is displayed in non-verbose mode.
-						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", sharedLeafKubeClusterDiscoveredName, formattedLeafLabels, ""},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""},
 					},
@@ -280,7 +225,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all", "--quiet"},
 			wantTable: func() string {
 				table := asciitable.MakeHeadlessTable(5)
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", sharedLeafKubeClusterDiscoveredName, formattedLeafLabels, ""})
 				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
 				return table.AsBuffer().String()
@@ -743,12 +688,14 @@ func TestKubeSelection(t *testing.T) {
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
-	tmpDir := t.TempDir()
+	return buildKubeConfigFile(t, t.TempDir(), newKubeSelfSubjectServer, clusterNames...)
+}
 
+func buildKubeConfigFile(t *testing.T, dir string, newServer func(t *testing.T) string, clusterNames ...string) string {
 	kubeConf := clientcmdapi.NewConfig()
 	for _, name := range clusterNames {
 		kubeConf.Clusters[name] = &clientcmdapi.Cluster{
-			Server:                newKubeSelfSubjectServer(t),
+			Server:                newServer(t),
 			InsecureSkipTLSVerify: true,
 		}
 		kubeConf.AuthInfos[name] = &clientcmdapi.AuthInfo{}
@@ -758,7 +705,7 @@ func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
 			AuthInfo: name,
 		}
 	}
-	kubeConfigLocation := filepath.Join(tmpDir, "kubeconfig")
+	kubeConfigLocation := filepath.Join(dir, "kubeconfig")
 	err := clientcmd.WriteToFile(*kubeConf, kubeConfigLocation)
 	require.NoError(t, err)
 	return kubeConfigLocation

@@ -5855,6 +5855,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webConfig := web.Config{
 			Proxy:                     tsrv,
+			HighRateLimiterConfig:     cfg.Proxy.WebUnauthenticatedHighRateLimiter,
 			AuthServers:               cfg.AuthServerAddresses()[0],
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
