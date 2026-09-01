@@ -311,7 +311,7 @@ of Teleport data:
 - Cluster state
 - Audit log events
 
-The PostgreSQL backend requires PostgreSQL 13 or later, and, for the cluster
+The PostgreSQL backend requires PostgreSQL 14 or later, and, for the cluster
 state only, the [`wal2json`](https://github.com/eulerto/wal2json) logical
 decoding plugin. The plugin is available in packages for all stable versions in
 the PostgreSQL [Apt](https://apt.postgresql.org/) and
@@ -322,11 +322,20 @@ its repository. The plugin is pre-installed with no extra steps to take in
 [Azure Database for
 PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql).
 
+The `wal2json` plugin should be added to the [`output_plugin_libraries` parameter](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-OUTPUT-PLUGIN-LIBRARIES) in `postgresql.conf`:
+
+```
+# the default is 'pgoutput, test_decoding', but if other plugins
+# are in use, make sure to add wal2json to the existing list
+# rather than replacing it
+output_plugin_libraries = 'pgoutput, test_decoding, wal2json'
+```
+
 <Admonition type="warning">
 
-Starting from PostgreSQL versions 18.6, 17.11, 16.15, 15.19, and 14.24, the correct setup of `wal2json` for use by Teleport requires setting the [`output_plugin_libraries` parameter](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-OUTPUT-PLUGIN-LIBRARIES) in the PostgreSQL config file to include `wal2json`.
+The requirement for `output_plugin_libraries` is new starting from PostgreSQL versions 18.6, 17.11, 16.15, 15.19, and 14.24.
 
-If this is not done during the first setup, or if PostgreSQL is later upgraded to a version that needs the `output_plugin_libraries` parameter, the Teleport Auth Service instances will periodically output error logs containing `Change feed stream lost.` and `ERROR: library "wal2json" may not be used as an output plugin (SQLSTATE 42501)`. The problem is temporary and no data is lost, but the Teleport cluster will not work correctly until the PostgreSQL configuration is fixed.
+If the `output_plugin_libraries` parameter was not configured during the initial setup and PostgreSQL is later upgraded to a version that needs it, the Teleport Auth Service instances will periodically output error logs containing `Change feed stream lost.` and `ERROR: library "wal2json" may not be used as an output plugin (SQLSTATE 42501)`. The problem is temporary and no data is lost, but the Teleport cluster will not work correctly until the PostgreSQL configuration is fixed.
 
 </Admonition>
 
