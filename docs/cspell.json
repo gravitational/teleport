@@ -861,6 +861,7 @@
     "pg_trgm",
     "pgaadauth",
     "pgbouncer",
+    "pgoutput",
     "pgpass",
     "pgrep",
     "pguser",
