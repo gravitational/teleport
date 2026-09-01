@@ -115,6 +115,25 @@ test('getSsoUrl', () => {
   );
 });
 
+test('getUsersUrlV2 includes params', () => {
+  expect(
+    cfg.getUsersUrlV2({
+      startKey: 'next',
+      search: 'alice',
+      limit: 25,
+      searchMode: 'identity',
+    })
+  ).toEqual(
+    '/v2/webapi/users?startKey=next&search=alice&limit=25&searchMode=identity'
+  );
+});
+
+test('getUsersUrlV2 clears optional params', () => {
+  expect(cfg.getUsersUrlV2()).toEqual(
+    '/v2/webapi/users?startKey=&search=&limit=&searchMode='
+  );
+});
+
 describe('MFA helpers', () => {
   const original = {
     second_factor: cfg.auth.second_factor,

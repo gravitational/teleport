@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -73,7 +74,11 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	values := r.URL.Query()
+	return listUsers(r.Context(), r.URL.Query(), clt)
+}
+
+func listUsers(ctx context.Context, values url.Values, clt userAPIGetter) (*listUsersResponse, error) {
+	searchMode := parseUserSearchMode(values.Get("searchMode"))
 
 	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
@@ -81,18 +86,19 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 	}
 
 	users, nextToken, _, err := clientutils.Page(
-		r.Context(),
+		ctx,
 		int(limit),
 		values.Get("startKey"),
 		func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
-			resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+			resp, err := clt.ListUsers(ctx, userspb.ListUsersRequest_builder{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
 				Filter: &types.UserFilter{
 					SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
 					SkipSystemUsers: true,
+					SearchMode:      searchMode,
 				},
-			})
+			}.Build())
 
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -126,6 +132,13 @@ type listUsersResponse struct {
 	Items []ui.UserListEntry `json:"items"`
 	// StartKey is the position from which to resume search.
 	StartKey string `json:"startKey"`
+}
+
+func parseUserSearchMode(value string) types.UserSearchMode {
+	if value == "identity" {
+		return types.UserSearchMode_USER_SEARCH_MODE_IDENTITY
+	}
+	return types.UserSearchMode_USER_SEARCH_MODE_UNSPECIFIED
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {

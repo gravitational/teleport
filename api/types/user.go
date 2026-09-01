@@ -40,7 +40,11 @@ const (
 // Match checks if the given user matches this filter.
 func (f *UserFilter) Match(user *UserV2) bool {
 	if len(f.SearchKeywords) > 0 {
-		if !user.MatchSearch(f.SearchKeywords) {
+		if f.SearchMode == UserSearchMode_USER_SEARCH_MODE_IDENTITY {
+			if !user.MatchSearchIdentity(f.SearchKeywords) {
+				return false
+			}
+		} else if !user.MatchSearch(f.SearchKeywords) {
 			return false
 		}
 	}
@@ -304,6 +308,11 @@ Outer:
 	}
 
 	return true
+}
+
+// MatchSearchIdentity matches search values against the user's username.
+func (u *UserV2) MatchSearchIdentity(values []string) bool {
+	return MatchSearch([]string{u.GetName()}, values, nil)
 }
 
 // MatchTraits takes a map of traits and returns `true` if the user's
