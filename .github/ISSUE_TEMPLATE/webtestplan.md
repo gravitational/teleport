@@ -899,21 +899,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Windows
     - [ ] Linux
 - Shell
-  - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf
-        clusters).
-    - That is, opening new shell sessions in other workspaces or other clusters within the same
-      workspace should have no impact on the original shell session.
-  - [ ] Verify that the local shell is opened with correct env vars.
-    - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
-    - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
-    - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
-  - [ ] Verify that the working directory in the tab title is updated when you change the directory
-        (only for local terminals).
+  - These items are verified by e2e tests on Linux and can be verified on macOS by executing the tests
+    manually:
+    - [ ] Verify that the local shell is opened with correct env vars.
+      - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
+      - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
+      - `PATH` should include `/Applications/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/MacOS`.
+    - [ ] Verify that the working directory in the tab title is updated when you change the directory
+          (only for local terminals).
+    - [ ] Verify that the tab automatically closes on `$ exit` command.
   - [ ] Verify that terminal resize works for both local and remote shells.
     - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
     - Run the program: `$ mc`
     - Resize Teleport Connect to see if the panels resize with it
-  - [ ] Verify that the tab automatically closes on `$ exit` command.
   - [ ] Verify that [Connect doesn't leave orphaned processes](https://github.com/gravitational/teleport/issues/27125).
     - Open a local shell session in Connect.
     - Open Activity Monitor, then View -> All Processes, Hierarchically.
@@ -922,6 +920,8 @@ Add the following to enable read access to trusted clusters
     - Double-click that shell process to open a window with process details.
     - Close Teleport Connect without closing the tab first.
     - Verify that the separate Activity Monitor window for that process now says "terminated".
+    - On Windows, you can open PowerShell, type `$PID`, close the app and then see if the relevant
+      PowerShell process has disappeared from Task Manager.
   - Verify that all items from this section work on:
     - [ ] macOS
     - [ ] Windows
@@ -956,25 +956,25 @@ Add the following to enable read access to trusted clusters
     - [ ] Windows
     - [ ] Linux
 - State restoration from disk
-  - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
-        properly.
-  - [ ] Verify that the app opens with the cluster that was active when you closed the app.
-  - [ ] Verify that the app remembers size & position after restart.
-    - Verify that this works on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
+  - These items are verified by e2e tests on Linux and can be verified on macOS by executing the tests
+    manually. They do not need to be manually tested on Windows.
+    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
+          properly.
+    - [ ] Verify that the app opens with the cluster that was active when you closed the app.
+    - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh` doesn't crash the app.
+    - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json` but not the `tsh` dir doesn't crash the app.
+    - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
+          remember previous tabs (they should be cleared on logout).
+    - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
+          the app. Verify that the app doesn't ask you about restoring previous tabs.
+    - [ ] Verify that the app remembers size & position after restart.
+  - [ ] On Windows, verify that the app remembers size & position after restart.
+    - This is a part of e2e tests, but it's OS-dependent so we have to run it on Windows manually.
   - [ ] Verify that [reopening a cluster that has no workspace
         assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh` doesn't crash the app.
-  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json` but not the `tsh` dir doesn't crash the app.
-  - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
-        remember previous tabs (they should be cleared on logout).
   - [ ] Open a db connection tab. Change the db name and port. Close the tab. Restart the app. Open
         connection tracker and choose said db connection from it. Verify that the newly opened tab uses
         the same db name and port.
-  - [ ] Log in to a cluster. Close the DocumentCluster tab. Open a new DocumentCluster tab. Restart
-        the app. Verify that the app doesn't ask you about restoring previous tabs.
 - Connections picker
   - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
   - [ ] Check if those connections are available after the app restart.
@@ -1102,55 +1102,6 @@ Add the following to enable read access to trusted clusters
     proxy, then without logging in proceed to connect to the second proxy.
     - [ ] Verify that an error notification was shown related to another login attempt being in
           progress.
-- Access Requests
-  - **Creating Access Requests (Role Based)**
-    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
-    `allow-users-with-short-ttl` are listed
-    - [ ] Verify you can select/input/modify reviewers
-    - [ ] Verify you can view the request you created from request list (should be in a pending
-    state)
-    - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-    suggested_reviewers wasn't defined)
-    - [ ] Verify you can't review own requests
-  - **Creating Access Requests (Search Based)**
-    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Resource Based)` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
-    - [ ] Verify you can select/input/modify reviewers
-    - [ ] Verify you can view the request you created from request list (should be in a pending
-    state)
-    - [ ] Verify there is list of reviewers you selected (empty list if none selected AND
-    suggested_reviewers wasn't defined)
-    - [ ] Verify you can't review own requests
-    - [ ] Verify that you can mix adding resources from the root and leaf clusters.
-    - [ ] Verify that you can't mix roles and resources into the same request.
-    - [ ] Verify that you can request resources from both the unified view and the search bar.
-  - **Viewing & Approving/Denying Requests**
-    - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying Requests` from the Web UI testplan and then verify the tasks below.
-    - [ ] Verify you can view access request from request list
-    - [ ] Verify you can approve a request with message, and immediately see updated state with
-          your review stamp (green checkmark) and message box
-    - [ ] Verify you can deny a request, and immediately see updated state with your review stamp
-          (red cross)
-    - [ ] Verify deleting the denied request is removed from list
-  - **Assuming Approved Requests (Role Based)**
-    - [ ] Verify that assuming `allow-roles-and-nodes` allows you to ssh into nodes.
-    - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl`
-          denies access to nodes.
-    - [ ] Verify that in the top right there's "Access Requests" menu which shows available requests
-          and a count down of when each of them it expires.
-    - [ ] Verify that dropping all assumed roles goes back to your default static role (roles are
-          listed in the identity picker in the top right).
-    - [ ] Verify that after re-assuming `allow-users-with-short-ttl` role and waiting until the
-          request expires (up to 4 minutes), the Access Requests menu says that the request has expired.
-  - **Assuming Approved Requests (Search Based)**
-    - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
-  - **Assuming Approved Requests (Both)**
-    - [ ] Verify assume buttons are only present for approved request and for logged in user
-    - [ ] Verify that after clicking on the assume button, it is disabled in both the list and in
-          viewing
-    - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
-          again
 - Configuration
   - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
     - Verify that this works on:
@@ -1193,9 +1144,9 @@ Add the following to enable read access to trusted clusters
   - [ ] Log in. Verify that you were asked for both PIN and touch.
   - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
   - [ ] Change the default PIN and PUK (leave the PIV PIN field empty during login to access this flow)
-    - To change the default PIN and PUK, you need to reset them to the default values. Open YubiKey
-      Manager, then **Applications → PIV, then "Reset PIV"**. Make sure you're picking **"Reset PIV"**
-      and not "Reset FIDO", as "Reset FIDO" will wipe all passkeys from your YubiKey!
+    - To change the default PIN and PUK, you need to reset them to the default values. Open [Yubico Authenticator](https://apps.apple.com/us/app/yubico-authenticator/id1497506650?mt=12),
+      then **Home → Factory Reset** and select **PIV**. _Do not_ reset FIDO2 as it will wipe all passkeys
+      from your YubiKey!
   - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
   - Verify that all items from this section work on:
     - [ ] macOS
