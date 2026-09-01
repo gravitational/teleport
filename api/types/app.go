@@ -71,6 +71,9 @@ type Application interface {
 	IsAzureCloud() bool
 	// IsGCP returns true if this app represents GCP instance.
 	IsGCP() bool
+	// GetCloud returns the cloud provider (e.g. "AWS", "Azure", "GCP") or
+	// empty if the app is not a cloud app.
+	GetCloud() string
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
@@ -95,6 +98,9 @@ type Application interface {
 	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
+	// SupportsIntegration returns true if the app type supports the integration
+	// credential flow on the Proxy.
+	SupportsIntegration() bool
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
@@ -311,6 +317,17 @@ func (a *AppV3) IsAWSConsole() bool {
 	return a.Spec.Cloud == CloudAWS
 }
 
+// SupportsIntegration returns true if the app type supports the integration
+// credential flow on the Proxy.
+func (a *AppV3) SupportsIntegration() bool {
+	switch a.GetProtocol() {
+	case ApplicationProtocolHTTP:
+		return a.IsAWSConsole()
+	default:
+		return false
+	}
+}
+
 // IsAzureCloud returns true if this app is Azure Cloud instance.
 func (a *AppV3) IsAzureCloud() bool {
 	return a.Spec.Cloud == CloudAzure
@@ -319,6 +336,12 @@ func (a *AppV3) IsAzureCloud() bool {
 // IsGCP returns true if this app is GCP instance.
 func (a *AppV3) IsGCP() bool {
 	return a.Spec.Cloud == CloudGCP
+}
+
+// GetCloud returns the cloud provider (e.g. "AWS", "Azure", "GCP") or empty
+// if the app is not a cloud app.
+func (a *AppV3) GetCloud() string {
+	return a.Spec.Cloud
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
