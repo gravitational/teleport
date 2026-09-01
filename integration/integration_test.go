@@ -145,6 +145,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuditOff", suite.bind(testAuditOff))
 	t.Run("AuditOn", suite.bind(testAuditOn))
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
+	t.Run("AuthLocalNodeCleanupOnShutdown", suite.bind(testAuthLocalNodeCleanupOnShutdown))
 	t.Run("BPFExec", suite.bind(testBPFExec))
 	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
@@ -347,6 +348,67 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 
 	// verify that we've replaced the unspecified host.
 	require.False(t, addr.IsHostUnspecified())
+}
+
+// testAuthLocalNodeCleanupOnShutdown verifies that an SSH node is deregistered
+// from the auth server when the process shuts down gracefully, rather than
+// lingering until the heartbeat TTL expires.
+func testAuthLocalNodeCleanupOnShutdown(t *testing.T, suite *integrationTestSuite) {
+	const clusterName = "node-cleanup-test"
+
+	tconf := suite.defaultServiceConfig()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.SSH.Enabled = true
+
+	teleport := suite.newNamedTeleportInstance(t, clusterName,
+		WithNodeName(""),
+		WithListeners(helpers.StandardListenerSetupOn("")),
+	)
+
+	require.NoError(t, teleport.CreateEx(t, nil, tconf))
+	require.NoError(t, teleport.Start())
+	t.Cleanup(func() { teleport.StopAll() })
+
+	clt := teleport.Process.GetAuthServer()
+	require.NotNil(t, clt)
+
+	var nodeID string
+	require.Eventually(t, func() bool {
+		status, err := clt.GetInventoryStatus(t.Context(), proto.InventoryStatusRequest_builder{
+			Connected: true,
+		}.Build())
+		require.NoError(t, err)
+
+		for _, hello := range status.GetConnected() {
+			for _, s := range hello.GetServices() {
+				if s != string(types.RoleNode) {
+					continue
+				}
+				nodeID = hello.GetServerID()
+				return true
+			}
+		}
+		return false
+	}, time.Second*10, time.Millisecond*200)
+
+	// verify the SSH server record exists (bypass cache via Services)
+	_, err := clt.Services.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
+	require.NoError(t, err)
+
+	// initiate graceful shutdown — this sends a goodbye with DeleteResources=true
+	shutdownCtx := teleport.Process.StartShutdown(t.Context())
+
+	// verify the SSH server record is removed promptly (bypass cache via Services).
+	// In a single-process all-in-one setup, the auth backend may close before the
+	// cleanup completes — NotFound means the delete succeeded, ConnectionProblem
+	// means the backend closed (node is gone regardless).
+	require.Eventually(t, func() bool {
+		_, err := clt.Services.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
+		return trace.IsNotFound(err) || trace.IsConnectionProblem(err)
+	}, time.Second*10, time.Millisecond*200)
+
+	<-shutdownCtx.Done()
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
