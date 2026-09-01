@@ -145,14 +145,17 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 		ActiveDirectorySID: s.ldapConfig.serviceAccountSID,
 	}
 
-	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, s.authClient, req)
+	credsResp, err := winpki.DatabaseCredentials(ctx, s.authClient, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(ctx, "Received credentials for LDAP access", "ignored_ca_cert_count", len(caCerts))
+	s.logger.DebugContext(ctx, "Received credentials for LDAP access",
+		"ignored_ca_cert_count", len(credsResp.CACertsPEM),
+		"ignored_trust_chain_count", len(credsResp.TrustChainPEM),
+	)
 
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	cert, err := tls.X509KeyPair(credsResp.CertPEM, credsResp.KeyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
