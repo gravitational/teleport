@@ -1,7 +1,7 @@
 module "teleport_db_service" {
   # TODO(gavin): change this to the published module version
-  # source  = "terraform.releases.teleport.dev/teleport/container-service/aws"
-  source = "../../container-service/aws"
+  # source  = "terraform.releases.teleport.dev/teleport/agent/aws"
+  source = "../../agent/aws"
 
   apply_aws_tags                                = var.apply_aws_tags
   assign_public_ip                              = var.assign_public_ip

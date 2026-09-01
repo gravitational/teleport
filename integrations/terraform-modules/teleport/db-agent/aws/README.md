@@ -39,7 +39,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| teleport\_db\_service | ../../container-service/aws | n/a |
+| teleport\_db\_service | ../../agent/aws | n/a |
 
 ## Resources
 
@@ -108,7 +108,6 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport ECS task. |
 | ecs\_task\_role\_name | The name of the task IAM role for the Teleport ECS task. |
 | security\_group\_id | Security group ID created for the Teleport ECS service. |
-| teleport\_config | Teleport configuration used by the ECS task. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
 | teleport\_provision\_token\_name | Name of the Teleport provision token that allows the to join the cluster using AWS IAM credentials. |
 <!-- END_TF_DOCS -->
