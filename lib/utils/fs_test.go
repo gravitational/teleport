@@ -50,6 +50,7 @@ func TestOpenFileLinks(t *testing.T) {
 	case "darwin":
 		rootDir, err = os.MkdirTemp("/private/tmp", "teleport-test-*")
 		require.NoError(t, err)
+		require.NotZero(t, rootDir)
 
 		t.Cleanup(func() {
 			err := os.RemoveAll(rootDir)
