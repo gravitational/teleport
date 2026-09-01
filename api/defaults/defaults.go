@@ -82,6 +82,10 @@ const (
 	// BreakerRatioMinExecutions is the minimum number of requests before the ratio tripper
 	// will consider examining the request pass rate
 	BreakerRatioMinExecutions = 10
+
+	// MaxAuditEventsBatchSize is the cap for how many audit events can be
+	// forwarded via the EmitAuditEvents RPC.
+	MaxAuditEventsBatchSize = 1000
 )
 
 var (

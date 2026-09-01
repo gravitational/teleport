@@ -447,20 +447,22 @@ func (l *AuditLog) cleanupOldPlaybacks() error {
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
-	// If an external logger has been set, use it as the emitter, otherwise
-	// fallback to the local disk based emitter.
-	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
+	return trace.Wrap(l.targetEmitter().EmitAuditEvent(ctx, event))
+}
 
+var _ apievents.BatchEmitter = (*AuditLog)(nil)
+
+// EmitAuditEvents adds a batch of events to the local file log
+func (l *AuditLog) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+	return trace.Wrap(EmitAuditEvents(ctx, l.targetEmitter(), events))
+}
+
+func (l *AuditLog) targetEmitter() apievents.Emitter {
 	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEvent
-	} else {
-		emitAuditEvent = l.getLocalLog().EmitAuditEvent
+		return l.ExternalLog
 	}
-	err := emitAuditEvent(ctx, event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return l.getLocalLog()
 }
 
 // CurrentFileSymlink returns the path to the symlink pointing at the current
