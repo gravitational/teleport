@@ -5727,6 +5727,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		ServerID: a.ServerID,
 		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
 			NodeHeartbeats:                true,
+			NodeCleanup:                   true,
 			AppHeartbeats:                 true,
 			AppCleanup:                    true,
 			DatabaseHeartbeats:            true,

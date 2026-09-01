@@ -103,6 +103,17 @@ func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.Ke
 	return &types.KeepAlive{}, a.err
 }
 
+func (a *fakeAuth) DeleteSSHServer(_ context.Context, req *presencev1.DeleteSSHServerRequest) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
+}
+
 func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -264,6 +275,7 @@ func TestSSHServerBasics(t *testing.T) {
 	synctest.Test(t, testSSHServerBasics)
 	synctest.Test(t, testSSHServerScope)
 	synctest.Test(t, testSSHServerImmutableLabels)
+	synctest.Test(t, testSSHServerCleanupOnGoodbye)
 }
 
 func testSSHServerScope(t *testing.T) {
@@ -505,6 +517,74 @@ func testSSHServerImmutableLabels(t *testing.T) {
 	case <-closeTimeout:
 		t.Fatal("timeout waiting for handle closure")
 	}
+}
+
+func testSSHServerCleanupOnGoodbye(t *testing.T) {
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build())
+
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: "0.0.0.0:123",
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	awaitEvents(t, events,
+		expect(sshUpsertOk),
+		deny(sshUpsertErr, handlerClose),
+	)
+
+	auth.mu.Lock()
+	require.Zero(t, auth.deletes)
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.UpstreamInventoryGoodbye_builder{
+		DeleteResources: true,
+	}.Build())
+	require.NoError(t, err)
+
+	downstream.Close()
+
+	awaitEvents(t, events,
+		expect(handlerClose),
+	)
+
+	auth.mu.Lock()
+	require.Equal(t, 1, auth.deletes)
+	auth.mu.Unlock()
 }
 
 func testSSHServerBasics(t *testing.T) {

@@ -57,6 +57,7 @@ import (
 // to the controller in order for it to be able to handle control streams.
 type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
+	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
 
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 	UnconditionalUpdateApplicationServer(context.Context, types.AppServer) (types.AppServer, error)
@@ -759,6 +760,7 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 	cleanupCtx, cancel := context.WithTimeout(c.closeContext, c.cleanupTimeout)
 	defer cancel()
 	slog.DebugContext(c.closeContext, "Cleaning up resources in response to instance termination",
+		"ssh", handle.sshServer != nil,
 		"apps", len(handle.appServers),
 		"dbs", len(handle.databaseServers),
 		"kube", len(handle.kubernetesServers),
@@ -771,6 +773,22 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 		if err := c.auth.DeleteRelayServer(c.closeContext, handle.Hello().GetServerID()); err != nil {
 			slog.WarnContext(c.closeContext, "Failed to delete relay_server on termination",
 				"relay_server", handle.Hello().GetServerID(),
+				"error", err,
+			)
+		}
+	}
+
+	if handle.sshServer != nil {
+		if err := c.auth.DeleteSSHServer(cleanupCtx, presencev1.DeleteSSHServerRequest_builder{
+			Name:  handle.sshServer.resource.GetName(),
+			Scope: handle.sshServer.resource.GetScope(),
+		}.Build()); err != nil && !trace.IsNotFound(err) {
+			if cleanupCtx.Err() != nil {
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().GetServerID(), "error", err)
+				return
+			}
+			slog.WarnContext(c.closeContext, "Failed to remove SSH server on termination",
+				"ssh_server", handle.Hello().GetServerID(),
 				"error", err,
 			)
 		}
