@@ -33,8 +33,10 @@ func runDeniedSSHCommandProperty(ctx context.Context, params *TestCaseParams) er
 		"stdout":  stdout.String(),
 		"stderr":  stderr.String(),
 	})
+
+	// When no nodes are found the target resolution on SSH can return BadParameter no nodes.
 	denied := trace.IsAccessDenied(err) || trace.IsConnectionProblem(err) ||
-		(params.Target.usesResourceMatcher() && trace.IsNotFound(err))
+		(params.Target.usesResourceMatcher() && (trace.IsNotFound(err) || trace.IsBadParameter(err)))
 	assert.AlwaysOrUnreachable(denied, "Denied identity cannot SSH to target", details)
 	if err == nil {
 		return trace.Errorf("running SSH command unexpectedly succeeded")

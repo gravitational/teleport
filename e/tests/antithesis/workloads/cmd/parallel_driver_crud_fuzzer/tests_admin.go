@@ -77,8 +77,18 @@ func runReadYourUpdatesProperty(ctx context.Context, params *TestCaseParams) err
 		return trace.Wrap(err, "setting label")
 	}
 
-	_, err = ops.Update(ctx, current)
-	assert.Sometimes(err == nil, "Sometimes updating a resource for read-your-updates succeeds", details)
+	// Some resources perform a read before doing an update. We are not guaranteed to be hitting the same
+	// auth instance and thus this may fail due to cache propagation.
+	err = eventually.Assert(ctx, eventually.AssertParams{
+		Message: "Sometimes updating a resource for read-your-updates succeeds",
+		Timeout: writeReplicationTimeout,
+		Details: details,
+		Condition: func(ctx context.Context, _ eventually.AddDetailFunc) (bool, error) {
+			_, err = ops.Update(ctx, current)
+			return err == nil, err
+		},
+		Assertion: assert.Sometimes,
+	})
 	if err != nil {
 		return trace.Wrap(err, "updating resource")
 	}
@@ -165,8 +175,18 @@ func runUpdatesBumpRevisionProperty(ctx context.Context, params *TestCaseParams)
 		return trace.Wrap(err, "setting label")
 	}
 
-	_, err = ops.Update(ctx, resource)
-	assert.Sometimes(err == nil, "Sometimes updating a resource with the current revision succeeds", details)
+	// Some resources perform a read before doing an update. We are not guaranteed to be hitting the same
+	// auth instance and thus this may fail due to cache propagation.
+	err = eventually.Assert(ctx, eventually.AssertParams{
+		Message: "Sometimes updating a resource with the current revision succeeds",
+		Timeout: writeReplicationTimeout,
+		Details: details,
+		Condition: func(ctx context.Context, _ eventually.AddDetailFunc) (bool, error) {
+			_, err = ops.Update(ctx, resource)
+			return err == nil, err
+		},
+		Assertion: assert.Sometimes,
+	})
 	if err != nil {
 		return trace.Wrap(err, "updating resource")
 	}
@@ -214,8 +234,18 @@ func runStaleResourceUpdateProperty(ctx context.Context, params *TestCaseParams)
 		return trace.Wrap(err, "setting label")
 	}
 
-	_, err = ops.Update(ctx, resource)
-	assert.Sometimes(err == nil, "Sometimes updating a resource before stale-revision update succeeds", details)
+	// Some resources perform a read before doing an update. We are not guaranteed to be hitting the same
+	// auth instance and thus this may fail due to cache propagation.
+	err = eventually.Assert(ctx, eventually.AssertParams{
+		Message: "Sometimes updating a resource before stale-revision update succeeds",
+		Timeout: writeReplicationTimeout,
+		Details: details,
+		Condition: func(ctx context.Context, _ eventually.AddDetailFunc) (bool, error) {
+			_, err = ops.Update(ctx, resource)
+			return err == nil, err
+		},
+		Assertion: assert.Sometimes,
+	})
 	if err != nil {
 		return trace.Wrap(err, "updating resource")
 	}
@@ -225,12 +255,23 @@ func runStaleResourceUpdateProperty(ctx context.Context, params *TestCaseParams)
 		return trace.Wrap(err, "setting label")
 	}
 
-	_, err = ops.Update(ctx, resource)
-	assert.AlwaysOrUnreachable(trace.IsCompareFailed(err), "Updating with a stale revision is rejected", details)
-	if err == nil {
-		return trace.Errorf("updating resource with a stale revision unexpectedly succeeded")
-	}
-	if !trace.IsCompareFailed(err) {
+	err = eventually.Assert(ctx, eventually.AssertParams{
+		Message: "Updating with a stale revision is rejected",
+		Timeout: writeReplicationTimeout,
+		Details: details,
+		Condition: func(ctx context.Context, _ eventually.AddDetailFunc) (bool, error) {
+			_, err := ops.Update(ctx, resource)
+			if trace.IsCompareFailed(err) {
+				return true, nil
+			} else if err == nil {
+				assert.Unreachable("Updating resource with a stale revision should never succeed", details)
+				return false, trace.Errorf("updating resource with a stale revision unexpectedly succeeded")
+			}
+			return false, err
+		},
+	})
+
+	if err != nil {
 		return trace.Wrap(err, "updating resource")
 	}
 
