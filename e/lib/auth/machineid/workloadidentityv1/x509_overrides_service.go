@@ -18,11 +18,20 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	eservices "github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// ErrOverrideDeprecated indicates that workload_identity_x509_issuer_override resources are deprecated and can no
+// longer be created or updated.
+var ErrOverrideDeprecated = &trace.BadParameterError{
+	Message: "creating or updating workload_identity_x509_issuer_override resources is no longer supported " +
+		"as of Teleport v19; existing overrides remain in effect and can still be read and deleted. " +
+		"To configure an X.509 issuer override, create a cert_authority_override resource instead " +
+		"(tctl auth create-override-csr --type=spiffe-tls, then tctl auth create-override --type=spiffe-tls <cert.pem>). " +
+		"See https://goteleport.com/docs/zero-trust-access/management/security/ca-overrides/ for details",
+}
 
 type CertAuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
@@ -243,95 +252,17 @@ func (s *X509OverridesService) ListX509IssuerOverrides(ctx context.Context, req 
 
 // CreateX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) CreateX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.CreateX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource := req.GetX509IssuerOverride()
-	if _, err := eservices.ParseWorkloadIdentityX509IssuerOverride(resource); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newResource, err := s.storage.CreateX509IssuerOverride(ctx, resource)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityX509IssuerOverrideCreate{
-		Metadata: apievents.Metadata{
-			Type: events.WorkloadIdentityX509IssuerOverrideCreateEvent,
-			Code: events.WorkloadIdentityX509IssuerOverrideCreateCode,
-		},
-		UserMetadata:       authz.ClientUserMetadata(ctx),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: newResource.GetMetadata().GetName(),
-		},
-	})
-
-	return newResource, nil
+	return nil, trace.Wrap(ErrOverrideDeprecated)
 }
 
 // UpdateX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) UpdateX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.UpdateX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource := req.GetX509IssuerOverride()
-	if _, err := eservices.ParseWorkloadIdentityX509IssuerOverride(resource); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newResource, err := s.storage.UpdateX509IssuerOverride(ctx, resource)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityX509IssuerOverrideCreate{
-		Metadata: apievents.Metadata{
-			Type: events.WorkloadIdentityX509IssuerOverrideCreateEvent,
-			Code: events.WorkloadIdentityX509IssuerOverrideCreateCode,
-		},
-		UserMetadata:       authz.ClientUserMetadata(ctx),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: newResource.GetMetadata().GetName(),
-		},
-	})
-
-	return newResource, nil
+	return nil, trace.Wrap(ErrOverrideDeprecated)
 }
 
 // UpsertX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) UpsertX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.UpsertX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource := req.GetX509IssuerOverride()
-	if _, err := eservices.ParseWorkloadIdentityX509IssuerOverride(resource); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newResource, err := s.storage.UpsertX509IssuerOverride(ctx, req.GetX509IssuerOverride())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityX509IssuerOverrideCreate{
-		Metadata: apievents.Metadata{
-			Type: events.WorkloadIdentityX509IssuerOverrideCreateEvent,
-			Code: events.WorkloadIdentityX509IssuerOverrideCreateCode,
-		},
-		UserMetadata:       authz.ClientUserMetadata(ctx),
-		ConnectionMetadata: authz.ConnectionMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name: newResource.GetMetadata().GetName(),
-		},
-	})
-
-	return newResource, nil
+	return nil, trace.Wrap(ErrOverrideDeprecated)
 }
 
 // DeleteX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
