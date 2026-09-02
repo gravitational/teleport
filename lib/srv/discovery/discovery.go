@@ -1786,6 +1786,28 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 		s.Log.WarnContext(s.ctx, "Discarding Kubernetes matchers - missing integration")
 		m.Kubernetes = []types.KubernetesMatcher{}
 	}
+
+	if m.AccessGraph != nil {
+		var validAcessGraphAWSMatchers []*types.AccessGraphAWSSync
+		for i, m := range m.AccessGraph.AWS {
+			if m.Integration == "" {
+				s.Log.WarnContext(s.ctx, "Discarding Access Graph AWS matcher - missing integration", "matcher_pos", i)
+				continue
+			}
+			validAcessGraphAWSMatchers = append(validAcessGraphAWSMatchers, m)
+		}
+		m.AccessGraph.AWS = validAcessGraphAWSMatchers
+
+		var validAccessGraphAzureMatchers []*types.AccessGraphAzureSync
+		for i, m := range m.AccessGraph.Azure {
+			if m.Integration == "" {
+				s.Log.WarnContext(s.ctx, "Discarding Access Graph Azure matcher - missing integration", "matcher_pos", i)
+				continue
+			}
+			validAccessGraphAzureMatchers = append(validAccessGraphAzureMatchers, m)
+		}
+		m.AccessGraph.Azure = validAccessGraphAzureMatchers
+	}
 }
 
 // Stop stops the discovery service.
