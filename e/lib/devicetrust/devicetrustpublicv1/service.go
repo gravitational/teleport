@@ -234,7 +234,7 @@ func (s *Service) requestEnrollment(ctx context.Context, token string, cd *devic
 			"CreatePairedDeviceEnrollToken: enroll pairing lookup failed",
 			"error", err,
 		)
-		return nil, maskPairingLookupError(ctx, err, errInvalidPairingToken)
+		return nil, redactPairingLookupError(ctx, err, errInvalidPairingToken)
 	}
 	user = pairing.GetMetadata().GetName()
 
@@ -246,7 +246,7 @@ func (s *Service) requestEnrollment(ctx context.Context, token string, cd *devic
 			"CreatePairedDeviceEnrollToken: user authorization failed",
 			"error", err,
 		)
-		return nil, maskUserAuthzError(ctx, err)
+		return nil, redactUserAuthzError(ctx, err)
 	}
 
 	device := devicepb.EnrollPairingDevice_builder{
@@ -290,7 +290,7 @@ func (s *Service) claimPairing(ctx context.Context, pairing *devicepb.EnrollPair
 					"CreatePairedDeviceEnrollToken: enroll pairing claim failed",
 					"error", err,
 				)
-				return nil, false, maskPairingLookupError(ctx, err, errInvalidPairingToken)
+				return nil, false, redactPairingLookupError(ctx, err, errInvalidPairingToken)
 			}
 
 			// err is CompareFailed. A concurrent request claimed the pairing between
@@ -302,7 +302,7 @@ func (s *Service) claimPairing(ctx context.Context, pairing *devicepb.EnrollPair
 					"CreatePairedDeviceEnrollToken: enroll pairing re-read failed",
 					"error", err,
 				)
-				return nil, false, maskPairingLookupError(ctx, err, errInvalidPairingToken)
+				return nil, false, redactPairingLookupError(ctx, err, errInvalidPairingToken)
 			}
 			pairing = fresh
 			continue
@@ -326,29 +326,29 @@ func (s *Service) claimPairing(ctx context.Context, pairing *devicepb.EnrollPair
 	return nil, false, trace.Errorf("enroll pairing claim did not settle, this is a bug")
 }
 
-// maskPairingLookupError maps a pairing lookup or claim failure onto an error
+// redactPairingLookupError maps a pairing lookup or claim failure onto an error
 // fit for the unauthenticated caller: notFound for a pairing that isn't there,
 // whose meaning differs per call site, and errPairingLookupUnavailable for anything
 // else. Callers log the real error at Debug.
-func maskPairingLookupError(ctx context.Context, err error, notFound error) error {
+func redactPairingLookupError(ctx context.Context, err error, notFound error) error {
 	switch {
 	case trace.IsNotFound(err):
-		return notFound
+		return trace.Wrap(notFound)
 	case ctx.Err() != nil:
 		// Cancellation is the caller's own doing, so it carries no storage state
 		// and is worth telling apart from a server-side failure.
 		return trace.Wrap(ctx.Err())
 	default:
 		// err swallowed on purpose.
-		return errPairingLookupUnavailable
+		return trace.Wrap(errPairingLookupUnavailable)
 	}
 }
 
-// maskUserAuthzError maps a user authorization failure onto an error fit for
+// redactUserAuthzError maps a user authorization failure onto an error fit for
 // the unauthenticated caller: the deliberate outcomes, a missing user and a
-// denial, pass through, and everything else is a server-side failure masked
+// denial, pass through, and everything else is a server-side failure redacted
 // as errUserAuthzUnavailable. Callers log the real error.
-func maskUserAuthzError(ctx context.Context, err error) error {
+func redactUserAuthzError(ctx context.Context, err error) error {
 	switch {
 	case trace.IsNotFound(err), trace.IsAccessDenied(err):
 		return trace.Wrap(err)
@@ -357,7 +357,7 @@ func maskUserAuthzError(ctx context.Context, err error) error {
 		// and is worth telling apart from a server-side failure.
 		return trace.Wrap(ctx.Err())
 	default:
-		return errUserAuthzUnavailable
+		return trace.Wrap(errUserAuthzUnavailable)
 	}
 }
 
@@ -453,7 +453,7 @@ func (s *Service) awaitApproval(ctx context.Context, pairing *devicepb.EnrollPai
 				"CreatePairedDeviceEnrollToken: enroll pairing poll failed",
 				"error", err,
 			)
-			return nil, maskPairingLookupError(ctx, err, errPairingDeniedOrExpired)
+			return nil, redactPairingLookupError(ctx, err, errPairingDeniedOrExpired)
 		}
 	}
 	return pairing, nil
