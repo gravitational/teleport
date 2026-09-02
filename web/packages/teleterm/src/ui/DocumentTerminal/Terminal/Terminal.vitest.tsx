@@ -20,6 +20,7 @@ import { EventEmitter } from 'node:events';
 
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeAll, expect, test, vi } from 'vitest';
 
 import { render } from 'design/utils/testing';
 
@@ -46,10 +47,11 @@ test('keyboard shortcut pastes text', async () => {
   render(<ConfiguredTerminal appContext={appContext} />);
 
   await navigator.clipboard.writeText('some-command');
-  await user.keyboard('{Control>}{Shift>}V'); // Ctrl+Shift+V
+  await user.keyboard('{Control>}{Shift>}V{/Shift}{/Control}'); // Ctrl+Shift+V
 
+  const terminalRows = await getTerminalRows();
   await waitFor(() => {
-    expect(screen.getByText('some-command')).toBeInTheDocument();
+    expect(terminalRows).toHaveTextContent('some-command');
   });
 });
 
@@ -84,8 +86,9 @@ test.each([
     target: await getTerminalElement(),
   });
 
+  const terminalRows = await getTerminalRows();
   await waitFor(() => {
-    expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
+    expect(terminalRows).toHaveTextContent('some-command --flag=test');
   });
 });
 
@@ -93,7 +96,7 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
   const appContext = new MockAppContext();
   const user = userEvent.setup();
   appContext.configService.set('terminal.rightClick', 'menu');
-  const openContextMenu = jest.fn();
+  const openContextMenu = vi.fn();
 
   render(
     <ConfiguredTerminal
@@ -122,7 +125,7 @@ function ConfiguredTerminal(props: {
   onOpenContextMenu?(): void;
 }) {
   const emitter = new EventEmitter();
-  const writeFn = jest.fn().mockImplementation(a => {
+  const writeFn = vi.fn().mockImplementation(a => {
     emitter.emit('', a);
     return Promise.resolve();
   });
@@ -161,4 +164,10 @@ function ConfiguredTerminal(props: {
 async function getTerminalElement(): Promise<Element> {
   const container = await screen.findByTestId('terminal-container');
   return container.querySelector('.xterm')!;
+}
+
+/** Returns the rows rendered for display, excluding accessibility mirrors. */
+async function getTerminalRows(): Promise<Element> {
+  const terminal = await getTerminalElement();
+  return terminal.querySelector('.xterm-rows')!;
 }
