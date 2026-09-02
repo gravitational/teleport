@@ -365,6 +365,9 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
+			if !appServer.GetApp().SupportsIntegration() {
+				return nil, trace.BadParameter("app %q has integration %q but does not support the integration credential flow", appServer.GetApp().GetName(), appIntegration)
+			}
 			src, dst := net.Pipe()
 
 			// Creating the connection using `net.Pipe()` results in both ends having the same local/remote address: "pipe".

@@ -134,6 +134,14 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 	}
 
+	if app.GetCloud() != "" && app.GetProtocol() != types.ApplicationProtocolHTTP {
+		return trace.BadParameter("%s app %q cannot specify cloud configuration", app.GetProtocol(), app.GetName())
+	}
+
+	if app.GetIntegration() != "" && !app.SupportsIntegration() {
+		return trace.BadParameter("app %q does not support integration", app.GetName())
+	}
+
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
 			return trace.Wrap(err)
