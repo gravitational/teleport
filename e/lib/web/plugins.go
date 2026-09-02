@@ -97,7 +97,7 @@ func (c *pluginOnboardingCookie) CheckAndSetDefaults() error {
 		if c.Slack.FallbackChannel == "" {
 			return trace.BadParameter("fallback_channel must be set")
 		}
-		c.Slack.FallbackChannel = "#" + strings.TrimLeft(c.Slack.FallbackChannel, "#")
+		c.Slack.FallbackChannel = normalizeSlackChannel(c.Slack.FallbackChannel)
 	}
 
 	return nil

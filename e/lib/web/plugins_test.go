@@ -32,19 +32,6 @@ func TestCreateStaticAuthPluginHandle(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
 	defer func() { testServer.Close() }()
 
-	// Plugins like Slack require OAuth and are not compatible with
-	// the /enterprise/plugins/staticauth endpoint.
-	t.Run("IncompatibleOAuthPlugin", func(t *testing.T) {
-		req := url.Values{
-			"type":             {"slack"},
-			"name":             {"test"},
-			"fallback_channel": {"test_fallback_channel"},
-		}
-		resp, err := webPack.clt.PostForm(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "staticauth"), req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusNotImplemented, resp.Code())
-	})
-
 	var testCases = []struct {
 		name         string
 		request      url.Values
@@ -180,6 +167,15 @@ func TestCreateStaticAuthPluginHandle(t *testing.T) {
 			},
 			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
 			delete:       true,
+		},
+		{
+			name: "Slack plugin (static enrollment)",
+			request: url.Values{
+				"type":             {"slack"},
+				"fallback_channel": {"some-channel"},
+				"botToken":         {"xoxb-some-token"},
+			},
+			expectedResp: `Messages will be sent to assigned reviewers and the \"#some-channel\" channel`,
 		},
 	}
 

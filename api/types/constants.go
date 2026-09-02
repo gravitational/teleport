@@ -1998,7 +1998,7 @@ const (
 
 const (
 	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
-	// to indiciate credential type.
+	// to indicate credential type.
 	DatadogCredentialLabel = "datadog/credential"
 
 	// DatadogCredentialAPIKey indicates that the credential is used as a
@@ -2008,6 +2008,16 @@ const (
 	// DatadogCredentialApplicationKey indicates that the credential is used as
 	// a Datadog Application key.
 	DatadogCredentialApplicationKey = "datadog-application-key"
+)
+
+const (
+	// SlackCredentialLabel is used by Slack-managed PluginStaticCredentials
+	// to indicate credential type.
+	SlackCredentialLabel = "slack/credential"
+
+	// SlackCredentialBotToken indicates that the credential is used as a
+	// Slack bot token. Only required for static credentials enrollment.
+	SlackCredentialBotToken = "slack-bot-token"
 )
 
 const (

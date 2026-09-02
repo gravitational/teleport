@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -1092,6 +1093,64 @@ func installSMTPPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 	return ui, trace.Wrap(err)
 }
 
+const defaultSlackPluginName = "slack-default"
+
+func installSlackPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	channel := r.FormValue("fallback_channel")
+	if channel == "" {
+		return nil, trace.BadParameter("missing Slack fallback channel")
+	}
+	channel = normalizeSlackChannel(channel)
+
+	name := cmp.Or(r.FormValue("name"), defaultSlackPluginName)
+
+	botToken := r.FormValue("botToken")
+	if botToken == "" {
+		return nil, trace.BadParameter("missing Slack bot token")
+	}
+
+	req := pluginspb.CreatePluginRequest_builder{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: name,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: channel,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						types.SlackCredentialLabel: types.SlackCredentialBotToken,
+					},
+					Name: name,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: botToken,
+				},
+			},
+		},
+	}.Build()
+
+	ui, err := installPlugin(ctx, sessCtx, req)
+	return ui, trace.Wrap(err)
+}
+
+func normalizeSlackChannel(channel string) string {
+	return "#" + strings.TrimLeft(channel, "#")
+}
+
 // slackDescriptor defines the custom behavior of the Slack plugin. Contains
 // no data, exists only as a thing to hang a custom PluginDescriptor
 // implementation on.
@@ -1133,12 +1192,10 @@ func (slackDescriptor) HandleValidateConfigRequest(context.Context, *web.Session
 	return trace.NotImplemented("HandleValidateConfigRequest")
 }
 
-// HandleInstallRequest kicks off a OAuth2 Code Grant Flow for authorizing
-// access to a slack App.
-//
-// Deprecated: use HandleOAuthStart instead.
+// HandleInstallRequest installs a slack plugin with static credentials.
+// This will not go through the OAuth redirect flow.
 func (sd slackDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	return nil, trace.NotImplemented("HandleInstallRequest")
+	return installSlackPlugin(ctx, sessCtx, w, r, p)
 }
 
 // HandleOAuthStart sets required cookie and returns a redirect URL that will start a
@@ -1174,7 +1231,7 @@ func (slackDescriptor) TranslateCallbackCookie(pluginSpec *types.PluginSpecV1, c
 func (sd slackDescriptor) setCookieAndCreateAuthnURL(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (string, error) {
 	// Set cookie info
 	cookie := pluginOnboardingCookie{}
-	cookie.Name = r.FormValue("name")
+	cookie.Name = cmp.Or(r.FormValue("name"), defaultSlackPluginName)
 	cookie.Slack = &pluginOnboardingParamsSlack{
 		FallbackChannel: r.FormValue("fallback_channel"),
 	}
