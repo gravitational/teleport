@@ -38,6 +38,7 @@ type ldapConnectionConfig struct {
 	tlsCACert     *x509.Certificate
 
 	domain            string
+	pkiDomain         string
 	serviceAccount    string
 	serviceAccountSID string
 }
@@ -79,6 +80,7 @@ func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adCo
 		address:           adConfig.KDCHostName,
 		tlsServerName:     adConfig.KDCHostName,
 		domain:            adConfig.Domain,
+		pkiDomain:         adConfig.PKIDomain,
 		serviceAccount:    adConfig.LDAPServiceAccountName,
 		serviceAccountSID: adConfig.LDAPServiceAccountSID,
 		tlsCACert:         ldapCert,
@@ -142,6 +144,7 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 		TTL:                time.Hour,
 		ClusterName:        clusterName,
 		Domain:             s.ldapConfig.domain,
+		PKIDomain:          s.ldapConfig.pkiDomain,
 		ActiveDirectorySID: s.ldapConfig.serviceAccountSID,
 	}
 

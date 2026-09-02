@@ -70,6 +70,7 @@ func newKinitProvider(logger *slog.Logger, auth winpki.AuthInterface, adConfig t
 			logger:        logger,
 			auth:          auth,
 			domain:        adConfig.Domain,
+			pkiDomain:     adConfig.PKIDomain,
 			ldapConnector: connector,
 		},
 		logger: logger,
@@ -148,9 +149,12 @@ type certGetter interface {
 }
 
 type dbCertGetter struct {
-	logger        *slog.Logger
-	auth          winpki.AuthInterface
-	domain        string
+	logger *slog.Logger
+	auth   winpki.AuthInterface
+	// domain is the AD domain the database resides in (Kerberos realm, LDAP).
+	domain string
+	// pkiDomain is the AD domain where CRLs are published. Defaults to domain.
+	pkiDomain     string
 	ldapConnector LDAPConnector
 }
 
@@ -175,6 +179,7 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 	req := &winpki.GenerateCredentialsRequest{
 		TTL:                time.Minute * 10,
 		Domain:             d.domain,
+		PKIDomain:          d.pkiDomain,
 		ClusterName:        clusterName.GetClusterName(),
 		Username:           username,
 		ActiveDirectorySID: sid,
