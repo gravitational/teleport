@@ -7,10 +7,8 @@ import (
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -105,6 +103,26 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 	auth := sut.Teleport.Process.GetAuthServer()
 	adminUser := sut.GetClusterClientForUser(t, "admin")
 
+	// GIVEN some expected properties of our users
+	expectedUsers := []icsdk.User{
+		{ID: "uid_bob", UserName: "bob"},
+		{ID: "uid_charlotte", UserName: "charlotte"},
+		{ID: "uid_dave", UserName: "dave"},
+		{ID: "uid_emily", UserName: "emily"},
+	}
+
+	provisioningWatcher := sut.NewResourceWatcher(t, types.KindProvisioningPrincipalState)
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindIdentityCenterPrincipalAssignment)
+	assignmentAssertions := map[string][]principalAssignmentAssertion{
+		"bob": {
+			hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
+			hasAccountAssignment("arn:aws:sso:::permissionSet/ReadOnly", "1111111111"),
+		},
+		"emily": {
+			hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
+		},
+	}
+
 	// WHEN I create an Identity Center integration with an empty SamlIdpServiceProviderName,
 	// which will trigger the plugin to rely on an external service to provision
 	// users into IC, aka "hybrid mode"
@@ -112,66 +130,57 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 		withSAMLProviderName(""),
 		withDefaultAccessListOwners("admin"))
 
-	// EXPECT the plugin to start up, and that eventually all of the IC users are
-	// adopted by Teleport
-	expectedUsers := []icsdk.User{
-		{ID: "uid_bob", UserName: "bob"},
-		{ID: "uid_charlotte", UserName: "charlotte"},
-		{ID: "uid_dave", UserName: "dave"},
-		{ID: "uid_emily", UserName: "emily"},
+	// EXPECT the plugin to start up, and that eventually all of the currently-
+	// existing IC users are adopted by Teleport
+	expectedPrincipalAssignments := make([]func(*identitycenterv1.PrincipalAssignment) bool, len(expectedUsers))
+	expectedSCIMProvisioningStates := make([]func(*provisioningv1.PrincipalState) bool, len(expectedUsers))
+	for i, icUser := range expectedUsers {
+		expectedSCIMProvisioningStates[i] = scimProvisioningState(
+			hasSCIMUserPrincipalID(icUser.UserName),
+			hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+			hasSCIMExternalID(icUser.ID))
+
+		expectedPrincipalAssignments[i] = principalAssignment(
+			append(
+				assignmentAssertions[icUser.UserName],
+				hasUserPrincipalID(icUser.UserName),
+				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				hasExternalID(icUser.ID),
+			)...)
 	}
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			// EXPECT that Teleport has adopted the Identity Center users and correctly
-			// bound them to their corresponding Teleport users
-			for _, icUser := range expectedUsers {
-				assertSCIMProvisioningState(ctx, t, auth, provisioning.GetIDForUserName(icUser.UserName),
-					hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-					hasSCIMExternalID(icUser.ID))
-				assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
-					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-					hasExternalID(icUser.ID),
-				)
-			}
+	waitForAllSCIMProvisioningStates(t, provisioningWatcher, expectedSCIMProvisioningStates...)
+	waitForAllPrincipalAssignments(t, assignmentWatcher, expectedPrincipalAssignments...)
 
-			// EXPECT that the Account role-based Account Assignments have been provisioned
-			// into AWS
-			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("bob"),
-				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
-				hasAccountAssignment("arn:aws:sso:::permissionSet/ReadOnly", "1111111111"))
-			assert.ElementsMatch(t,
-				[]*icsdk.Assignment{
-					&icsdk.Assignment{
-						AccountID:        "1111111111",
-						PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
-						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-					},
-					&icsdk.Assignment{
-						AccountID:        "1111111111",
-						PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
-						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-					},
-				},
-				getRemoteAccountAssignments(unifiedClient, "uid_bob"),
-				"Bob's account assignments must be provisioned")
-
-			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("emily"),
-				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"))
-			assert.ElementsMatch(t,
-				[]*icsdk.Assignment{
-					&icsdk.Assignment{
-						AccountID:        "1111111111",
-						PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
-						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-					},
-				},
-				getRemoteAccountAssignments(unifiedClient, "uid_emily"),
-				"Emily's account assignments must be provisioned")
+	// EXPECT that bob's account assignments are provisioned into the remote IC
+	// instance
+	require.ElementsMatch(t,
+		[]*icsdk.Assignment{
+			&icsdk.Assignment{
+				AccountID:        "1111111111",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+			},
+			&icsdk.Assignment{
+				AccountID:        "1111111111",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+			},
 		},
-		// Initial Identity Center startup takes a while to run, especially under
-		// the flakey test detector, so we give this more than the usual 3s to run
-		10*time.Second, 100*time.Millisecond,
-		"Initial users must be provisioned")
+		getRemoteAccountAssignments(unifiedClient, "uid_bob"),
+		"Bob's account assignments must be provisioned")
+
+	// EXPECT that emily's account assignments are provisioned into the remote IC
+	// instance
+	require.ElementsMatch(t,
+		[]*icsdk.Assignment{
+			&icsdk.Assignment{
+				AccountID:        "1111111111",
+				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+			},
+		},
+		getRemoteAccountAssignments(unifiedClient, "uid_emily"),
+		"Emily's account assignments must be provisioned")
 
 	// EXPECT that the `zelda` Teleport user, who has no corresponding IC user,
 	// is still sitting as "STALE" with no known external id
@@ -196,38 +205,24 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 
 	// EXPECT that the user's local state will be deleted, but that the corresponding
 	// IC user still exists in the downstream IC instance
-	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
-			assertNoPrincipalAssignment(ctx, c, auth, principal.GetIDForUserName("bob"))
-			assertNoSCIMProvisioningState(ctx, c, auth, provisioning.GetIDForUserName("bob"))
-		},
-		time.Second*3, time.Millisecond*30,
-		"User bob's state records should be destroyed")
+	waitForPrincipalAssignmentDeletion(t, assignmentWatcher, principal.GetIDForUserName("bob"))
+	waitForSCIMProvisioningStateDeletion(t, provisioningWatcher, provisioning.GetIDForUserName("bob"))
 	requireSCIMUsers(ctx, t, unifiedClient.ViaSCIM(), "bob", "charlotte", "dave", "emily")
 
 	// WHEN I create an IC user for "zelda"
 	unifiedClient.AddUserToState("uid_zelda", "zelda")
 
 	// EXPECT that Teleport has adopted the new Identity Center user and correctly
-	// bound them to the corresponding Teleport users. State persists as "STALE", because
-	// Teleport hasn't pushed the user to Identity Center
-	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
-			assertSCIMProvisioningState(ctx, c, auth, provisioning.GetIDForUserName("zelda"),
-				hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-				hasSCIMExternalID("uid_zelda"))
-		},
-		time.Second*3, time.Millisecond*30,
-		"User zelda should be adopted")
-	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
-			assertPrincipalAssignment(ctx, c, auth, principal.GetIDForUserName("zelda"),
-				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-				hasExternalID("uid_zelda"),
-				hasAccountAssignment("arn:aws:sso:::permissionSet/DataScientist", "2222222222"))
-		},
-		time.Second*3, time.Millisecond*30,
-		"Users zelda's account assignments must be provisioned")
+	// bound them to the corresponding Teleport users.
+	waitForSCIMProvisioningState(t, provisioningWatcher,
+		hasSCIMUserPrincipalID("zelda"),
+		hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+		hasSCIMExternalID("uid_zelda"))
+	waitForPrincipalAssignment(t, assignmentWatcher,
+		hasUserPrincipalID("zelda"),
+		hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+		hasExternalID("uid_zelda"),
+		hasAccountAssignment("arn:aws:sso:::permissionSet/DataScientist", "2222222222"))
 
 	// EXPECT that no user-modifying SCIM operations have been attempted
 	mockSCIM.requireNoUserOperations(t)

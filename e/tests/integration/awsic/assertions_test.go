@@ -3,9 +3,9 @@ package awsic
 import (
 	"context"
 	"slices"
+	"testing"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,8 +14,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -195,6 +198,15 @@ func requireSCIMGroup(ctx context.Context, t require.TestingT, client scimsdk.Cl
 // of an Identity Center Principal Assignment record
 type principalAssignmentAssertion func(assert.TestingT, *identitycenterv1.PrincipalAssignment) bool
 
+// hasUserPrincipalID asserts that a Principal Assignment Record has the appropriate name
+// to be associated with a given user.
+func hasUserPrincipalID(username string) principalAssignmentAssertion {
+	id := principal.GetIDForUserName(username)
+	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+		return assert.Equal(t, string(id), pa.GetMetadata().GetName())
+	}
+}
+
 // hasProvisioningState returns a [principalAssignmentAssertion] that asserts
 // a Principal Assignment's ProvisioningState status field
 func hasProvisioningState(s identitycenterv1.ProvisioningState) principalAssignmentAssertion {
@@ -236,6 +248,38 @@ func hasNoAccountAssignments(t assert.TestingT, pa *identitycenterv1.PrincipalAs
 		"Principal must have no account assignments")
 }
 
+func principalAssignment(assertions ...principalAssignmentAssertion) func(*identitycenterv1.PrincipalAssignment) bool {
+	return func(pa *identitycenterv1.PrincipalAssignment) bool {
+		var collector common.CollectT
+		for _, assertion := range assertions {
+			if !assertion(&collector, pa) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func waitForAllPrincipalAssignments(t *testing.T, watcher types.Watcher, selectors ...func(*identitycenterv1.PrincipalAssignment) bool) []*identitycenterv1.PrincipalAssignment {
+	return common.WaitForAllResource153PutEvents(t, watcher, selectors...)
+}
+
+// waitForPrincipalAssignment waits for a put event on the supplied watcher that
+// matches the supplied predicates.
+func waitForPrincipalAssignment(t *testing.T, watcher types.Watcher, assertions ...principalAssignmentAssertion) *identitycenterv1.PrincipalAssignment {
+	results := waitForAllPrincipalAssignments(t, watcher, principalAssignment(assertions...))
+	return results[0]
+}
+
+// waitForPrincipalAssignmentDeletion waits for a delete event on the supplied
+// watcher that affects the given principal.
+func waitForPrincipalAssignmentDeletion(t *testing.T, watcher types.Watcher, id services.PrincipalAssignmentID) {
+	common.WaitForDeleteEvent(t, watcher, func(r types.Resource) bool {
+		return r.GetKind() == types.KindIdentityCenterPrincipalAssignment &&
+			r.GetName() == string(id)
+	})
+}
+
 // assertPrincipalAssignment asserts that an Identity Center Principal Assignment
 // record exists for the supplied principal ID, and runs the supplied assertions
 // on it. Returns after the first failed assertion. Takes an [assert.TestingT]
@@ -262,11 +306,6 @@ func assertPrincipalAssignment(
 	return true, state
 }
 
-func assertNoPrincipalAssignment(ctx context.Context, t assert.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID) bool {
-	_, err := getter.GetPrincipalAssignment(ctx, id)
-	return assert.True(t, trace.IsNotFound(err), "Expected Principal Assignment state to be deleted")
-}
-
 // requirePrincipalAssignment asserts that an Identity Center Principal Assignment
 // record exists for the supplied principal ID, and runs the supplied assertions
 // on it.
@@ -289,6 +328,13 @@ func requirePrincipalAssignment(
 
 type scimProvisioningStateAssertion func(assert.TestingT, *provisioningv1.PrincipalState) bool
 
+func hasSCIMUserPrincipalID(username string) scimProvisioningStateAssertion {
+	id := provisioning.GetIDForUserName(username)
+	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
+		return assert.Equal(t, string(id), ps.GetMetadata().GetName())
+	}
+}
+
 func hasSCIMProvisioningState(s provisioningv1.ProvisioningState) scimProvisioningStateAssertion {
 	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
 		return assert.Equal(t, s.String(), ps.GetStatus().GetProvisioningState().String())
@@ -305,6 +351,34 @@ func hasSCIMErrorMatching(pattern string) scimProvisioningStateAssertion {
 	return func(t assert.TestingT, ps *provisioningv1.PrincipalState) bool {
 		return assert.Regexp(t, pattern, ps.GetStatus().GetError(), "Error must match regex")
 	}
+}
+
+func scimProvisioningState(assertions ...scimProvisioningStateAssertion) func(*provisioningv1.PrincipalState) bool {
+	return func(s *provisioningv1.PrincipalState) bool {
+		var collector common.CollectT
+		for _, assertion := range assertions {
+			if !assertion(&collector, s) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func waitForAllSCIMProvisioningStates(t *testing.T, watcher types.Watcher, selectors ...func(*provisioningv1.PrincipalState) bool) []*provisioningv1.PrincipalState {
+	return common.WaitForAllResource153PutEvents[*provisioningv1.PrincipalState](t, watcher, selectors...)
+}
+
+func waitForSCIMProvisioningState(t *testing.T, watcher types.Watcher, assertions ...scimProvisioningStateAssertion) *provisioningv1.PrincipalState {
+	results := common.WaitForAllResource153PutEvents[*provisioningv1.PrincipalState](t, watcher, scimProvisioningState(assertions...))
+	return results[0]
+}
+
+func waitForSCIMProvisioningStateDeletion(t *testing.T, watcher types.Watcher, id services.ProvisioningStateID) {
+	common.WaitForDeleteEvent(t, watcher, func(r types.Resource) bool {
+		return r.GetKind() == types.KindProvisioningPrincipalState &&
+			r.GetName() == string(id)
+	})
 }
 
 func assertSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) bool {
@@ -330,11 +404,6 @@ func requireSCIMProvisioningState(ctx context.Context, t require.TestingT, gette
 		return
 	}
 	t.FailNow()
-}
-
-func assertNoSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID) bool {
-	_, err := getter.GetProvisioningState(ctx, identitycenter.IdentityCenterDownstreamID, id)
-	return assert.True(t, trace.IsNotFound(err), "Expected SCIM Principal provisioning state to be deleted")
 }
 
 type roleAssertion func(assert.TestingT, types.Role) bool
