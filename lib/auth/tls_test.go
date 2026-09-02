@@ -3750,6 +3750,58 @@ func TestCertificateFormat(t *testing.T) {
 	}
 }
 
+// TestAuthenticateWebUserCompat checks that web user authentication works
+// over both the gRPC RPC and the legacy HTTP endpoint.
+func TestAuthenticateWebUserCompat(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	user := "web-compat-user"
+	pass := []byte("web-compat-password")
+	_, _, err = authtest.CreateUserAndRole(clt, user, []string{user}, nil)
+	require.NoError(t, err)
+	require.NoError(t, testSrv.Auth().UpsertPassword(user, pass))
+
+	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	req := authclient.AuthenticateUserRequest{
+		Username: user,
+		Pass:     &authclient.PassCreds{Password: pass},
+	}
+
+	// Authenticate through the fallback wrapper, which tries gRPC first.
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, user, ws.GetUser())
+
+	// Authenticating also works calling the gRPC RPC directly.
+	grpcResp, err := proxy.APIClient.AuthenticateWebUser(ctx, &proto.AuthenticateWebUserRequest{
+		Request: req.ToProto(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, user, grpcResp.GetSession().GetUser())
+
+	// Only proxies may call the RPC.
+	_, err = clt.APIClient.AuthenticateWebUser(ctx, &proto.AuthenticateWebUserRequest{
+		Request: req.ToProto(),
+	})
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Authenticating also works calling the legacy HTTP endpoint directly.
+	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP
+	// endpoint.
+	out, err := proxy.HTTPClient.PostJSON(ctx, proxy.HTTPClient.Endpoint("users", user, "web", "authenticate"), req)
+	require.NoError(t, err)
+	httpSess, err := services.UnmarshalWebSession(out.Bytes())
+	require.NoError(t, err)
+	require.Equal(t, user, httpSess.GetUser())
+}
+
 // TestClusterConfigContext checks that the cluster configuration gets passed
 // along in the context and permissions get updated accordingly.
 func TestClusterConfigContext(t *testing.T) {

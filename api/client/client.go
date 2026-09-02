@@ -6522,6 +6522,18 @@ func (c *Client) ValidateTrustedCluster(
 	return resp, nil
 }
 
+// AuthenticateWebUser is called by the proxy to authenticate a local user
+// with their credentials and issue a web session.
+func (c *Client) AuthenticateWebUser(
+	ctx context.Context, req *proto.AuthenticateWebUserRequest,
+) (*proto.AuthenticateWebUserResponse, error) {
+	resp, err := c.grpc.AuthenticateWebUser(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ExtendWebSession creates a new web session for a user based on a valid
 // existing web session, e.g. to apply an approved access request, switch
 // back to default roles, or pick up recent user changes.

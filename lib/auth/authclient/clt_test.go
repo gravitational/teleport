@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,7 +40,9 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -147,6 +150,51 @@ func TestGithubAuthResponseProto(t *testing.T) {
 	require.NoError(t, err)
 	backToNative := GithubAuthResponseFromProto(proto)
 	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestAuthenticateUserRequestProto(t *testing.T) {
+	native := AuthenticateUserRequest{
+		Username:     "alice",
+		Scope:        "scope",
+		SSHPublicKey: []byte("ssh-pub"),
+		TLSPublicKey: []byte("tls-pub"),
+		Pass:         &PassCreds{Password: []byte("hunter2")},
+		Webauthn: &wantypes.CredentialAssertionResponse{
+			PublicKeyCredential: wantypes.PublicKeyCredential{
+				Credential: wantypes.Credential{
+					ID:   base64.RawURLEncoding.EncodeToString([]byte("credential-id")),
+					Type: "public-key",
+				},
+				RawID: []byte("credential-id"),
+			},
+			AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+				AuthenticatorResponse: wantypes.AuthenticatorResponse{
+					ClientDataJSON: []byte("client-data-json"),
+				},
+				AuthenticatorData: []byte("authenticator-data"),
+				Signature:         []byte("signature"),
+				UserHandle:        []byte("user-handle"),
+			},
+		},
+		OTP: &OTPCreds{Password: []byte("hunter2"), Token: "123456"},
+		BrowserMFA: &proto.BrowserMFAResponse{
+			RequestId: "request-id",
+		},
+		Session: &SessionCreds{ID: "session-id"},
+		ClientMetadata: &ForwardedClientMetadata{
+			UserAgent:      "test-agent",
+			RemoteAddr:     "127.0.0.1:3080",
+			ProxyGroupID:   "proxy-group",
+			MaxTouchPoints: 5,
+		},
+		HeadlessAuthenticationID: "headless-id",
+	}
+	backToNative := AuthenticateUserRequestFromProto(native.ToProto())
+	require.Empty(t, cmp.Diff(native, backToNative))
+
+	// An empty request must round-trip without spuriously populating fields.
+	empty := AuthenticateUserRequest{}
+	require.Empty(t, cmp.Diff(empty, AuthenticateUserRequestFromProto(empty.ToProto())))
 }
 
 func TestHTTPCircuitBreaker(t *testing.T) {

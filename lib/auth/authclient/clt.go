@@ -1601,6 +1601,69 @@ type SessionCreds struct {
 	ID string `json:"id"`
 }
 
+// ToProto converts AuthenticateUserRequest to its proto representation.
+func (a *AuthenticateUserRequest) ToProto() *proto.AuthenticateUserRequest {
+	req := &proto.AuthenticateUserRequest{
+		Username:                 a.Username,
+		Scope:                    a.Scope,
+		SSHPublicKey:             a.SSHPublicKey,
+		TLSPublicKey:             a.TLSPublicKey,
+		Webauthn:                 wantypes.CredentialAssertionResponseToProto(a.Webauthn),
+		BrowserMFA:               a.BrowserMFA,
+		HeadlessAuthenticationID: a.HeadlessAuthenticationID,
+	}
+	if a.Pass != nil {
+		req.Pass = &proto.AuthenticateUserRequest_PassCreds{Password: a.Pass.Password}
+	}
+	if a.OTP != nil {
+		req.OTP = &proto.AuthenticateUserRequest_OTPCreds{Password: a.OTP.Password, Token: a.OTP.Token}
+	}
+	if a.Session != nil {
+		req.Session = &proto.AuthenticateUserRequest_SessionCreds{ID: a.Session.ID}
+	}
+	if a.ClientMetadata != nil {
+		req.ClientMetadata = &proto.AuthenticateUserRequest_ForwardedClientMetadata{
+			UserAgent:      a.ClientMetadata.UserAgent,
+			RemoteAddr:     a.ClientMetadata.RemoteAddr,
+			ProxyGroupID:   a.ClientMetadata.ProxyGroupID,
+			MaxTouchPoints: int32(a.ClientMetadata.MaxTouchPoints),
+		}
+	}
+	return req
+}
+
+// AuthenticateUserRequestFromProto converts the proto representation of
+// AuthenticateUserRequest to its native representation.
+func AuthenticateUserRequestFromProto(req *proto.AuthenticateUserRequest) AuthenticateUserRequest {
+	a := AuthenticateUserRequest{
+		Username:                 req.Username,
+		Scope:                    req.Scope,
+		SSHPublicKey:             req.SSHPublicKey,
+		TLSPublicKey:             req.TLSPublicKey,
+		Webauthn:                 wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
+		BrowserMFA:               req.BrowserMFA,
+		HeadlessAuthenticationID: req.HeadlessAuthenticationID,
+	}
+	if req.Pass != nil {
+		a.Pass = &PassCreds{Password: req.Pass.Password}
+	}
+	if req.OTP != nil {
+		a.OTP = &OTPCreds{Password: req.OTP.Password, Token: req.OTP.Token}
+	}
+	if req.Session != nil {
+		a.Session = &SessionCreds{ID: req.Session.ID}
+	}
+	if req.ClientMetadata != nil {
+		a.ClientMetadata = &ForwardedClientMetadata{
+			UserAgent:      req.ClientMetadata.UserAgent,
+			RemoteAddr:     req.ClientMetadata.RemoteAddr,
+			ProxyGroupID:   req.ClientMetadata.ProxyGroupID,
+			MaxTouchPoints: int(req.ClientMetadata.MaxTouchPoints),
+		}
+	}
+	return a
+}
+
 // AuthenticateSSHRequest is a request to authenticate SSH client user via CLI
 type AuthenticateSSHRequest struct {
 	// AuthenticateUserRequest is a request with credentials
