@@ -60,7 +60,7 @@ extension EnrollDeviceView {
 
 	var requestNowButton: some View {
 		Button {
-			Task { await viewModel.requestEnrollToken() }
+			Task { await viewModel.performDeviceEnrollment() }
 		} label: {
 			Group {
 				if viewModel.loadingState.isLoading {
