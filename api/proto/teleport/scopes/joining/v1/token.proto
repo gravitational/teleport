@@ -117,6 +117,9 @@ message ScopedTokenSpec {
 
   // Configuration specific to the "tpm" join method.
   TPM tpm = 19;
+
+  // Configuration specific to the "circleci" join method
+  CircleCI circleci = 20;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -883,4 +886,25 @@ message TPM {
   // When unspecified, TPMs will be allowed to join with either an EKCert or an
   // EKPubHash.
   repeated string ekcert_allowed_cas = 2;
+}
+
+// Configuration specific to CircleCI tokens.
+message CircleCI {
+  // A CircleCI joining rule.
+  message Rule {
+    // A unique project identifier. At least one of project_id or context_id is
+    // required.
+    string project_id = 1;
+
+    // A unique context identifier. At least one of context_id or project_id is
+    // required.
+    string context_id = 2;
+  }
+
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token. At least one rule is required.
+  repeated Rule allow = 1;
+
+  // The unique identifier of the organization. Required.
+  string organization_id = 2;
 }

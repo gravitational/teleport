@@ -1451,6 +1451,74 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "no pem block found",
 		},
 		{
+			name: "valid circleci token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodCircleCI))
+
+				tok.GetSpec().SetCircleci(joiningv1.CircleCI_builder{
+					OrganizationId: "example-id",
+					Allow: []*joiningv1.CircleCI_Rule{
+						joiningv1.CircleCI_Rule_builder{
+							ProjectId: "abc123",
+							ContextId: "def456",
+						}.Build(),
+						joiningv1.CircleCI_Rule_builder{
+							ProjectId: "foo",
+							ContextId: "bar",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "circleci token with invalid rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodCircleCI))
+
+				tok.GetSpec().SetCircleci(joiningv1.CircleCI_builder{
+					OrganizationId: "example-id",
+					Allow: []*joiningv1.CircleCI_Rule{
+						joiningv1.CircleCI_Rule_builder{
+							ProjectId: "abc123",
+							ContextId: "def456",
+						}.Build(),
+						joiningv1.CircleCI_Rule_builder{}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "rule must include at least one of 'project_id' or 'context_id'",
+			expectedWeakErr:   "rule must include at least one of 'project_id' or 'context_id'",
+		},
+		{
+			name: "circleci token without organization id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodCircleCI))
+
+				tok.GetSpec().SetCircleci(joiningv1.CircleCI_builder{
+					Allow: []*joiningv1.CircleCI_Rule{
+						joiningv1.CircleCI_Rule_builder{
+							ProjectId: "abc123",
+							ContextId: "def456",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: ".spec.circleci.organization_id is required",
+			expectedWeakErr:   ".spec.circleci.organization_id is required",
+		},
+		{
+			name: "circleci token without allow rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodCircleCI))
+
+				tok.GetSpec().SetCircleci(joiningv1.CircleCI_builder{
+					OrganizationId: "example-id",
+				}.Build())
+			},
+			expectedStrongErr: ".spec.circleci.allow requires at least one rule",
+			expectedWeakErr:   ".spec.circleci.allow requires at least one rule",
+		},
+		{
 			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetBot("/aa/bb::foo")
@@ -1708,6 +1776,63 @@ func TestScopedTokenTPMRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, desiredTPMConfig, pt.GetTPM())
+}
+
+func TestScopedTokenCircleCIRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	desiredCircleCIConfig := &types.ProvisionTokenSpecV2CircleCI{
+		OrganizationID: "acme-corp-123",
+		Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+			{
+				ProjectID: "project-1",
+				ContextID: "context-1",
+			},
+			{
+				ProjectID: "project-2",
+			},
+			{
+				ContextID: "context-2",
+			},
+		},
+	}
+
+	scopedCircleCIConfig := joiningv1.CircleCI_builder{
+		OrganizationId: "acme-corp-123",
+		Allow: []*joiningv1.CircleCI_Rule{
+			joiningv1.CircleCI_Rule_builder{
+				ProjectId: "project-1",
+				ContextId: "context-1",
+			}.Build(),
+			joiningv1.CircleCI_Rule_builder{
+				ProjectId: "project-2",
+			}.Build(),
+			joiningv1.CircleCI_Rule_builder{
+				ContextId: "context-2",
+			}.Build(),
+		},
+	}.Build()
+
+	token := joiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: "testtoken",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:         []string{types.RoleNode.String()},
+			AssignedScope: "/aa/bb",
+			JoinMethod:    string(types.JoinMethodCircleCI),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+			Circleci:      scopedCircleCIConfig,
+		}.Build(),
+	}.Build()
+
+	pt, err := joining.NewToken(token)
+	require.NoError(t, err)
+
+	require.Equal(t, desiredCircleCIConfig, pt.GetCircleCI())
 }
 
 func TestNewTokenGetBot(t *testing.T) {

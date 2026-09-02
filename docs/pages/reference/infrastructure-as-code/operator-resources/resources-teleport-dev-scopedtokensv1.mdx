@@ -37,6 +37,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |azure_devops|[object](#specazure_devops)|The Azure Devops-specific configuration used with the "azure_devops" join method.|
 |bot|string|The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.|
 |bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
+|circleci|[object](#speccircleci)|Configuration specific to the "circleci" join method|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |generic_oidc|[object](#specgeneric_oidc)|Configuration specific to the "generic_oidc" join method.|
 |github|[object](#specgithub)|Configuration specific to the "github" join method.|
@@ -123,6 +124,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |limit|integer||
 |mode|string||
+
+### spec.circleci
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#speccircleciallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one rule is required.|
+|organization_id|string|The unique identifier of the organization. Required.|
+
+### spec.circleci.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|context_id|string||
+|project_id|string||
 
 ### spec.gcp
 

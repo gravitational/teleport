@@ -28,12 +28,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestJoinCircleCI(t *testing.T) {
@@ -49,7 +54,8 @@ func TestJoinCircleCI(t *testing.T) {
 	// stand up auth server with mocked CircleCI token validator
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -74,6 +80,9 @@ func TestJoinCircleCI(t *testing.T) {
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
+
+	scopedBot := CreateScopedBot(t, authServer.Auth(), "circle")
+
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
 			HostID:       "host-id",
@@ -89,6 +98,18 @@ func TestJoinCircleCI(t *testing.T) {
 			Roles:      types.SystemRoles{types.RoleNode},
 			CircleCI:   spec,
 		}
+	}
+
+	scopedSpec := func(spec types.ProvisionTokenSpecV2) *joiningv1.CircleCI {
+		return joiningv1.CircleCI_builder{
+			OrganizationId: spec.CircleCI.OrganizationID,
+			Allow: slices.Map(spec.CircleCI.Allow, func(in *types.ProvisionTokenSpecV2CircleCI_Rule) *joiningv1.CircleCI_Rule {
+				return joiningv1.CircleCI_Rule_builder{
+					ProjectId: in.ProjectID,
+					ContextId: in.ContextID,
+				}.Build()
+			}),
+		}.Build()
 	}
 
 	// helpers for error assertions
@@ -223,6 +244,25 @@ func TestJoinCircleCI(t *testing.T) {
 			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
+			_, err = authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+				Token: joiningv1.ScopedToken_builder{
+					Kind:    types.KindScopedToken,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: strings.ToLower(tt.name),
+					}.Build(),
+					Scope: "/test",
+					Spec: joiningv1.ScopedTokenSpec_builder{
+						UsageMode:  joining.TokenUsageModeBot,
+						Bot:        scopedBot,
+						JoinMethod: string(types.JoinMethodCircleCI),
+						Roles:      []string{types.RoleBot.String()},
+						Circleci:   scopedSpec(tt.tokenSpec),
+					}.Build(),
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+
 			t.Run("legacy", func(t *testing.T) {
 				_, err = auth.RegisterUsingToken(ctx, tt.request)
 				tt.assertError(t, err)
@@ -253,6 +293,25 @@ func TestJoinCircleCI(t *testing.T) {
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
 						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("scoped", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: scopes.QualifiedName{
+						Scope: testTokenScope,
+						Name:  strings.ToLower(tt.name),
+					}.String(),
+					JoinMethod: types.JoinMethodCircleCI,
+					ID: state.IdentityID{
+						Role: types.RoleBot,
 					},
 					IDToken:    tt.request.IDToken,
 					AuthClient: nopClient,
