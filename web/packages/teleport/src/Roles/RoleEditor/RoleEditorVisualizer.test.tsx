@@ -31,11 +31,11 @@ import { RoleDiffProps, RoleDiffState } from '../Roles';
 import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
 const defaultDemoMode = cfg.entitlements.AccessGraphDemoMode;
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 const defaultIsCloud = cfg.isCloud;
 afterEach(() => {
   cfg.entitlements.AccessGraphDemoMode = defaultDemoMode;
-  cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+  cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
   cfg.isCloud = defaultIsCloud;
 });
 
