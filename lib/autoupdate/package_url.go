@@ -25,7 +25,7 @@ import (
 	"text/template"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // InstallFlags sets flags for the Teleport installation.

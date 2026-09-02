@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // DocsMode is true when building with -tags docs.

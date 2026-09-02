@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 )
