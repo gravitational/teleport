@@ -1474,8 +1474,8 @@ tag-build: MANAGED_UPDATES_SIGNING_KEY ?= primary
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
-		--repo gravitational/teleport.e \
-		--ref "$(TAG_WORKFLOW_REF)" \
+		--repo gravitational/core \
+		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
@@ -1495,8 +1495,8 @@ tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/publish,stage/publish)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \
-		--repo gravitational/teleport.e \
-		--ref "$(TAG_WORKFLOW_REF)" \
+		--repo gravitational/core \
+		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
