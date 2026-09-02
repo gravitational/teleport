@@ -47,6 +47,7 @@ var whereParser = mustNewParser(whereSpec())
 // evaluated against.
 type Request struct {
 	Method string
+	Path   string
 }
 
 // Identity is the caller a where clause is evaluated against.
@@ -62,9 +63,8 @@ type Identity struct {
 type Env struct {
 	Request  Request
 	Identity Identity
-	// record is set by evaluateExpression for the duration of one evaluation.
-	// The audit wrappers write into it.
-	record *AuditRecord
+	result   *Result // set by evaluateExpression for one evaluation
+	tokens   []Token // the path tokenized by NewEnv, shared by every rule
 }
 
 // Where is a compiled where clause. Only CompileWhere returns a usable
@@ -75,15 +75,24 @@ type Where struct {
 	expression typical.Expression[Env, bool]
 }
 
-// NewEnv builds the environment a where clause is evaluated against and
-// rejects a request no rule may authorize. Callers build it once per
-// request, before matching any rule, because a rule without a where
-// clause never reaches Evaluate.
+// NewEnv builds the environment a where clause or an
+// app_resources_expressions entry is evaluated against. NewEnv tokenizes
+// the path once. A malformed path, a path containing an encoded slash
+// (%2F), or an unsupported method is rejected before any rule is
+// evaluated.
 func NewEnv(request Request, identity Identity) (Env, error) {
 	if err := validateMethod(request.Method); err != nil {
 		return Env{}, trace.Wrap(err)
 	}
-	return Env{Request: request, Identity: identity}, nil
+	tokens, err := Tokenize(request.Path)
+	if err != nil {
+		return Env{}, trace.Wrap(err)
+	}
+	// No rule can match an encoded slash (%2F) in this version.
+	if slices.ContainsFunc(tokens, Token.hasEncodedSlash) {
+		return Env{}, trace.BadParameter("path contains an encoded slash (%%2F)")
+	}
+	return Env{Request: request, Identity: identity, tokens: tokens}, nil
 }
 
 // CompileWhere parses and type-checks a where clause.
@@ -130,6 +139,24 @@ func mustNewParser(spec typical.ParserSpec[Env]) *typical.CachedParser[Env, bool
 // both parsers.
 func whereSpec() typical.ParserSpec[Env] {
 	return typical.ParserSpec[Env]{
+		// Only a vars.<name> read parses as an unknown identifier. It is
+		// string-typed, so a read outside a string position fails at parse.
+		GetUnknownIdentifierVariable: func(fields []string) (typical.Variable, error) {
+			if len(fields) != 2 || fields[0] != "vars" {
+				return nil, trace.NotFound("unknown identifier %q", strings.Join(fields, "."))
+			}
+			name := fields[1]
+			return typical.DynamicVariable(func(e Env) (string, error) {
+				if e.result == nil {
+					return "", trace.BadParameter("internal error: evaluating vars.%s without an evaluation result", name)
+				}
+				v, ok := e.result.vars[name]
+				if !ok {
+					return "", trace.BadParameter("vars.%s is read but not bound by a matched path", name)
+				}
+				return v, nil
+			}), nil
+		},
 		Variables: map[string]typical.Variable{
 			// true and false are bound because typical has no bool literal.
 			"true":  true,

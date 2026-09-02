@@ -40,6 +40,69 @@ func evaluateResult(t *testing.T, expr string, request Request, identity Identit
 	return result
 }
 
+// TestPathMatch checks each matcher constructor end to end
+// through path.match on a request path.
+func TestPathMatch(t *testing.T) {
+	tests := []struct {
+		expr string
+		path string
+		want bool
+	}{
+		{`path.match(literal("api", literal("v1")))`, "/api/v1", true},
+		{`path.match(literal("api/v1"))`, "/api/v1", true},
+		{`path.match(literal("api"))`, "/api/v1", false},
+		{`path.match(glob(literal("v1")))`, "/api/v1", true},
+		{`path.match(glob())`, "/api/v1", false},
+		{`path.match(literal("api", greedy()))`, "/api/v1/x", true},
+		{`path.match(literal("api", greedy()))`, "/api", true},
+		{`path.match(literal("files", slash()))`, "/files/", true},
+		{`path.match(literal("files", slash()))`, "/files", false},
+		{`path.match(literal("files", optional(slash())))`, "/files", true},
+		{`path.match(literal("files", optional(slash())))`, "/files/", true},
+		{`path.match(root(literal("api"), literal("health")))`, "/health", true},
+		{`path.match(root(literal("api"), literal("health")))`, "/metrics", false},
+		{`path.match(capture("name"))`, "/acme", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expr+" "+tt.path, func(t *testing.T) {
+			expression, err := compileExpression(tt.expr)
+			require.NoError(t, err)
+			result, err := evaluateExpression(expression, pathEnv(t, tt.path))
+			require.NoError(t, err)
+			require.Equal(t, tt.want, result.Value)
+		})
+	}
+}
+
+// TestPathMatchBindsVars checks that a match binds its captures and that
+// an unbound vars read errors.
+func TestPathMatchBindsVars(t *testing.T) {
+	expression, err := compileExpression(`path.match(literal("api", capture("v", greedy()))) && vars.v == "one"`)
+	require.NoError(t, err)
+
+	result, err := evaluateExpression(expression, pathEnv(t, "/api/one/x"))
+	require.NoError(t, err)
+	require.True(t, result.Value)
+
+	result, err = evaluateExpression(expression, pathEnv(t, "/api/two/x"))
+	require.NoError(t, err)
+	require.False(t, result.Value)
+	require.Nil(t, result.vars, "a false result clears the bound vars")
+
+	// An unbound read errors, also behind a negation.
+	expression, err = expressionParser.Parse(`!(vars.missing == "x")`)
+	require.NoError(t, err)
+	_, err = evaluateExpression(expression, pathEnv(t, "/api"))
+	require.ErrorContains(t, err, "not bound by a matched path")
+}
+
+// TestNewEnvRejectsEncodedSlash checks that a path containing an
+// encoded slash (%2F) is rejected before any rule is evaluated.
+func TestNewEnvRejectsEncodedSlash(t *testing.T) {
+	_, err := NewEnv(Request{Method: "GET", Path: "/api/a%2Fb"}, Identity{})
+	require.ErrorContains(t, err, "encoded slash")
+}
+
 // TestAllowCode checks that allow_code records its code and reason only when
 // the wrapped expression is true, and is transparent to the boolean result.
 func TestAllowCode(t *testing.T) {
@@ -197,12 +260,184 @@ func TestConcurrentEvaluateExpression(t *testing.T) {
 	wg.Wait()
 }
 
-// TestCompileWhereRejectsWrappers checks that the "where" spec omits the
-// audit wrappers, so a sugared where clause calling one fails to parse.
-func TestCompileWhereRejectsWrappers(t *testing.T) {
+// TestCompileExpression checks the load path of one
+// app_resources_expressions entry. An empty or blank entry is a load error,
+// and a valid entry compiles to an expression that evaluates.
+func TestCompileExpression(t *testing.T) {
+	_, err := compileExpression("")
+	require.ErrorContains(t, err, "cannot be empty")
+	_, err = compileExpression("   ")
+	require.ErrorContains(t, err, "cannot be empty")
+
+	expression, err := compileExpression(`contains(user.roles, "dev") && request.method == "GET"`)
+	require.NoError(t, err)
+
+	result, err := evaluateExpression(expression, Env{Request: Request{Method: "GET"}, Identity: Identity{Roles: []string{"dev"}}})
+	require.NoError(t, err)
+	require.True(t, result.Value)
+
+	result, err = evaluateExpression(expression, Env{Request: Request{Method: "POST"}, Identity: Identity{Roles: []string{"dev"}}})
+	require.NoError(t, err)
+	require.False(t, result.Value)
+}
+
+// TestCompileExpressionRejectsBadLiteral checks that an illegal constant
+// literal value fails at compile.
+func TestCompileExpressionRejectsBadLiteral(t *testing.T) {
+	_, err := compileExpression(`path.match(literal("a%2Fb"))`)
+	require.ErrorContains(t, err, "contains %")
+
+	_, err = compileExpression(`path.match(literal("api", literal("")))`)
+	require.ErrorContains(t, err, "cannot be empty")
+}
+
+// TestCompileExpressionRejectsNestedCapture checks that a capture nested
+// under a same-named capture fails, while siblings may share a name.
+func TestCompileExpressionRejectsNestedCapture(t *testing.T) {
+	_, err := compileExpression(`path.match(capture("v", literal("x", capture("v", greedy()))))`)
+	require.ErrorContains(t, err, `capture "v" appears more than once`)
+
+	_, err = compileExpression(`path.match(capture("v", (capture("v"))))`)
+	require.ErrorContains(t, err, `capture "v" appears more than once`, "a parenthesized child is still checked")
+
+	_, err = compileExpression(`path.match(root(literal("users", capture("id")), literal("groups", capture("id"))))`)
+	require.NoError(t, err, "sibling alternatives may share a capture name")
+}
+
+// TestCompileExpressionRejectsBadConstructorArgs checks that a bad
+// constructor argument fails at compile.
+func TestCompileExpressionRejectsBadConstructorArgs(t *testing.T) {
+	_, err := compileExpression(`path.match(capture("bad name"))`)
+	require.ErrorContains(t, err, "must be a letter or underscore")
+
+	_, err = compileExpression(`path.match(literal("api", optional()))`)
+	require.ErrorContains(t, err, "at least one child")
+
+	_, err = compileExpression(`path.match(root())`)
+	require.ErrorContains(t, err, "at least one alternative")
+
+	_, err = compileExpression(`path.match(literal("api", root(literal("v1"))))`)
+	require.ErrorContains(t, err, "top node")
+
+	_, err = compileExpression(`path.match(literal(lower("API")))`)
+	require.ErrorContains(t, err, "the value argument of literal must be a string literal")
+
+	_, err = compileExpression(`path.match(capture(user.name))`)
+	require.ErrorContains(t, err, "the name argument of capture must be a string literal")
+}
+
+// TestCompileExpressionRejectsUnguaranteedVarsRead checks that a vars read
+// fails at compile unless every evaluation order binds the name first.
+func TestCompileExpressionRejectsUnguaranteedVarsRead(t *testing.T) {
+	rejected := []string{
+		`path.match(root(literal("users", capture("id")), literal("health"))) && vars.id == "x"`,
+		`!path.match(literal("api", capture("v"))) && vars.v == "x"`,
+		`(path.match(literal("a", capture("id"))) || path.match(literal("b"))) && vars.id == "x"`,
+		`path.match(literal("files", optional(capture("id")))) && vars.id == "x"`,
+		`vars.id == "x" && path.match(literal("api", capture("id")))`,
+		`contains(user.roles, vars.id)`,
+		`contains(user.traits[vars.id], "x")`,
+	}
+	for _, expr := range rejected {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.ErrorContains(t, err, "is guaranteed bound")
+		})
+	}
+	accepted := []string{
+		`path.match(literal("users", capture("id"))) && vars.id == "x"`,
+		`(path.match(literal("a", capture("id"))) || path.match(literal("b", capture("id")))) && vars.id == "x"`,
+		`allow_code("ok", "Allowed.", path.match(capture("v"))) && vars.v == "x"`,
+		`deny_hint("no", "Denied.", path.match(capture("v"))) && vars.v == "x"`,
+		`path.match(capture("id")) && contains(user.roles, vars.id)`,
+		`path.match(capture("id")) && contains(user.traits[vars.id], "x")`,
+	}
+	for _, expr := range accepted {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.NoError(t, err, "a capture bound before the read on every path may be read")
+		})
+	}
+}
+
+// TestCompileExpressionRejectsCaptureOverwrite checks that a path.match
+// that could rebind an earlier match's capture fails at compile.
+func TestCompileExpressionRejectsCaptureOverwrite(t *testing.T) {
+	rejected := []string{
+		`path.match(literal("users", capture("id"))) && path.match(capture("id", greedy()))`,
+		`path.match(literal("users", capture("id"))) && (!path.match(capture("id", literal("admin"))) || user.name == vars.id)`,
+		`(path.match(literal("a", capture("id"))) && request.method == "GET") || path.match(capture("id"))`,
+		`!path.match(capture("id")) || path.match(literal("a", capture("id")))`,
+	}
+	for _, expr := range rejected {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.ErrorContains(t, err, "already bound by an earlier path.match")
+		})
+	}
+	accepted := []string{
+		`(path.match(literal("a", capture("id"))) || path.match(literal("b", capture("id")))) && vars.id == "x"`,
+		`path.match(capture("a")) && path.match(literal("x", capture("b", greedy()))) && vars.a == "v" && vars.b == "w"`,
+		`(allow_code("ok", "Allowed.", path.match(capture("v"))) || path.match(capture("v"))) && vars.v == "x"`,
+		`(deny_hint("no", "Denied.", path.match(capture("v"))) || path.match(capture("v"))) && vars.v == "x"`,
+		`!path.match(capture("id")) && path.match(literal("a", capture("id", greedy())))`,
+	}
+	for _, expr := range accepted {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.NoError(t, err, "a match that cannot evaluate with the name bound may reuse it")
+		})
+	}
+}
+
+// TestCompileRejectsUnknownIdentifierForms checks that every identifier
+// form outside the documented bindings fails at compile in both parsers.
+func TestCompileRejectsUnknownIdentifierForms(t *testing.T) {
+	for _, expr := range []string{
+		`bogus == "x"`,
+		`vars == "x"`,
+		`request.path == "/api"`,
+		`vars.a.b == "x"`,
+		`user.name.foo == "x"`,
+		`request.method.value == "GET"`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.ErrorContains(t, err, "unknown identifier")
+			_, err = CompileWhere(expr)
+			require.ErrorContains(t, err, "unknown identifier")
+		})
+	}
+
+}
+
+// TestCompileRejectsVarsOutsideStringPosition checks that a vars read is
+// string-typed, so a read in a non-string position fails at compile.
+func TestCompileRejectsVarsOutsideStringPosition(t *testing.T) {
+	for _, expr := range []string{
+		`path.match(capture("v")) && path.match(vars.v)`,
+		`path.match(capture("v")) && vars.v`,
+		`path.match(capture("v")) && allow_code("ok", "Allowed.", vars.v)`,
+		`path.match(capture("v")) && deny_hint("no", "Denied.", vars.v)`,
+		`path.match(capture("v")) && path.match(literal("a", vars.v))`,
+		`path.match(capture("v")) && path.match(glob(vars.v))`,
+		`path.match(capture("v")) && vars.v["x"] == "y"`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := compileExpression(expr)
+			require.ErrorContains(t, err, "string")
+		})
+	}
+}
+
+// TestCompileWhereRejectsExpressionFunctions checks that a where clause
+// calling an expression-only function fails to parse.
+func TestCompileWhereRejectsExpressionFunctions(t *testing.T) {
 	for _, expr := range []string{
 		`allow_code("ok", "reason", true)`,
 		`deny_hint("no", "reason", true)`,
+		`path.match(literal("api"))`,
+		`literal("api")`,
 	} {
 		t.Run(expr, func(t *testing.T) {
 			_, err := CompileWhere(expr)
@@ -338,23 +573,30 @@ func TestExpressionByteCap(t *testing.T) {
 	require.ErrorContains(t, err, "over the")
 }
 
-// TestCompileExpression checks the load path of one
-// app_resources_expressions entry. An empty or blank entry is a load error,
-// and a valid entry compiles to an expression that evaluates.
-func TestCompileExpression(t *testing.T) {
-	_, err := compileExpression("")
-	require.ErrorContains(t, err, "cannot be empty")
-	_, err = compileExpression("   ")
-	require.ErrorContains(t, err, "cannot be empty")
-
-	expression, err := compileExpression(`contains(user.roles, "dev") && request.method == "GET"`)
+// TestPathMatchRejectsRebindAtEvaluation checks the runtime fallback for a
+// rebound capture. An expression created with compileExpression fails at
+// compile time instead.
+func TestPathMatchRejectsRebindAtEvaluation(t *testing.T) {
+	expression, err := expressionParser.Parse(`path.match(capture("id", greedy())) && path.match(capture("id", greedy()))`)
 	require.NoError(t, err)
 
-	result, err := evaluateExpression(expression, Env{Request: Request{Method: "GET"}, Identity: Identity{Roles: []string{"dev"}}})
-	require.NoError(t, err)
-	require.True(t, result.Value)
+	_, err = evaluateExpression(expression, pathEnv(t, "/users/admin"))
+	require.ErrorContains(t, err, `binds capture "id" a second time`)
+}
 
-	result, err = evaluateExpression(expression, Env{Request: Request{Method: "POST"}, Identity: Identity{Roles: []string{"dev"}}})
+// TestPathMatchRequiresTokenizedPath checks that path.match returns an
+// internal error for an Env built without NewEnv, which tokenizes the path.
+func TestPathMatchRequiresTokenizedPath(t *testing.T) {
+	expression, err := compileExpression(`path.match(literal("api"))`)
 	require.NoError(t, err)
-	require.False(t, result.Value)
+
+	_, err = evaluateExpression(expression, Env{Request: Request{Method: "GET", Path: "/api"}})
+	require.ErrorContains(t, err, "without a tokenized path")
+}
+
+func pathEnv(t *testing.T, path string) Env {
+	t.Helper()
+	env, err := NewEnv(Request{Method: "GET", Path: path}, Identity{})
+	require.NoError(t, err)
+	return env
 }

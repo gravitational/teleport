@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var getRequest = Request{Method: http.MethodGet}
+var getRequest = Request{Method: http.MethodGet, Path: "/"}
 
 func evaluate(t *testing.T, expr string, request Request, identity Identity) bool {
 	t.Helper()
@@ -111,7 +111,9 @@ func TestNewEnv(t *testing.T) {
 	identity := Identity{Name: "alice"}
 	env, err := NewEnv(getRequest, identity)
 	require.NoError(t, err)
-	require.Equal(t, Env{Request: getRequest, Identity: identity}, env)
+	require.Equal(t, getRequest, env.Request)
+	require.Equal(t, identity, env.Identity)
+	require.NotNil(t, env.tokens)
 	for _, method := range []string{"get", "GeT", "PROPFIND", ""} {
 		t.Run(method, func(t *testing.T) {
 			env, err := NewEnv(Request{Method: method}, identity)
@@ -120,6 +122,11 @@ func TestNewEnv(t *testing.T) {
 			require.Zero(t, env)
 		})
 	}
+	// NewEnv rejects a path that Tokenize rejects before any rule is evaluated.
+	_, err = NewEnv(Request{Method: http.MethodGet, Path: "/a/../b"}, identity)
+	require.True(t, trace.IsBadParameter(err))
+	_, err = NewEnv(Request{Method: http.MethodGet}, identity)
+	require.ErrorContains(t, err, "must start with /")
 }
 
 func TestSet(t *testing.T) {
@@ -218,4 +225,17 @@ func TestConcurrentEvaluate(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+// TestWhereVarsRead checks that a where clause may read vars and that a
+// read that nothing bound errors.
+func TestWhereVarsRead(t *testing.T) {
+	where, err := CompileWhere(`vars.project == "acme"`)
+	require.NoError(t, err)
+
+	_, err = where.Evaluate(Env{Request: getRequest})
+	require.ErrorContains(t, err, "vars.project is read but not bound")
+
+	_, err = where.Evaluate(Env{Request: getRequest, result: &Result{vars: map[string]string{"project": "acme"}}})
+	require.ErrorContains(t, err, "not bound", "caller-set vars cannot leak in, evaluateExpression resets result")
 }

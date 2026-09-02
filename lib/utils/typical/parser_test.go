@@ -752,3 +752,46 @@ func TestUnknownIdentifier(t *testing.T) {
 		})
 	}
 }
+
+// TestGetUnknownIdentifierVariable checks that a spec deferring only one
+// dynamic namespace keeps the parse-time failure for every other unknown
+// identifier.
+func TestGetUnknownIdentifierVariable(t *testing.T) {
+	spec := typical.ParserSpec[struct{}]{
+		GetUnknownIdentifierVariable: func(fields []string) (typical.Variable, error) {
+			if len(fields) != 2 || fields[0] != "vars" {
+				return nil, trace.NotFound("unknown identifier %q", strings.Join(fields, "."))
+			}
+			joined := strings.Join(fields, ".")
+			return typical.DynamicVariable(func(env struct{}) (string, error) {
+				return joined, nil
+			}), nil
+		},
+	}
+	parser, err := typical.NewParser[struct{}, bool](spec)
+	require.NoError(t, err)
+
+	expression, err := parser.Parse(`vars.project == "vars.project"`)
+	require.NoError(t, err, "the allowed unknown identifier vars.project must parse")
+	got, err := expression.Evaluate(struct{}{})
+	require.NoError(t, err)
+	require.True(t, got)
+
+	for _, expr := range []string{`bogus == "x"`, `vars == "x"`, `vars.a.b == "x"`} {
+		_, err := parser.Parse(expr)
+		require.ErrorContains(t, err, "unknown identifier", expr)
+	}
+
+	_, err = parser.Parse(`vars.a["x"] == "y"`)
+	require.ErrorContains(t, err, "cannot take index", "an index on a deferred identifier fails at parse")
+
+	_, err = parser.Parse(`vars.a && vars.b`)
+	require.ErrorContains(t, err, "expected type bool, got expression returning type (string)", "a deferred identifier is string-typed at parse")
+
+	bothSpec := spec
+	bothSpec.GetUnknownIdentifier = func(env struct{}, fields []string) (any, error) {
+		return nil, nil
+	}
+	_, err = typical.NewParser[struct{}, bool](bothSpec)
+	require.ErrorContains(t, err, "cannot both be set", "GetUnknownIdentifierVariable with GetUnknownIdentifier fails")
+}
