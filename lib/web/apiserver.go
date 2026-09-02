@@ -3732,6 +3732,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
 	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(request.Context(), h.GetAccessPoint(), h.logger)
+	if cluster.GetName() != h.auth.clusterName {
+		// Any leaf cluster resources are also served by the leaf's Auth/Proxy;
+		// intersect their advertised features as well.
+		leafFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(request.Context(), clt, h.logger)
+		clusterAuthProxyServerFeatures = componentfeatures.Intersect(clusterAuthProxyServerFeatures, leafFeatures)
+	}
 
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
@@ -3750,7 +3756,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+				nodeComponentFeatures := componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures)
 				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
 					Logins:            principals.Logins,
