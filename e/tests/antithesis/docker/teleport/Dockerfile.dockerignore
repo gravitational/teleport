@@ -30,6 +30,8 @@ node_modules/**
 !integrations/access/msteams/_tpl/
 !lib/web/templates/
 !lib/usertasks/descriptions/
+!e/lib/auth/summarizer/prompts/**
+!e/lib/auth/summarizer/schema/generated/*.json
 
 # Ignore unusued parts to reduce size of instrumentation and improve caching.
 examples/**

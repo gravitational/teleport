@@ -1,0 +1,20 @@
+# This Dockerfile is built with the repository root as the build context:
+#   docker build -f e/tests/antithesis/docker/pki/Dockerfile .
+
+# Ignore everything.
+*
+
+# Allow the PKI setup script.
+!e/tests/antithesis/docker/pki/setup.sh
+
+!go.mod
+!go.sum
+!api/
+!api/go.mod
+!api/go.sum
+!api/**
+!e/tests/antithesis/workloads/go.mod
+!e/tests/antithesis/workloads/go.sum
+!e/tests/antithesis/workloads/cmd/
+!e/tests/antithesis/workloads/cmd/helper_generate_license/
+!e/tests/antithesis/workloads/cmd/helper_generate_license/**

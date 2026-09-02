@@ -5,10 +5,12 @@ services:
       OUT: /certs
       PUBLIC_ADDR: antithesis.teleport.local
       SANS: localhost 127.0.0.1 antithesis.teleport.local proxy1 proxy2 app-alpha.antithesis.teleport.local app-alpha-tcp.antithesis.teleport.local
-      GENERATE_PG_CERTS: "1"
       PG_CERT_DIR: /certs
+      BACKEND_PG_CERT_DIR: /certs/bk
+      LICENSE_FILE: /license/license.pem
     volumes:
       - certs:/certs
+      - license:/license
     restart: "no"
 
   pg:
@@ -28,7 +30,7 @@ services:
       retries: 30
     volumes:
       - certs:/certs:ro
-      - pg-data:/var/lib/postgresql
+      - bkdata:/var/lib/postgresql
 
   auth1:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
@@ -39,6 +41,7 @@ services:
         condition: service_healthy
     volumes:
       - certs:/certs:ro
+      - license:/license:ro
       - ./teleport/auth.yaml:/etc/teleport.yaml:ro
       - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
       - ./teleport/startup.yaml:/etc/teleport/startup.yaml
@@ -62,6 +65,7 @@ services:
         condition: service_healthy
     volumes:
       - certs:/certs:ro
+      - license:/license:ro
       - ./teleport/auth.yaml:/etc/teleport.yaml:ro
       - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
       - ./teleport/startup.yaml:/etc/teleport/startup.yaml
@@ -179,9 +183,10 @@ services:
     volumes:
       - ./tbot:/etc/tbot:ro
       - machine-id:/opt/machine-id
-      - certs:/certs
+      - certs:/certs:ro
 
 volumes:
   certs:
-  pg-data:
+  license:
+  bkdata:
   machine-id:

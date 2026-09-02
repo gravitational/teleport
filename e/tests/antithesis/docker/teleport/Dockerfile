@@ -62,7 +62,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
     -ldflags "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=${TELEPORT_MODULES_BUILD_TYPE}" \
-    -o /out/teleport ./tool/teleport
+    -o /out/teleport ./e/tool/teleport
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
@@ -186,4 +186,3 @@ FROM workload AS workload-core
 COPY --from=builder /out/parallel_driver_crud_fuzzer /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
 COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test/v1/ssh/parallel_driver_single_ssh_command
 COPY --from=builder /out/parallel_driver_app_access /opt/antithesis/test/v1/apps/parallel_driver_app_access
-

@@ -76,7 +76,8 @@ build-pki:
 		$(BUILD_ARGS) \
 		--tag $(PKI_IMAGE) \
 		$(DOCKER_OUTPUT) \
-		$(ANTITHESIS_DIR)/docker/pki
+		--file $(ANTITHESIS_DIR)/docker/pki/Dockerfile \
+		$(REPO_ROOT)
 
 PG_IMAGE ?= $(IMAGE_PREFIX)antithesis/pg:$(TAG)
 .PHONY: build-pg
