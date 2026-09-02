@@ -92,6 +92,11 @@ type ProxyConfig struct {
 
 	Limiter limiter.Config
 
+	// WebUnauthenticatedHighRateLimiter overrides the rate limiter the web API
+	// applies to unauthenticated endpoints that expect high request rates,
+	// such as /webapi/ping/:connector. Used only in tests.
+	WebUnauthenticatedHighRateLimiter *limiter.Config
+
 	// PublicAddrs is a list of the public addresses the proxy advertises
 	// for the HTTP endpoint. The hosts in PublicAddr are included in the
 	// list of host principals on the TLS and SSH certificate.
