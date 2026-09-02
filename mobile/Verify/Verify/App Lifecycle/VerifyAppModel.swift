@@ -18,15 +18,27 @@ import Foundation
 import LogBackends
 import Logging
 import Observation
+import UIKit
 
 /// The root of our app's view model tree.
 @Observable @MainActor
 final class VerifyAppModel {
 	private let logger = Logger(label: "VerifyAppModel")
+	private let loggingController: LoggingController
 
 	// MARK: Child View Models
 
 	let landingViewModel = LandingViewModel()
+
+	init(loggingController: LoggingController) {
+		self.loggingController = loggingController
+	}
+
+	func cleanUpBeforeBackgrounding() {
+		beginBackgroundTask(named: "flush-logs") {
+			try await self.loggingController.flushInBackground()
+		}
+	}
 }
 
 // MARK: - Deep Link Handling
@@ -49,6 +61,32 @@ extension VerifyAppModel {
 				metadata: ["scannedURL": "\(url, sensitivity: .sensitive)"],
 			)
 			landingViewModel.showParserError(errorMessage: error.localizedDescription)
+		}
+	}
+}
+
+// MARK: - Background Work
+
+extension VerifyAppModel {
+	func beginBackgroundTask(named name: String, task: @escaping @Sendable () async throws -> Void) {
+		var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+		func endBackgroundTask() {
+			UIApplication.shared.endBackgroundTask(backgroundTaskID)
+			backgroundTaskID = .invalid
+		}
+
+		backgroundTaskID = UIApplication.shared.beginBackgroundTask(
+			withName: name,
+			expirationHandler: endBackgroundTask,
+		)
+
+		Task {
+			defer { endBackgroundTask() }
+			do {
+				try await task()
+			} catch {
+				print("Failed to complete background task \"\(name)\": \(error)")
+			}
 		}
 	}
 }

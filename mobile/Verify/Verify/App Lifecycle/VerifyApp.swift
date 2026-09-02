@@ -66,23 +66,24 @@ import SwiftUI
 /// ```
 @main
 struct VerifyApp: App {
+	@Environment(\.scenePhase)
+	private var scenePhase
+
 	@State
 	private var appModel: VerifyAppModel
 
 	init() {
+		let loggingController = LoggingController()
+
 		LoggingSystem.bootstrap { label in
-			var handler = ConsoleLogHandler(label: label)
-			#if DEBUG
-				handler.logLevel = CommandLine.arguments.contains("--sql-trace") ? .trace : .debug
-			#endif
-			return handler
+			loggingController.makeLogHandler(label: label)
 		}
 
 		prepareDependencies {
 			$0.defaultDatabase = AppDatabase.makeLiveDatabase()
 		}
 		// Only initialize the model after our app's dependencies have been prepared
-		self.appModel = VerifyAppModel()
+		self.appModel = VerifyAppModel(loggingController: loggingController)
 	}
 
 	var body: some Scene {
@@ -90,6 +91,10 @@ struct VerifyApp: App {
 			LandingView(viewModel: appModel.landingViewModel)
 				.onOpenURL { url in
 					appModel.openDeepLink(url)
+				}
+				.onChange(of: scenePhase) { _, scenePhase in
+					guard scenePhase == .background else { return }
+					appModel.cleanUpBeforeBackgrounding()
 				}
 		}
 	}
