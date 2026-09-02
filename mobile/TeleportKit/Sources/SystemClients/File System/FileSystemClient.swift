@@ -26,6 +26,7 @@ public struct FileSystemClient: Sendable {
 	public var fileExists: @Sendable (_ url: URL) -> Bool = { _ in false }
 	public var createFile: @Sendable (_ url: URL, _ contents: Data?) throws -> Void
 	public var openFileForWriting: @Sendable (_ url: URL) throws -> WritableFileClient
+	public var readData: @Sendable (_ url: URL) throws -> Data
 	public var moveItem: @Sendable (_ sourceURL: URL, _ destinationURL: URL) throws -> Void
 	public var removeItem: @Sendable (_ url: URL) throws -> Void
 }
@@ -53,6 +54,9 @@ extension FileSystemClient {
 		},
 		openFileForWriting: { url in
 			try WritableFileClient.liveValue(FileHandle(forWritingTo: url))
+		},
+		readData: { url in
+			try Data(contentsOf: url)
 		},
 		moveItem: { sourceURL, destinationURL in
 			try FileManager.default.moveItem(at: sourceURL, to: destinationURL)

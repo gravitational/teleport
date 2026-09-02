@@ -14,16 +14,26 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-public import Dependencies
 import DependenciesMacros
+#if canImport(MessageUI)
+	import MessageUI
+#endif
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	public nonisolated var serialNumberClient = SerialNumberClient()
+/// Provides information about whether the system email composition interface is available.
+@DependencyClient
+public struct EmailComposeClient: Sendable {
+	/// Returns whether the current device is configured to send email.
+	public var isAvailable: @MainActor @Sendable () -> Bool = { false }
+}
 
-	@DependencyEntry(liveValue: FileSystemClient.liveValue)
-	public nonisolated var fileSystemClient: FileSystemClient
-
-	@DependencyEntry(liveValue: EmailComposeClient.liveValue)
-	public nonisolated var emailComposeClient: EmailComposeClient
+extension EmailComposeClient {
+	public static let liveValue = EmailComposeClient(
+		isAvailable: {
+			#if canImport(MessageUI)
+				MFMailComposeViewController.canSendMail()
+			#else
+				false
+			#endif
+		},
+	)
 }

@@ -48,7 +48,6 @@ struct LandingView: View {
 
 			// MARK: Toolbar
 
-			.toolbarVisibility(viewModel.shouldShowToolbar ? .visible : .hidden)
 			.toolbar {
 				ToolbarItem {
 					Menu {
@@ -57,6 +56,11 @@ struct LandingView: View {
 							systemImage: "trash",
 							role: .destructive,
 							action: viewModel.userTappedForgetAllClusters,
+						)
+						Button(
+							"Share Logs",
+							systemImage: "scroll",
+							action: viewModel.userTappedShareLogsButton,
 						)
 						#if DEBUG
 							Divider()
@@ -80,13 +84,43 @@ struct LandingView: View {
 			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
 				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
-			.alert($viewModel.destination.notice) { _ in }
-			.alert($viewModel.destination.forgetAllClustersAlert) { action in
-				switch action {
-					case .confirm: Task { await viewModel.userConfirmedForgetAllClusters() }
-					case .none: break
-				}
+			.sheet(item: $viewModel.destination.shareLogs, id: \.presentationID, onDismiss: viewModel.userDismissedShareLogsSheet) { shareLogsViewModel in
+				ShareLogsView(viewModel: shareLogsViewModel)
 			}
+			.alert(
+				item: $viewModel.destination.notice,
+				title: { notice in
+					Text(notice.title)
+				},
+				actions: { _ in
+					Button("OK") {}
+				},
+				message: { notice in
+					if let message = notice.message {
+						Text(message)
+					}
+				},
+			)
+			.alert(
+				"Are you sure you want to forget all clusters?",
+				isPresented: Binding($viewModel.destination.forgetAllClustersAlert),
+				actions: {
+					Button("Forget All Clusters", role: .destructive) {
+						Task {
+							await viewModel.userConfirmedForgetAllClusters()
+						}
+					}
+					Button("Cancel", role: .cancel) {}
+				},
+				message: {
+					Text(
+						"""
+						This action cannot be undone. You will still be able to authenticate using this device until \
+						you remove it from your trusted devices in Account Settings in the web UI.
+						""",
+					)
+				},
+			)
 
 			// MARK: Haptics
 

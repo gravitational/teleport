@@ -14,16 +14,19 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-public import Dependencies
-import DependenciesMacros
+import Foundation
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	public nonisolated var serialNumberClient = SerialNumberClient()
+/// A simple data type used for kicking off a pre-composed email
+struct EmailDraft: Identifiable, Equatable {
+	let id: UUID
+	let recipients: [String]
+	let subject: String
+	let body: String
+	let attachments: [Attachment]
 
-	@DependencyEntry(liveValue: FileSystemClient.liveValue)
-	public nonisolated var fileSystemClient: FileSystemClient
-
-	@DependencyEntry(liveValue: EmailComposeClient.liveValue)
-	public nonisolated var emailComposeClient: EmailComposeClient
+	struct Attachment: Equatable {
+		let data: Data
+		let mimeType: String
+		let fileName: String
+	}
 }
