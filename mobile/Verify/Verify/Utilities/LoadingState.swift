@@ -27,4 +27,11 @@ enum LoadingState<Value> {
 			case .idle, .success, .failure: false
 		}
 	}
+
+	var value: Value? {
+		switch self {
+			case let .success(value), let .reloading(value): value
+			case .idle, .loading, .failure: nil
+		}
+	}
 }

@@ -23,4 +23,7 @@ extension DependencyValues {
 
 	@DependencyEntry(liveValue: FileSystemClient.liveValue)
 	public nonisolated var fileSystemClient: FileSystemClient
+
+	@DependencyEntry(liveValue: EmailComposeClient.liveValue)
+	public nonisolated var emailComposeClient: EmailComposeClient
 }

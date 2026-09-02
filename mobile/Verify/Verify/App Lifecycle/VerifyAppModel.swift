@@ -28,10 +28,12 @@ final class VerifyAppModel {
 
 	// MARK: Child View Models
 
-	let landingViewModel = LandingViewModel()
+	let landingViewModel: LandingViewModel
 
 	init(loggingController: LoggingController) {
 		self.loggingController = loggingController
+		self.landingViewModel = LandingViewModel()
+		landingViewModel.delegate = self
 	}
 
 	func cleanUpBeforeBackgrounding() {
@@ -88,5 +90,17 @@ extension VerifyAppModel {
 				print("Failed to complete background task \"\(name)\": \(error)")
 			}
 		}
+	}
+}
+
+// MARK: - LandingViewModel.Delegate
+
+extension VerifyAppModel: LandingViewModel.Delegate {
+	func landingViewModelDidRequestLogCollection(_ viewModel: LandingViewModel) async throws -> URL {
+		try await loggingController.compressLogFiles()
+	}
+
+	func landingViewModelDidRequestTemporaryLogDeletion(_ viewModel: LandingViewModel) {
+		loggingController.clearTemporaryLogs()
 	}
 }
