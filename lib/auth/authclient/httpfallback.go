@@ -138,6 +138,39 @@ func (c *HTTPClient) validateGithubAuthCallback(ctx context.Context, q url.Value
 	return &response, nil
 }
 
+// AuthenticateWebUser authenticates a web user with their credentials and
+// issues a web session on success.
+func (c *Client) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+	resp, err := c.APIClient.AuthenticateWebUser(ctx, &proto.AuthenticateWebUserRequest{
+		Request: req.ToProto(),
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.authenticateWebUser(ctx, req)
+		}
+		return nil, trace.Wrap(err)
+	}
+	if resp.Session == nil {
+		return nil, trace.BadParameter("missing session in AuthenticateWebUserResponse")
+	}
+	return resp.Session, nil
+}
+
+// authenticateWebUser authenticates a web user via the legacy HTTP endpoint.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) authenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+	out, err := c.PostJSON(
+		ctx,
+		c.Endpoint("users", url.PathEscape(req.Username), "web", "authenticate"),
+		req,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalWebSession(out.Bytes())
+}
+
 // TODO(noah): DELETE IN 21.0.0
 func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()

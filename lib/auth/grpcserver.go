@@ -2055,6 +2055,29 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 	}, nil
 }
 
+// AuthenticateWebUser is called by the proxy to authenticate a local user
+// with their credentials and issue a web session.
+func (g *GRPCServer) AuthenticateWebUser(ctx context.Context, req *authpb.AuthenticateWebUserRequest) (*authpb.AuthenticateWebUserResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Request == nil {
+		return nil, trace.BadParameter("missing parameter Request")
+	}
+	session, err := auth.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequestFromProto(req.Request))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+	return &authpb.AuthenticateWebUserResponse{
+		Session: sess,
+	}, nil
+}
+
 // GetWebSession gets a web session.
 func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*authpb.GetWebSessionResponse, error) {
 	auth, err := g.authenticate(ctx)

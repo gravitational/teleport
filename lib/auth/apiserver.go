@@ -128,6 +128,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Passwords and sessions
 	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
+	// TODO(strideynet): DELETE IN v20.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 

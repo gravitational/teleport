@@ -2745,6 +2745,83 @@ message LoginClientOptions {
   string DefaultRelayAddr = 1;
 }
 
+// AuthenticateUserRequest carries local user credentials for the
+// AuthenticateWebUser RPC.
+message AuthenticateUserRequest {
+  // PassCreds is a password credential.
+  message PassCreds {
+    bytes Password = 1;
+  }
+
+  // OTPCreds is a two-factor authentication credential.
+  message OTPCreds {
+    bytes Password = 1;
+    // Token is a user second factor token.
+    string Token = 2;
+  }
+
+  // SessionCreds is a web session credential.
+  message SessionCreds {
+    // ID is a web session ID.
+    string ID = 1;
+  }
+
+  // ForwardedClientMetadata carries information about the end user client
+  // forwarded by the proxy.
+  message ForwardedClientMetadata {
+    // UserAgent is the user agent reported by the end user client.
+    string UserAgent = 1;
+    // RemoteAddr is the IP address of the end user.
+    string RemoteAddr = 2;
+    // ProxyGroupID is the reverse tunnel group ID, used by reverse tunnel
+    // agents in proxy peering mode.
+    string ProxyGroupID = 3;
+    // MaxTouchPoints indicates whether the end user client device supports
+    // touch controls, used to differentiate iPadOS from macOS.
+    int32 MaxTouchPoints = 4;
+  }
+
+  // Username is the name of the user to authenticate. May be empty for
+  // passwordless webauthn authentication.
+  string Username = 1;
+  // Scope, if non-empty, makes the authentication scoped, resulting in a more
+  // limited set of credentials being issued.
+  string Scope = 2;
+  // SSHPublicKey is a public key in SSH authorized_keys format.
+  bytes SSHPublicKey = 3;
+  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+  bytes TLSPublicKey = 4;
+  // Pass is a password used in local authentication schemes.
+  PassCreds Pass = 5;
+  // Webauthn is a signed credential assertion, used in MFA authentication.
+  webauthn.CredentialAssertionResponse Webauthn = 6;
+  // OTP is a password and second factor, used for MFA authentication.
+  OTPCreds OTP = 7;
+  // BrowserMFA is a browser MFA message that a CLI client has sent to the
+  // Proxy containing a webauthn response for auth.
+  BrowserMFAResponse BrowserMFA = 8;
+  // Session is a web session credential used to authenticate web sessions.
+  SessionCreds Session = 9;
+  // ClientMetadata includes forwarded information about the end user client.
+  ForwardedClientMetadata ClientMetadata = 10;
+  // HeadlessAuthenticationID is the ID for a headless authentication
+  // resource.
+  string HeadlessAuthenticationID = 11;
+}
+
+// AuthenticateWebUserRequest is the request for the AuthenticateWebUser RPC.
+message AuthenticateWebUserRequest {
+  // Request carries the user's credentials.
+  AuthenticateUserRequest Request = 1;
+}
+
+// AuthenticateWebUserResponse is the response for the AuthenticateWebUser
+// RPC.
+message AuthenticateWebUserResponse {
+  // Session is the web session created for the user.
+  types.WebSessionV2 Session = 1;
+}
+
 message ListOIDCConnectorsRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -3479,6 +3556,9 @@ service AuthService {
     option deprecated = true;
   }
 
+  // AuthenticateWebUser is called by the proxy to authenticate a local user
+  // with their credentials and issue a web session.
+  rpc AuthenticateWebUser(AuthenticateWebUserRequest) returns (AuthenticateWebUserResponse);
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
   // ExtendWebSession creates a new web session for a user based on a valid
