@@ -321,6 +321,72 @@ func TestAppIsAWSConsole(t *testing.T) {
 	}
 }
 
+func TestAppSupportsIntegration(t *testing.T) {
+	tests := []struct {
+		name     string
+		spec     AppSpecV3
+		expected bool
+	}{
+		{
+			name: "AWS console",
+			spec: AppSpecV3{
+				URI: "https://console.aws.amazon.com/ec2/v2/home",
+			},
+			expected: true,
+		},
+		{
+			name: "CLI-only AWS app",
+			spec: AppSpecV3{
+				Cloud: CloudAWS,
+			},
+			expected: true,
+		},
+		{
+			name: "Azure cloud",
+			spec: AppSpecV3{
+				Cloud: CloudAzure,
+				URI:   "https://portal.azure.com",
+			},
+			expected: false,
+		},
+		{
+			name: "GCP",
+			spec: AppSpecV3{
+				Cloud: CloudGCP,
+				URI:   "https://cloud.google.com",
+			},
+			expected: false,
+		},
+		{
+			name: "MCP app",
+			spec: AppSpecV3{
+				URI: "mcp+stdio://",
+				MCP: &MCP{
+					Command:       "/bin/sh",
+					RunAsHostUser: "root",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "regular HTTP app",
+			spec: AppSpecV3{
+				URI: "http://localhost:8080",
+			},
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "test-app",
+			}, test.spec)
+			require.NoError(t, err)
+			require.Equal(t, test.expected, app.SupportsIntegration())
+		})
+	}
+}
+
 func TestApplicationGetAWSExternalID(t *testing.T) {
 	t.Parallel()
 

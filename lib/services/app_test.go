@@ -230,6 +230,17 @@ func TestValidateApp(t *testing.T) {
 			}(),
 		},
 		{
+			name: "AWS console with integration is valid",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "aws"}, types.AppSpecV3{
+					URI:         "https://console.aws.amazon.com",
+					Integration: "my-integration",
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+		},
+		{
 			name: "invalid aws region",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
@@ -269,6 +280,74 @@ func TestValidateApp(t *testing.T) {
 			name:    "non-derived public_addr rejected",
 			app:     scopedApp("grafana", scopedScope, "grafana.proxy.example.com"),
 			wantErr: `scoped app "grafana" public address "grafana.proxy.example.com" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name: "MCP app with AWS cloud is rejected",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "mcp-aws-cloud"}, types.AppSpecV3{
+					URI:   "mcp+stdio://",
+					Cloud: types.CloudAWS,
+					MCP: &types.MCP{
+						Command:       "/bin/sh",
+						RunAsHostUser: "root",
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "cannot specify cloud configuration",
+		},
+		{
+			name: "TCP app with AWS cloud is rejected",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "tcp-aws-cloud"}, types.AppSpecV3{
+					URI:   "tcp://localhost",
+					Cloud: types.CloudAWS,
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "cannot specify cloud configuration",
+		},
+		{
+			name: "LLM app with AWS cloud is rejected",
+			app: &types.AppV3{
+				Metadata: types.Metadata{Name: "llm-aws-cloud"},
+				Spec: types.AppSpecV3{
+					URI:   types.SchemeLLMEndpoint + "://",
+					Cloud: types.CloudAWS,
+					LLM:   &types.LLM{},
+				},
+			},
+			wantErr: "cannot specify cloud configuration",
+		},
+		{
+			name: "MCP app with integration is rejected",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "mcp"}, types.AppSpecV3{
+					URI:         "mcp+stdio://",
+					Integration: "my-integration",
+					MCP: &types.MCP{
+						Command:       "/bin/sh",
+						RunAsHostUser: "root",
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "does not support integration",
+		},
+		{
+			name: "regular HTTP app with integration is rejected",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "web"}, types.AppSpecV3{
+					URI:         "http://localhost:8080",
+					Integration: "my-integration",
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "does not support integration",
 		},
 	}
 

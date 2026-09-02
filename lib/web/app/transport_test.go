@@ -455,73 +455,107 @@ func Test_transport_with_integration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	appName := "awsconsole"
-	awsApp, err := types.NewAppV3(types.Metadata{Name: appName},
-		types.AppSpecV3{
-			PublicAddr:  fmt.Sprintf("%v.%v", appName, rootCluster),
-			URI:         fmt.Sprintf("https://%v.internal.example.com:8888", appName),
-			Cloud:       types.CloudAWS,
-			Integration: "my-integration",
-		},
-	)
-	require.NoError(t, err)
-
-	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, rootCluster, "awsconsole-server")
-	require.NoError(t, err)
-
 	clock := clockwork.NewFakeClock()
-
-	integrationAppHandler := &mockIntegrationAppHandler{}
-
 	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
-	tr, err := newTransport(&transportConfig{
-		clock:       clock,
-		clusterName: rootCluster,
-		identity: &tlsca.Identity{
+
+	newTransportWithApp := func(t *testing.T, app *types.AppV3, identity *tlsca.Identity) (*transport, *mockIntegrationAppHandler) {
+		t.Helper()
+		appServer, err := types.NewAppServerV3FromApp(app, rootCluster, app.GetName()+"-server")
+		require.NoError(t, err)
+
+		handler := &mockIntegrationAppHandler{}
+		tr, err := newTransport(&transportConfig{
+			clock:         clock,
+			clusterName:   rootCluster,
+			identity:      identity,
+			servers:       []types.AppServer{appServer},
+			cipherSuites:  utils.DefaultCipherSuites(),
+			clusterGetter: &mockClusterGetter{},
+			accessPoint: &mockAuthClient{
+				caKey:       caKey,
+				caCert:      caCert,
+				clusterName: rootCluster,
+			},
+			ws:                    appSession,
+			integrationAppHandler: handler,
+		})
+		require.NoError(t, err)
+		return tr, handler
+	}
+
+	t.Run("aws console with integration is handled locally", func(t *testing.T) {
+		awsApp, err := types.NewAppV3(types.Metadata{Name: "awsconsole"},
+			types.AppSpecV3{
+				PublicAddr:  fmt.Sprintf("awsconsole.%v", rootCluster),
+				URI:         "https://awsconsole.internal.example.com:8888",
+				Cloud:       types.CloudAWS,
+				Integration: "my-integration",
+			},
+		)
+		require.NoError(t, err)
+
+		tr, integrationAppHandler := newTransportWithApp(t, awsApp, &tlsca.Identity{
 			RouteToApp: tlsca.RouteToApp{
 				ClusterName: rootCluster,
 				AWSRoleARN:  "MyAWSRole",
 			},
-		},
-		servers:       []types.AppServer{awsAppServer},
-		cipherSuites:  utils.DefaultCipherSuites(),
-		clusterGetter: &mockClusterGetter{},
-		accessPoint: &mockAuthClient{
-			caKey:       caKey,
-			caCert:      caCert,
-			clusterName: rootCluster,
-		},
-		ws:                    appSession,
-		integrationAppHandler: integrationAppHandler,
+		})
+
+		ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort("127.0.0.1", "55555"),
+		})
+
+		conn, err := tr.DialContext(ctxWithClientSrcAddr, "", "")
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			return integrationAppHandler.getConnection() != nil
+		}, 100*time.Millisecond, 10*time.Millisecond)
+
+		require.Equal(t, "127.0.0.1:55555", integrationAppHandler.getConnection().RemoteAddr().String())
+
+		message := "hello world"
+		messageSize := len(message)
+
+		go func() {
+			io.WriteString(conn, message)
+		}()
+
+		bs := make([]byte, messageSize)
+		_, err = io.ReadAtLeast(integrationAppHandler.getConnection(), bs, messageSize)
+		require.NoError(t, err)
+
+		require.Equal(t, message, string(bs))
 	})
-	require.NoError(t, err)
 
-	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        net.JoinHostPort("127.0.0.1", "55555"),
+	t.Run("mcp app with AWS cloud and integration is rejected", func(t *testing.T) {
+		// This test intentionally bypasses services.ValidateApp to exercise the
+		// Proxy-side guard for stale app_server resources that already exist in
+		// the backend.
+		mcpApp, err := types.NewAppV3(types.Metadata{Name: "mcp-rce"},
+			types.AppSpecV3{
+				PublicAddr:  fmt.Sprintf("mcp-rce.%v", rootCluster),
+				URI:         "mcp+stdio://",
+				Cloud:       types.CloudAWS,
+				Integration: "fake-integration",
+				MCP: &types.MCP{
+					Command:       "/bin/sh",
+					RunAsHostUser: "root",
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		tr, _ := newTransportWithApp(t, mcpApp, &tlsca.Identity{
+			RouteToApp: tlsca.RouteToApp{
+				ClusterName: rootCluster,
+			},
+		})
+
+		_, err = tr.DialContext(t.Context(), "", "")
+		require.ErrorContains(t, err, "does not support the integration credential flow")
 	})
-
-	conn, err := tr.DialContext(ctxWithClientSrcAddr, "", "")
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		return integrationAppHandler.getConnection() != nil
-	}, 100*time.Millisecond, 10*time.Millisecond)
-
-	require.Equal(t, "127.0.0.1:55555", integrationAppHandler.getConnection().RemoteAddr().String())
-
-	message := "hello world"
-	messageSize := len(message)
-
-	go func() {
-		io.WriteString(conn, message)
-	}()
-
-	bs := make([]byte, messageSize)
-	_, err = io.ReadAtLeast(integrationAppHandler.getConnection(), bs, messageSize)
-	require.NoError(t, err)
-
-	require.Equal(t, message, string(bs))
 }
 
 func Test_isAppServerDialable(t *testing.T) {

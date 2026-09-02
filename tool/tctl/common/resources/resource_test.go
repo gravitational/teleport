@@ -151,7 +151,7 @@ func TestHandlers(t *testing.T) {
 						Name: name,
 					},
 					types.AppSpecV3{
-						URI:         "http://localhost:12345",
+						URI:         "https://console.aws.amazon.com",
 						Integration: "test-integration",
 					},
 				)
