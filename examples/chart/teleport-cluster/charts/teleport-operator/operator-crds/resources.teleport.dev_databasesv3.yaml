@@ -57,6 +57,11 @@ spec:
                     description: LDAPCert is a certificate from Windows LDAP/AD, optional;
                       only for x509 Authentication.
                     type: string
+                  ldap_host:
+                    description: LDAPHost is the host used for LDAP queries, optionally
+                      including a port. (Optional, defaults to KDCHostName; useful
+                      when the LDAP server and KDC are reachable under different names.)
+                    type: string
                   ldap_service_account_name:
                     description: LDAPServiceAccountName is the name of service account
                       for performing LDAP queries. Required for x509 Auth / PKINIT.
@@ -64,6 +69,11 @@ spec:
                   ldap_service_account_sid:
                     description: LDAPServiceAccountSID is the SID of service account
                       for performing LDAP queries. Required for x509 Auth / PKINIT.
+                    type: string
+                  ldap_tls_server_name:
+                    description: LDAPTLSServerName is the server name used for the
+                      TLS handshake with the LDAP server. (Optional, defaults to the
+                      host part of LDAPHost, falling back to KDCHostName.)
                     type: string
                   pki_domain:
                     description: PKIDomain is the Active Directory domain where CRLs

@@ -134,6 +134,11 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"ldap_host": {
+							Description: "LDAPHost is the host used for LDAP queries, optionally including a port. (Optional, defaults to KDCHostName; useful when the LDAP server and KDC are reachable under different names.)",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"ldap_service_account_name": {
 							Description: "LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
 							Optional:    true,
@@ -141,6 +146,11 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"ldap_service_account_sid": {
 							Description: "LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_tls_server_name": {
+							Description: "LDAPTLSServerName is the server name used for the TLS handshake with the LDAP server. (Optional, defaults to the host part of LDAPHost, falling back to KDCHostName.)",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -8051,6 +8061,40 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["ldap_host"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPHost"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPHost", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPHost = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["ldap_tls_server_name"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.AD.LDAPTLSServerName"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPTLSServerName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LDAPTLSServerName = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -10658,6 +10702,50 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.PKIDomain)
 											v.Unknown = false
 											tf.Attrs["pki_domain"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_host"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPHost"})
+										} else {
+											v, ok := tf.Attrs["ldap_host"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPHost", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPHost", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPHost) == ""
+											}
+											v.Value = string(obj.LDAPHost)
+											v.Unknown = false
+											tf.Attrs["ldap_host"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["ldap_tls_server_name"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.AD.LDAPTLSServerName"})
+										} else {
+											v, ok := tf.Attrs["ldap_tls_server_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.AD.LDAPTLSServerName", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.AD.LDAPTLSServerName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LDAPTLSServerName) == ""
+											}
+											v.Value = string(obj.LDAPTLSServerName)
+											v.Unknown = false
+											tf.Attrs["ldap_tls_server_name"] = v
 										}
 									}
 								}
