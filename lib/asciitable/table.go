@@ -33,6 +33,17 @@ import (
 	"golang.org/x/term"
 )
 
+// Layout constants, for callers sizing columns against a terminal width: a
+// column occupies max(MinColumnWidth, widest cell+ColumnPadding).
+const (
+	// MinColumnWidth is the narrowest a column renders, whatever its contents.
+	MinColumnWidth = 5
+	// ColumnPadding follows every cell, including the last one on a row.
+	ColumnPadding = 1
+	// TruncationSuffix is appended to cells over [Column.MaxCellLength].
+	TruncationSuffix = "..."
+)
+
 // Column represents a column in the table.
 type Column struct {
 	Title         string
@@ -103,16 +114,16 @@ func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 		}
 		if column.MaxCellLength > maxColWidth {
 			column.MaxCellLength = maxColWidth
-			totalLen += column.MaxCellLength + 4 // "...<space>"
+			totalLen += column.MaxCellLength + len(TruncationSuffix) + ColumnPadding // "...<space>"
 		} else {
-			totalLen += column.MaxCellLength + 1 // +1 for column separator
+			totalLen += column.MaxCellLength + ColumnPadding // +1 for column separator
 		}
 		columns = append(columns, column)
 	}
 
 	for _, column := range columns {
 		if column.Title == truncatedColumn {
-			column.MaxCellLength = max(width-totalLen-len("... "), 0)
+			column.MaxCellLength = max(width-totalLen-len(TruncationSuffix)-ColumnPadding, 0)
 		}
 		t.AddColumn(column)
 	}
@@ -151,7 +162,7 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 	if maxCellLength == 0 || len(cell) <= maxCellLength {
 		return cell, false
 	}
-	truncatedCell := fmt.Sprintf("%v...", cell[:maxCellLength])
+	truncatedCell := cell[:maxCellLength] + TruncationSuffix
 	footnoteLabel := t.columns[colIndex].FootnoteLabel
 	if footnoteLabel == "" {
 		return truncatedCell, false
@@ -179,7 +190,7 @@ func (t *Table) String() string {
 
 // WriteTo writes the full table to [w] or else returns an error.
 func (t *Table) WriteTo(w io.Writer) error {
-	writer := tabwriter.NewWriter(w, 5, 0, 1, ' ', 0)
+	writer := tabwriter.NewWriter(w, MinColumnWidth, 0, ColumnPadding, ' ', 0)
 	template := strings.Repeat("%v\t", len(t.columns))
 
 	// Header and separator.
