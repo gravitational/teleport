@@ -9,6 +9,7 @@ module "teleport_db_service" {
   create_security_group                         = var.create_security_group
   ecs_cluster_name                              = var.ecs_cluster_name
   ecs_cluster_use_name_prefix                   = var.ecs_cluster_use_name_prefix
+  ecs_execution_role_inline_policy              = var.ecs_execution_role_inline_policy
   ecs_service_name                              = var.ecs_service_name
   ecs_service_subnets                           = var.ecs_service_subnets
   ecs_task_cloudwatch_log_group_name            = var.ecs_task_cloudwatch_log_group_name

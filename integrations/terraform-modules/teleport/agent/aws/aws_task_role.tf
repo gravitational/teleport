@@ -50,6 +50,7 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
     for_each = var.ecs_task_role_self_assumption_allowed ? [true] : []
 
     content {
+      sid       = "AssumeSelf"
       actions   = ["sts:AssumeRole"]
       effect    = "Allow"
       resources = [local.ecs_task_role_arn]
