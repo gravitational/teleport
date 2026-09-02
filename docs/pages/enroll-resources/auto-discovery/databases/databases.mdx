@@ -19,6 +19,7 @@ Teleport Database Service.
 ## Supported clouds
 
 - [AWS](aws.mdx): Discovery for AWS databases.
+- [GCP](gcp.mdx): Discovery for Google Cloud databases.
 - [Azure](../../database-access/enrollment/azure/azure.mdx): Discovery for Azure databases.
 {/* TODO(gavin): Add an Azure discovery guide and permission reference */}
 
@@ -57,15 +58,16 @@ information such as:
 - *Endpoint Info*: Connection endpoint the database can be reached at
 
 <Admonition type="tip">
-You can override a discovered database's name by using a special tag attached
-to the database in your cloud provider:
- - ***key***: `TeleportDatabaseName`
- - ***value***: desired name
+You can override a discovered database's name by using provider metadata
+attached to the database:
 
-The Discovery Service will check if the database metadata includes the tag and
-use its value as the resource name in Teleport.
-The name override will be used verbatim, i.e. additional metadata will not be
-appended to it.
+- **AWS and Azure key**: `TeleportDatabaseName`.
+- **Google Cloud key**: `teleport-database-name`.
+- **Value**: the desired name.
+
+The Discovery Service checks the database metadata for the provider-specific key
+and uses a valid value as the resource name in Teleport without appending
+additional metadata.
 </Admonition>
 
 The Teleport Discovery Service only needs access to APIs that it can poll for

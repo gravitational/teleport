@@ -8,13 +8,12 @@ expected {{ resourceKind }}s have already been registered with your Teleport
 cluster.
 
 If some {{ resourceKind }}s do not appear in the list, check if the Discovery
-Service selector labels match the missing {{ resourceKind }} tags or look into
-the Discovery Service logs for permission errors.
+Service selector matches the missing {{ resourceKind }}s' provider labels or
+tags, or check the Discovery Service logs for permission errors.
 
-Check that the Discovery Service is running with credentials for the correct 
-{{ cloud }} account. It can discover resources in another {{ cloud }} account,
-but it must be configured to assume the correct principal in the other 
-{{ cloud }} account if that's the case.
+Check that the Discovery Service is running with credentials for the intended
+{{ cloud }} environment. To discover resources in another account or project,
+grant its principal access to the target account or project.
 
 Check if there is more than one Discovery Service instance running:
 

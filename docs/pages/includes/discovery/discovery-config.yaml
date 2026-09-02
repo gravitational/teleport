@@ -164,6 +164,7 @@ discovery_service:
       # GCP resource types. Valid options are:
       # 'gke' - discovers and registers GKE Kubernetes clusters.
       # 'gce' - discovers and registers GCP compute instances.
+      # 'cloudsql' - discovers and registers Cloud SQL databases.
       - types: ["gce"]
         # IDs of GCP projects to search for resources from.
         project_ids: ["project-id"]
