@@ -25,8 +25,19 @@ extension Logger.Metadata {
 	var formatted: String {
 		guard !isEmpty else { return "" }
 		let metadataAsStrings = map { key, value in
-			"🔸 \(key)=\(value)"
+			"🔸 \(key)=\(value.formatted)"
 		}
 		return metadataAsStrings.joined(separator: " ")
+	}
+}
+
+extension Logger.MetadataValue {
+	var formatted: String {
+		let shouldRedactSensitiveValues = !CommandLine.arguments.contains("--log-sensitive-values")
+		if attributes[Logger.MetadataSensitivity.self] == .sensitive, shouldRedactSensitiveValues {
+			return "<redacted>"
+		} else {
+			return "\(self)"
+		}
 	}
 }
