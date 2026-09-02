@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 type NewWebSessionRequest = sessionreq.NewWebSessionRequest
@@ -679,9 +678,11 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 	}
 
 	switch req.AuthorityType {
-	case "":
+	case "", types.JWTSigner:
 		req.AuthorityType = types.JWTSigner
-	case types.JWTSigner, types.OIDCIdPCA:
+	case types.OIDCIdPCA:
+		// OIDC tokens are now issued via the dedicated AppIssuanceService.IssueAppOIDCToken.
+		return "", trace.BadParameter("unsupported authority %q for signing app token, please upgrade the app service to a recent version", req.AuthorityType)
 	default:
 		return "", trace.BadParameter("unsupported authority %q for signing app token", req.AuthorityType)
 	}
@@ -694,15 +695,6 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 		return "", trace.Wrap(err)
 	}
 
-	// Filter out empty traits so the resulting JWT doesn't have a bunch of
-	// entries with nil values.
-	filteredTraits := map[string][]string{}
-	for trait, values := range req.Traits {
-		if len(values) > 0 {
-			filteredTraits[trait] = values
-		}
-	}
-
 	// Extract the JWT signing key and sign the claims.
 	signer, err := a.GetKeyStore().GetJWTSigner(ctx, ca)
 	if err != nil {
@@ -713,19 +705,12 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 		return "", trace.Wrap(err)
 	}
 
-	issuer := ca.GetClusterName()
-	if req.AuthorityType == types.OIDCIdPCA {
-		if issuer, err = oidc.IssuerForCluster(ctx, a); err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
 	token, err := privateKey.Sign(jwt.SignParams{
-		Issuer:   issuer,
+		Issuer:   ca.GetClusterName(),
 		Username: req.Username,
 		Roles:    req.Roles,
-		Traits:   filteredTraits,
-		URI:      req.URI,
+		Traits:   req.Traits,
+		Audience: req.URI,
 		Expires:  req.Expires,
 	})
 	if err != nil {

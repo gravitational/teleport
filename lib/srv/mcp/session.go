@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/x509"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,6 +50,8 @@ type SessionCtx struct {
 	App types.Application
 	// Identity is the user identity.
 	Identity tlsca.Identity
+	// UserCertificate is the user's x509 certificate from the TLS connection.
+	UserCertificate *x509.Certificate
 
 	// sessionID is the Teleport session ID.
 	//
@@ -71,6 +74,9 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 	}
 	if c.App == nil {
 		return trace.BadParameter("missing App")
+	}
+	if c.UserCertificate == nil {
+		return trace.BadParameter("missing UserCertificate")
 	}
 	if c.Identity.Username == "" {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()

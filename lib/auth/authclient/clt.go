@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	appv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -1794,6 +1795,9 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
+
+	// AppIssuanceClient returns an app issuance service client.
+	AppIssuanceClient() appv1pb.AppIssuanceServiceClient
 
 	// NotificationServiceClient returns a notification service client.
 	// Clients connecting to  older Teleport versions, still get a client

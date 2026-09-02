@@ -26,13 +26,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/constants"
+	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // maxTokenDuration defines how long an egress JWT or ID token should last. Most
@@ -76,11 +77,15 @@ func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrapper
 	}
 
 	if a.rewriteAuthDetails.hasIDTokenTrait {
-		idToken, err := generateIDToken(ctx, &a.Identity, a.App, a.authClient, expires)
+		resp, err := a.authClient.AppIssuanceClient().IssueAppOIDCToken(ctx, appv1.IssueAppOIDCTokenRequest_builder{
+			AppSessionId:    a.Identity.RouteToApp.SessionID,
+			Ttl:             durationpb.New(expires.Sub(now)),
+			UserCertificate: a.UserCertificate.Raw,
+		}.Build())
 		if err != nil {
 			return "", nil, trace.Wrap(err)
 		}
-		rewriteTraits[constants.TraitIDToken] = []string{idToken}
+		rewriteTraits[constants.TraitIDToken] = []string{resp.GetToken()}
 	}
 
 	a.jwt = jwt
@@ -123,19 +128,4 @@ func newRewriteAuthDetails(rewrite *types.Rewrite) rewriteAuthDetails {
 		}
 	}
 	return r
-}
-
-func generateIDToken(ctx context.Context, identity *tlsca.Identity, app types.Application, auth AuthClient, expires time.Time) (string, error) {
-	roles, traits := appcommon.RolesAndTraitsForAppToken(identity, app)
-
-	// Use types.OIDCIdPCA to generate the token.
-	idToken, err := auth.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
-		Username:      identity.Username,
-		Roles:         roles,
-		Traits:        traits,
-		URI:           app.GetURI(),
-		Expires:       expires,
-		AuthorityType: types.OIDCIdPCA,
-	})
-	return idToken, trace.Wrap(err)
 }

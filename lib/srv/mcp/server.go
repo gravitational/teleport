@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -58,6 +59,8 @@ type AuthClient interface {
 	// WorkloadIdentityIssuanceClient returns an unadorned client for the
 	// workload identity service.
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
+
+	AppIssuanceClient() appv1.AppIssuanceServiceClient
 }
 
 // ServerConfig is the config for the MCP forward server.
