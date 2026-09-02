@@ -813,8 +813,8 @@ github.com/gravitational/selinux v1.13.0-teleport h1:XZQpZK5tteK9ZV2wIC1avhagqoV
 github.com/gravitational/selinux v1.13.0-teleport/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
 github.com/gravitational/trace v1.5.4 h1:nMmF7alwvNiQJhC817Hhmgm95bzKOXbnxvkickTkRDY=
 github.com/gravitational/trace v1.5.4/go.mod h1:/uCbC3ukVU8Pdrh8+3vNLyyE1aGheBWpGGrMnwIK80E=
-github.com/gravitational/vt10x v0.0.6-teleport.1 h1:VJsu1+Av55aBU78IlTDhqKhqgpvYVg5arWU8yw/IfUs=
-github.com/gravitational/vt10x v0.0.6-teleport.1/go.mod h1:rlZFFpeJpgsiwKfqpEhM8wYd4pWNQdyko+mBH4zLbmk=
+github.com/gravitational/vt10x v0.0.7-teleport.1 h1:XQNracD6LHzl21O4BYaaP0D+PZbx6MsYSdafHTQlkp0=
+github.com/gravitational/vt10x v0.0.7-teleport.1/go.mod h1:rlZFFpeJpgsiwKfqpEhM8wYd4pWNQdyko+mBH4zLbmk=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 h1:UH//fgunKIs4JdUbpDl1VZCDaL56wXCB/5+wF6uHfaI=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0/go.mod h1:g5qyo/la0ALbONm6Vbp88Yd8NsDy6rZz+RcrMPxvld8=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 h1:QGLs/O40yoNK9vmy4rhUGBVyMf1lISBGtXRpsu/Qu/o=
