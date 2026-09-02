@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -42,6 +43,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -242,4 +244,42 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	tb, ok := set.Get(svid.ID.TrustDomain())
 	require.True(t, ok)
 	require.NoError(t, crl.CheckSignatureFrom(tb.X509Authorities()[0]))
+}
+
+// TestBotWorkloadIdentityAPI_SlowIdentity ensures setup() doesn't exit early,
+// like from a timeout or similar.
+func TestBotWorkloadIdentityAPI_SlowIdentity(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		svc := &WorkloadAPIService{
+			// an empty svcIdentity will never become ready on its own
+			svcIdentity: &clientcredentials.UnstableConfig{},
+			log:         logtest.NewLogger(),
+		}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- svc.setup(ctx)
+		}()
+
+		// Fake-wait an unreasonably long time
+		time.Sleep(time.Hour)
+		synctest.Wait()
+
+		// It should still be waiting for the identity to initialize
+		select {
+		case err := <-errCh:
+			t.Fatalf("setup() returned too early, err: %+v", err)
+		default:
+		}
+
+		// Explicitly cancel it
+		cancel()
+		synctest.Wait()
+		require.ErrorIs(t, <-errCh, context.Canceled)
+	})
 }

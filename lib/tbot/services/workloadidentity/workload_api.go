@@ -119,18 +119,23 @@ func (s *WorkloadAPIService) setup(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "WorkloadAPIService/setup")
 	defer span.End()
 
+	s.log.DebugContext(ctx, "Waiting for initial service identity")
+	t := time.Now()
+
 	// Wait for the impersonated identity to be ready for us to consume here.
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(10 * time.Second):
-		return trace.BadParameter("timeout waiting for identity to be ready")
 	case <-s.svcIdentity.Ready():
 	}
+
+	s.log.DebugContext(ctx, "Received initial service identity", "elapsed", time.Since(t))
+
 	facade, err := s.svcIdentity.Facade()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	client, err := s.clientBuilder.Build(ctx, facade)
 	if err != nil {
 		return trace.Wrap(err)
