@@ -21,8 +21,8 @@ package appresource
 import (
 	"go/ast"
 	"go/parser"
-	"go/token"
-	"strconv"
+	"maps"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -44,25 +44,78 @@ func expressionSpec() typical.ParserSpec[Env] {
 	// is true, and returns the expression unchanged. A later true call
 	// overrides the results of an earlier one.
 	spec.Functions["allow_code"] = typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
-		if e.record == nil {
-			return false, trace.BadParameter("evaluating allow_code without an audit record (this is a bug)")
+		if e.result == nil {
+			return false, trace.BadParameter("internal error: evaluating allow_code without an evaluation result")
 		}
 		if expr {
-			e.record.AllowCode = code
-			e.record.AllowReason = clamp(reason, maxReasonBytes)
+			e.result.AuditRecord.AllowCode = code
+			e.result.AuditRecord.AllowReason = clamp(reason, maxReasonBytes)
 		}
 		return expr, nil
 	})
 	// deny_hint records a hint if the given expression is false, and
 	// returns the expression unchanged. Each false call appends its hint.
 	spec.Functions["deny_hint"] = typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
-		if e.record == nil {
-			return false, trace.BadParameter("evaluating deny_hint without an audit record (this is a bug)")
+		if e.result == nil {
+			return false, trace.BadParameter("internal error: evaluating deny_hint without an evaluation result")
 		}
-		if !expr && len(e.record.DenyHints) < maxHints {
-			e.record.DenyHints = append(e.record.DenyHints, Hint{Code: code, Reason: clamp(reason, maxReasonBytes)})
+		if !expr && len(e.result.AuditRecord.DenyHints) < maxHints {
+			hint := Hint{Code: code, Reason: clamp(reason, maxReasonBytes)}
+			e.result.AuditRecord.DenyHints = append(e.result.AuditRecord.DenyHints, hint)
 		}
 		return expr, nil
+	})
+	// path.match walks the request path tokens against the matcher root
+	// and records the bound segments for later vars.<name> reads.
+	spec.Functions["path.match"] = typical.UnaryFunctionWithEnv(func(e Env, root Node) (bool, error) {
+		if e.result == nil {
+			return false, trace.BadParameter("internal error: evaluating path.match without an evaluation result")
+		}
+		tokens := e.tokens
+		if tokens == nil {
+			return false, trace.BadParameter("internal error: evaluating path.match without a tokenized path")
+		}
+		pattern, err := Compile(root)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if matched, captures := Match(pattern, tokens); matched {
+			if e.result.vars == nil {
+				e.result.vars = map[string]string{}
+			}
+			for _, k := range slices.Sorted(maps.Keys(captures)) {
+				// A runtime check that should never trigger,
+				// validateNoCaptureOverwrites covers it at compile time.
+				if _, ok := e.result.vars[k]; ok {
+					return false, trace.BadParameter("path.match binds capture %q a second time in one evaluation", k)
+				}
+				e.result.vars[k] = captures[k]
+			}
+			return true, nil
+		}
+		return false, nil
+	})
+	// The matcher constructors build the tree used by path.match.
+	spec.Functions["literal"] = typical.BinaryVariadicFunction[Env](func(s string, children ...Node) (Node, error) {
+		return Literal(s, children...), nil
+	})
+	spec.Functions["capture"] = typical.BinaryVariadicFunction[Env](func(name string, children ...Node) (Node, error) {
+		return Capture(name, children...), nil
+	})
+	spec.Functions["glob"] = typical.UnaryVariadicFunction[Env](func(children ...Node) (Node, error) {
+		return Glob(children...), nil
+	})
+	spec.Functions["greedy"] = typical.NullaryFunction[Env, Node](func() (Node, error) {
+		return Greedy(), nil
+	})
+	spec.Functions["slash"] = typical.NullaryFunction[Env, Node](func() (Node, error) {
+		return Slash(), nil
+	})
+	spec.Functions["optional"] = typical.UnaryVariadicFunction[Env](func(children ...Node) (Node, error) {
+		return Optional(children...), nil
+	})
+	spec.Functions["root"] = typical.UnaryVariadicFunction[Env](func(children ...Node) (Node, error) {
+		return Root(children...), nil
 	})
 	return spec
 }
@@ -84,8 +137,16 @@ func compileExpression(expr string) (typical.Expression[Env, bool], error) {
 	if err != nil {
 		return nil, trace.NewAggregate(trace.BadParameter("compiling expression %q", expr), err)
 	}
-	if err := validateAuditLiterals(parsed); err != nil {
-		return nil, trace.Wrap(err, "compiling expression %q", expr)
+	validators := []func(ast.Expr) error{
+		validateAuditLiterals,
+		validateMatcherConstructors,
+		validateVars,
+		validateNoCaptureOverwrites,
+	}
+	for _, validate := range validators {
+		if err := validate(parsed); err != nil {
+			return nil, trace.Wrap(err, "compiling expression %q", expr)
+		}
 	}
 	return expression, nil
 }
@@ -99,17 +160,18 @@ func evaluateExpression(expression typical.Expression[Env, bool], env Env) (Resu
 		return Result{}, trace.Wrap(err)
 	}
 	var result Result
-	env.record = &result.AuditRecord
+	env.result = &result
 	value, err := expression.Evaluate(env)
 	if err != nil {
 		return Result{}, trace.Wrap(err)
 	}
 	result.Value = value
-	if value {
+	if result.Value {
 		result.AuditRecord.DenyHints = nil
 	} else {
 		result.AuditRecord.AllowCode = ""
 		result.AuditRecord.AllowReason = ""
+		result.vars = nil
 	}
 	return result, nil
 }
@@ -127,8 +189,8 @@ func validateAuditLiterals(parsed ast.Expr) error {
 		if !ok {
 			return true
 		}
-		fnName, ok := auditCallName(call)
-		if !ok {
+		fnName := auditCallName(call)
+		if fnName == "" {
 			return true // not an allow_code or deny_hint call
 		}
 		code, ok := stringLiteral(call.Args[0])
@@ -161,28 +223,4 @@ func clamp(s string, limit int) string {
 		cut--
 	}
 	return s[:cut]
-}
-
-// stringLiteral returns the value of a string-literal argument. For any
-// other expression it returns false.
-func stringLiteral(arg ast.Expr) (string, bool) {
-	lit, ok := ast.Unparen(arg).(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
-	s, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		return "", false
-	}
-	return s, true
-}
-
-// auditCallName returns the name of a bare allow_code or deny_hint call.
-// For any other call it returns false.
-func auditCallName(call *ast.CallExpr) (string, bool) {
-	id, ok := call.Fun.(*ast.Ident)
-	if !ok || (id.Name != "allow_code" && id.Name != "deny_hint") {
-		return "", false
-	}
-	return id.Name, true
 }

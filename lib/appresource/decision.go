@@ -21,12 +21,15 @@ package appresource
 import "encoding/json"
 
 // Result is the outcome of evaluating one "where" clause or one
-// app_resources_expressions entry.
+// app_resources_expressions entry. The unexported fields are
+// per-evaluation state.
 type Result struct {
 	// Value is the boolean the clause or expression evaluated to.
 	Value bool
 	// AuditRecord is the audit outcome of the evaluation.
 	AuditRecord AuditRecord
+
+	vars map[string]string // segments captured by path.match
 }
 
 // AuditRecord contains the allow code, allow reason, and deny hints of one

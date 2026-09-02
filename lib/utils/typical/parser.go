@@ -82,7 +82,14 @@ type ParserSpec[TEnv any] struct {
 	// Caution should be used when using this method as it shifts type safety
 	// guarantees from parse time to evaluation time.
 	// Typos in identifier names will also be caught at evaluation time instead of parse time.
+	// Do not set together with GetUnknownIdentifierVariable.
 	GetUnknownIdentifier func(env TEnv, fields []string) (any, error)
+
+	// GetUnknownIdentifierVariable returns the Variable for an unknown
+	// identifier at parse time, or an error to fail the parse. The returned
+	// Variable types the identifier like a Variables entry. Do not set
+	// together with GetUnknownIdentifier.
+	GetUnknownIdentifierVariable func(fields []string) (Variable, error)
 }
 
 // Variable holds the definition of a literal or variable. It is expected to be
@@ -124,6 +131,9 @@ func WithInvalidNamespaceHack() ParserOption {
 
 // NewParser creates a predicate expression parser with the given specification.
 func NewParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOption) (*Parser[TEnv, TResult], error) {
+	if spec.GetUnknownIdentifierVariable != nil && spec.GetUnknownIdentifier != nil {
+		return nil, trace.BadParameter("GetUnknownIdentifierVariable and GetUnknownIdentifier cannot both be set")
+	}
 	var options parserOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -244,6 +254,16 @@ func (p *Parser[TEnv, TResult]) getIdentifier(selector []string) (any, error) {
 			expr, err := p.getProperty(external, selector[1])
 			return expr, trace.Wrap(err)
 		}
+	}
+
+	// GetUnknownIdentifierVariable turns the unknown identifier into a
+	// typed Variable, or fails the parse.
+	if p.spec.GetUnknownIdentifierVariable != nil {
+		v, err := p.spec.GetUnknownIdentifierVariable(selector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
 	}
 
 	// Return a dynamic variable if and only if the parser was

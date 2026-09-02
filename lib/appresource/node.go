@@ -71,11 +71,9 @@ func (n *literalNode) String() string   { return fmt.Sprintf("literal(%q)", n.te
 //
 // For invalid given text, Literal returns an error node that Compile rejects.
 func Literal(text string, children ...Node) Node {
-	segments := strings.Split(text, "/")
-	for _, seg := range segments {
-		if err := validateSegment(seg); err != nil {
-			return &errNode{failedCall: fmt.Sprintf("literal(%q)", text), err: err}
-		}
+	segments, err := checkLiteral(text)
+	if err != nil {
+		return &errNode{failedCall: fmt.Sprintf("literal(%q)", text), err: err}
 	}
 	root := &literalNode{text: segments[0]}
 	node := root
@@ -212,6 +210,18 @@ type errNode struct {
 
 func (*errNode) children() []Node { return nil }
 func (n *errNode) String() string { return n.failedCall }
+
+// checkLiteral splits a literal string on "/" and validates every segment,
+// returning the segments.
+func checkLiteral(s string) ([]string, error) {
+	segments := strings.Split(s, "/")
+	for _, seg := range segments {
+		if err := validateSegment(seg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return segments, nil
+}
 
 // validateSegment rejects invalid literal text segments. The text must be
 // non-empty, hold no "%", and pass the same checks Tokenize runs on a token's
