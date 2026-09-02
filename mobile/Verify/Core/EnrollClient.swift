@@ -63,7 +63,7 @@ extension EnrollClient {
 					"osVersion": "\(collectedData.versionOS)",
 					"osBuild": "\(collectedData.buildOS)",
 				])
-				let token = try client.createMobileEnrollToken(
+				let token = try client.createPairedDeviceEnrollToken(
 					pairingToken,
 					deviceData: collectedData,
 				)

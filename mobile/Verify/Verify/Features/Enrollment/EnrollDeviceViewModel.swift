@@ -29,7 +29,7 @@ class EnrollDeviceViewModel {
 
 	var loadingState: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
-	let eventStackViewModel = EventStackViewModel<String>()
+	let eventStackViewModel = EventStackViewModel<EnrollmentEventID>()
 
 	@ObservationIgnored
 	@Dependency(\.enrollClient)
@@ -49,48 +49,18 @@ class EnrollDeviceViewModel {
 		self.delegate = delegate
 	}
 
-	func requestEnrollToken() async {
+	func performDeviceEnrollment() async {
 		loadingState = .loading
+		eventStackViewModel.clearAllEvents()
 		do {
-			/*
-			 TODO: Implement the call to requestEnrollmentToken
-			 Right now, the backend doesn't have all the behavior we need to test enrollment token request end-to-end
-			 so we just simulate the behavior for now with a small delay.
-
-			 let token = try await enrollClient.requestEnrollmentToken(
-			 	hostName: deepLink.hostname,
-			 	port: deepLink.port,
-			 	pairingToken: deepLink.enrollPairingToken,
-			 )
-			  */
-
-			// The code that follows in this function is for demonstration purposes only.
-			eventStackViewModel.clearAllEvents()
-			eventStackViewModel.addEvent(id: "enrollment-request", message: "Enrolling device…")
-			try await Task.sleep(for: .milliseconds(500))
-			eventStackViewModel.updateEvent(
-				id: "enrollment-request",
-				message: "Device enrolled!",
-				status: .success,
-			)
-
-			let cluster = try await database.write { db in
-				try Cluster.insert {
-					Cluster.Draft(
-						host: deepLink.hostname,
-						port: deepLink.port,
-					)
-				}
-				.returning(\.self)
-				.fetchOne(db)
-			}
-
+			let token = try await requestEnrollmentToken()
+			try await enrollDevice(using: token)
+			let cluster = try await saveClusterToDatabase()
 			logger.info("Successfully enrolled cluster", metadata: cluster?.logMetadata)
 			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
-
-			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
+			loadingState = .success(token)
 		} catch {
-			logger.error("Failed to request enrollment token", error: error)
+			logger.error("Failed to enroll in Device Trust", error: error)
 			loadingState = .failure(error)
 		}
 	}
@@ -105,10 +75,115 @@ extension EnrollDeviceViewModel {
 	}
 }
 
+// MARK: - EnrollDeviceViewModel.EnrollmentEventID
+
+extension EnrollDeviceViewModel {
+	enum EnrollmentEventID: String, Identifiable {
+		case enrollmentTokenRequest
+		case enrollDeviceRequest
+		case saveClusterToDatabaseTask
+
+		var id: String {
+			rawValue
+		}
+	}
+}
+
 // MARK: - User Actions
 
 extension EnrollDeviceViewModel {
 	func userTappedCancel() {
 		delegate?.enrollDeviceViewModelDidCancelOperation(self)
+	}
+}
+
+// MARK: - Private Helpers
+
+extension EnrollDeviceViewModel {
+	private func requestEnrollmentToken() async throws -> String {
+		do {
+			eventStackViewModel.addEvent(
+				id: .enrollmentTokenRequest,
+				message: "Requesting enrollment token…",
+			)
+			let token = try await enrollClient.requestEnrollmentToken(
+				hostName: deepLink.hostname,
+				port: deepLink.port,
+				pairingToken: deepLink.enrollPairingToken,
+			)
+			eventStackViewModel.updateEvent(
+				id: .enrollmentTokenRequest,
+				message: "Enrollment token received",
+				status: .success,
+			)
+			return token
+		} catch {
+			eventStackViewModel.updateEvent(
+				id: .enrollmentTokenRequest,
+				message: "Failed to retrieve enrollment token",
+				status: .failure,
+			)
+			throw error
+		}
+	}
+
+	private func enrollDevice(using enrollmentToken: String) async throws {
+		struct DeviceEnrollmentNotImplemented: Error {}
+
+		do {
+			eventStackViewModel.addEvent(
+				id: .enrollDeviceRequest,
+				message: "Enrolling in Device Trust…",
+			)
+
+			// TODO: With enrollment token in hand, fire off the EnrollDevice RPC
+			throw DeviceEnrollmentNotImplemented()
+
+			// Leaving this code commented until this function is implemented to silence an unreachable code warning.
+			// eventStackViewModel.updateEvent(
+			// 	id: .enrollDeviceRequest,
+			// 	message: "Device enrolled in Device Trust",
+			// 	status: .success
+			// )
+		} catch {
+			eventStackViewModel.updateEvent(
+				id: .enrollDeviceRequest,
+				message: "Failed to enroll in device trust; please try again",
+				status: .failure,
+			)
+			throw error
+		}
+	}
+
+	private func saveClusterToDatabase() async throws -> Cluster? {
+		do {
+			eventStackViewModel.addEvent(
+				id: .saveClusterToDatabaseTask,
+				message: "Saving cluster…",
+			)
+			let cluster = try await database.write { db in
+				try Cluster.insert {
+					Cluster.Draft(
+						host: deepLink.hostname,
+						port: deepLink.port,
+					)
+				}
+				.returning(\.self)
+				.fetchOne(db)
+			}
+			eventStackViewModel.updateEvent(
+				id: .saveClusterToDatabaseTask,
+				message: "Cluster saved successfully",
+				status: .success,
+			)
+			return cluster
+		} catch {
+			eventStackViewModel.updateEvent(
+				id: .saveClusterToDatabaseTask,
+				message: "Failed to save cluster locally; please try again",
+				status: .failure,
+			)
+			throw error
+		}
 	}
 }

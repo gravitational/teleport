@@ -101,6 +101,7 @@ struct EventStackView<ID: Hashable>: View {
 			}
 		}
 		.foregroundStyle(Color.Foreground.slightlyMuted)
+		.multilineTextAlignment(.leading)
 	}
 }
 
