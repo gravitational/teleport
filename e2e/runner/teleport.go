@@ -16,7 +16,7 @@ import (
 	"time"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.

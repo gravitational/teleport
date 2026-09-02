@@ -34,7 +34,7 @@ import (
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"

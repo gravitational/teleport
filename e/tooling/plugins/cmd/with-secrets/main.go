@@ -21,7 +21,7 @@ import (
 	"os"
 	"os/exec"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type secret struct {

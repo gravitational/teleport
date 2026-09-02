@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/ssh"

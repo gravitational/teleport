@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // bootstrapUser represents a user to be bootstrapped into the Teleport state.

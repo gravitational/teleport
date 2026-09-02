@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"

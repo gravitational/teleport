@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"

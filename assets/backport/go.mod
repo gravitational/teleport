@@ -6,8 +6,8 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/trace v1.5.4
 	github.com/stretchr/testify v1.11.1
+	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/oauth2 v0.36.0
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // mergeTeleportConfig deep-merges a custom config into the base Teleport config at basePath and writes the

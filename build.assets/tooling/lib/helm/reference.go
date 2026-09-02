@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 

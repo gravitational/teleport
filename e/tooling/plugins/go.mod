@@ -8,7 +8,7 @@ require (
 	github.com/gravitational/kingpin v2.1.10+incompatible
 	github.com/gravitational/trace v1.4.0
 	github.com/stretchr/testify v1.9.0
-	gopkg.in/yaml.v2 v2.4.0
+	go.yaml.in/yaml/v2 v2.4.4
 )
 
 require (
