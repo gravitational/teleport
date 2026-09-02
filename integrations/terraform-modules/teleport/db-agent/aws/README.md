@@ -64,6 +64,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | database\_types\_for\_default\_iam\_policy | Database types for which default IAM policy statements will be added to the ECS task role's inline policy. Supported database types are `rds` and `rdsproxy`. Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs\_task\_role\_inline\_policy. | `list(string)` | `[]` | no |
 | ecs\_cluster\_name | Name of the ECS cluster. | `string` | `"teleport-db-services"` | no |
 | ecs\_cluster\_use\_name\_prefix | Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name. | `bool` | `true` | no |
+| ecs\_execution\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS execution IAM role. | `string` | `null` | no |
 | ecs\_service\_name | Name of the ECS service. | `string` | `"teleport-db-service"` | no |
 | ecs\_service\_subnets | Subnet IDs where Teleport will be deployed. If var.assign\_public\_ip is true, then all of these subnets must be public subnets (route to an internet gateway). If var.assign\_public\_ip is false, then all of these subnets must be private subnets (route to a NAT gateway). | `list(string)` | n/a | yes |
 | ecs\_task\_cloudwatch\_log\_group\_kms\_key\_id | KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key. | `string` | `null` | no |

@@ -19,9 +19,9 @@ data "aws_iam_policy_document" "ecs_execution_trust" {
   count = var.create ? 1 : 0
 
   statement {
+    sid     = "TrustECS"
     actions = ["sts:AssumeRole"]
-
-    effect = "Allow"
+    effect  = "Allow"
 
     condition {
       test     = "StringEquals"
@@ -60,7 +60,14 @@ resource "aws_iam_role_policy" "ecs_execution" {
 data "aws_iam_policy_document" "ecs_execution" {
   count = var.create ? 1 : 0
 
+  source_policy_documents = (
+    var.ecs_execution_role_inline_policy == null
+    ? []
+    : [var.ecs_execution_role_inline_policy]
+  )
+
   statement {
+    sid = "WriteCloudWatchLogs"
     actions = [
       "logs:CreateLogStream",
       "logs:PutLogEvents",
