@@ -85,4 +85,6 @@ type Token interface {
 	GetGitLab() *types.ProvisionTokenSpecV2GitLab
 	// GetTPM returns the TPM-specific configuration for this token.
 	GetTPM() *types.ProvisionTokenSpecV2TPM
+	// GetCircleCI returns the CircleCI-specific configuration for this token.
+	GetCircleCI() *types.ProvisionTokenSpecV2CircleCI
 }

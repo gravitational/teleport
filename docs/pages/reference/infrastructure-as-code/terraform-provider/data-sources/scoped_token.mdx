@@ -62,6 +62,7 @@ Optional:
 - `azure_devops` (Attributes) The Azure Devops-specific configuration used with the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
 - `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
 - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
+- `circleci` (Attributes) Configuration specific to the "circleci" join method (see [below for nested schema](#nested-schema-for-speccircleci))
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
 - `github` (Attributes) Configuration specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
@@ -152,6 +153,22 @@ Optional:
 
 - `limit` (Number) The maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.
 - `mode` (String) Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.
+
+
+
+### Nested Schema for `spec.circleci`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one rule is required. (see [below for nested schema](#nested-schema-for-speccircleciallow))
+- `organization_id` (String) The unique identifier of the organization. Required.
+
+### Nested Schema for `spec.circleci.allow`
+
+Optional:
+
+- `context_id` (String) A unique context identifier. At least one of context_id or project_id is required.
+- `project_id` (String) A unique project identifier. At least one of project_id or context_id is required.
 
 
 

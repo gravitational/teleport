@@ -481,6 +481,35 @@ func validateTPM(spec *joiningv1.TPM) error {
 	return nil
 }
 
+// validateCircleCI validates the CircleCI-specific scoped token configuration.
+// Note that checks from ProvisionTokenSpecV2CircleCI.checkAndSetDefaults() are
+// replicated here.
+func validateCircleCI(spec *joiningv1.CircleCI) error {
+	if spec == nil {
+		return trace.BadParameter("circleci: .spec.circleci is required for this join method")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("circleci: .spec.circleci.allow requires at least one rule")
+	}
+
+	if spec.GetOrganizationId() == "" {
+		return trace.BadParameter("circleci: .spec.circleci.organization_id is required")
+	}
+
+	for i, rule := range spec.GetAllow() {
+		projectSet := rule.GetProjectId() != ""
+		contextSet := rule.GetContextId() != ""
+
+		if !projectSet && !contextSet {
+			return trace.BadParameter("circleci: .spec.circleci.allow[%d]: "+
+				"rule must include at least one of 'project_id' or 'context_id'", i)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -514,6 +543,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateGitLab(token.GetSpec().GetGitlab(), TokenUsageMode(token.GetSpec().GetUsageMode())), "gitlab join method")
 	case types.JoinMethodTPM:
 		return trace.Wrap(validateTPM(token.GetSpec().GetTpm()), "tpm join method")
+	case types.JoinMethodCircleCI:
+		return trace.Wrap(validateCircleCI(token.GetSpec().GetCircleci()), "circleci join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1229,6 +1260,26 @@ func (t *Token) GetTPM() *types.ProvisionTokenSpecV2TPM {
 	return &types.ProvisionTokenSpecV2TPM{
 		Allow:            allow,
 		EKCertAllowedCAs: spec.GetEkcertAllowedCas(),
+	}
+}
+
+// GetCircleCI returns the CircleCI specific configuration for this token.
+// Returns an empty but not nil value if circleci configuration was not
+// configured.
+func (t *Token) GetCircleCI() *types.ProvisionTokenSpecV2CircleCI {
+	spec := t.scoped.GetSpec().GetCircleci()
+
+	allow := make([]*types.ProvisionTokenSpecV2CircleCI_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2CircleCI_Rule{
+			ProjectID: rule.GetProjectId(),
+			ContextID: rule.GetContextId(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2CircleCI{
+		OrganizationID: spec.GetOrganizationId(),
+		Allow:          allow,
 	}
 }
 
