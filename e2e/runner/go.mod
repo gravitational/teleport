@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/e2e/runner
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.77.2
