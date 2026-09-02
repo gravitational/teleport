@@ -568,14 +568,18 @@ type resourceSortKey struct {
 
 // resourceSortKey will generate a key to be used in the sort trees
 func makeResourceSortKey(resource types.Resource) resourceSortKey {
-	var name, kind string
+	var kind string
+	var sqn scopes.QualifiedName
 	// set the kind to the appropriate "contained" type, rather than
 	// the container type.
+	if scope, ok := resource.(interface{ GetScope() string }); ok {
+		sqn = scopes.QualifiedName{Scope: scope.GetScope()}
+	}
 	switch r := resource.(type) {
 	case types.Server:
 		switch r.GetKind() {
 		case types.KindNode, types.KindGitServer:
-			name = r.GetHostname() + "/" + r.GetName()
+			sqn.Name = r.GetHostname() + "/" + r.GetName()
 			kind = r.GetKind()
 		}
 	case types.AppServer:
@@ -587,40 +591,36 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 				// FriendlyName is not unique, and multiple apps may have the same friendly name.
 				// To prevent collisions in the resource cache, we append the app name to the
 				// friendly name, ensuring uniqueness.
-				name = sanitizedFriendlyName + "/" + app.GetName()
+				sqn.Name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
-				name = app.GetName()
-			}
-			if scope := r.GetScope(); scope != "" {
-				name = scopes.QualifiedName{Name: name, Scope: scope}.String()
+				sqn.Name = app.GetName()
 			}
 			kind = types.KindApp
 		}
 	case types.SAMLIdPServiceProvider:
-		name = r.GetName()
+		sqn.Name = r.GetName()
 		kind = types.KindApp
 	case types.KubeServer:
 		cluster := r.GetCluster()
 		if cluster != nil {
-			name = r.GetCluster().GetName()
+			sqn.Name = r.GetCluster().GetName()
 			kind = types.KindKubernetesCluster
 		}
 	case types.DatabaseServer:
 		db := r.GetDatabase()
 		if db != nil {
-			name = db.GetName()
+			sqn.Name = db.GetName()
 			kind = types.KindDatabase
 		}
 	default:
-		name = resource.GetName()
+		sqn.Name = resource.GetName()
 		kind = resource.GetKind()
 	}
-
 	return resourceSortKey{
-		// names should be stored as lowercase to keep items sorted as
-		// expected, regardless of case
-		byName: backend.NewKey(prefix, strings.ToLower(name), kind),
-		byType: backend.NewKey(prefix, kind, strings.ToLower(name)),
+		// sqn, which are scope qualified names, should be stored
+		// as lowercase to keep items sorted as expected, regardless of case
+		byName: backend.NewKey(prefix, strings.ToLower(sqn.String()), kind),
+		byType: backend.NewKey(prefix, kind, strings.ToLower(sqn.String())),
 	}
 }
 

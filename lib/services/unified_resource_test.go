@@ -1018,23 +1018,12 @@ func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	getScopes := func(res []types.ResourceWithLabels) []string {
-		require.NoError(t, err)
-		scopes := []string{}
-		for _, r := range res {
-			appServer, ok := r.(types.AppServer)
-			require.True(t, ok, "expected types.AppServer, got %T", r)
-			scopes = append(scopes, appServer.GetScope())
-		}
-		return scopes
-	}
-
 	// All three same-named apps must be distinct entries.
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, res, 3)
-		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(res))
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(t, res))
 	}, 5*time.Second, 10*time.Millisecond)
 
 	// Deleting the staging app server (identified by hostID/name only, like the
@@ -1048,7 +1037,7 @@ func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
 		res, err := w.GetUnifiedResources(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, res, 2)
-		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(res))
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(t, res))
 	}, 5*time.Second, 10*time.Millisecond)
 
 	// The unscoped app is still deletable through the legacy path.
@@ -1061,7 +1050,7 @@ func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
 		res, err := w.GetUnifiedResources(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
-		require.ElementsMatch(t, []string{"/prod"}, getScopes(res))
+		require.ElementsMatch(t, []string{"/prod"}, getScopes(t, res))
 	}, 5*time.Second, 10*time.Millisecond)
 
 }
@@ -1415,6 +1404,28 @@ func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 	})
 	require.NoError(t, err)
 	return app
+}
+
+func newNode(t *testing.T, scope string) *types.ServerV2 {
+	node, err := types.NewServer("node", types.KindNode, types.ServerSpecV2{
+		Addr:     "127.0.0.1:22",
+		Hostname: "hostname",
+	})
+	require.NoError(t, err)
+	srv, ok := node.(*types.ServerV2)
+	require.True(t, ok, "expected *types.ServerV2, got %T", node)
+	srv.Scope = scope
+	return srv
+}
+
+func getScopes(t require.TestingT, res []types.ResourceWithLabels) []string {
+	scopes := []string{}
+	for _, r := range res {
+		scopedRes, ok := r.(interface{ GetScope() string })
+		require.True(t, ok, "expected a type that supports scope, got %T", r)
+		scopes = append(scopes, scopedRes.GetScope())
+	}
+	return scopes
 }
 
 func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
@@ -1811,4 +1822,61 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			require.Equal(t, tt.desktop.GetSpec().GetHostname(), unpackedDesktop.GetSpec().GetHostname())
 		})
 	}
+}
+
+func TestUnifiedResourceScopedNodes(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clt := newClient(t)
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	staging := newNode(t, "/staging")
+	prod := newNode(t, "/prod")
+	unscoped := newNode(t, "")
+
+	for _, srv := range []*types.ServerV2{staging, prod, unscoped} {
+		_, err = clt.UpsertNode(ctx, srv)
+		require.NoError(t, err)
+	}
+
+	// All three same-named nodes must be distinct entries.
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 3)
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(t, res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Deleting the staging node deletes the staging entry.
+	require.NoError(t, clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  staging.GetName(),
+		Scope: staging.GetScope(),
+	}.Build()))
+
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 2)
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(t, res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Deleting the unscoped node deletes the unscoped node
+	require.NoError(t, clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  unscoped.GetName(),
+		Scope: unscoped.GetScope(),
+	}.Build()))
+
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		require.ElementsMatch(t, []string{"/prod"}, getScopes(t, res))
+	}, 5*time.Second, 10*time.Millisecond)
 }

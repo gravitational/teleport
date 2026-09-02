@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -288,4 +289,84 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		}
 	})
 
+}
+
+// TestNodeCollectionSeedHonorsWatchScopeFilter verifies the collection seed
+// selects the same set of nodes as the event stream.
+func TestNodeCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	// Fixture names say which scope they live in.
+	for name, scope := range map[string]string{
+		"unscoped": "",
+		"foo":      "/foo",
+		"foobar":   "/foo/bar",
+		"baz":      "/baz",
+	} {
+		node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		server, ok := node.(*types.ServerV2)
+		require.True(t, ok, "expected *types.ServerV2, got %T", node)
+		server.Scope = scope
+		_, err = p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		scopeFilter *scopesv1.Filter
+		want        []string
+	}{
+		{
+			name:        "nil filter matches every scope",
+			scopeFilter: nil,
+			want:        []string{"foo", "foobar", "baz", "unscoped"},
+		},
+		{
+			name:        "mode ALL matches every scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			want:        []string{"foo", "foobar", "baz", "unscoped"},
+		},
+		{
+			name:        "mode UNSCOPED matches only unscoped",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			want:        []string{"unscoped"},
+		},
+		{
+			name:        "mode EXACT matches one scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build(),
+			want:        []string{"foo"},
+		},
+		{
+			name:        "mode DESCENDANTS matches the scope and below",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+			want:        []string{"foo", "foobar"},
+		},
+		{
+			name:        "mode ANCESTORS matches the scope and above",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ANCESTORS, Scope: "/foo/bar"}.Build(),
+			want:        []string{"foo", "foobar"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collection, err := newNodeCollection(p.presenceS, types.WatchKind{
+				Kind:        types.KindNode,
+				ScopeFilter: types.ScopeFilterFromProto(tc.scopeFilter),
+			})
+			require.NoError(t, err)
+
+			seeded, err := collection.fetcher(ctx, false)
+			require.NoError(t, err)
+
+			var names []string
+			for _, node := range seeded {
+				names = append(names, node.GetName())
+			}
+			require.ElementsMatch(t, tc.want, names)
+		})
+	}
 }

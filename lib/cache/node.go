@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,7 +48,13 @@ func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[type
 				nodeNameIndex: services.GetCursorForNode,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			return p.GetNodes(ctx, defaults.Namespace)
+			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+				return p.ListSSHServers(ctx, presencev1.ListSSHServersRequest_builder{
+					PageSize:    int32(pageSize),
+					PageToken:   pageToken,
+					ScopeFilter: w.ScopeFilter.ToProto(),
+				}.Build())
+			}))
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
