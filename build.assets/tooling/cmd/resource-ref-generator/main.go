@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 )

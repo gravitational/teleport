@@ -29,7 +29,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Chart represents a chart we want to test, lint, publish a reference for, and update.

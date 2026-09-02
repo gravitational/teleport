@@ -31,7 +31,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
