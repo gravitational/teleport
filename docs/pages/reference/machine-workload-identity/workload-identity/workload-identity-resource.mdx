@@ -310,6 +310,28 @@ spec:
           values: [foo, bar]
 ```
 
+### Map-Valued Attributes
+
+Some attributes, such as `workload.kubernetes.labels`, are maps of key-value
+pairs. The conditions form cannot reference a value within a map attribute. To
+match against one, use the expression form with the index syntax:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: rules-example
+spec:
+  spiffe:
+    id: /my-awesome-workload
+  rules:
+    allow:
+    - expression: workload.kubernetes.labels["app"] == "foo"
+```
+
+If the specified key is not present in the map, the rule evaluation fails and
+the credential is not issued.
+
 ### Casting
 
 When using the conditions form and comparing attributes which are not strings
