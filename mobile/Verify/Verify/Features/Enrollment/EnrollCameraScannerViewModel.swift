@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import AVFoundation
+import LogBackends
 import Logging
 import Observation
 

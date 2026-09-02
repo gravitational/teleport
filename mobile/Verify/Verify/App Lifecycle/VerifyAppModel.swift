@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
+import LogBackends
 import Logging
 import Observation
 
@@ -42,7 +43,11 @@ extension VerifyAppModel {
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
-			logger.warning("Failed to parse deep link", error: error, metadata: ["scannedURL": "\(url)"])
+			logger.warning(
+				"Failed to parse deep link",
+				error: error,
+				metadata: ["scannedURL": "\(url, sensitivity: .sensitive)"],
+			)
 			landingViewModel.showParserError(errorMessage: error.localizedDescription)
 		}
 	}
