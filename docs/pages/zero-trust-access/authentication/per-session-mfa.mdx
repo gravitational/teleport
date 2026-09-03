@@ -12,7 +12,7 @@ Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
 - SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
-- Kubernetes sessions (a single `kubectl` call or a single `tsh proxy kube` run)
+- Kubernetes sessions (a single `kubectl` call, or a single `tsh proxy kube` run covering one or more clusters)
 - Database sessions (a single `tsh db connect` call, a single `tsh db exec`
   call, or a single `tsh proxy db --tunnel` run)
 - Application sessions
@@ -326,6 +326,68 @@ Server Version: v1.35.0
 The `kubectl` call uses an already authenticated connection offered by the
 local proxy.
 
+Jerry can also start one local proxy for several Kubernetes clusters with a
+single MFA check, selecting the clusters by label:
+
+```code
+$ tsh proxy kube --labels env=prod --exec
+Preparing the following Teleport Kubernetes clusters:
+Teleport Cluster Name Kube Cluster Name Context Name
+--------------------- ----------------- --------------------------
+example.com           prod-eu-west-1    example.com-prod-eu-west-1
+example.com           prod-us-east-1    example.com-prod-us-east-1
+example.com           prod-us-west-2    example.com-prod-us-west-2
+
+MFA is required to access Kubernetes cluster "prod-us-west-2"
+Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<cross-platform,platform,browser> or environment variable TELEPORT_MFA_MODE=<cross-platform,platform,browser>.
+
+Tap any security key <tap>
+Detected security key tap
+Started local proxy for Kubernetes Access in the background.
+
+Warning! Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
+the local proxy will be closed, and future access through this headless session won't be possible.
+
+Try issuing a command, for example "kubectl version".
+```
+
+The single MFA check covers every cluster in the table that requires
+per-session MFA, even though the prompt names only one of them.
+Jerry can now run `kubectl` against any of those clusters without further MFA:
+
+```code
+$ kubectl --context=example.com-prod-eu-west-1 get ns
+NAME          STATUS   AGE
+default       Active   10h
+kube-system   Active   10h
+
+$ kubectl --context=example.com-prod-us-east-1 version
+Client Version: v1.34.1
+Kustomize Version: v5.7.1
+Server Version: v1.35.0
+```
+
+The number of clusters does not change the number of checks.
+A `tsh proxy kube` run across 500 clusters costs one MFA check, not 500.
+Clusters that do not require per-session MFA share a certificate,
+while each cluster that does require it gets its own.
+Connecting to a large fleet is faster as a result.
+
+Note that each MFA check remains valid for up to 5 minutes. Within that window,
+Teleport reuses it for any further certificates the local proxy requests. Once
+the window passes, issuing another certificate requires a new check.
+
+The certificates the local proxy already holds outlive that window, so it keeps
+serving `kubectl` without further MFA until they expire. The
+`mfa_verification_interval` [role option](../../reference/access-controls/roles.mdx)
+caps how long they last, and the shortest interval across a user's roles wins.
+
+If Jerry's Teleport user has a hardware-backed private key,
+the PIN and touch prompts described in [PIN caching](./hardware-key-support.mdx#pin-caching)
+are unchanged by the single MFA check.
+
 ## Limitations
 
 Current limitations for this feature are:
@@ -336,7 +398,13 @@ Current limitations for this feature are:
   [multi-port](../../enroll-resources/application-access/protect-apps/tcp.mdx#configuring-access-to-multiple-ports)
   TCP application through [VNet](../../connect-your-client/teleport-clients/vnet.mdx), the first connection over
   each port triggers an MFA check.
-- For the `tsh db exec` command, only WebAuthn devices are supported.
+- Per-session MFA cannot be satisfied by an OTP device.
+- A single MFA check covers multiple Kubernetes clusters only when both `tsh`
+  and the Teleport cluster are running Teleport
+  (=kubernetes.multi_cluster_mfa_min_version=) or later. Against earlier
+  versions, `tsh proxy kube` performs one check per cluster.
+- With `tsh proxy kube --headless`, a single MFA check does not cover multiple
+  clusters. Each cluster that requires per-session MFA needs its own check.
 
 ## Next steps
 
