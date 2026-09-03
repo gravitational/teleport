@@ -512,14 +512,26 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 }
 
 func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
-	// Extract the identity and application being requested from the certificate
-	// and check if the caller has access.
-	sessionCtx, app, err := c.authorizeContext(r.Context())
+	// Build the authorization context from the certificate, then fetch and
+	// authorize the requested application.
+	ctx := r.Context()
+	authCtx, err := c.getAuthContext(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	identity := authCtx.Identity.GetIdentity()
+	app, err := c.resolveApp(
+		ctx,
+		identity.RouteToApp.Name,
+		identity.RouteToApp.PublicAddr,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := c.authorizeApp(ctx, authCtx, app); err != nil {
+		return trace.Wrap(err)
+	}
 
-	identity := sessionCtx.Context.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
 		// Requests from AWS applications are signed by AWS Signature Version 4
@@ -553,7 +565,7 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		// scoped access model does not yet evaluate v9 app_resources, so v9
 		// enforcement is skipped for it rather than denying an authorized
 		// request. Making the scoped path v9-aware is follow-up work.
-		if unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext(); ok {
+		if unscopedAuthCtx, ok := authCtx.UnscopedContext(); ok {
 			denied, err := c.enforceMinimalV9(w, r, unscopedAuthCtx, app)
 			if err != nil {
 				return trace.Wrap(err)
@@ -613,40 +625,55 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	return nil
 }
 
-// authorizeContext will check if the context carries identity information and
-// runs authorization checks on it. On success it returns the scoped context
-// bundled with the session controls of the role that granted access.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedSessionContext, types.Application, error) {
+// authorizeContext builds an authorization context and checks access to app.
+// The caller must pass the exact application that will be served. On success it
+// returns the scoped context bundled with the session controls of the role that
+// granted access.
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.Application) (*srv.ScopedSessionContext, error) {
+	authCtx, err := c.getAuthContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionControls, err := c.authorizeApp(ctx, authCtx, app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &srv.ScopedSessionContext{
+		Context:         authCtx,
+		SessionControls: sessionControls,
+	}, nil
+}
+
+// getAuthContext checks if the context carries identity information and
+// builds an authorization context for it.
+func (c *ConnectionsHandler) getAuthContext(ctx context.Context) (*authz.ScopedContext, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:
-		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
+		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
 	authContext, err := c.cfg.Authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+
+	return authContext, nil
+}
+
+// authorizeApp checks whether authContext allows access to app, returning the
+// session controls of the role that granted access.
+func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.ScopedContext, app types.Application) (srv.ScopedSessionControls, error) {
 	identity := authContext.Identity.GetIdentity()
 
-	// Fetch the application and check if the identity has access.
-	app, err := c.resolveApp(
-		ctx,
-		identity.RouteToApp.Name,
-		identity.RouteToApp.PublicAddr,
-	)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	if identity.RouteToApp.Scope != app.GetScope() {
-		return nil, nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
+		return nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
 			identity.RouteToApp.Scope, app.GetScope())
 	}
 
@@ -677,13 +704,13 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedS
 
 	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Identity Center account apps are currently not supported for scoped applications.
 	// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
 	if _, isUnscoped := authContext.UnscopedContext(); !isUnscoped && app.GetSubKind() == types.KindIdentityCenterAccount {
-		return nil, nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
+		return nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
 	}
 
 	var sessionControls srv.ScopedSessionControls
@@ -697,20 +724,17 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedS
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	case err != nil:
 		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
 		)
-		return nil, nil, utils.OpaqueAccessDenied(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return &srv.ScopedSessionContext{
-		Context:         authContext,
-		SessionControls: sessionControls,
-	}, app, nil
+	return sessionControls, nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
@@ -750,7 +774,9 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	sessionCtx, _, err := c.authorizeContext(ctx)
+	// Authorize the exact application resolved from this connection, so that the
+	// app that gets authorized is the same one that gets dispatched below.
+	sessionCtx, err := c.authorizeContext(ctx, app)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:

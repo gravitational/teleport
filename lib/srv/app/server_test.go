@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -75,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -180,6 +182,20 @@ type fakeConnMonitor struct{}
 
 func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
+}
+
+type authPreferenceAccessPoint struct {
+	authclient.AppsAccessPoint
+}
+
+func (authPreferenceAccessPoint) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+
+type scopedAuthorizerFunc func(context.Context) (*authz.ScopedContext, error)
+
+func (f scopedAuthorizerFunc) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	return f(ctx)
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -1181,6 +1197,189 @@ func TestAuthorizeScopeMismatch(t *testing.T) {
 
 	s.checkHTTPResponse(t, clientCert, func(resp *http.Response) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
+func TestAuthorizeContextChecksProvidedApp(t *testing.T) {
+	t.Parallel()
+
+	newApp := func(name, env string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"env": env},
+		}, types.AppSpecV3{
+			URI:        "tcp://" + name + ".example.com:443",
+			PublicAddr: name + ".example.com",
+		})
+		require.NoError(t, err)
+		return app
+	}
+	allowedApp := newApp("allowed", "dev")
+	deniedApp := newApp("denied", "prod")
+
+	role, err := types.NewRole("dev-app-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"env": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	identity := authz.LocalUser{
+		Username: "alice",
+		Identity: tlsca.Identity{
+			Username: "alice",
+		},
+	}
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Username: "alice",
+		Roles:    []string{role.GetName()},
+	}, "root.example.com", services.NewRoleSet(role))
+
+	c := &ConnectionsHandler{
+		cfg: &ConnectionsHandlerConfig{
+			AccessPoint: authPreferenceAccessPoint{},
+			Authorizer: scopedAuthorizerFunc(func(context.Context) (*authz.ScopedContext, error) {
+				return authz.ScopedContextFromUnscopedContext(&authz.Context{
+					Identity: identity,
+					Checker:  checker,
+				}), nil
+			}),
+		},
+		closeContext: t.Context(),
+		log:          slog.Default(),
+		resolveApp: func(context.Context, string, string) (types.Application, error) {
+			t.Fatal("authorizeContext should authorize the provided app without looking one up")
+			return nil, trace.BadParameter("unexpected app lookup")
+		},
+	}
+
+	ctx := authz.ContextWithUser(t.Context(), identity)
+	_, err = c.authorizeContext(ctx, allowedApp)
+	require.NoError(t, err)
+
+	_, err = c.authorizeContext(ctx, deniedApp)
+	require.True(t, trace.IsNotFound(err), "expected access to denied app to be denied, got: %v", err)
+}
+
+// TestHandleConnectionAuthorizesServedApp exercises the entire connection path
+// (HandleConnection -> getConnectionInfo -> authorizeContext -> dispatch) for a
+// TCP app and verifies that authorization is enforced against the app that is
+// actually served.
+//
+// TCP apps are authorized exclusively in handleConnection (HTTP apps are
+// re-authorized in serveHTTP), so this guards against a refactor that drops the
+// authorizeContext call from the connection path, which a unit test exercising
+// authorizeContext in isolation would not catch.
+func TestHandleConnectionAuthorizesServedApp(t *testing.T) {
+	// Backend that the TCP apps proxy to. It records whether it was ever
+	// dialed so the test can assert that an unauthorized connection never
+	// reaches dispatch.
+	backend, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	dialed := make(chan struct{}, 1)
+	go func() {
+		for {
+			conn, err := backend.Accept()
+			if err != nil {
+				return
+			}
+			select {
+			case dialed <- struct{}{}:
+			default:
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	newTCPApp := func(name string, labels map[string]string) *types.AppV3 {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.AppSpecV3{
+			URI:        "tcp://" + backend.Addr().String(),
+			PublicAddr: name + ".example.com",
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	// The default suite role grants access to apps labeled "bar: baz" only.
+	allowedApp := newTCPApp("tcp-allowed", map[string]string{"bar": "baz"})
+	deniedApp := newTCPApp("tcp-denied", map[string]string{"env": "prod"})
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		Apps: types.Apps{allowedApp, deniedApp},
+	})
+
+	handler := s.appServer.c.ConnectionsHandler
+
+	// dialConn establishes a mutually-authenticated TLS connection to the app
+	// server using a certificate scoped to publicAddr, mirroring what the proxy
+	// does. It returns the server side of the pipe to feed into handleConnection.
+	dialConn := func(t *testing.T, publicAddr string) net.Conn {
+		t.Helper()
+		clientCert := s.generateCertificate(t, s.user, publicAddr, "" /* awsRoleARN */, "" /* scope */)
+		serverConn, clientConn := net.Pipe()
+		t.Cleanup(func() {
+			_ = serverConn.Close()
+			_ = clientConn.Close()
+		})
+		client := tls.Client(clientConn, &tls.Config{
+			RootCAs:      s.hostCertPool,
+			Certificates: []tls.Certificate{clientCert},
+			ServerName:   constants.APIDomain,
+			Time:         s.clock.Now,
+		})
+		go func() {
+			// Drive the client side of the handshake so the server side in
+			// getConnectionInfo can complete. Once authorization fails the
+			// server closes the connection, so handshake errors here are
+			// expected and ignored.
+			_ = client.HandshakeContext(s.closeContext)
+		}()
+		return serverConn
+	}
+
+	t.Run("denied app is not served", func(t *testing.T) {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+
+		_, err := handler.handleConnection(ctx, cancel, dialConn(t, deniedApp.GetPublicAddr()))
+		require.True(t, trace.IsNotFound(err),
+			"expected the connection path to reject access to the unauthorized app, got: %v", err)
+
+		// handleConnection rejects an unauthorized TCP app synchronously,
+		// before it would ever dispatch to handleTCPApp, so by the time it has
+		// returned the backend can no longer be dialed. No wait is needed: the
+		// backend must not have been dialed already.
+		select {
+		case <-dialed:
+			t.Fatal("backend was dialed for an unauthorized app; authorizeContext was not enforced in the connection path")
+		default:
+		}
+	})
+
+	t.Run("allowed app is served", func(t *testing.T) {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := handler.handleConnection(ctx, cancel, dialConn(t, allowedApp.GetPublicAddr()))
+			errCh <- err
+		}()
+
+		// Reaching the backend proves the authorized app was dispatched after
+		// passing authorization in the connection path.
+		select {
+		case <-dialed:
+		case err := <-errCh:
+			t.Fatalf("connection path returned before reaching the backend: %v", err)
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for the authorized app to be dispatched to the backend")
+		}
 	})
 }
 
