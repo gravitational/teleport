@@ -37,7 +37,7 @@ This example deploys the Teleport Database Service to AWS ECS and joins it to an
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| teleport\_proxy\_addr | The address of the Teleport proxy service in host:port form. | `string` | n/a | yes |
+| teleport\_proxy\_addr | The address of the Teleport Proxy Service in host:port form. | `string` | n/a | yes |
 
 ## Outputs
 

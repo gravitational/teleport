@@ -1,7 +1,10 @@
 locals {
   teleport_provision_token_name = (
     var.teleport_provision_token_use_name_prefix
-    ? "${var.teleport_provision_token_name}-${one(random_id.teleport_provision_token_suffix[*].hex)}"
+    ? format("%v-%v",
+      var.teleport_provision_token_name,
+      one(random_id.teleport_provision_token_suffix[*].hex),
+    )
     : var.teleport_provision_token_name
   )
 }

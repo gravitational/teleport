@@ -4,7 +4,7 @@
 
 variable "ecs_service_subnets" {
   description = <<EOF
-Subnet IDs where the Teleport agent will be deployed.
+Subnet IDs where Teleport will be deployed.
 If var.assign_public_ip is true, then all of these subnets must be public subnets (route to an internet gateway).
 If var.assign_public_ip is false, then all of these subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -12,7 +12,7 @@ EOF
 }
 
 variable "vpc_id" {
-  description = "VPC ID where the Teleport agent will be deployed."
+  description = "VPC ID where Teleport will be deployed."
   type        = string
 }
 
@@ -32,8 +32,8 @@ variable "apply_aws_tags" {
 }
 
 variable "managed_updates_enabled" {
-  default     = false
-  description = "Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module."
+  default     = true
+  description = "Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module."
   type        = bool
 }
 
@@ -46,7 +46,7 @@ variable "managed_updates_group" {
 variable "assign_public_ip" {
   default     = false
   description = <<EOF
-Whether to assign public IP addresses to Teleport agent ECS tasks.
+Whether to assign public IP addresses to Teleport ECS tasks.
 If this is set to true, then var.ecs_service_subnets must be public subnets (route to an internet gateway).
 Otherwise, var.ecs_service_subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -61,7 +61,7 @@ variable "create" {
 
 variable "create_security_group" {
   default     = true
-  description = "Whether to create a security group for the Teleport agent ECS tasks."
+  description = "Whether to create a security group for the Teleport ECS tasks."
   type        = bool
 }
 
@@ -78,7 +78,7 @@ variable "ecs_cluster_use_name_prefix" {
 }
 
 variable "ecs_service_name" {
-  default     = "teleport-service"
+  default     = "teleport"
   description = "Name of the ECS service."
   type        = string
 }
@@ -131,7 +131,7 @@ variable "ecs_task_cpu" {
 }
 
 variable "ecs_task_definition_name" {
-  default     = "teleport-agent"
+  default     = "teleport"
   description = "Name of the ECS task."
   type        = string
 }
@@ -181,7 +181,7 @@ variable "environment_vars" {
 
 variable "security_group_ids" {
   default     = []
-  description = "Additional security group IDs to attach to the Teleport agent ECS tasks."
+  description = "Additional security group IDs to attach to the Teleport ECS tasks."
   type        = list(string)
 }
 

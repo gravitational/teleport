@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "ecs_execution_trust" {
       test = "ArnLike"
       values = [
         format(
-          "arn:%s:ecs:%s:%s:*",
+          "arn:%v:ecs:%v:%v:*",
           one(data.aws_partition.this[*].partition),
           one(data.aws_region.this[*].region),
           one(data.aws_caller_identity.this[*].account_id),
