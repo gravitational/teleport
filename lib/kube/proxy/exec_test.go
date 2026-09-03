@@ -535,6 +535,160 @@ func TestExecKubeServiceWithFaultyPrimary(t *testing.T) {
 	testExecKubeService(t, testCtx)
 }
 
+// TestExecRejectsEncodedSubresourcePath verifies that percent-encoded path separators
+// cannot make Teleport authorize a pods/exec request as a plain pod read.
+// Each Teleport hop strips one layer of encoding from the wire.
+// Each subtest exercises a different hop count.
+func TestExecRejectsEncodedSubresourcePath(t *testing.T) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+	})
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	userRestConfig := newReadOnlyPodsUser(t, testCtx)
+
+	// Each Teleport hop strips one percent-encoding layer from the wire,
+	// so the slash before "exec" is encoded one more time than there are hops.
+	cases := []struct {
+		name       string
+		layers     int
+		target     string
+		restConfig *rest.Config
+	}{
+		{
+			name:       "1 hop, 2 layers (kube_service direct)",
+			layers:     2,
+			target:     testCtx.kubeServerListener.Addr().String(),
+			restConfig: userRestConfig,
+		},
+		{
+			name:       "2 hops, 3 layers (proxy_service + kube_service)",
+			layers:     3,
+			target:     testCtx.KubeProxyAddress(),
+			restConfig: userRestConfig,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertEncodedExecRejected(t, tc.target, tc.layers, tc.restConfig, kubeMock)
+		})
+	}
+}
+
+// newReadOnlyPodsUser creates a user whose role only permits get/list on pods.
+func newReadOnlyPodsUser(t *testing.T, testCtx *TestContext) *rest.Config {
+	t.Helper()
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		"encoded_exec_reader",
+		RoleSpec{
+			Name:       "encoded_exec_reader_role",
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(role types.Role) {
+				role.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind:      "pods",
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						Verbs:     []string{types.KubeVerbGet, types.KubeVerbList},
+						APIGroup:  "",
+					},
+				})
+			},
+		},
+	)
+	_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+	return cfg
+}
+
+// assertEncodedExecRejected sends an exec request whose slash before "exec" is percent-encoded `layers` times
+// and verifies that Teleport rejects it before the upstream exec handler runs.
+func assertEncodedExecRejected(t *testing.T, target string, layers int, restConfig *rest.Config, kubeMock *testingkubemock.KubeMockServer) {
+	t.Helper()
+
+	mockBefore := kubeMock.KubeExecRequests.Websocket.Load()
+
+	query := url.Values{}
+	query.Add("command", containerCommmandExecute[0])
+	query.Set("container", podContainerName)
+	query.Set("stdin", "false")
+	query.Set("stdout", "true")
+	query.Set("stderr", "true")
+	query.Set("tty", "false")
+	pathSep := percentSlash(layers - 1) // once-decoded form stored in URL.Path
+	rawSep := percentSlash(layers)      // raw wire form stored in URL.RawPath
+	encodedURL := &url.URL{
+		Scheme: "https",
+		Host:   target,
+		Path: fmt.Sprintf(
+			"/api/v1/namespaces/%s/pods/%s%sexec",
+			url.PathEscape(podNamespace),
+			url.PathEscape(podName),
+			pathSep,
+		),
+		RawPath: fmt.Sprintf(
+			"/api/v1/namespaces/%s/pods/%s%sexec",
+			url.PathEscape(podNamespace),
+			url.PathEscape(podName),
+			rawSep,
+		),
+		RawQuery: query.Encode(),
+	}
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	streamOpts := remotecommand.StreamOptions{Stdout: stdout, Stderr: stderr}
+	ws, err := newWebSocketClient(restConfig, http.MethodPost, encodedURL)
+	require.NoError(t, err)
+	err = ws.StreamWithContext(t.Context(), streamOpts)
+	require.Empty(t, stdout.String(), "encoded exec path was authorized as a plain pod read; err=%v stderr=%q", err, stderr.String())
+	require.Empty(t, stderr.String(), "encoded exec path was authorized as a plain pod read; err=%v stdout=%q", err, stdout.String())
+	require.Equal(t, mockBefore, kubeMock.KubeExecRequests.Websocket.Load(), "encoded exec path reached the upstream exec handler")
+	require.Error(t, err)
+}
+
+// percentSlash returns a literal `/` encoded with the given number of percent-encoding layers.
+// layers=1 -> "%2F", 2 -> "%252F", 3 -> "%25252F", and so on.
+func percentSlash(layers int) string {
+	if layers <= 0 {
+		return "/"
+	}
+	return "%" + strings.Repeat("25", layers-1) + "2F"
+}
+
+// TestExecRejectsEncodedSlashForAllowedUser checks that an exec whose slash
+// before "exec" is percent-encoded is rejected even when the user is allowed to
+// exec. The decoded path still reads as pods/exec, but the encoded path does not
+// match the exec route, so without the check it is served by the generic
+// forwarder instead of the exec handler.
+func TestExecRejectsEncodedSlashForAllowedUser(t *testing.T) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+	})
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// The default role allows exec on pods.
+	user, _ := testCtx.CreateUserAndRole(testCtx.Context, t, username, RoleSpec{
+		Name:       roleName,
+		KubeUsers:  roleKubeUsers,
+		KubeGroups: roleKubeGroups,
+	})
+	_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+
+	// Sent straight to the kube_service (one hop), so the slash is encoded once.
+	assertEncodedExecRejected(t, testCtx.kubeServerListener.Addr().String(), 1, cfg, kubeMock)
+}
+
 type generateExecRequestConfig struct {
 	// addr is the address of the Kube API server.
 	addr string

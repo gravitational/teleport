@@ -150,6 +150,35 @@ func TestParseResourcePath(t *testing.T) {
 		// but they name the same resource either way, so they stay allowed.
 		{path: "/api/v1/pods/", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
 		{path: "/api/v1//pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
+
+		// Legitimately percent-encoded characters get decoded by Go's URL parser before parseResourcePath sees the path.
+		// URL.Path then contains the decoded form ('@' from wire '%40', '+' from '%2B', ' ' from '%20'), with no '%' remaining, so the path must pass through.
+		// These shapes appear in apiserver-proxy backend paths.
+		{path: "/api/v1/namespaces/default/services/svc/proxy/users/alice@example.com", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/users/alice@example.com", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/search/foo+bar", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/search/foo+bar", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path with space", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path with space", resourceName: "svc"}},
+		// Apiserver-proxy URLs (pod/service/node /proxy/{tail}) forward {tail} opaquely to the backend.
+		// A literal '%' from wire '%25' can legitimately appear there.
+		{path: "/api/v1/namespaces/default/services/svc/proxy/with%pct", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/with%pct", resourceName: "svc"}},
+		{path: "/api/v1/nodes/n1/proxy/stats/summary", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/stats/summary", resourceName: "n1"}},
+
+		// A '%' surviving in an RBAC-relevant field after Go's one decode pass means
+		// the path was percent-encoded more than once and must be rejected.
+		{path: "/api/v1/namespaces/default/pods/foo%2Fexec", wantErr: true},
+		{path: "/api/v1/namespaces/default/pods/foo%252Fexec", wantErr: true},
+		{path: "/api/v1/namespaces/default/pods/foo%2Fattach", wantErr: true},
+		{path: "/api/v1/namespaces/default/pods/foo%2Fportforward", wantErr: true},
+		{path: "/api/v1/namespaces/ns%2Fextra/pods/foo", wantErr: true},
+		// Dot-segment escape from the proxy tail back into an RBAC-relevant segment.
+		// After path.Clean the '..' chunks remove "/proxy/foo", so the '%2F' ends up in the pod-name position.
+		// Must be rejected.
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/../../foo%2Fexec", wantErr: true},
+		// Encoding hidden in the API prefix rather than the subresource separator.
+		// The whole path collapses into a single unparsed segment (or stops at discovery),
+		// so the per-field check never sees it; the path-level check must still reject these.
+		{path: "/api%2Fv1%2Fnamespaces%2Fdefault%2Fpods%2Ffoo%2Fexec", wantErr: true},
+		{path: "/api/v1%2Fnamespaces%2Fdefault%2Fpods%2Ffoo%2Fexec", wantErr: true},
+		{path: "/apis/apps/v1%2Fnamespaces%2Fdefault%2Fpods%2Ffoo%2Fexec", wantErr: true},
 	}
 
 	for _, tt := range tests {

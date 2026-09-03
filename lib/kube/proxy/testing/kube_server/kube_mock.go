@@ -317,7 +317,15 @@ func (s *KubeMockServer) setup() {
 		router.Handle("GET /apis/"+k.group+"/"+k.version, s.withWriter(crdDiscovery(v)))
 	}
 
-	s.server = httptest.NewUnstartedServer(router)
+	// Match real apiserver routing semantics: %2F in the URL decodes to "/"
+	// for routing. Go's stdlib ServeMux otherwise uses URL.RawPath when it's
+	// set and would treat %2F as a literal path segment.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL.RawPath = ""
+		router.ServeHTTP(w, r)
+	})
+
+	s.server = httptest.NewUnstartedServer(handler)
 	s.server.EnableHTTP2 = true
 }
 

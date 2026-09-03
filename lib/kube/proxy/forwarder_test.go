@@ -54,6 +54,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
@@ -2184,6 +2185,42 @@ func TestInvalidImpersonationGroupHeaderInjection(t *testing.T) {
 	require.ErrorAs(t, err, &kubeErr)
 	require.Equal(t, int32(http.StatusBadRequest), kubeErr.ErrStatus.Code)
 	require.Contains(t, kubeErr.ErrStatus.Message, fmt.Sprintf("invalid impersonated group header value: %q", invalidHeader))
+}
+
+// TestEphemeralContainersPatchNotRejected checks that a normal ephemeral container creation
+// (PATCH pods/{name}/ephemeralcontainers) for a user who can start a session alone
+// is proxied by the dedicated handler rather than rejected as an invalid path by the generic forwarder.
+func TestEphemeralContainersPatchNotRejected(t *testing.T) {
+	t.Parallel()
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+	})
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// The default role can create ephemeral containers and does not require
+	// moderation, so the dedicated handler proxies the request.
+	_, _ = testCtx.CreateUserAndRole(testCtx.Context, t, username, RoleSpec{
+		Name:       roleName,
+		KubeUsers:  roleKubeUsers,
+		KubeGroups: roleKubeGroups,
+	})
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, username, kubeCluster)
+
+	patch := []byte(`{"spec":{"ephemeralContainers":[{"name":"debugger","image":"busybox"}]}}`)
+	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Patch(
+		t.Context(), podName, k8stypes.StrategicMergePatchType, patch,
+		metav1.PatchOptions{}, "ephemeralcontainers",
+	)
+	// The mock has no ephemeralcontainers route, so the forwarded request comes
+	// back as NotFound. What matters is that the forwarder did not reject it.
+	require.Error(t, err)
+	var kubeErr *kubeerrors.StatusError
+	require.ErrorAs(t, err, &kubeErr)
+	require.NotContains(t, kubeErr.ErrStatus.Message, "invalid kubernetes resource path")
 }
 
 func Test_authContext_eventClusterMeta(t *testing.T) {

@@ -39,7 +39,7 @@ func FuzzParseResourcePath(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, path string) {
 		require.NotPanics(t, func() {
-			parseResourcePath(path)
+			_, _ = parseResourcePath(path)
 		})
 	})
 }
