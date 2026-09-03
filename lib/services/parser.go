@@ -1111,15 +1111,17 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 				return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
 			}),
 		},
-		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
-			if fields[0] == ResourceIdentifier {
-				if f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:]); err == nil {
-					return f, nil
+		GetUnknownIdentifierVariable: func(fields []string) (typical.Variable, error) {
+			return typical.DynamicVariable(func(env types.ResourceWithLabels) (any, error) {
+				if fields[0] == ResourceIdentifier {
+					if f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:]); err == nil {
+						return f, nil
+					}
 				}
-			}
 
-			identifier := strings.Join(fields, ".")
-			return nil, trace.BadParameter("identifier %s is not defined", identifier)
+				identifier := strings.Join(fields, ".")
+				return nil, trace.BadParameter("identifier %s is not defined", identifier)
+			}), nil
 		},
 	}
 	for _, opt := range opts {

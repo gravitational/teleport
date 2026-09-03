@@ -37,16 +37,18 @@ type Environment struct {
 
 var booleanExpressionParser = func() *typical.Parser[*Environment, bool] {
 	spec := expression.DefaultParserSpec[*Environment]()
-	spec.GetUnknownIdentifier = func(env *Environment, fields []string) (any, error) {
-		if len(fields) == 0 {
-			return nil, trace.BadParameter("cannot get empty field")
-		}
+	spec.GetUnknownIdentifierVariable = func(fields []string) (typical.Variable, error) {
+		return typical.DynamicVariable(func(env *Environment) (any, error) {
+			if len(fields) == 0 {
+				return nil, trace.BadParameter("cannot get empty field")
+			}
 
-		if fields[0] != "claims" {
-			return nil, trace.BadParameter("identifier %q is not defined", fields[0])
-		}
+			if fields[0] != "claims" {
+				return nil, trace.BadParameter("identifier %q is not defined", fields[0])
+			}
 
-		return getByFields(env.Claims, fields[1:])
+			return getByFields(env.Claims, fields[1:])
+		}), nil
 	}
 
 	// Add (overwrite) `set()` with an enhanced variant that can ingest and

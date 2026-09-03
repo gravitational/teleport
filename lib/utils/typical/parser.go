@@ -73,22 +73,9 @@ type ParserSpec[TEnv any] struct {
 	// as their first argument.
 	Methods map[string]Function
 
-	// GetUnknownIdentifier is used to retrieve any identifiers that cannot
-	// be determined statically. If not defined, any unknown identifiers result
-	// in a [UnknownIdentifierError].
-	//
-	// Useful in situations where a parser may allow specifying nested paths
-	// to variables without requiring users to enumerate all paths in [ParserSpec.Variables].
-	// Caution should be used when using this method as it shifts type safety
-	// guarantees from parse time to evaluation time.
-	// Typos in identifier names will also be caught at evaluation time instead of parse time.
-	// Do not set together with GetUnknownIdentifierVariable.
-	GetUnknownIdentifier func(env TEnv, fields []string) (any, error)
-
 	// GetUnknownIdentifierVariable returns the Variable for an unknown
 	// identifier at parse time, or an error to fail the parse. The returned
-	// Variable types the identifier like a Variables entry. Do not set
-	// together with GetUnknownIdentifier.
+	// Variable types the identifier like a Variables entry.
 	GetUnknownIdentifierVariable func(fields []string) (Variable, error)
 }
 
@@ -131,9 +118,6 @@ func WithInvalidNamespaceHack() ParserOption {
 
 // NewParser creates a predicate expression parser with the given specification.
 func NewParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOption) (*Parser[TEnv, TResult], error) {
-	if spec.GetUnknownIdentifierVariable != nil && spec.GetUnknownIdentifier != nil {
-		return nil, trace.BadParameter("GetUnknownIdentifierVariable and GetUnknownIdentifier cannot both be set")
-	}
 	var options parserOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -266,16 +250,6 @@ func (p *Parser[TEnv, TResult]) getIdentifier(selector []string) (any, error) {
 		return v, nil
 	}
 
-	// Return a dynamic variable if and only if the parser was
-	// constructed to opt in to the dangerous behavior.
-	if p.spec.GetUnknownIdentifier != nil {
-		return dynamicVariable[TEnv, any]{
-			accessor: func(env TEnv) (any, error) {
-				return p.spec.GetUnknownIdentifier(env, selector)
-			},
-		}, nil
-	}
-
 	return nil, UnknownIdentifierError(joined)
 }
 
@@ -309,11 +283,10 @@ func (p *Parser[TEnv, TResult]) getProperty(mapVal, keyVal any) (any, error) {
 		return dynamicMap.buildIndexExpression(keyExpr), nil
 	}
 
-	// Only allow falling back to an untyped expression if the parser was constructed
-	// to allow unknown identifiers. This ensures compile time type safety for all
-	// parsers that don't explicitly opt in to the more dangerous behavior required to
-	// support dynamic fields.
-	if p.spec.GetUnknownIdentifier != nil {
+	// Only fall back to an untyped expression if the parser sets
+	// GetUnknownIdentifierVariable. A parser without the hook keeps type
+	// checking of index expressions at parse time.
+	if p.spec.GetUnknownIdentifierVariable != nil {
 		if mapExpr, ok := mapVal.(Expression[TEnv, any]); ok {
 			return untypedPropertyExpr[TEnv]{mapExpr, keyExpr}, nil
 		}
