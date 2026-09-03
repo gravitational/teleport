@@ -27,8 +27,12 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var errAppWithoutAWSClientSideCredentials = errors.New("target resource is not an application that sends credentials to the client")
@@ -44,6 +48,7 @@ func generateAWSClientSideCredentials(
 	a *Server,
 	req cert.Request,
 	notAfter time.Time,
+	attestedKeyPolicy keys.PrivateKeyPolicy,
 ) (string, error) {
 	if req.AppName == "" || req.AWSRoleARN == "" {
 		return "", errAppWithoutAWSClientSideCredentials
@@ -67,6 +72,19 @@ func generateAWSClientSideCredentials(
 
 	switch integration.GetSubKind() {
 	case types.IntegrationSubKindAWSRolesAnywhere:
+		// Unlike normal app access, AWS Roles Anywhere credential generation
+		// returns externally usable AWS credentials directly from Auth without
+		// flowing through the app service first, so Auth must enforce both app
+		// access and the requested AWS role ARN before calling AWS.
+		if err := authorizeAWSRolesAnywhereCredentials(ctx, a, req, appInfo, attestedKeyPolicy); err != nil {
+			if errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired) {
+				return "", trace.Wrap(err)
+			}
+			// Obfuscate ordinary app and AWS role RBAC failures to avoid
+			// leaking whether the requested app or role exists.
+			return "", utils.OpaqueAccessDenied(err)
+		}
+
 		// Only AWS Roles Anywhere integrations can generate credentials.
 		return generateAWSRolesAnywhereCredentials(ctx, a, req, appInfo, integration, notAfter)
 
@@ -77,6 +95,40 @@ func generateAWSClientSideCredentials(
 	default:
 		return "", trace.BadParameter("application %q is using integration %q for access, which does not support AWS credential generation", req.AppName, integrationName)
 	}
+}
+
+// authorizeAWSRolesAnywhereCredentials authorizes an AWS Roles Anywhere
+// credential request before Auth calls AWS.
+func authorizeAWSRolesAnywhereCredentials(
+	ctx context.Context,
+	a *Server,
+	req cert.Request,
+	appInfo types.Application,
+	attestedKeyPolicy keys.PrivateKeyPolicy,
+) error {
+	unscoped := req.CheckerContext.CertParams().UnscopedCertParams()
+	if unscoped == nil {
+		// AWS Roles Anywhere credential issuance requires an unscoped access
+		// checker; scoped identities cannot mint these credentials.
+		return trace.AccessDenied("AWS Roles Anywhere credentials require an unscoped identity")
+	}
+
+	state, err := req.CheckerContext.AccessStateFromTLSIdentity(ctx, &tlsca.Identity{
+		Username:         req.User.GetName(),
+		MFAVerified:      req.MFAVerified,
+		PrivateKeyPolicy: attestedKeyPolicy,
+		DeviceExtensions: req.DeviceExtensions,
+		BotName:          req.BotName,
+	}, a)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(unscoped.CheckAccess(
+		appInfo,
+		state,
+		&services.AWSRoleARNMatcher{RoleARN: req.AWSRoleARN},
+	))
 }
 
 func getAppServerByName(ctx context.Context, a *Server, appServerName string) (types.Application, error) {
