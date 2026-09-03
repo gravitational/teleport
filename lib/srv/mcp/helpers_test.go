@@ -21,6 +21,7 @@ package mcp
 import (
 	"cmp"
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -194,9 +196,10 @@ func setupTestContext(t testing.TB, applyOpts ...setupTestContextOptionFunc) tes
 
 	// SessionCtx.
 	sessionCtx := &SessionCtx{
-		ClientConn: clientDestConn,
-		App:        opts.app,
-		AuthCtx:    makeTestAuthContext(t, opts.user, opts.roleSet, opts.app),
+		ClientConn:      clientDestConn,
+		App:             opts.app,
+		AuthCtx:         makeTestAuthContext(t, opts.user, opts.roleSet, opts.app),
+		UserCertificate: &x509.Certificate{Raw: []byte("fake-test-cert")},
 	}
 	require.NoError(t, sessionCtx.checkAndSetDefaults())
 
@@ -371,9 +374,28 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 	}
 }
 
+type appTokenRequest struct {
+	isIDToken bool
+	// expires is set for JWT token requests (absolute time from GenerateAppToken).
+	expires time.Time
+	// ttl is set for OIDC token requests (duration from IssueAppOIDCToken).
+	ttl time.Duration
+}
+
+type appTokenRequests []appTokenRequest
+
+func (s appTokenRequests) countIDTokenRequests() (n int) {
+	for _, r := range s {
+		if r.isIDToken {
+			n++
+		}
+	}
+	return n
+}
+
 type mockAuthClient struct {
 	mu                  sync.Mutex
-	appTokenRequests    []types.GenerateAppTokenRequest
+	appTokenRequests    appTokenRequests
 	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
 }
 
@@ -396,14 +418,30 @@ func (f *fakeIssuanceClient) IssueTeleportWorkloadIdentity(context.Context, *wor
 func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.appTokenRequests = append(m.appTokenRequests, req)
+	m.appTokenRequests = append(m.appTokenRequests, appTokenRequest{expires: req.Expires})
 	return fmt.Sprintf("app-token-for-%s-by-%s", req.Username, cmp.Or(req.AuthorityType, types.JWTSigner)), nil
 }
 
-func (m *mockAuthClient) getAppTokenRequests() []types.GenerateAppTokenRequest {
+func (m *mockAuthClient) AppIssuanceClient() appv1.AppIssuanceServiceClient {
+	return m
+}
+
+func (m *mockAuthClient) getAppTokenRequests() appTokenRequests {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return slices.Clone(m.appTokenRequests)
+}
+
+func (m *mockAuthClient) IssueAppOIDCToken(_ context.Context, req *appv1.IssueAppOIDCTokenRequest, _ ...grpc.CallOption) (*appv1.IssueAppOIDCTokenResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.appTokenRequests = append(m.appTokenRequests, appTokenRequest{
+		isIDToken: true,
+		ttl:       req.GetTtl().AsDuration(),
+	})
+	return appv1.IssueAppOIDCTokenResponse_builder{
+		Token: fmt.Sprintf("app-oidc-token-for-%s", req.GetAppSessionId()),
+	}.Build(), nil
 }
 
 func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {

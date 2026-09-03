@@ -3597,7 +3597,6 @@ func TestGenerateAppToken(t *testing.T) {
 	}
 
 	defaultKey := getJWTKey(types.JWTSigner)
-	oidcKey := getJWTKey(types.OIDCIdPCA)
 
 	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
 		PublicAddrs: []string{"https://teleport.example.com"},
@@ -3639,11 +3638,9 @@ func TestGenerateAppToken(t *testing.T) {
 		},
 		{
 			inMachineRole:   types.RoleApp,
-			inComment:       "oidc authority",
+			inComment:       "oidc authority is no longer accepted on this RPC",
 			inAuthorityType: types.OIDCIdPCA,
-			outKey:          oidcKey,
-			outIssuer:       "https://teleport.example.com",
-			outError:        false,
+			outError:        true,
 		},
 	}
 	for _, ts := range tests {
@@ -3669,7 +3666,7 @@ func TestGenerateAppToken(t *testing.T) {
 			claims, err := ts.outKey.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
-				URI:      "https://localhost:8080",
+				Audience: "https://localhost:8080",
 				Issuer:   ts.outIssuer,
 			})
 			require.NoError(t, err, ts.inComment)
@@ -6278,7 +6275,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		claims, err := key.Verify(jwt.VerifyParams{
 			RawToken: token,
 			Username: "foo",
-			URI:      "https://localhost:8080",
+			Audience: "https://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

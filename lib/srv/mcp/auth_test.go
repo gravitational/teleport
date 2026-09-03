@@ -152,14 +152,16 @@ func Test_generateJWTAndTraits(t *testing.T) {
 	require.Equal(t, "app-token-for-ai-by-jwt", jwt)
 	require.NotEmpty(t, rewriteTraits)
 	require.Equal(t, []string{"app-token-for-ai-by-jwt"}, rewriteTraits[constants.TraitJWT])
-	require.Equal(t, []string{"app-token-for-ai-by-oidc_idp"}, rewriteTraits[constants.TraitIDToken])
+	require.Len(t, rewriteTraits[constants.TraitIDToken], 1)
+	require.Contains(t, rewriteTraits[constants.TraitIDToken][0], "app-oidc-token-for-")
 
-	// Two calls, one for JWT, and one for ID token.
+	// Two calls, one for JWT and one for ID token.
 	appTokenRequests := authClient.getAppTokenRequests()
 	require.Len(t, appTokenRequests, 2)
-	// Check token ttl.
-	require.Equal(t, maxTokenDuration, appTokenRequests[0].Expires.Sub(clock.Now()))
-	require.Equal(t, maxTokenDuration, appTokenRequests[1].Expires.Sub(clock.Now()))
+	require.Equal(t, 1, appTokenRequests.countIDTokenRequests())
+	// Check token TTL.
+	require.Equal(t, maxTokenDuration, appTokenRequests[0].expires.Sub(clock.Now()))
+	require.Equal(t, maxTokenDuration, appTokenRequests[1].ttl)
 
 	// Check token is cached.
 	clock.Advance(time.Minute)
@@ -173,8 +175,9 @@ func Test_generateJWTAndTraits(t *testing.T) {
 	require.NoError(t, err)
 	appTokenRequests = authClient.getAppTokenRequests()
 	require.Len(t, appTokenRequests, 4)
-	require.Equal(t, maxTokenDuration, appTokenRequests[2].Expires.Sub(clock.Now()))
-	require.Equal(t, maxTokenDuration, appTokenRequests[3].Expires.Sub(clock.Now()))
+	require.Equal(t, 2, appTokenRequests.countIDTokenRequests())
+	require.Equal(t, maxTokenDuration, appTokenRequests[2].expires.Sub(clock.Now()))
+	require.Equal(t, maxTokenDuration, appTokenRequests[3].ttl)
 
 	// Advance to right before identity expires so the token TTL is less than
 	// maxTokenDuration.
@@ -183,8 +186,9 @@ func Test_generateJWTAndTraits(t *testing.T) {
 	require.NoError(t, err)
 	appTokenRequests = authClient.getAppTokenRequests()
 	require.Len(t, appTokenRequests, 6)
-	require.Equal(t, testCtx.Identity.Expires, appTokenRequests[4].Expires)
-	require.Equal(t, testCtx.Identity.Expires, appTokenRequests[5].Expires)
+	require.Equal(t, 3, appTokenRequests.countIDTokenRequests())
+	require.True(t, testCtx.Identity.Expires.Equal(appTokenRequests[4].expires))
+	require.Equal(t, time.Minute, appTokenRequests[5].ttl)
 }
 
 // TestServer_getSessionHandlerWithJWT_perUserCache verifies that if the user somehow can forge

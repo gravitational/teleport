@@ -55,6 +55,7 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
@@ -106,6 +107,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
+	"github.com/gravitational/teleport/lib/auth/app/appv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/clientiprestriction/clientiprestrictionv1"
@@ -6881,6 +6883,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "instantiating issuancev1 service")
 	}
 	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
+
+	appIssuanceSvc, err := appv1.NewIssuanceService(appv1.IssuanceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		KeyStore:   cfg.AuthServer.GetKeyStore(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appv1pb.RegisterAppIssuanceServiceServer(server, appIssuanceSvc)
 
 	if !cfg.AuthServer.modules.Features().Cloud {
 		// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud

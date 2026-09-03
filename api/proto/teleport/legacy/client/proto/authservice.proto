@@ -808,7 +808,9 @@ message GenerateAppTokenRequest {
   // Traits are the traits assigned to the user within Teleport.
   map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
   // AuthorityType configures which Teleport authority issues the JWT token.
-  // Defaults to JWTSigner ("jwt") if empty.
+  // Defaults to JWTSigner ("jwt") if empty and only JWTSigner is accepted. Use
+  // the new AppInsuranceService for OIDC IdP tokens.
+  // TODO(greedy52) DEPRECATE IN v20
   string authority_type = 6;
   // Scope is defined when a scoped service must generate an app token.
   // It will be used when making scoped rbac decisions

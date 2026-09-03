@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
@@ -6590,6 +6591,11 @@ func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
+}
+
+// AppIssuanceClient returns an [appv1.AppIssuanceServiceClient].
+func (c *Client) AppIssuanceClient() appv1.AppIssuanceServiceClient {
+	return appv1.NewAppIssuanceServiceClient(c.conn)
 }
 
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].

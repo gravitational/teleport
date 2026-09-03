@@ -20,6 +20,7 @@ package utils
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"runtime"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 func TestRejectsInvalidPEMData(t *testing.T) {
@@ -107,6 +109,54 @@ func TestVerifyTLSCertLeafExpiry(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(tt.fakeTime)
 			err := VerifyTLSCertLeafExpiry(tt.input, clock)
 			tt.checkResult(t, err)
+		})
+	}
+}
+
+func TestVerifyCertificateWithClockSkew(t *testing.T) {
+	const testClockSkew = time.Minute
+	cert, err := tlsutils.ParseCertificatePEM([]byte(fixtures.TLSCACertPEM))
+	require.NoError(t, err)
+	roots := x509.NewCertPool()
+	roots.AddCert(cert)
+
+	tests := []struct {
+		name       string
+		now        time.Time
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			name:       "valid",
+			now:        fixtures.TLSCACertNotBefore.Add(time.Hour),
+			checkError: require.NoError,
+		},
+		{
+			name:       "within skew before NotBefore",
+			now:        fixtures.TLSCACertNotBefore.Add(-30 * time.Second),
+			checkError: require.NoError,
+		},
+		{
+			name:       "within skew after NotAfter",
+			now:        fixtures.TLSCACertNotAfter.Add(30 * time.Second),
+			checkError: require.NoError,
+		},
+		{
+			name:       "beyond skew after NotAfter",
+			now:        fixtures.TLSCACertNotAfter.Add(2 * time.Minute),
+			checkError: require.Error,
+		},
+		{
+			name:       "beyond skew before NotBefore",
+			now:        fixtures.TLSCACertNotBefore.Add(-2 * time.Minute),
+			checkError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := clockwork.NewFakeClockAt(tt.now)
+			tt.checkError(t, VerifyCertificateWithClockSkew(cert, clock, testClockSkew, x509.VerifyOptions{
+				Roots: roots,
+			}))
 		})
 	}
 }

@@ -51,7 +51,7 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	claims, err := key.Verify(jwt.VerifyParams{
 		Username: pack.username,
 		RawToken: token,
-		URI:      appURI,
+		Audience: appURI,
 	})
 	require.NoError(t, err)
 	require.Equal(t, pack.username, claims.Username)

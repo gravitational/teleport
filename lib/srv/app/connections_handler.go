@@ -781,7 +781,8 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	// Add user certificate into the context after the monitor connection
 	// initialization to ensure value is present on the context.
-	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
+	userCert := leafCertFromConn(tlsConn)
+	ctx = authz.ContextWithUserCertificate(ctx, userCert)
 
 	// TCP and MCP handlers block until the session is done, so they return
 	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
@@ -800,9 +801,10 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			return nil, trace.AccessDenied("MCP application access is not supported for scoped identities")
 		}
 		sessionCtx := mcp.SessionCtx{
-			ClientConn: tlsConn,
-			AuthCtx:    unscopedAuthCtx,
-			App:        app,
+			ClientConn:      tlsConn,
+			AuthCtx:         unscopedAuthCtx,
+			App:             app,
+			UserCertificate: userCert,
 		}
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 

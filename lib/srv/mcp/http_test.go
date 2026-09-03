@@ -64,7 +64,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		case r.URL.Path != "/mcp":
 			// Unhappy scenario.
 			w.WriteHeader(http.StatusNotFound)
-		case r.Header.Get("Authorization") != "Bearer app-token-for-ai-by-oidc_idp":
+		case r.Header.Get("Authorization") != "Bearer app-oidc-token-for-session-id-for+test-http":
 			// Verify rewrite headers.
 			w.WriteHeader(http.StatusUnauthorized)
 		default:

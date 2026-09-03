@@ -74,7 +74,7 @@ func TestSignAndVerify(t *testing.T) {
 						Username: "foo@example.com",
 						Roles:    []string{"foo", "bar"},
 						Expires:  clock.Now().Add(1 * time.Minute),
-						URI:      "http://127.0.0.1:8080",
+						Audience: "http://127.0.0.1:8080",
 					})
 					require.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestSignAndVerify(t *testing.T) {
 						Issuer:   tc.issuer,
 						Username: "foo@example.com",
 						RawToken: token,
-						URI:      "http://127.0.0.1:8080",
+						Audience: "http://127.0.0.1:8080",
 					})
 					require.NoError(t, err)
 					require.Equal(t, "foo@example.com", claims.Username)
@@ -173,8 +173,8 @@ func TestPublicOnlyVerify(t *testing.T) {
 				Traits: wrappers.Traits{
 					"trait1": []string{"value-1", "value-2"},
 				},
-				Expires: clock.Now().Add(1 * time.Minute),
-				URI:     "http://127.0.0.1:8080",
+				Expires:  clock.Now().Add(1 * time.Minute),
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.NoError(t, err)
 
@@ -187,7 +187,7 @@ func TestPublicOnlyVerify(t *testing.T) {
 			require.NoError(t, err)
 			claims, err := key.Verify(VerifyParams{
 				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 				RawToken: token,
 			})
 			require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestPublicOnlyVerify(t *testing.T) {
 				Username: "foo@example.com",
 				Roles:    []string{"foo", "bar"},
 				Expires:  clock.Now().Add(1 * time.Minute),
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.Error(t, err)
 		})
@@ -347,7 +347,6 @@ func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 			token, err := key.SignAWSOIDC(SignParams{
 				Username: "user",
 				Issuer:   "https://localhost/",
-				URI:      "https://localhost/",
 				Subject:  "system:proxy",
 				Audience: "discover.teleport",
 				Expires:  clock.Now().Add(expiresIn),
@@ -414,15 +413,15 @@ func TestExpiry(t *testing.T) {
 				Traits: wrappers.Traits{
 					"trait1": []string{"value-1", "value-2"},
 				},
-				Expires: clock.Now().Add(1 * time.Minute),
-				URI:     "http://127.0.0.1:8080",
+				Expires:  clock.Now().Add(1 * time.Minute),
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.NoError(t, err)
 
 			// Verify that the token is still valid.
 			claims, err := key.Verify(VerifyParams{
 				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 				RawToken: token,
 			})
 			require.NoError(t, err)
@@ -434,7 +433,7 @@ func TestExpiry(t *testing.T) {
 			clock.Advance(2 * time.Minute)
 			_, err = key.Verify(VerifyParams{
 				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 				RawToken: token,
 			})
 			require.Error(t, err)

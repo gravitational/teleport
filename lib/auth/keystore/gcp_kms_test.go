@@ -610,7 +610,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 				_, err = servicesJWTSigner.Sign(jwt.SignParams{
 					Username: "root",
 					Roles:    []string{"access"},
-					URI:      "example.com",
+					Audience: "example.com",
 					Expires:  time.Now().Add(time.Hour),
 				})
 				if tc.expectSignError {
