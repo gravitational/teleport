@@ -102,7 +102,7 @@ func TestValidateConfig(t *testing.T) {
 	require.Error(t, err)
 	linearConfig.LowerBound = 10
 
-	linearConfig.MinimumMeasurements = 0
+	linearConfig.MinimumMeasurements = -1
 	err = validateConfig(linearConfig)
 	require.Error(t, err)
 }

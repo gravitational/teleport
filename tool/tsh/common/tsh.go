@@ -304,6 +304,8 @@ type CLIConf struct {
 	BenchDuration time.Duration
 	// BenchRate is a requests per second rate to maintain
 	BenchRate int
+	// BenchMinimumMeasurements is the minimum number of measurements to collect.
+	BenchMinimumMeasurements int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
 	// BenchRandom indicates that we should connect to a random host each time
@@ -1361,6 +1363,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration.").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate.").Default("10").IntVar(&cf.BenchRate)
+	bench.Flag("min-measurements", "Minimum number of completed measurements before stopping.").IntVar(&cf.BenchMinimumMeasurements)
 	bench.Flag("export", "Export the latency profile.").BoolVar(&cf.BenchExport)
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory.").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance.").Default("100").Int32Var(&cf.BenchTicks)
@@ -4718,8 +4721,9 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 		return trace.Wrap(err)
 	}
 	cnf := benchmark.Config{
-		MinimumWindow: cf.BenchDuration,
-		Rate:          cf.BenchRate,
+		MinimumWindow:       cf.BenchDuration,
+		MinimumMeasurements: cf.BenchMinimumMeasurements,
+		Rate:                cf.BenchRate,
 	}
 
 	result, err := cnf.Benchmark(cf.Context, tc, suite)

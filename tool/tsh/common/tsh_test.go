@@ -6641,7 +6641,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 	args := []string{
 		"bench", "postgres", "--insecure",
 		// Benchmark options to limit benchmark to a single execution.
-		"--rate", "1", "--duration", "1s",
+		"--rate", "1", "--duration", "1s", "--min-measurements", "1",
 	}
 
 	for name, tc := range map[string]struct {

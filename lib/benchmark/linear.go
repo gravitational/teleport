@@ -62,7 +62,7 @@ func (lg *Linear) GetBenchmark() *Config {
 }
 
 func validateConfig(lg *Linear) error {
-	if lg.MinimumMeasurements <= 0 || lg.UpperBound <= 0 || lg.LowerBound <= 0 || lg.Step <= 0 {
+	if lg.MinimumMeasurements < 0 || lg.UpperBound <= 0 || lg.LowerBound <= 0 || lg.Step <= 0 {
 		return errors.New("minimumMeasurements, upperbound, step, and lowerBound must be greater than 0")
 	}
 	if lg.LowerBound > lg.UpperBound {
