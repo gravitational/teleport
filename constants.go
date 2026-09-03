@@ -560,11 +560,6 @@ const (
 	// was created for, derived from the delegation session's
 	// types.BeamIDLabel label.
 	CertExtensionBeamID = "beam-id@goteleport.com"
-
-	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
-	// from which this certificate is accepted for authentication.
-	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
-	CertCriticalOptionSourceAddress = "source-address"
 	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
 	// GitHub connector.
 	CertExtensionGitHubUserID = "github-id@goteleport.com"

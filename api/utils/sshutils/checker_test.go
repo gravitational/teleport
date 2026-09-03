@@ -111,3 +111,22 @@ func TestCheckerValidateFIPS(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckCertAcceptsSourceAddressOption(t *testing.T) {
+	t.Parallel()
+
+	ca, err := MakeTestSSHCA()
+	require.NoError(t, err)
+
+	const principal = "alice"
+
+	cert := &ssh.Certificate{
+		Key:             ca.PublicKey(),
+		CertType:        ssh.UserCert,
+		ValidPrincipals: []string{principal},
+		ValidBefore:     ssh.CertTimeInfinity,
+		CriticalOptions: map[string]string{constants.CertCriticalOptionSourceAddress: "10.0.0.1/32"},
+	}
+	require.NoError(t, cert.SignCert(rand.Reader, ca))
+	require.NoError(t, (&CertChecker{}).CheckCert(principal, cert))
+}
