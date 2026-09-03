@@ -77,6 +77,13 @@ variable "ecs_cluster_use_name_prefix" {
   type        = bool
 }
 
+variable "ecs_execution_role_inline_policy" {
+  default     = null
+  description = "Optional JSON policy document to merge into the inline policy attached to the ECS execution IAM role."
+  nullable    = true
+  type        = string
+}
+
 variable "ecs_service_name" {
   default     = "teleport"
   description = "Name of the ECS service."
