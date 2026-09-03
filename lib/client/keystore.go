@@ -66,6 +66,8 @@ const (
 	// tshBin is the name of the directory containing the
 	// updated binaries of client tools.
 	tshBin = "bin"
+
+	mcpOAuthCredentialsLockTimeout = 30 * time.Second
 )
 
 // KeyStore is a storage interface for client session keys and certificates.
@@ -171,6 +173,14 @@ func (fs *FSKeyStore) ppkFilePath(idx KeyRingIndex) string {
 // KeyRingIndex.
 func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyRingIndex) string {
 	return keypaths.KubeCredLockfilePath(fs.KeyDir, idx.ProxyHost)
+}
+
+func (fs *FSKeyStore) lockMCPOAuthCredentials() (func() error, error) {
+	lockPath := keypaths.MCPOAuthCredentialsLockPath(fs.KeyDir)
+	if err := os.MkdirAll(filepath.Dir(lockPath), profileDirPerms); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return utils.FSTryWriteLockTimeout(context.Background(), lockPath, mcpOAuthCredentialsLockTimeout)
 }
 
 // publicKeyPath returns the public key path for the given KeyRingIndex.
@@ -525,6 +535,17 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
 func (fs *FSKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error {
+	if slices.ContainsFunc(opts, func(opt CertOption) bool {
+		_, ok := opt.(WithAppCerts)
+		return ok
+	}) {
+		unlock, err := fs.lockMCPOAuthCredentials()
+		if err != nil {
+			return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
+		}
+		defer unlock()
+	}
+
 	var pathsToDelete []string
 	for _, o := range opts {
 		pathsToDelete = append(pathsToDelete, o.pathsToDelete(fs.KeyDir, idx)...)
@@ -539,11 +560,24 @@ func (fs *FSKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) erro
 
 // DeleteKeys removes all session keys.
 func (fs *FSKeyStore) DeleteKeys() error {
+	lockPath := keypaths.MCPOAuthCredentialsLockPath(fs.KeyDir)
+	unlock, err := fs.lockMCPOAuthCredentials()
+	if err != nil {
+		return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
+	}
+	defer unlock()
+
+	lockDir := filepath.Dir(lockPath)
 	files, err := os.ReadDir(fs.KeyDir)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	for _, file := range files {
+		path := filepath.Join(fs.KeyDir, file.Name())
+		// Removing a held lock would let another process lock its replacement.
+		if path == lockDir {
+			continue
+		}
 		if file.IsDir() {
 			switch file.Name() {
 			case tshConfigDirName, tshAzureDirName, tshBin:
@@ -559,7 +593,7 @@ func (fs *FSKeyStore) DeleteKeys() error {
 				continue
 			}
 		}
-		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
+		err := utils.RemoveAllSecure(path)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -865,6 +899,7 @@ func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	return []string{
 		keypaths.AppCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
 		keypaths.AppKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
+		keypaths.MCPOAuthCredentialsPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
 	}
 }
 
