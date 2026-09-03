@@ -416,14 +416,22 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 }
 
 func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
-	// Extract the identity and application being requested from the certificate
-	// and check if the caller has access.
-	authCtx, app, err := c.authorizeContext(r.Context())
+	// Build the authorization context from the certificate, then fetch and
+	// authorize the requested application.
+	ctx := r.Context()
+	authCtx, err := c.getAuthContext(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	identity := authCtx.Identity.GetIdentity()
+	app, err := c.getAppByPublicAddress(ctx, identity.RouteToApp.PublicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.authorizeApp(ctx, authCtx, app); err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch {
 	case app.IsAWSConsole():
 		// Requests from AWS applications are signed by AWS Signature Version 4
@@ -490,36 +498,50 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	return nil
 }
 
-// authorizeContext will check if the context carries identity information and
-// runs authorization checks on it.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
+// authorizeContext builds an authorization context and checks access to app.
+// The caller must pass the exact application that will be served.
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.Application) (*authz.Context, error) {
+	authCtx, err := c.getAuthContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.authorizeApp(ctx, authCtx, app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authCtx, nil
+}
+
+// getAuthContext checks if the context carries identity information and
+// builds an authorization context for it.
+func (c *ConnectionsHandler) getAuthContext(ctx context.Context) (*authz.Context, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:
-		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
+		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
 	// Extract authorizing context and identity of the user from the request.
 	authContext, err := c.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+
+	return authContext, nil
+}
+
+// authorizeApp checks whether authContext allows access to app.
+func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.Context, app types.Application) error {
 	identity := authContext.Identity.GetIdentity()
 
-	// Fetch the application and check if the identity has access.
-	app, err := c.getAppByPublicAddress(ctx, identity.RouteToApp.PublicAddr)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// When accessing AWS management console, check permissions to assume
@@ -555,17 +577,17 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	case err != nil:
 		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
 		)
-		return nil, nil, utils.OpaqueAccessDenied(err)
+		return utils.OpaqueAccessDenied(err)
 	}
 
-	return authContext, app, nil
+	return nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
@@ -588,7 +610,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	authCtx, _, err := c.authorizeContext(ctx)
+	authCtx, err := c.authorizeContext(ctx, app)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
