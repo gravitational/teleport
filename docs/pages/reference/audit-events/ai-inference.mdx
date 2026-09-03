@@ -1,0 +1,677 @@
+---
+title: AI & Inference Audit Events
+description: "Provides a list of AI & Inference audit events."
+sidebar_label: AI & Inference
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport Beams and AI-related capabilities.
+
+
+
+## beams.config.create
+
+Beams Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM001I",
+  "ei": 0,
+  "event": "beams.config.create",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.delete
+
+Beams Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM003I",
+  "ei": 0,
+  "event": "beams.config.delete",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:23.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc82",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.update
+
+Beams Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM002I",
+  "ei": 0,
+  "event": "beams.config.update",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:22.869Z",
+  "uid": "f2973df2-4bee-4a67-9925-575c1d38cc81",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+
+## classifier.create
+
+There are multiple events with the `classifier.create` type.
+
+### INF014I
+
+Classifier Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014I",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:01:21.869Z",
+  "uid": "ae973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh",
+        "k8s"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF014E
+
+Classifier Creation Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014E",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" already exists",
+  "success": false,
+  "time": "2025-03-04T16:01:31.869Z",
+  "uid": "b1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.delete
+
+There are multiple events with the `classifier.delete` type.
+
+### INF016I
+
+Classifier Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016I",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:03:21.869Z",
+  "uid": "b0973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+### INF016E
+
+Classifier Deletion Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016E",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:03:31.869Z",
+  "uid": "b3973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.update
+
+There are multiple events with the `classifier.update` type.
+
+### INF015I
+
+Classifier Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015I",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:02:21.869Z",
+  "uid": "af973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod",
+            "staging"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF015E
+
+Classifier Update Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015E",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:02:31.869Z",
+  "uid": "b2973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+
+## inference_model.create
+
+Inference Model Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF001I",
+  "ei": 0,
+  "event": "inference_model.create",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "a1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "gpt-4"
+    },
+    "spec": {
+      "model_source": "openai"
+    }
+  }
+}
+```
+
+## inference_model.delete
+
+Inference Model Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF003I",
+  "ei": 0,
+  "event": "inference_model.delete",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:51:21.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_model.update
+
+Inference Model Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF002I",
+  "ei": 0,
+  "event": "inference_model.update",
+  "name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T15:50:21.869Z",
+  "uid": "a2973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "gpt-4"
+    },
+    "spec": {
+      "model_source": "openai"
+    }
+  }
+}
+```
+
+
+## inference_policy.create
+
+Inference Policy Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF007I",
+  "ei": 0,
+  "event": "inference_policy.create",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:55:21.869Z",
+  "uid": "a7973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "model-access-policy"
+    },
+    "spec": {
+      "allowed_models": [
+        "gpt-4"
+      ]
+    }
+  }
+}
+```
+
+## inference_policy.delete
+
+Inference Policy Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF009I",
+  "ei": 0,
+  "event": "inference_policy.delete",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:57:21.869Z",
+  "uid": "a9973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_policy.update
+
+Inference Policy Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF008I",
+  "ei": 0,
+  "event": "inference_policy.update",
+  "name": "model-access-policy",
+  "success": true,
+  "time": "2025-03-04T15:56:21.869Z",
+  "uid": "a8973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "model-access-policy"
+    },
+    "spec": {
+      "allowed_models": [
+        "gpt-4",
+        "gpt-3.5-turbo"
+      ]
+    }
+  }
+}
+```
+
+
+## inference_secret.create
+
+Inference Secret Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF004I",
+  "ei": 0,
+  "event": "inference_secret.create",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:52:21.869Z",
+  "uid": "a4973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_secret.delete
+
+Inference Secret Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF006I",
+  "ei": 0,
+  "event": "inference_secret.delete",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:54:21.869Z",
+  "uid": "a6973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## inference_secret.update
+
+Inference Secret Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF005I",
+  "ei": 0,
+  "event": "inference_secret.update",
+  "name": "openai-api-key",
+  "success": true,
+  "time": "2025-03-04T15:53:21.869Z",
+  "uid": "a5973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+
+## retrieval_model.create
+
+Retrieval Model Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF011I",
+  "ei": 0,
+  "event": "retrieval_model.create",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:58:21.869Z",
+  "uid": "ab973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4"
+    }
+  }
+}
+```
+
+## retrieval_model.delete
+
+Retrieval Model Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF013I",
+  "ei": 0,
+  "event": "retrieval_model.delete",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T16:00:00.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## retrieval_model.update
+
+Retrieval Model Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF012I",
+  "ei": 0,
+  "event": "retrieval_model.update",
+  "name": "retrieval-model",
+  "success": true,
+  "time": "2025-03-04T15:59:21.869Z",
+  "uid": "ac973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "retrieval-model"
+    },
+    "spec": {
+      "inference_model_name": "gpt-4",
+      "embedding_dimension": 1536
+    }
+  }
+}
+```

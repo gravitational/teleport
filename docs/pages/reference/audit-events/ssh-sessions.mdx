@@ -1,0 +1,1390 @@
+---
+title: SSH Sessions Audit Events
+description: "Provides a list of SSH Sessions audit events."
+sidebar_label: SSH Sessions
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to SSH sessions, which can involve the Teleport SSH Service, Proxy Service, or Kubernetes Service
+
+
+
+## agent-forward
+
+There are multiple events with the `agent-forward` type.
+
+### T3013I
+
+Agent Forwarding Requested
+
+Example:
+
+```json
+{
+  "code": "T3013I",
+  "event": "agent-forward",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3013W
+
+Agent Forwarding Request Failed
+
+Example:
+
+```json
+{
+  "code": "T3013W",
+  "event": "agent-forward",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## client.disconnect
+
+Client Disconnected
+
+Example:
+
+```json
+{
+  "code": "T3006I",
+  "event": "client.disconnect",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## exec
+
+There are multiple events with the `exec` type.
+
+### T3002I
+
+Command Execution
+
+Example:
+
+```json
+{
+  "code": "T3002I",
+  "proto": "kube",
+  "kubernetes_cluster": "clusterOne",
+  "ei": 0,
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51752",
+  "event": "exec",
+  "namespace": "default",
+  "sid": "8d57a9d5-3848-5ce2-a326-85eb4a6d2eed",
+  "time": "2020-10-30T17:28:14.705Z",
+  "uid": "8ea5be3d-07b1-4308-8e0d-2d2ec57cbb20",
+  "user": "alex"
+}
+```
+
+### T3002E
+
+Command Execution Failed
+
+Example:
+
+```json
+{
+  "code": "T3002E",
+  "event": "exec",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## port
+
+There are multiple events with the `port` type.
+
+### T3003I
+
+Port Forwarding Start
+
+Example:
+
+```json
+{
+  "code": "T3003I",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3003E
+
+Port Forwarding Failure
+
+Example:
+
+```json
+{
+  "code": "T3003E",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3003S
+
+Port Forwarding Stop
+
+Example:
+
+```json
+{
+  "code": "T3003S",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## resize
+
+Terminal Resize
+
+Example:
+
+```json
+{
+  "code": "T2002I",
+  "ei": 3,
+  "event": "resize",
+  "login": "root",
+  "namespace": "default",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "size": "80:25",
+  "time": "2019-04-22T19:39:52.432Z",
+  "uid": "917d8108-3617-4273-ab37-7bbf8e7c1ab9",
+  "user": "admin@example.com"
+}
+```
+
+
+## scp
+
+There are multiple events with the `scp` type.
+
+### T3004I
+
+SCP Download
+
+Example:
+
+```json
+{
+  "code": "T3004I",
+  "action": "download",
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "127.0.0.1:55594",
+  "event": "scp",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/fsdfsdfsdfsdfs",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "183ca6de-c24b-4f67-854f-163c01245fa1",
+  "user": "admin@example.com"
+}
+```
+
+### T3004E
+
+SCP Download Failed
+
+Example:
+
+```json
+{
+  "action": "download",
+  "addr.local": "192.168.0.105:3022",
+  "addr.remote": "127.0.0.1:39932",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3004E",
+  "command": "/home/path scp --remote-addr=\"127.0.0.1:39932\" --local-addr=\"111.222.0.105:3022\" -f ~/sdfsdf",
+  "ei": 0,
+  "event": "scp",
+  "exitCode": "1",
+  "exitError": "exit status 1",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/sdfsdf",
+  "server_id": "8045a8cc-49bb-4e02-bdc99313",
+  "sid": "8ff117ec-70a2-4481-8e359cf6",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "30e13b84-a51f-467676258b9bf",
+  "user": "root"
+}
+```
+
+### T3005I
+
+SCP Upload
+
+Example:
+
+```json
+{
+  "action": "upload",
+  "addr.local": "192.168.0.105:3022",
+  "addr.remote": "127.0.0.1:57058",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3005I",
+  "command": "/home/path scp --remote-addr=\"127.0.0.1:57058\" --local-addr=\"111.222.0.105:3022\" -t ~/",
+  "ei": 0,
+  "event": "scp",
+  "exitCode": "0",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/",
+  "server_id": "8045a8cc-49bb-4e02-bdc5-a782a313",
+  "sid": "b484b5cc-9065-40fa-9a0c-db3",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root"
+}
+```
+
+### T3005E
+
+SCP Upload Failed
+
+Example:
+
+```json
+{
+  "code": "T3005E",
+  "event": "scp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3010E
+
+SCP Disallowed
+
+Example:
+
+```json
+{
+  "code": "T3010E",
+  "event": "scp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## session.command
+
+Session Command
+
+Example:
+
+```json
+{
+  "argv": [
+    "google.com"
+  ],
+  "cgroup_id": 4294968064,
+  "code": "T4000I",
+  "ei": 5,
+  "event": "session.command",
+  "login": "root",
+  "namespace": "default",
+  "path": "/bin/ping",
+  "pid": 2653,
+  "ppid": 2660,
+  "program": "ping",
+  "return_code": 0,
+  "server_id": "96f2bed2-ebd1-494a-945c-2fd57de41644",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "time": "2020-01-13T18:05:53.919Z",
+  "uid": "734930bb-00e6-4ee6-8798-37f1e9473fac",
+  "user": "benarent"
+}
+```
+
+## session.connect
+
+Session Connected
+
+Example:
+
+```json
+{
+  "addr.local": "192.168.0.106:43858",
+  "addr.remote": "192.168.0.106:3022",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T2010I",
+  "ei": 0,
+  "event": "session.connect",
+  "server_addr": "192.168.0.106:43858",
+  "server_id": "bd5eff-f59b-4fb3-b8ed-757c52ff",
+  "time": "2022-02-04T18:15:28.572Z",
+  "uid": "f2a0f9-d78c-4c38-b3fa-ca63453b"
+}
+```
+
+## session.data
+
+Session Data
+
+Example:
+
+```json
+{
+  "addr.local": "172.10.1.1:3022",
+  "addr.remote": "172.10.1.254:46992",
+  "code": "T2006I",
+  "ei": 2147483646,
+  "event": "session.data",
+  "login": "root",
+  "rx": 3974,
+  "server_id": "b331fb6c-85f9-4cb0-b308-3452420bf81e",
+  "sid": "5fc8bf85-a73e-11ea-afd1-0242ac0a0101",
+  "time": "2020-06-05T15:14:51Z",
+  "tx": 4730,
+  "uid": "2f2f07d0-8a01-4abe-b1c0-5001fd86829b",
+  "user": "Stanley_Cooper"
+}
+```
+
+## session.disk
+
+Session File Access
+
+Example:
+
+```json
+{
+  "code": "T4001I",
+  "event": "session.disk",
+  "namespace": "default",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "server_id": "96f2bed2",
+  "login": "root",
+  "user": "benarent",
+  "pid": 2653,
+  "cgroup_id": 4294968064,
+  "program": "bash",
+  "path": "/etc/profile.d/",
+  "flags": 2100000,
+  "return_code": 0,
+  "time": "2019-04-22T19:39:26.676Z"
+}
+```
+
+## session.end
+
+Session Ended
+
+Example:
+
+```json
+{
+  "cluster_name": "kimlisa.cloud.gravitational.io",
+  "code": "T2004I",
+  "ei": 1,
+  "enhanced_recording": false,
+  "event": "session.end",
+  "interactive": false,
+  "login": "root",
+  "namespace": "default",
+  "participants": [
+    "foo"
+  ],
+  "server_addr": "172.31.30.254:32962",
+  "server_hostname": "ip-172-31-30-254",
+  "server_id": "d3ddd1f8-b602-488b-00c66e29879f",
+  "session_start": "2021-05-21T22:23:55.313562027Z",
+  "session_stop": "2021-05-21T22:54:27.122508023Z",
+  "sid": "9d92ad96-a45c-4add-463cc7bc48b1",
+  "time": "2021-05-21T22:54:27.123Z",
+  "uid": "984ac949-6605-4f0a-e450aa5665f4",
+  "user": "foo"
+}
+```
+
+## session.join
+
+User Joined
+
+Example:
+
+```json
+{
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51752",
+  "code": "T2001I",
+  "ei": 4,
+  "event": "session.join",
+  "login": "root",
+  "namespace": "default",
+  "server_id": "de3800ea-69d9-4d72-a108-97e57f8eb393",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "time": "2019-04-22T19:39:52.434Z",
+  "uid": "13d26190-289b-41d4-af67-c8c8b0617ebe",
+  "user": "admin@example.com"
+}
+```
+
+## session.leave
+
+User Disconnected
+
+Example:
+
+```json
+{
+  "code": "T2003I",
+  "event": "session.leave",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.network
+
+Session Network Connection
+
+Example:
+
+```json
+{
+  "code": "T4002I",
+  "event": "session.network",
+  "namespace": "default",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "server_id": "96f2bed2",
+  "login": "root",
+  "user": "benarent",
+  "pid": 2653,
+  "cgroup_id": 4294968064,
+  "program": "bash",
+  "src_addr": "10.217.136.161",
+  "dst_addr": "190.58.129.4",
+  "dst_port": "3000",
+  "version": 4,
+  "time": "2019-04-22T19:39:26.676Z",
+  "action": 1
+}
+```
+
+## session.process_exit
+
+Session Process Exit
+
+Example:
+
+```json
+{
+  "code": "T4003I",
+  "event": "session.process_exit",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.recording.access
+
+Session Recording Accessed
+
+Example:
+
+```json
+{
+  "code": "T2012I",
+  "event": "session.recording.access",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "success": true,
+  "time": "2022-07-14T18:04:37.067Z",
+  "uid": "7d440ee1-15f6-4b56-9391-344e8984fd97",
+  "user": "ops@gravitational.io"
+}
+```
+
+## session.rejected
+
+Session Rejected
+
+Example:
+
+```json
+{
+  "code": "T1006W",
+  "event": "session.rejected",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.start
+
+Session Started
+
+Example:
+
+```json
+{
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51454",
+  "code": "T2000I",
+  "ei": 0,
+  "event": "session.start",
+  "login": "root",
+  "namespace": "default",
+  "server_id": "de3800ea-69d9-4d72-a108-97e57f8eb393",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "size": "80:25",
+  "time": "2019-04-22T19:39:26.676Z",
+  "uid": "84c07a99-856c-419f-9de5-15560451a116",
+  "user": "admin@example.com"
+}
+```
+
+## session.summarized
+
+There are multiple events with the `session.summarized` type.
+
+### INF010I
+
+Session Summarized
+
+Example:
+
+```json
+{
+  "cluster_name": "teleport.dev",
+  "code": "INF010I",
+  "ei": 0,
+  "event": "session.summarized",
+  "sid": "c3ae6e8f-7f8e-4d44-a5b9-3c9b8e3f8e3f",
+  "session_type": "ssh",
+  "model_name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T16:00:21.869Z",
+  "uid": "aa973df2-4bee-4a67-9925-575c1d38cc80",
+  "risk_level": "medium",
+  "short_description": "User performed system administration tasks",
+  "inference_started_at": "2025-03-04T16:00:10.000Z",
+  "inference_finished_at": "2025-03-04T16:00:21.869Z",
+  "server_hostname": "ip-172-31-30-254",
+  "server_id": "d3ddd1f8-b602-488b-00c66e29879f",
+  "server_addr": "172.31.30.254:32962"
+}
+```
+
+### INF010E
+
+Session Summarization Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "teleport.dev",
+  "code": "INF010E",
+  "ei": 0,
+  "event": "session.summarized",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "session_type": "desktop",
+  "model_name": "gpt-4",
+  "success": false,
+  "time": "2025-03-04T16:15:21.869Z",
+  "uid": "ad973df2-4bee-4a67-9925-575c1d38cc80",
+  "short_description": "User accessed domain controller and modified AD policies",
+  "inference_started_at": "2025-03-04T16:15:10.000Z",
+  "inference_finished_at": "2025-03-04T16:15:21.869Z",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "desktop_addr": "100.104.52.89:3389",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator",
+  "desktop_labels": {
+    "env": "prod",
+    "role": "domain-controller"
+  }
+}
+```
+
+## session.upload
+
+Session Uploaded
+
+Example:
+
+```json
+{
+  "code": "T2005I",
+  "event": "session.upload",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## session_recording_config.update
+
+Session Recording Configuration Updated
+
+Example:
+
+```json
+{
+  "code": "TCREC003I",
+  "event": "session_recording_config.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## sftp
+
+There are multiple events with the `sftp` type.
+
+### TS001I
+
+SFTP Open
+
+Example:
+
+```json
+{
+  "action": 1,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS001I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS001E
+
+SFTP Open Failed
+
+Example:
+
+```json
+{
+  "action": 1,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS001E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS007I
+
+SFTP Setstat
+
+Example:
+
+```json
+{
+  "action": 7,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS007I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS007E
+
+SFTP Setstat Failed
+
+Example:
+
+```json
+{
+  "action": 7,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS007E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS009I
+
+SFTP Opendir
+
+Example:
+
+```json
+{
+  "action": 9,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS009I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS009E
+
+SFTP Opendir Failed
+
+Example:
+
+```json
+{
+  "action": 9,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS009E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS010I
+
+SFTP Readdir
+
+Example:
+
+```json
+{
+  "action": 10,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS010I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS010E
+
+SFTP Readdir Failed
+
+Example:
+
+```json
+{
+  "action": 10,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS010E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS011I
+
+SFTP Remove
+
+Example:
+
+```json
+{
+  "action": 11,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS011I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS011E
+
+SFTP Remove Failed
+
+Example:
+
+```json
+{
+  "action": 11,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS011E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS012I
+
+SFTP Mkdir
+
+Example:
+
+```json
+{
+  "action": 12,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS012I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS012E
+
+SFTP Mkdir Failed
+
+Example:
+
+```json
+{
+  "action": 12,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS012E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS013I
+
+SFTP Rmdir
+
+Example:
+
+```json
+{
+  "action": 13,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS013I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS013E
+
+SFTP Rmdir Failed
+
+Example:
+
+```json
+{
+  "action": 13,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS013E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS016I
+
+SFTP Rename
+
+Example:
+
+```json
+{
+  "action": 16,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS016I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS016E
+
+SFTP Rename Failed
+
+Example:
+
+```json
+{
+  "action": 16,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS016E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS018I
+
+SFTP Symlink
+
+Example:
+
+```json
+{
+  "action": 18,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS018I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS018E
+
+SFTP Symlink Failed
+
+Example:
+
+```json
+{
+  "action": 18,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS018E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS019I
+
+SFTP Link
+
+Example:
+
+```json
+{
+  "code": "TS019I",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TS019E
+
+SFTP Link Failed
+
+Example:
+
+```json
+{
+  "code": "TS019E",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TS020E
+
+SFTP Disallowed
+
+Example:
+
+```json
+{
+  "code": "TS020E",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## sftp_summary
+
+File Transfer Completed
+
+Example:
+
+```json
+{
+  "code": "TS021I",
+  "event": "sftp_summary",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## stable_unix_user.create
+
+Stable UNIX user created
+
+Example:
+
+```json
+{
+  "code": "TSUU001I",
+  "event": "stable_unix_user.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## static_host_user.create
+
+Static Host User Created
+
+Example:
+
+```json
+{
+  "code": "SHU001I",
+  "event": "static_host_user.create",
+  "time": "2023-05-09T19:21:36.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+## static_host_user.delete
+
+Static Host User Deleted
+
+Example:
+
+```json
+{
+  "code": "SHU003I",
+  "updated_by": "joe",
+  "event": "static_host_user.delete",
+  "time": "2023-05-09T19:21:38.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+## static_host_user.update
+
+Static Host User Updated
+
+Example:
+
+```json
+{
+  "code": "SHU002I",
+  "event": "static_host_user.update",
+  "time": "2023-05-09T19:21:37.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+
+## subsystem
+
+There are multiple events with the `subsystem` type.
+
+### T3001I
+
+Subsystem Requested
+
+Example:
+
+```json
+{
+  "code": "T3001I",
+  "event": "subsystem",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3001E
+
+Subsystem Request Failed
+
+Example:
+
+```json
+{
+  "code": "T3001E",
+  "event": "subsystem",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## x11-forward
+
+There are multiple events with the `x11-forward` type.
+
+### T3008I
+
+X11 Forwarding Requested
+
+Example:
+
+```json
+{
+  "addr.local": "192.000.0.000:3022",
+  "addr.remote": "127.0.0.1:50000",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3008I",
+  "ei": 0,
+  "event": "x11-forward",
+  "login": "root",
+  "success": true,
+  "time": "2022-01-20T18:31:45.012Z",
+  "uid": "6333-37a7-4c3c-9180-f3abc8e2b",
+  "user": "lisa"
+}
+```
+
+### T3008W
+
+X11 Forwarding Request Failed
+
+Example:
+
+```json
+{
+  "addr.local": "192.000.0.000:3022",
+  "addr.remote": "127.0.0.1:60000",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3008W",
+  "ei": 0,
+  "error": "lisa was here",
+  "event": "x11-forward",
+  "login": "root",
+  "success": false,
+  "time": "2022-01-20T19:49:02.307Z",
+  "uid": "0629c7-3d98-4451-ac90-dc5330",
+  "user": "lisa"
+}
+```

@@ -46,7 +46,7 @@ The resource's `status.state` field reflects the current enforcement state:
 
 Access to read and modify the allowlist is governed by Teleport's RBAC system
 through the `client_ip_restriction` resource kind, and every change is recorded
-in the [audit log](../../../reference/audit-events.mdx).
+in the [audit log](../../../reference/audit-events/audit-events.mdx).
 
 ## Prerequisites
 
@@ -296,4 +296,4 @@ resource. Use `tctl`, the Terraform provider, or the Web UI instead.
 - Review the [role resource reference](../../../reference/access-controls/roles.mdx)
   to define more precise RBAC for managing Client IP Restrictions.
 - Learn how Teleport records changes to the allowlist in the
-  [audit events reference](../../../reference/audit-events.mdx).
+  [audit events reference](../../../reference/audit-events/audit-events.mdx).

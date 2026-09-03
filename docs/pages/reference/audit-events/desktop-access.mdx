@@ -1,0 +1,383 @@
+---
+title: Desktops Audit Events
+description: "Provides a list of Desktops audit events."
+sidebar_label: Desktops
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport-protected desktops.
+
+
+
+## desktop.clipboard.receive
+
+Clipboard Data Received
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP03I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "ei": 0,
+  "event": "desktop.clipboard.receive",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "length": 512
+}
+```
+
+## desktop.clipboard.send
+
+Clipboard Data Sent
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP02I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "ei": 0,
+  "event": "desktop.clipboard.send",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "length": 512
+}
+```
+
+## desktop.directory.read
+
+There are multiple events with the `desktop.directory.read` type.
+
+### TDP05I
+
+Directory Sharing Read
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP05I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 9766,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "b9329a34-ab0c-4aa0-9fc8-1054d491e818",
+  "success": true,
+  "time": "2022-10-21T23:07:36.496189Z",
+  "uid": "a6ea5e5b-daac-47c2-9ce5-3f868e51a146",
+  "user": "joe"
+}
+```
+
+### TDP05W
+
+Directory Sharing Read Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP05W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 9766,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "b9329a34-ab0c-4aa0-9fc8-1054d491e818",
+  "success": false,
+  "time": "2022-10-21T23:07:36.496189Z",
+  "uid": "a6ea5e5b-daac-47c2-9ce5-3f868e51a146",
+  "user": "joe"
+}
+```
+
+## desktop.directory.share
+
+There are multiple events with the `desktop.directory.share` type.
+
+### TDP04I
+
+Directory Sharing Started
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP04I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 3317,
+  "event": "desktop.directory.share",
+  "proto": "tdp",
+  "sid": "6ecf916d-dedf-4769-afc0-d08e55fbebf7",
+  "success": true,
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "f38b07d4-2f3e-400b-a91a-bad7283db775",
+  "user": "joe"
+}
+```
+
+### TDP04W
+
+Directory Sharing Start Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP04W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 3317,
+  "event": "desktop.directory.share",
+  "proto": "tdp",
+  "sid": "6ecf916d-dedf-4769-afc0-d08e55fbebf7",
+  "success": false,
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "f38b07d4-2f3e-400b-a91a-bad7283db775",
+  "user": "joe"
+}
+```
+
+## desktop.directory.write
+
+There are multiple events with the `desktop.directory.write` type.
+
+### TDP06I
+
+Directory Sharing Write
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP06I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 7428,
+  "event": "desktop.directory.write",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "ea959406-27e4-4b11-85c4-1a485ff48417",
+  "success": true,
+  "time": "2022-10-21T23:19:34.519058Z",
+  "uid": "6bb2ebdf-d7e2-4a03-80ae-514ff9a5c71f",
+  "user": "joe"
+}
+```
+
+### TDP06W
+
+Directory Sharing Write Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP06W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 7428,
+  "event": "desktop.directory.write",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "ea959406-27e4-4b11-85c4-1a485ff48417",
+  "success": false,
+  "time": "2022-10-21T23:19:34.519058Z",
+  "uid": "6bb2ebdf-d7e2-4a03-80ae-514ff9a5c71f",
+  "user": "joe"
+}
+```
+
+
+## linux.desktop.session.end
+
+Linux Desktop Session Ended
+
+Example:
+
+```json
+{
+  "code": "TDP08I",
+  "event": "linux.desktop.session.end",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## linux.desktop.session.start
+
+There are multiple events with the `linux.desktop.session.start` type.
+
+### TDP07I
+
+Linux Desktop Session Started
+
+Example:
+
+```json
+{
+  "code": "TDP07I",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TDP07W
+
+Linux Desktop Session Denied
+
+Example:
+
+```json
+{
+  "code": "TDP07W",
+  "event": "linux.desktop.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## windows.desktop.session.end
+
+Windows Desktop Session Ended
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP01I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.end",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:19:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
+
+## windows.desktop.session.start
+
+There are multiple events with the `windows.desktop.session.start` type.
+
+### TDP00I
+
+Windows Desktop Session Started
+
+Example:
+
+```json
+{
+  "addr.remote": "100.104.52.89:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP00I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.start",
+  "proto": "tdp",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "success": true,
+  "time": "2021-10-18T23:18:29.144Z",
+  "uid": "cf15cc08-f818-4f09-91c5-238e1326b22b",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
+
+### TDP00W
+
+Windows Desktop Session Denied
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP00W",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.start",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
