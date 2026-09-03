@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -31,8 +32,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -128,6 +131,58 @@ func TestKeyStore(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			})
+		})
+	}
+}
+
+func TestFSKeyStoreDeleteAppOAuthCredentials(t *testing.T) {
+	tests := []struct {
+		name   string
+		delete func(*FSKeyStore, KeyRingIndex) error
+	}{
+		{"app", func(store *FSKeyStore, idx KeyRingIndex) error {
+			return store.DeleteUserCerts(idx, WithAppCerts{"app"})
+		}},
+		{"all", func(store *FSKeyStore, _ KeyRingIndex) error {
+			return store.DeleteKeys()
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			keyStore := newTestFSKeyStore(t)
+			idx := KeyRingIndex{"proxy", "user", "root"}
+			path := keypaths.MCPOAuthCredentialsPath(keyStore.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, "app")
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+			require.NoError(t, os.WriteFile(path, []byte("secret"), 0o600))
+
+			lockPath := keypaths.MCPOAuthCredentialsLockPath(keyStore.KeyDir)
+			require.NoError(t, os.MkdirAll(filepath.Dir(lockPath), 0o700))
+			unlock, err := utils.FSTryWriteLockTimeout(t.Context(), lockPath, time.Second)
+			require.NoError(t, err)
+			locked := true
+			t.Cleanup(func() {
+				if locked {
+					_ = unlock()
+				}
+			})
+
+			started := make(chan struct{})
+			deleted := make(chan error, 1)
+			go func() {
+				close(started)
+				deleted <- test.delete(keyStore, idx)
+			}()
+			<-started
+			select {
+			case err := <-deleted:
+				require.FailNow(t, "logout ignored credential mutation lock", "%v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			require.NoError(t, unlock())
+			locked = false
+			require.NoError(t, <-deleted)
+			require.NoFileExists(t, path)
+			require.FileExists(t, lockPath)
 		})
 	}
 }

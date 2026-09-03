@@ -53,6 +53,10 @@ const (
 	fileExtLocalCA = "-localca.pem"
 	// appDirSuffix is the suffix of a sub-directory where app TLS certs are stored.
 	appDirSuffix = "-app"
+	// mcpOAuthCredentialsSuffix is the suffix of an MCP app's OAuth credentials file.
+	mcpOAuthCredentialsSuffix = ".oauth.json"
+	mcpOAuthCredentialsLock   = "mcp_oauth.lock"
+	locksDir                  = "locks"
 	// db DirSuffix is the suffix of a sub-directory where db TLS certs are stored.
 	dbDirSuffix = "-db"
 	// kubeDirSuffix is the suffix of a sub-directory where kube TLS certs are stored.
@@ -102,6 +106,8 @@ const (
 // ├── id_vnet.pub                     --> SSH Public Key for third-party clients of VNet SSH
 // ├── vnet_known_hosts                --> trusted certificate authorities (their keys) for third-party clients of VNet SSH
 // ├── vnet_ssh_config                 --> OpenSSH-compatible config file for third-party clients of VNet SSH
+// ├── locks
+// │   └── mcp_oauth.lock                --> serializes MCP OAuth credential updates and logout
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
@@ -120,6 +126,7 @@ const (
 //    │   │   ├── root                 --> App access certs for cluster "root"
 //    │   │   │   ├── appA.crt         --> TLS cert for app service "appA"
 //    │   │   │   ├── appA.key         --> private key for app service "appA"
+//    │   │   │   ├── appA.oauth.json  --> OAuth credentials for MCP app service "appA"
 //    │   │   │   ├── appB.crt         --> TLS cert for app service "appB"
 //    │   │   │   ├── appB.key         --> private key for app service "appB"
 //    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
@@ -321,6 +328,19 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.key
 func AppKeyPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtTLSKey)
+}
+
+// MCPOAuthCredentialsPath returns the path to an MCP app's OAuth credentials.
+//
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.oauth.json
+func MCPOAuthCredentialsPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+mcpOAuthCredentialsSuffix)
+}
+
+// MCPOAuthCredentialsLockPath stays outside session keys so logout cannot
+// replace a lock that another process still holds.
+func MCPOAuthCredentialsLockPath(baseDir string) string {
+	return filepath.Join(baseDir, locksDir, mcpOAuthCredentialsLock)
 }
 
 // AppLocalCAPath returns the path to a self-signed localhost CA for the given

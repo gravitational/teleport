@@ -6923,11 +6923,14 @@ func TestLogout(t *testing.T) {
 			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
 			require.NoError(t, err, trace.DebugReport(err))
 
-			// directory should be empty.
-			f, err := os.Open(tmpHomePath)
+			// Logout keeps the MCP OAuth lock directory so a lock another
+			// process still holds is never replaced. Nothing else may remain.
+			lockDir := filepath.Dir(keypaths.MCPOAuthCredentialsLockPath(tmpHomePath))
+			entries, err := os.ReadDir(tmpHomePath)
 			require.NoError(t, err)
-			entries, err := f.ReadDir(1)
-			require.ErrorIs(t, err, io.EOF, "expected empty directory, but found %v", entries)
+			for _, entry := range entries {
+				require.Equal(t, lockDir, filepath.Join(tmpHomePath, entry.Name()), "expected only the lock directory to remain, but found %v", entries)
+			}
 		})
 	}
 }
