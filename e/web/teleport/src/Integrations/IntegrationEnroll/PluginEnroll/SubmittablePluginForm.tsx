@@ -18,6 +18,8 @@ import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
 import {
+  EnrollMethodType,
+  PluginConfigBase,
   pluginsService,
   type CloudHostablePlugin,
 } from 'e-teleport/services/plugins';
@@ -79,8 +81,16 @@ export function SubmittablePluginForm({
     setAttempt({ status: 'processing' });
     let formData = new FormData(e.currentTarget as HTMLFormElement);
 
-    // TODO(kshi36): replace global option with formData.get(PluginConfigBase.EnrollMethod)
-    if (!plugin.isOAuth) {
+    if (!formData.has(PluginConfigBase.Name)) {
+      formData.set(PluginConfigBase.Name, `${plugin.type}-default`);
+    }
+
+    const enrollMethod =
+      (formData
+        .get(PluginConfigBase.EnrollMethod)
+        ?.toString() as EnrollMethodType) ?? 'static';
+
+    if (enrollMethod !== 'oauth') {
       try {
         // Currently, only the following plugins support validating and cleaning up.
         if (plugin.type === 'entra-id') {
@@ -191,11 +201,6 @@ export function SubmittablePluginForm({
                   value={getXCSRFToken()}
                 />
                 <input type="hidden" name="event_id" value={eventId} />
-                <input
-                  type="hidden"
-                  name="name"
-                  value={`${plugin.type}-default`}
-                />
                 <input type="hidden" name="type" value={plugin.type} />
                 <Box>
                   {plugin.FormMixin && <plugin.FormMixin attempt={attempt} />}

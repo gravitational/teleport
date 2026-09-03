@@ -44,10 +44,6 @@ export type PluginBase = {
   icon: ResourceIconName;
   url: string;
 
-  // isOAuth describes a plugin that are authenticated
-  // via OAuth.
-  isOAuth?: boolean;
-
   /**
    * Describes whether the plugin can be hosted by Teleport Cloud.
    */
@@ -196,7 +192,9 @@ export enum PluginConfigBase {
   EnrollMethod = 'enrollMethod',
 }
 
-/** @allowunused TODO(kshi36): remove once slack plugin supports static and oauth enrollment in future PR. */
+/**
+ * EnrollMethodType defines supported enrollment methods for plugins.
+ */
 export type EnrollMethodType = 'static' | 'oauth';
 
 /**

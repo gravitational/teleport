@@ -5,7 +5,6 @@ import styled from 'styled-components';
 import { Box, Flex, H2, Link, Text } from 'design';
 import CardError from 'design/CardError';
 import { FeatureName } from 'design/constants';
-import * as Icons from 'design/Icon';
 import { Mark } from 'design/Mark';
 import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
@@ -36,11 +35,11 @@ import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
 import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
+import { FormMixin as SlackFormMixin } from './Slack/FormMixin';
 
 export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'slack',
-    isOAuth: true,
     name: 'Slack',
     description: "Post access requests to your organization's Slack workspace.",
     icon: 'slack',
@@ -89,45 +88,43 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             Grant these permissions to the integration.
           </li>
         </ol>
+        <P>
+          When deploying multiple plugin instances to a single Slack workspace,
+          we strongly recommend bringing your own Slack app.
+          <br />
+          Visit your{' '}
+          <Link target="_blank" href="https://api.slack.com/apps">
+            Slack app settings
+          </Link>{' '}
+          under "OAuth & Permissions" and create a Bot token scope with the
+          above permissions. Then, retrieve your Slack Bot token and paste it in
+          the form below.
+        </P>
       </Text>
     ),
     permissions: [
       {
         category: 'View content and info about your workspace',
         permissions: [
-          { title: 'View people in your workspace' },
+          { title: 'users:read', description: 'View people in your workspace' },
           {
-            title: 'View email addresses of people in your workspace',
-            description:
-              'We will use email addresses to match Teleport users with their Slack profiles.',
+            title: 'users:read.email',
+            description: 'View email addresses of people in your workspace',
           },
         ],
       },
       {
         category: 'Perform actions in channels & conversations',
         permissions: [
-          { title: 'Send messages as @Teleport Cloud' },
-          { title: 'Post messages to specific channels in Slack' },
+          { title: 'chat:write', description: 'Send messages as @Teleport' },
+          {
+            title: 'incoming-webhook',
+            description: 'Post messages to specific channels in Slack',
+          },
         ],
       },
     ],
-    FormMixin: () => {
-      const [channel, setChannel] = useState('');
-      return (
-        <FieldInput
-          width="260px"
-          label="Default Channel"
-          name="fallback_channel" // must be the same name as expected by the backend as form value
-          rule={requiredField('Default channel must be specified')}
-          value={channel}
-          onChange={e => setChannel(e.target.value)}
-          autoFocus
-          placeholder="access-requests"
-          toolTipContent="The default channel will receive all notifications about access requests. Request notifications will also be sent directly to assigned reviewers (if any)."
-          icon={Icons.Hashtag}
-        />
-      );
-    },
+    FormMixin: SlackFormMixin,
     NextSteps: ({ successData }) => {
       const fallbackChannel = successData?.slack?.fallback_channel;
       if (!fallbackChannel) {
@@ -135,8 +132,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       }
       return (
         <P>
-          As the final step, you should invite the "Teleport Cloud" application
-          to channel <strong>{fallbackChannel}</strong> in your Slack workspace.
+          As the final step, you should invite the "Teleport" application to
+          channel <strong>{fallbackChannel}</strong> in your Slack workspace.
         </P>
       );
     },

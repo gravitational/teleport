@@ -54,7 +54,7 @@ beforeEach(() => {
 
 const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 
-describe('slack PluginEnroll.tsx', () => {
+describe('slack (oauth) PluginEnroll.tsx', () => {
   beforeEach(() => {
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
@@ -71,6 +71,9 @@ describe('slack PluginEnroll.tsx', () => {
     expect(
       screen.getByText(/Slack access request notifications/i)
     ).toBeInTheDocument();
+
+    // Set enrollment method to oauth.
+    await userEvent.click(screen.getByDisplayValue('oauth'));
 
     await userEvent.click(
       screen.getByRole('button', { name: /connect Slack/i })
@@ -104,20 +107,151 @@ describe('slack PluginEnroll.tsx', () => {
   });
 
   test('create', async () => {
-    jest.spyOn(pluginsService, 'redirectForPluginOAuth').mockResolvedValue();
+    const mockedRedirectOAuth = jest
+      .spyOn(pluginsService, 'redirectForPluginOAuth')
+      .mockResolvedValue();
+
+    const channel = 'some-channel';
+    const name = 'some-name';
 
     await renderPluginEnroll('slack');
 
+    await userEvent.click(screen.getByDisplayValue('oauth'));
+
+    // Fields conditional on static enrollment method should not be rendered.
+    expect(
+      screen.queryByPlaceholderText(/xoxb-your-bot-token/i)
+    ).not.toBeInTheDocument();
+
     await userEvent.type(
       screen.getByPlaceholderText(/access-requests/i),
-      'some-channel'
+      channel
     );
+
+    await userEvent.type(screen.getByPlaceholderText(/slack-default/i), name);
 
     await userEvent.click(
       screen.getByRole('button', { name: /connect slack/i })
     );
 
     expect(pluginsService.redirectForPluginOAuth).toHaveBeenCalledTimes(1);
+
+    const calledWithFormData = mockedRedirectOAuth.mock.calls[0][0];
+    expect(calledWithFormData.get('fallback_channel')).toEqual(channel);
+    expect(calledWithFormData.get('name')).toEqual(name);
+    expect(calledWithFormData.get('botToken')).toBeNull();
+  });
+});
+
+describe('slack (static) PluginEnroll.tsx', () => {
+  beforeEach(() => {
+    jest
+      .spyOn(userEventService, 'captureIntegrationEnrollEvent')
+      .mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('missing input prevents submitting', async () => {
+    await renderPluginEnroll('slack');
+
+    // Set enrollment method to static.
+    await userEvent.click(screen.getByDisplayValue('static'));
+
+    expect(
+      screen.getByText(/Slack access request notifications/i)
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /connect Slack/i })
+    );
+    expect(
+      screen.getByText(/default channel must be specified/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(/Slack Bot token must be specified/i)
+    ).toBeInTheDocument();
+  });
+
+  test('create', async () => {
+    const mockedCreatePlugin = jest
+      .spyOn(pluginsService, 'createStaticAuthPlugin')
+      .mockResolvedValue({
+        resourceType: 'plugin',
+        kind: 'slack',
+        spec: {
+          fallbackChannel: '#some-channel',
+        },
+        name: 'slack-default',
+        details: 'some-detail',
+        statusCode: IntegrationStatusCode.Running,
+      });
+
+    const channel = 'some-channel';
+    const botToken = 'xoxb-some-token';
+    const name = 'some-name';
+
+    await renderPluginEnroll('slack');
+
+    // Set enrollment method to static.
+    await userEvent.click(screen.getByDisplayValue('static'));
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/access-requests/i),
+      channel
+    );
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/xoxb-your-bot-token/i),
+      botToken
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/slack-default/i), name);
+
+    // On switching between radio buttons, only expect fields
+    // conditional on enrollment method to be cleared.
+    await userEvent.click(screen.getByDisplayValue('oauth'));
+    await userEvent.click(screen.getByDisplayValue('static'));
+
+    expect(screen.getByPlaceholderText(/access-requests/i)).toHaveValue(
+      channel
+    );
+    expect(screen.getByPlaceholderText(/slack-default/i)).toHaveValue(name);
+    expect(screen.getByPlaceholderText(/xoxb-your-bot-token/i)).toHaveValue('');
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/xoxb-your-bot-token/i),
+      botToken
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /connect slack/i })
+    );
+
+    expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
+
+    const calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
+    expect(calledWithFormData.get('fallback_channel')).toEqual(channel);
+    expect(calledWithFormData.get('name')).toEqual(name);
+    expect(calledWithFormData.get('botToken')).toEqual(botToken);
+
+    // Test success response is received.
+    expect(screen.getByText(/#some-channel/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/slack is integrated successfully/i)
+    ).toBeInTheDocument();
+
+    expect(
+      userEventService.captureIntegrationEnrollEvent
+    ).toHaveBeenLastCalledWith({
+      event: IntegrationEnrollEvent.Complete,
+      eventData: expect.objectContaining({
+        kind: IntegrationEnrollKind.Slack,
+      }),
+    });
   });
 });
 

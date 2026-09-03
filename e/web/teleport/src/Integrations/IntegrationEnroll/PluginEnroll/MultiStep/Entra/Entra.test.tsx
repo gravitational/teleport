@@ -38,6 +38,7 @@ const defaultEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 const defaultIdentityEntitlement = cfg.entitlements.Identity;
 
+const defaultNameValue = 'entra-id-default';
 const authConnectorValue = 'entra-id-custom';
 const tenantIdValue = 'some-tenant-id';
 const clientIdValue = 'some-client-id';
@@ -104,6 +105,7 @@ test('entra onboard with Access Graph disabled', async () => {
 
   expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
@@ -152,6 +154,7 @@ test('entra onboard with Access Graph enabled', async () => {
   expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
@@ -215,6 +218,7 @@ test('group filter toggle default on', async () => {
   expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
@@ -260,6 +264,7 @@ test('group filter toggle off and configured filters', async () => {
   expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
@@ -307,6 +312,7 @@ test('group filter toggle on should wipe configured filters', async () => {
   expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
 
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
@@ -337,6 +343,7 @@ test('entra id group source', async () => {
 
   expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
   let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('name')).toEqual(defaultNameValue);
   expect(calledWithFormData.get('authConnectorName')).toEqual(
     authConnectorValue
   );
