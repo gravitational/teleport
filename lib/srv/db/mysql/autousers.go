@@ -147,6 +147,13 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 	// Use "tp-<hash>" in case DatabaseUser is over max username length.
 	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, conn.maxUsernameLength())
+
+	// Sort roles for deterministic ordering. The stored procedure compares
+	// the provided roles against the user's current roles, and the comparison
+	// is sensitive to ordering. Sorting ensures the same user always gets
+	// roles in the same order across connections.
+	slices.Sort(sessionCtx.DatabaseRoles)
+
 	e.Log.InfoContext(e.Context, "Activating MySQL user", "user", sessionCtx.DatabaseUser, "roles", sessionCtx.DatabaseRoles, "identity", sessionCtx.Identity.Username)
 
 	// Prep JSON.
@@ -544,7 +551,7 @@ func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, 
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
-	procedureVersion = "teleport-auto-user-v5"
+	procedureVersion = "teleport-auto-user-v6"
 
 	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//
