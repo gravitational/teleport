@@ -4037,7 +4037,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	}
 
 	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.
-	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
+	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter, attestedKeyPolicy)
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
