@@ -19,11 +19,13 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"net/http"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -56,7 +58,7 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	b, err := json.Marshal(identity.GetIdentity())
+	b, err := marshalIdentity(identity.GetIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,7 +95,7 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	b, err := json.Marshal(identity.GetIdentity())
+	b, err := marshalIdentity(identity.GetIdentity())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,4 +110,14 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 
 	headers.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
 	return headers, nil
+}
+
+// marshalIdentity preserves json v1 identity wire format while
+// omitting zero values to keep forwarding headers small.
+func marshalIdentity(identity tlsca.Identity) ([]byte, error) {
+	return jsonv2.Marshal(
+		&identity,
+		json.DefaultOptionsV1(),
+		jsonv2.OmitZeroStructFields(true),
+	)
 }
