@@ -47,6 +47,7 @@ type UnscopedCertificateParameters interface {
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 	CheckAccessToRemoteCluster(rc types.RemoteCluster) error
+	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 }
 
 // CertificateParameterContext provides methods for resolving certificate parameters that abstract

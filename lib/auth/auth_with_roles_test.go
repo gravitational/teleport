@@ -1092,18 +1092,6 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
 	require.NoError(t, err)
 
-	// Mock the credential generation function to return fixed credentials.
-	// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
-	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
-		return &createsession.CreateSessionResponse{
-			Version:         1,
-			AccessKeyID:     "aki",
-			SecretAccessKey: "sak",
-			SessionToken:    "st",
-			Expiration:      "2025-06-25T12:07:02.474135Z",
-		}, nil
-	}
-
 	// Set up a user with the necessary roles to access the AWS App.
 	username := "aws-access-user"
 	roleARN := "arn:aws:iam::123456789012:role/MyRole"
@@ -1129,25 +1117,100 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
 
-	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		TLSPublicKey: pub,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
-		RouteToApp: proto.RouteToApp{
-			Name:       app.GetApp().GetName(),
-			AWSRoleARN: roleARN,
+	appOnlyRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-app-access-only", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Parse the Identity and check the AWS Role ARN and credentials.
-	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-	require.NoError(t, err)
-	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	appOnlyUser, err := authtest.CreateUser(ctx, srv.Auth(), "aws-app-access-only-user", appOnlyRole)
 	require.NoError(t, err)
 
-	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
-	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
+	appOnlyClient, err := srv.NewClient(authtest.TestUser(appOnlyUser.GetName()))
+	require.NoError(t, err)
+
+	noAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "no-aws-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	noAccessUser, err := authtest.CreateUser(ctx, srv.Auth(), "no-aws-access-user", noAccessRole)
+	require.NoError(t, err)
+
+	noAccessClient, err := srv.NewClient(authtest.TestUser(noAccessUser.GetName()))
+	require.NoError(t, err)
+
+	t.Run("authorized user receives AWSRA credentials", func(t *testing.T) {
+		// Mock the credential generation function to return fixed credentials.
+		// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
+		srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+			return &createsession.CreateSessionResponse{
+				Version:         1,
+				AccessKeyID:     "aki",
+				SecretAccessKey: "sak",
+				SessionToken:    "st",
+				Expiration:      "2025-06-25T12:07:02.474135Z",
+			}, nil
+		}
+
+		certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			TLSPublicKey: pub,
+			Username:     user.GetName(),
+			Expires:      time.Now().Add(time.Hour),
+			RouteToApp: proto.RouteToApp{
+				Name:       app.GetApp().GetName(),
+				AWSRoleARN: roleARN,
+			},
+		})
+		require.NoError(t, err)
+
+		// Parse the Identity and check the AWS Role ARN and credentials.
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+
+		require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
+		require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
+	})
+
+	t.Run("user with app access but missing AWS role is denied", func(t *testing.T) {
+		srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+			return nil, trace.BadParameter("AWS Roles Anywhere CreateSession called for a user without AWS role access")
+		}
+
+		_, err := appOnlyClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			TLSPublicKey: pub,
+			Username:     appOnlyUser.GetName(),
+			Expires:      time.Now().Add(time.Hour),
+			RouteToApp: proto.RouteToApp{
+				Name:       app.GetApp().GetName(),
+				AWSRoleARN: roleARN,
+			},
+		})
+		require.True(t, trace.IsNotFound(err), "got error %T: %v", err, err)
+	})
+
+	t.Run("user without app access is denied", func(t *testing.T) {
+		srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+			return nil, trace.BadParameter("AWS Roles Anywhere CreateSession called for a user without app access")
+		}
+
+		_, err := noAccessClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			TLSPublicKey: pub,
+			Username:     noAccessUser.GetName(),
+			Expires:      time.Now().Add(time.Hour),
+			RouteToApp: proto.RouteToApp{
+				Name:       app.GetApp().GetName(),
+				AWSRoleARN: roleARN,
+			},
+			RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+		})
+		require.True(t, trace.IsNotFound(err), "got error %T: %v", err, err)
+	})
 }
 
 func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {

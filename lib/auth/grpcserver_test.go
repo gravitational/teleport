@@ -1753,6 +1753,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	role.SetDatabaseNames(types.Allow, []string{types.Wildcard})
 	role.SetWindowsLogins(types.Allow, []string{"role"})
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetAWSRoleARNs(types.Allow, []string{"arn:aws:iam::123456789012:role/MyRole"})
 	role.SetOptions(roleOpt)
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
