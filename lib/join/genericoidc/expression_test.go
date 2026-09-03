@@ -80,6 +80,17 @@ func TestEvaluateExpression(t *testing.T) {
 			},
 		},
 		{
+			name: "unknown root identifier",
+			claims: claims(t, `{
+				"organization_id": "acme-corp"
+			}`),
+			expression: `foo.bar == "acme-corp"`,
+			expect:     false,
+			expectError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, `identifier "foo" is not defined`)
+			},
+		},
+		{
 			name: "invalid nested variable first level",
 			claims: claims(t, `{
 				"organization_id": "acme-corp"

@@ -728,14 +728,16 @@ func TestUnknownIdentifier(t *testing.T) {
 						return ok, nil
 					}),
 				},
-				GetUnknownIdentifier: func(env resource, fields []string) (any, error) {
-					f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:])
-					return f, trace.Wrap(err)
+				GetUnknownIdentifierVariable: func(fields []string) (typical.Variable, error) {
+					return typical.DynamicVariable(func(env resource) (any, error) {
+						f, err := predicate.GetFieldByTag(env, teleport.JSON, fields[1:])
+						return f, trace.Wrap(err)
+					}), nil
 				},
 			}
 
 			if test.knownVariablesOnly {
-				spec.GetUnknownIdentifier = nil
+				spec.GetUnknownIdentifierVariable = nil
 			}
 
 			parser, err := typical.NewParser[resource, bool](spec)
@@ -787,11 +789,4 @@ func TestGetUnknownIdentifierVariable(t *testing.T) {
 
 	_, err = parser.Parse(`vars.a && vars.b`)
 	require.ErrorContains(t, err, "expected type bool, got expression returning type (string)", "a deferred identifier is string-typed at parse")
-
-	bothSpec := spec
-	bothSpec.GetUnknownIdentifier = func(env struct{}, fields []string) (any, error) {
-		return nil, nil
-	}
-	_, err = typical.NewParser[struct{}, bool](bothSpec)
-	require.ErrorContains(t, err, "cannot both be set", "GetUnknownIdentifierVariable with GetUnknownIdentifier fails")
 }

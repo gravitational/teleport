@@ -322,6 +322,8 @@ func TestNewResourceExpression(t *testing.T) {
 			`name.toomanyfield`,
 			`labels.env.toomanyfield`,
 			`equals(resource.incorrect.selector, "_")`,
+			`resource.spec.nope == "x"`,
+			`foo.bar == "x"`,
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
@@ -333,6 +335,15 @@ func TestNewResourceExpression(t *testing.T) {
 				require.False(t, match)
 			})
 		}
+	})
+
+	t.Run("unknown identifier error", func(t *testing.T) {
+		t.Parallel()
+		parser, err := NewResourceExpression(`foo.bar == "x"`)
+		require.NoError(t, err)
+
+		_, err = parser.Evaluate(resource)
+		require.ErrorContains(t, err, "identifier foo.bar is not defined")
 	})
 }
 
