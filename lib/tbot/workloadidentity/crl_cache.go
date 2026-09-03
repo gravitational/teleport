@@ -191,16 +191,6 @@ func (m *CRLCache) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			// TODO(noah): DELETE IN V19 once CRL streaming functionality is
-			// available on all supported versions.
-			if trace.IsNotImplemented(err) {
-				m.logger.WarnContext(
-					ctx, "Server does not support X509 CRL functionality",
-				)
-				// Set empty CRL set so consumers are unblocked.
-				m.setCRLSet(ctx, &CRLSet{})
-				return nil
-			}
 			m.logger.ErrorContext(
 				ctx,
 				"Cache failed, will attempt to re-initialize after back off",
