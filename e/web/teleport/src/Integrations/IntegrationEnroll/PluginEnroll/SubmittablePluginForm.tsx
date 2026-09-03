@@ -72,18 +72,15 @@ export function SubmittablePluginForm({
       return;
     }
 
+    // Success states will not be set because it's not required
+    // to trigger a re-render (by setting the attempt to "success").
+    // After setting plugin response, the outer component
+    // will take user to a different state outside of this component.
     setAttempt({ status: 'processing' });
     let formData = new FormData(e.currentTarget as HTMLFormElement);
 
+    // TODO(kshi36): replace global option with formData.get(PluginConfigBase.EnrollMethod)
     if (!plugin.isOAuth) {
-      // Success states will not be set because it's not required
-      // to trigger a re-render (by setting the attempt to "success").
-      // After setting plugin response, the outer component
-      // will take user to a different state outside of this component.
-      setAttempt({ status: 'processing' });
-
-      let formData = new FormData(e.currentTarget as HTMLFormElement);
-
       try {
         // Currently, only the following plugins support validating and cleaning up.
         if (plugin.type === 'entra-id') {
@@ -117,7 +114,7 @@ export function SubmittablePluginForm({
         setAttempt({ status: 'failed', statusText: msg });
       }
     } else {
-      // Handle OAuth required plugins (eg: slack)
+      // Handle plugin enrollment via OAuth 2.0 flow (eg: slack)
       try {
         await pluginsService.redirectForPluginOAuth(formData);
       } catch (err) {

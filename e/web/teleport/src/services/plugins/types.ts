@@ -116,9 +116,11 @@ export type CloudHostablePlugin = PluginBase & {
       }
   );
 
-// EnrollSuccessResponse contains the necessary data to guide the user
-// after the plugin is connected (in `NextSteps` component).
-// This is equivalent to `pluginOnboardingCookieNonSensitiveData` in e/lib/web/plugins.go
+/**
+ * EnrollSuccessResponse contains the necessary data to guide the user
+ * after the plugin is connected (in `NextSteps` component).
+ * This is equivalent to `pluginOnboardingCookieNonSensitiveData` in e/lib/web/plugins.go
+ */
 type EnrollSuccessResponse = {
   slack?: {
     fallback_channel: string;
@@ -191,7 +193,11 @@ export function pluginTypeToIntegrationEnrollKind(
 export enum PluginConfigBase {
   Name = 'name',
   Type = 'type',
+  EnrollMethod = 'enrollMethod',
 }
+
+/** @allowunused TODO(kshi36): remove once slack plugin supports static and oauth enrollment in future PR. */
+export type EnrollMethodType = 'static' | 'oauth';
 
 /**
  * PluginConfigAwsIc defines configuration field names used to

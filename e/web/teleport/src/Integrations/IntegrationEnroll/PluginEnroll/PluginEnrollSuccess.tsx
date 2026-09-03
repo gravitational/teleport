@@ -6,10 +6,10 @@ import pamSuccess from 'design/assets/images/icons/success.png';
 import cfg from 'e-teleport/config';
 import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
-import { OAuthPluginRegistered } from './PluginEnroll';
+import { PluginRegistered } from './PluginEnrollSingleStep';
 
 export function PluginEnrollSuccess(props: State) {
-  const { oauthSuccessData, plugin, installedPluginName } = props;
+  const { successData, plugin, installedPluginName } = props;
 
   let primaryButtonUrl = cfg.oss.routes.integrations;
   let primaryButtonText = 'Go to Integration List';
@@ -35,7 +35,7 @@ export function PluginEnrollSuccess(props: State) {
       <H2 my="2">{plugin.name} is integrated successfully</H2>
       <Box maxWidth="500px" textAlign="center">
         {plugin.cloudHostable && plugin.NextSteps && (
-          <plugin.NextSteps successData={oauthSuccessData} />
+          <plugin.NextSteps successData={successData} />
         )}
       </Box>
 
@@ -54,7 +54,7 @@ export function PluginEnrollSuccess(props: State) {
 type State = {
   plugin: CloudHostablePlugin;
   installedPluginName: string;
-  oauthSuccessData?: OAuthPluginRegistered;
+  successData?: PluginRegistered;
   primaryButtonText?: string | null;
   primaryButtonUrl?: string | null;
 };
