@@ -43,11 +43,11 @@ func (o *healthCheckConfigOps) Kind() string {
 }
 
 func (o *healthCheckConfigOps) NewResource(name string) (types.Resource153, error) {
-	return healthcheckconfig.NewHealthCheckConfig(name, &healthcheckconfigv1.HealthCheckConfigSpec{
-		Match: &healthcheckconfigv1.Matcher{
+	return healthcheckconfig.NewHealthCheckConfig(name, healthcheckconfigv1.HealthCheckConfigSpec_builder{
+		Match: healthcheckconfigv1.Matcher_builder{
 			Disabled: true,
-		},
-	})
+		}.Build(),
+	}.Build())
 }
 
 func (o *healthCheckConfigOps) Clone(resource *healthcheckconfigv1.HealthCheckConfig) *healthcheckconfigv1.HealthCheckConfig {

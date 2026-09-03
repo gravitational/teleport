@@ -50,10 +50,10 @@ func (o *linuxDesktopOps) Kind() string {
 }
 
 func (o *linuxDesktopOps) NewResource(name string) (types.Resource153, error) {
-	return linuxdesktop.NewLinuxDesktop(name, &linuxdesktopv1.LinuxDesktopSpec{
+	return linuxdesktop.NewLinuxDesktop(name, linuxdesktopv1.LinuxDesktopSpec_builder{
 		Addr:     "127.0.0.1:3022",
 		Hostname: name,
-	})
+	}.Build())
 }
 
 func (o *linuxDesktopOps) Clone(resource *linuxdesktopv1.LinuxDesktop) *linuxdesktopv1.LinuxDesktop {

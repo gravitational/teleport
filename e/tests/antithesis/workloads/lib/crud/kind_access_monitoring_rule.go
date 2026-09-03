@@ -48,10 +48,10 @@ func (o *accessMonitoringRuleOps) Kind() string {
 }
 
 func (o *accessMonitoringRuleOps) NewResource(name string) (types.Resource153, error) {
-	return services.NewAccessMonitoringRuleWithLabels(name, nil, &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+	return services.NewAccessMonitoringRuleWithLabels(name, nil, accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindRole},
 		Condition: "true",
-	})
+	}.Build())
 }
 
 func (o *accessMonitoringRuleOps) Clone(resource *accessmonitoringrulesv1.AccessMonitoringRule) *accessmonitoringrulesv1.AccessMonitoringRule {

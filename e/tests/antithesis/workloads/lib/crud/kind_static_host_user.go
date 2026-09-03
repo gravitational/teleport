@@ -50,15 +50,15 @@ func (o *staticHostUserOps) Kind() string {
 }
 
 func (o *staticHostUserOps) NewResource(name string) (types.Resource153, error) {
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningv2.StaticHostUserSpec{
+	return userprovisioning.NewStaticHostUser(name, userprovisioningv2.StaticHostUserSpec_builder{
 		Matchers: []*userprovisioningv2.Matcher{
-			{
+			userprovisioningv2.Matcher_builder{
 				NodeLabels: []*labelv1.Label{
 					labelv1.Label_builder{Name: "crud", Values: []string{"true"}}.Build(),
 				},
-			},
+			}.Build(),
 		},
-	}), nil
+	}.Build()), nil
 }
 
 func (o *staticHostUserOps) Clone(resource *userprovisioningv2.StaticHostUser) *userprovisioningv2.StaticHostUser {

@@ -50,9 +50,9 @@ func (o *crownJewelOps) Kind() string {
 }
 
 func (o *crownJewelOps) NewResource(name string) (types.Resource153, error) {
-	return crownjewel.NewCrownJewel(name, &crownjewelv1.CrownJewelSpec{
+	return crownjewel.NewCrownJewel(name, crownjewelv1.CrownJewelSpec_builder{
 		Query: "SELECT * FROM nodes",
-	})
+	}.Build())
 }
 
 func (o *crownJewelOps) Clone(resource *crownjewelv1.CrownJewel) *crownjewelv1.CrownJewel {
