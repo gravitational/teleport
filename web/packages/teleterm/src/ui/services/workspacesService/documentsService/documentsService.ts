@@ -467,7 +467,11 @@ export class DocumentsService {
     shell: Shell
   ): void {
     // We assign a new URI to render a new document.
-    const newDocument: T = { ...document, shellId: shell.id, uri: unique() };
+    const newDocument: T = {
+      ...document,
+      shellId: shell.id,
+      uri: routing.getDocUri({ docId: unique() }),
+    };
     this.replace(document.uri, newDocument);
   }
 

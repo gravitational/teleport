@@ -18,6 +18,7 @@
 
 import {
   IPtyProcess,
+  PtyCommand,
   PtyProcessCreationStatus,
   PtyServiceClient,
 } from 'teleterm/services/pty';
@@ -61,16 +62,18 @@ export class MockPtyProcess implements IPtyProcess {
 }
 
 export class MockPtyServiceClient implements PtyServiceClient {
-  createPtyProcess() {
+  createPtyProcess(command: PtyCommand) {
+    const shellId = command.kind === 'pty.shell' ? command.shellId : 'zsh';
+
     return Promise.resolve({
       process: new MockPtyProcess(),
       creationStatus: PtyProcessCreationStatus.Ok,
       windowsPty: undefined,
       shell: {
-        id: 'zsh',
-        friendlyName: 'zsh',
-        binPath: '/bin/zsh',
-        binName: 'zsh',
+        id: shellId,
+        friendlyName: shellId,
+        binPath: `/bin/${shellId}`,
+        binName: shellId,
       },
     });
   }
