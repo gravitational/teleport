@@ -290,8 +290,18 @@ func TestAppIsAWSConsole(t *testing.T) {
 			assertIsAWSConsole: require.True,
 		},
 		{
-			name:               "Region based not supported yet",
+			name:               "Region based AWS Standard",
 			uri:                "https://us-west-1.console.aws.amazon.com",
+			assertIsAWSConsole: require.True,
+		},
+		{
+			name:               "AWS Standard userinfo host spoof",
+			uri:                "https://console.aws.amazon.com@attacker.example/",
+			assertIsAWSConsole: require.False,
+		},
+		{
+			name:               "AWS Standard prefix host spoof",
+			uri:                "https://console.aws.amazon.com.evil.example/",
 			assertIsAWSConsole: require.False,
 		},
 		{

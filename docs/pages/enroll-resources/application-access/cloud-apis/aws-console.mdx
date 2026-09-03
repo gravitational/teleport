@@ -499,14 +499,16 @@ Application Service:
 </TabItem>
 </Tabs>
 
-Note that the URI you configure for your AWS app must start with one of the
-following values in order to be recognized as an AWS console:
+Note that the URI you configure for your AWS app must use one of the following
+hostnames in order to be recognized as an AWS console:
 
-| Regions                   | AWS Console URL |
-| ------------------------- | --------------- |
-| Standard AWS regions      | `https://console.aws.amazon.com` |
-| AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
-| AWS China regions         | `https://console.amazonaws.cn` |
+| Regions                         | AWS Console URL |
+| ------------------------------- | --------------- |
+| Standard AWS regions            | `https://console.aws.amazon.com` |
+| Standard AWS regional endpoints | `https://<region>.console.aws.amazon.com` |
+| AWS QuickSight                  | `https://quicksight.aws.amazon.com` |
+| AWS GovCloud (US) regions       | `https://console.amazonaws-us-gov.com` |
+| AWS China regions               | `https://console.amazonaws.cn` |
 
 <details>
 <summary>Multiple AWS accounts</summary>

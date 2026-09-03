@@ -313,27 +313,95 @@ func TestCloudGetFederationURL(t *testing.T) {
 		name                  string
 		inputTargetURL        string
 		expectedFederationURL string
+		assertErr             require.ErrorAssertionFunc
 	}{
 		{
 			name:                  "AWS GovCloud (US)",
 			inputTargetURL:        constants.AWSUSGovConsoleURL,
 			expectedFederationURL: "https://signin.amazonaws-us-gov.com/federation",
+			assertErr:             require.NoError,
 		},
 		{
 			name:                  "AWS China",
 			inputTargetURL:        constants.AWSCNConsoleURL,
 			expectedFederationURL: "https://signin.amazonaws.cn/federation",
+			assertErr:             require.NoError,
 		},
 		{
 			name:                  "AWS Standard",
 			inputTargetURL:        constants.AWSConsoleURL,
 			expectedFederationURL: "https://signin.aws.amazon.com/federation",
+			assertErr:             require.NoError,
+		},
+		{
+			name:                  "AWS Standard regional console",
+			inputTargetURL:        "https://us-west-1.console.aws.amazon.com/ec2/v2/home",
+			expectedFederationURL: "https://signin.aws.amazon.com/federation",
+			assertErr:             require.NoError,
+		},
+		{
+			name:           "AWS Standard userinfo host spoof",
+			inputTargetURL: "https://console.aws.amazon.com@attacker.example/",
+			assertErr:      require.Error,
+		},
+		{
+			name:           "AWS Standard prefix host spoof",
+			inputTargetURL: "https://console.aws.amazon.com.evil.example/",
+			assertErr:      require.Error,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expectedFederationURL, getFederationURL(test.inputTargetURL))
+			actualFederationURL, err := getFederationURL(test.inputTargetURL)
+			test.assertErr(t, err)
+			require.Equal(t, test.expectedFederationURL, actualFederationURL)
+		})
+	}
+}
+
+func TestAWSSigninRequestCheckAndSetDefaults(t *testing.T) {
+	validIdentity := &tlsca.Identity{
+		RouteToApp: tlsca.RouteToApp{
+			AWSRoleARN: "arn:aws:iam::123456789012:role/test",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		targetURL string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "valid console URL",
+			targetURL: "https://console.aws.amazon.com/ec2/v2/home",
+			assertErr: require.NoError,
+		},
+		{
+			name:      "userinfo host spoof",
+			targetURL: "https://console.aws.amazon.com@attacker.example/",
+			assertErr: require.Error,
+		},
+		{
+			name:      "prefix host spoof",
+			targetURL: "https://console.aws.amazon.com.evil.example/",
+			assertErr: require.Error,
+		},
+		{
+			name:      "CLI-only AWS app URI",
+			targetURL: "cloud://AWS",
+			assertErr: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := &AWSSigninRequest{
+				Identity:  validIdentity,
+				TargetURL: test.targetURL,
+				Issuer:    "https://teleport.example.com",
+			}
+			test.assertErr(t, req.CheckAndSetDefaults())
 		})
 	}
 }
