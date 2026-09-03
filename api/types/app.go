@@ -782,20 +782,21 @@ func (a *AppV3) GetScope() string {
 	return a.Scope
 }
 
-// DeduplicateApps deduplicates apps by combination of app name and public address.
-// Apps can have the same name but also could have different addresses.
+// DeduplicateApps deduplicates apps by combination of app scope, name, and
+// public address. Apps can have the same name but also could have different
+// scopes or addresses.
 func DeduplicateApps(apps []Application) []Application {
 	return slices.Collect(DeduplicatedApps(slices.Values(apps)))
 }
 
-// DeduplicatedApps iterates deduplicated apps by combination of app name and
-// public address. This is the iter.Seq version of DeduplicateApps.
+// DeduplicatedApps iterates deduplicated apps by combination of app scope,
+// name, and public address. This is the iter.Seq version of DeduplicateApps.
 func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
-	type key struct{ name, addr string }
+	type key struct{ scope, name, addr string }
 	seen := make(map[key]struct{})
 	return func(yield func(Application) bool) {
 		for app := range apps {
-			key := key{app.GetName(), app.GetPublicAddr()}
+			key := key{app.GetScope(), app.GetName(), app.GetPublicAddr()}
 			if _, ok := seen[key]; ok {
 				continue
 			}

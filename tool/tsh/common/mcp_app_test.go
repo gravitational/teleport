@@ -351,6 +351,74 @@ func Test_mcpConfigCommand(t *testing.T) {
 	}
 }
 
+func Test_MCPConfigCommandScopedNames(t *testing.T) {
+	t.Parallel()
+
+	cmd := mcpConfigCommand{cf: &CLIConf{}}
+	for _, scope := range []string{"", "/", "/dev", "/prod"} {
+		app := mustMakeMCPAppWithNameAndLabels(t, "app", nil)
+		app.Scope = scope
+		cmd.mcpServerApps = append(cmd.mcpServerApps, app)
+	}
+
+	config := mcpconfig.NewConfig(mcpconfig.ConfigFormatClaude)
+	require.NoError(t, cmd.addMCPServersToConfig(config))
+	servers := config.GetMCPServers()
+	require.Len(t, servers, 4)
+	for _, name := range []string{"app", "/::app", "/dev::app", "/prod::app"} {
+		key := mcpServerAppConfigPrefix + name
+		require.Contains(t, servers, key)
+		require.Equal(t, []string{"mcp", "connect", name}, servers[key].Args)
+	}
+}
+
+func TestMCPConfigCommandFetchScopedName(t *testing.T) {
+	t.Parallel()
+
+	var apps []types.Application
+	for _, app := range []struct{ name, scope string }{
+		{name: "app"},
+		{name: "app", scope: "/dev"},
+		{name: "app", scope: "/prod"},
+		{name: "other", scope: "/dev"},
+	} {
+		mcpApp := mustMakeMCPAppWithNameAndLabels(t, app.name, nil)
+		mcpApp.Scope = app.scope
+		apps = append(apps, mcpApp)
+	}
+
+	for _, tt := range []struct {
+		name          string
+		scope         string
+		wantPredicate string
+	}{
+		{name: "unscoped", wantPredicate: `name == "app"`},
+		{name: "scoped", scope: "/dev", wantPredicate: `(name == "app") && (resource.scope == "/dev")`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cf := &CLIConf{
+				Context:  t.Context(),
+				Proxy:    "proxy:3080",
+				HomePath: t.TempDir(),
+				AppSQN:   scopes.QualifiedName{Name: "app", Scope: tt.scope},
+			}
+			mustCreateEmptyProfile(t, cf)
+			cmd := mcpConfigCommand{
+				cf: cf,
+				fetchFunc: func(context.Context, *client.TeleportClient, apiclient.GetResourcesClient) ([]types.Application, error) {
+					// Simulate an older Auth Server returning resources from other scopes.
+					return slices.Clone(apps), nil
+				},
+			}
+
+			require.NoError(t, cmd.fetch())
+			require.Equal(t, tt.wantPredicate, cf.PredicateExpression)
+			require.Len(t, cmd.mcpServerApps, 1)
+			require.Equal(t, tt.scope, cmd.mcpServerApps[0].GetScope())
+		})
+	}
+}
+
 func Test_parseHTTPHeaders(t *testing.T) {
 	tests := []struct {
 		name       string

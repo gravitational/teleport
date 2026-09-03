@@ -2,8 +2,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-// All content in this file is copied from the official SDK without
-// modifications:
+// Based on the official SDK tests:
 // https://github.com/modelcontextprotocol/go-sdk/blob/b4f957ff3c279051f9bcc88aa08e897add012a95/mcp/event_test.go
 
 package mcputils
@@ -11,9 +10,13 @@ package mcputils
 import (
 	"strings"
 	"testing"
+
+	"github.com/gravitational/teleport"
 )
 
 func TestScanEvents(t *testing.T) {
+	largeEventData := strings.Repeat("a", 1<<20)
+	halfMaxEventData := strings.Repeat("a", teleport.MaxHTTPResponseSize/2)
 	tests := []struct {
 		name    string
 		input   string
@@ -50,9 +53,21 @@ func TestScanEvents(t *testing.T) {
 			},
 		},
 		{
+			name:  "large event",
+			input: "data: " + largeEventData + "\n\n",
+			want: []Event{
+				{Data: []byte(largeEventData)},
+			},
+		},
+		{
 			name:    "malformed line",
 			input:   "invalid line\n\n",
 			wantErr: "malformed line",
+		},
+		{
+			name:    "event larger than response limit across lines",
+			input:   "data: " + halfMaxEventData + "\ndata: " + halfMaxEventData + "\n\n",
+			wantErr: "event exceeded max size",
 		},
 	}
 

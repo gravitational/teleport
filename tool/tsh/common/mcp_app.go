@@ -40,6 +40,7 @@ import (
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -356,8 +357,15 @@ func (c *mcpConfigCommand) fetchAndPrintResult() error {
 }
 
 func (c *mcpConfigCommand) fetch() error {
-	if c.cf.AppSQN.Name != "" {
-		c.cf.PredicateExpression = makeNamePredicate(c.cf.AppSQN.Name)
+	appName := strings.TrimSpace(c.cf.AppSQN.Name)
+	if appName != "" {
+		c.cf.PredicateExpression = makeNamePredicate(appName)
+		if c.cf.AppSQN.Scope != "" {
+			c.cf.PredicateExpression = makePredicateConjunction(
+				c.cf.PredicateExpression,
+				fmt.Sprintf("resource.scope == %q", c.cf.AppSQN.Scope),
+			)
+		}
 	}
 	if c.fetchFunc == nil {
 		c.fetchFunc = fetchMCPServers
@@ -372,6 +380,11 @@ func (c *mcpConfigCommand) fetch() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if appName != "" {
+		c.mcpServerApps = slices.DeleteFunc(c.mcpServerApps, func(app types.Application) bool {
+			return app.GetName() != appName || app.GetScope() != c.cf.AppSQN.Scope
+		})
+	}
 
 	if len(c.mcpServerApps) == 0 {
 		return trace.NotFound("no MCP servers found")
@@ -381,8 +394,9 @@ func (c *mcpConfigCommand) fetch() error {
 
 func (c *mcpConfigCommand) addMCPServersToConfig(config mcpConfig) error {
 	for _, app := range c.mcpServerApps {
-		localName := mcpServerAppConfigPrefix + app.GetName()
-		args := []string{"mcp", "connect", app.GetName()}
+		name := scopes.QualifiedName{Name: app.GetName(), Scope: app.GetScope()}.String()
+		localName := mcpServerAppConfigPrefix + name
+		args := []string{"mcp", "connect", name}
 		args = c.maybeAddAutoReconnect(args)
 		if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
 			if _, err := parseHTTPHeaders(c.httpHeaders); err != nil {
@@ -488,7 +502,7 @@ func (c *mcpConnectCommand) run() error {
 		return trace.Wrap(err)
 	}
 
-	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN.Name)
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN)
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{

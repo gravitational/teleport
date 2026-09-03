@@ -20,13 +20,19 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -49,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -102,7 +109,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	t.Cleanup(wg.Wait)
 	listener := listenerutils.NewInMemoryListener()
 	t.Cleanup(func() { _ = listener.Close() })
-	go func() {
+	wg.Go(func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
@@ -116,7 +123,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
 			})
 		}
-	}()
+	})
 
 	t.Run("success", func(t *testing.T) {
 		ctx := t.Context()
@@ -217,8 +224,103 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	})
 }
 
-// Test_Server_HandleSession_request_sanitization verifies the forwarded request is stripped of
-// non-canonical fields (e.g. uppercase) which may confuse the upstream server.
+func Test_handleStreamableHTTP_compressedUpstream(t *testing.T) {
+	t.Parallel()
+
+	var compressedResponse atomic.Bool
+	remoteMCPServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+	remoteMCPHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			remoteMCPServer.ServeHTTP(w, r)
+			return
+		}
+
+		recorder := httptest.NewRecorder()
+		remoteMCPServer.ServeHTTP(recorder, r)
+		maps.Copy(w.Header(), recorder.Header())
+		body := recorder.Body.Bytes()
+
+		if !strings.Contains(recorder.Header().Get("Content-Type"), "application/json") {
+			w.WriteHeader(recorder.Code)
+			_, _ = w.Write(body)
+			return
+		}
+
+		var compressed bytes.Buffer
+		gzipWriter := gzip.NewWriter(&compressed)
+		_, err := gzipWriter.Write(body)
+		assert.NoError(t, err)
+		assert.NoError(t, gzipWriter.Close())
+
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", compressed.Len()))
+		w.WriteHeader(recorder.Code)
+		_, _ = w.Write(compressed.Bytes())
+		compressedResponse.Store(true)
+	}))
+	t.Cleanup(remoteMCPHTTPServer.Close)
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "test-http-gzip",
+	}, types.AppSpecV3{
+		URI: fmt.Sprintf("mcp+%s/mcp", remoteMCPHTTPServer.URL),
+	})
+	require.NoError(t, err)
+
+	emitter := eventstest.MockRecorderEmitter{}
+	s, err := NewServer(ServerConfig{
+		Emitter:       &emitter,
+		ParentContext: t.Context(),
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	listener := listenerutils.NewInMemoryListener()
+	t.Cleanup(func() { _ = listener.Close() })
+	wg.Go(func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.True(t, utils.IsOKNetworkError(err))
+				return
+			}
+			wg.Go(func() {
+				defer conn.Close()
+				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
+				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
+			})
+		}
+	})
+
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
+		"http://memory",
+		mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+		mcpclienttransport.WithHTTPHeaders(map[string]string{
+			"Accept-Encoding": "gzip",
+		}),
+	)
+	require.NoError(t, err)
+	client := mcpclient.NewClient(mcpClientTransport)
+	t.Cleanup(func() { _ = client.Close() })
+	require.NoError(t, client.Start(t.Context()))
+
+	mcptest.MustInitializeClient(t, client)
+	mcptest.MustCallServerTool(t, client)
+
+	require.True(t, compressedResponse.Load(),
+		"remote server never compressed a response, so this test would pass even with the bug present")
+
+	require.NoError(t, client.Close())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, libevents.MCPSessionEndEvent, emitter.LastEvent().GetType())
+	}, 2*time.Second, time.Millisecond*100, "waiting for end event")
+}
+
 func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	t.Parallel()
 
@@ -507,6 +609,36 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 	})
 }
 
+func Test_handleAuthErrHTTPClosesConnection(t *testing.T) {
+	t.Parallel()
+
+	s, err := NewServer(ServerConfig{
+		Emitter:       &libevents.DiscardEmitter{},
+		ParentContext: t.Context(),
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() { _ = clientConn.Close() })
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.handleAuthErrHTTP(t.Context(), serverConn, trace.ConnectionProblem(nil, "temporary failure"))
+	}()
+
+	req := httptest.NewRequest(http.MethodGet, "http://mcp.example.com", nil)
+	require.NoError(t, req.Write(clientConn))
+	resp, err := http.ReadResponse(bufio.NewReader(clientConn), req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusGatewayTimeout, resp.StatusCode)
+	require.True(t, resp.Close)
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, <-errCh)
+}
+
 func Test_Server_serveHTTPConn_closes_idle_connections(t *testing.T) {
 	t.Parallel()
 
@@ -613,4 +745,58 @@ func Test_Server_serveHTTPConn_closes_idle_connections(t *testing.T) {
 			}
 		})
 	})
+}
+
+func Test_makeProxyErrorHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantOrigin string
+	}{
+		{
+			name:       "teleport internal error",
+			err:        trace.Errorf("failed to rewrite headers"),
+			wantStatus: http.StatusInternalServerError,
+			wantOrigin: mcputils.ErrorOriginAppService,
+		},
+		{
+			name:       "teleport bad parameter",
+			err:        trace.BadParameter("invalid request body"),
+			wantStatus: http.StatusBadRequest,
+			wantOrigin: mcputils.ErrorOriginAppService,
+		},
+		{
+			name:       "upstream closed connection",
+			err:        io.EOF,
+			wantStatus: http.StatusBadGateway,
+			wantOrigin: mcputils.ErrorOriginUpstreamUnreachable,
+		},
+		{
+			name:       "upstream timeout",
+			err:        &net.DNSError{Err: "lookup timed out", IsTimeout: true},
+			wantStatus: http.StatusGatewayTimeout,
+			wantOrigin: mcputils.ErrorOriginUpstreamUnreachable,
+		},
+		{
+			name:       "upstream unreachable",
+			err:        &net.OpError{Op: "dial", Err: fmt.Errorf("connection refused")},
+			wantStatus: http.StatusBadGateway,
+			wantOrigin: mcputils.ErrorOriginUpstreamUnreachable,
+		},
+	}
+
+	handler := makeProxyErrorHandler(slog.New(slog.DiscardHandler))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
+			handler(w, req, test.err)
+			require.Equal(t, test.wantStatus, w.Code)
+			require.Equal(t, test.wantOrigin, w.Header().Get(mcputils.TeleportErrorOriginHeader))
+			require.Equal(t, http.StatusText(test.wantStatus)+"\n", w.Body.String())
+		})
+	}
 }

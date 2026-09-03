@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -73,6 +75,10 @@ func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Ha
 
 func (s *Server) handleAuthErrHTTP(ctx context.Context, clientConn net.Conn, authErr error) error {
 	return trace.Wrap(s.serveHTTPConn(ctx, clientConn, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Session setup failed, so this connection cannot be reused for a valid
+		// session. Successful sessions retain normal HTTP keep-alive behavior.
+		w.Header().Set("Connection", "close")
+		w.Header().Set(mcputils.TeleportErrorOriginHeader, mcputils.ErrorOriginAppService)
 		trace.WriteError(w, authErr)
 	})))
 }
@@ -80,7 +86,9 @@ func (s *Server) handleAuthErrHTTP(ctx context.Context, clientConn net.Conn, aut
 func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCtx) error {
 	session, err := s.getSessionHandlerWithJWT(ctx, sessionCtx)
 	if err != nil {
-		return trace.Wrap(err, "setting up session handler")
+		setupErr := trace.Wrap(err, "setting up session handler")
+		s.cfg.Log.WarnContext(ctx, "Failed to set up MCP session handler", "error", setupErr)
+		return trace.NewAggregate(setupErr, s.handleAuthErrHTTP(ctx, sessionCtx.ClientConn, setupErr))
 	}
 	defer session.sessionAuditor.flush(s.cfg.ParentContext)
 
@@ -99,6 +107,9 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 		reverseproxy.WithLogger(session.logger),
 		reverseproxy.WithRewriter(appcommon.NewHeaderRewriter(delegate)),
 		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
+			if resp.StatusCode >= http.StatusInternalServerError {
+				resp.Header.Set(mcputils.TeleportErrorOriginHeader, mcputils.ErrorOriginUpstream)
+			}
 			if resp.Request != nil {
 				// Nothing to modify for these.
 				if resp.Request.Method == http.MethodDelete ||
@@ -108,12 +119,45 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 			}
 			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
 		}),
+		reverseproxy.WithErrorHandler(makeProxyErrorHandler(session.logger)),
 	)
 	if err != nil {
 		return trace.Wrap(err, "creating reverse proxy")
 	}
 
 	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, reverseProxy))
+}
+
+func makeProxyErrorHandler(logger *slog.Logger) reverseproxy.ErrorHandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, err error) {
+		var statusCode int
+		origin := mcputils.ErrorOriginAppService
+		var netErr net.Error
+		switch {
+		case errors.Is(err, io.EOF):
+			statusCode = http.StatusBadGateway
+			origin = mcputils.ErrorOriginUpstreamUnreachable
+		case errors.As(err, &netErr):
+			if netErr.Timeout() {
+				statusCode = http.StatusGatewayTimeout
+			} else {
+				statusCode = http.StatusBadGateway
+			}
+			origin = mcputils.ErrorOriginUpstreamUnreachable
+		default:
+			statusCode = trace.ErrorToCode(err)
+		}
+
+		logger.WarnContext(req.Context(), "Failed to proxy MCP request",
+			"method", req.Method,
+			"path", req.URL.Path,
+			"status_code", statusCode,
+			"error", err,
+		)
+
+		w.Header().Set(mcputils.TeleportErrorOriginHeader, origin)
+		http.Error(w, http.StatusText(statusCode), statusCode)
+	}
 }
 
 func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {

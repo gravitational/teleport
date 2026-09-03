@@ -955,9 +955,20 @@ func TestDeduplicateApps(t *testing.T) {
 		require.NoError(t, err)
 		apps = append(apps, app_)
 	}
+	for _, scope := range []string{"/dev", "/prod", "/dev"} {
+		app_, err := NewAppV3(Metadata{Name: "a"}, AppSpecV3{URI: "localhost:3080"})
+		require.NoError(t, err)
+		app_.Scope = scope
+		apps = append(apps, app_)
+	}
 
 	deduped := DeduplicateApps(apps)
-	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
+	require.Equal(t, []string{"a", "b", "c", "d", "a", "a"}, slices.Collect(ResourceNames(deduped)))
+	var scopes []string
+	for _, app := range deduped {
+		scopes = append(scopes, app.GetScope())
+	}
+	require.Equal(t, []string{"", "", "", "", "/dev", "/prod"}, scopes)
 }
 
 func TestLLMSubKind(t *testing.T) {

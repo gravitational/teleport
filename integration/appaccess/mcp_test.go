@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
+	"github.com/gravitational/teleport/lib/scopes"
 	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
@@ -76,7 +77,7 @@ func testMCP(pack *Pack, t *testing.T) {
 
 func testMCPDialStdioNoServerFound(t *testing.T, pack *Pack) {
 	// Single connection dial for stdio.
-	dialer := client.NewMCPServerDialer(pack.tc, "not-found")
+	dialer := client.NewMCPServerDialer(pack.tc, scopes.QualifiedName{Name: "not-found"})
 	_, err := dialer.DialALPN(t.Context())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
@@ -84,7 +85,7 @@ func testMCPDialStdioNoServerFound(t *testing.T, pack *Pack) {
 
 func testMCPDialStdio(t *testing.T, pack *Pack) {
 	// Single connection dial for stdio.
-	dialer := client.NewMCPServerDialer(pack.tc, libmcp.DemoServerName)
+	dialer := client.NewMCPServerDialer(pack.tc, scopes.QualifiedName{Name: libmcp.DemoServerName})
 	serverConn, err := dialer.DialALPN(t.Context())
 	require.NoError(t, err)
 
@@ -101,7 +102,7 @@ func testMCPDialStdio(t *testing.T, pack *Pack) {
 
 func testMCPDialStdioToSSE(t *testing.T, pack *Pack, appName string) {
 	// Single connection dial for stdio.
-	dialer := client.NewMCPServerDialer(pack.tc, appName)
+	dialer := client.NewMCPServerDialer(pack.tc, scopes.QualifiedName{Name: appName})
 	serverConn, err := dialer.DialALPN(t.Context())
 	require.NoError(t, err)
 
@@ -113,7 +114,7 @@ func testMCPDialStdioToSSE(t *testing.T, pack *Pack, appName string) {
 func testMCPProxyStreamableHTTP(t *testing.T, pack *Pack, appName string) {
 	// Use special dialer for HTTP client.
 	ctx := t.Context()
-	dialer := client.NewMCPServerDialer(pack.tc, appName)
+	dialer := client.NewMCPServerDialer(pack.tc, scopes.QualifiedName{Name: appName})
 	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
 		"https://"+pack.rootCluster.Web,
 		mcpclienttransport.WithHTTPBasicClient(&http.Client{
@@ -140,7 +141,7 @@ func testMCPStdioToStreamableHTTP(t *testing.T, pack *Pack, appName string) {
 
 	// Use clientmcp.ProxyStdioConn to handle transport conversion.
 	// Use special dialer (on pack.tc) to dial Proxy.
-	dialer := client.NewMCPServerDialer(pack.tc, appName)
+	dialer := client.NewMCPServerDialer(pack.tc, scopes.QualifiedName{Name: appName})
 	proxyErrChan := make(chan error, 1)
 	go func() {
 		err := clientmcp.ProxyStdioConn(

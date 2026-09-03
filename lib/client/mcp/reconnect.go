@@ -52,7 +52,9 @@ type ProxyStdioConnConfig struct {
 	// server when encounter connection issues.
 	AutoReconnect bool
 	// HTTPHeaders defines extra custom headers for HTTP transports.
-	HTTPHeaders map[string]string
+	HTTPHeaders           map[string]string
+	GetHTTPAuthHeader     func(context.Context) (string, error)
+	RefreshHTTPAuthHeader func(context.Context, string) (string, error)
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -71,6 +73,9 @@ func (cfg *ProxyStdioConnConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.DialServer == nil {
 		return trace.BadParameter("missing DialServer")
+	}
+	if cfg.RefreshHTTPAuthHeader != nil && cfg.GetHTTPAuthHeader == nil {
+		return trace.BadParameter("RefreshHTTPAuthHeader requires GetHTTPAuthHeader")
 	}
 	if cfg.MakeReconnectUserMessage == nil {
 		cfg.MakeReconnectUserMessage = func(err error) string {
@@ -133,13 +138,20 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 			return nil
 		},
 		OnRequest: func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-			if writeError := serverConn.WriteMessage(ctx, request); writeError != nil {
+			err := serverConn.WriteMessage(ctx, request)
+			if err != nil && isIdempotentMCPMethod(request.Method) && !serverConn.shouldExitOnWriteError() {
+				cfg.Logger.InfoContext(ctx, "Retrying request after write failure", "method", request.Method, "error", err)
+				err = serverConn.WriteMessage(ctx, request)
+			}
+			if err != nil {
 				if serverConn.shouldExitOnWriteError() {
-					return trace.Wrap(writeError)
+					return trace.Wrap(err)
 				}
-				cfg.Logger.WarnContext(ctx, "failed to write request to server", "error", writeError)
-				userMessage := cfg.MakeReconnectUserMessage(writeError)
-				errResp := mcp.NewJSONRPCError(request.ID, mcp.INTERNAL_ERROR, userMessage, writeError)
+				cfg.Logger.WarnContext(ctx, "failed to write request to server", "error", err)
+				userMessage := cfg.MakeReconnectUserMessage(err)
+				// Pass the error as a string: a Go error value marshals to
+				// "{}", silently dropping the detail from the data field.
+				errResp := mcp.NewJSONRPCError(request.ID, mcp.INTERNAL_ERROR, userMessage, err.Error())
 				return trace.Wrap(cfg.clientResponseWriter.WriteMessage(ctx, errResp))
 			}
 			return nil
@@ -151,6 +163,24 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 	clientRequestReader.Run(ctx)
 	return nil
 
+}
+
+// isIdempotentMCPMethod identifies MCP methods that are safe to retry. A failed
+// write may mean the response was lost after execution, so side-effecting
+// methods must never be retried.
+func isIdempotentMCPMethod(method string) bool {
+	switch method {
+	case mcputils.MethodInitialize,
+		mcputils.MethodPing,
+		mcputils.MethodToolsList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodPromptsGet,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodResourcesRead:
+		return true
+	}
+	return false
 }
 
 type serverConnWithAutoReconnect struct {
@@ -220,11 +250,25 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return r.DialServer(ctx)
 		}
+		var roundTripper http.RoundTripper = transport
+		if r.GetHTTPAuthHeader != nil {
+			if r.RefreshHTTPAuthHeader != nil {
+				roundTripper = &oauthRetryRoundTripper{
+					base:              roundTripper,
+					refreshAuthHeader: r.RefreshHTTPAuthHeader,
+				}
+			}
+			roundTripper = &authHeaderRoundTripper{
+				base:      roundTripper,
+				getHeader: r.GetHTTPAuthHeader,
+			}
+		}
+		roundTripper = &httpServerErrorRoundTripper{base: roundTripper}
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
 			r.closeCtx,
 			"http://localhost", // does not matter with the custom transport.
 			mcpclienttransport.WithHTTPBasicClient(&http.Client{
-				Transport: transport,
+				Transport: roundTripper,
 			}),
 			mcpclienttransport.WithContinuousListening(),
 			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
@@ -421,4 +465,28 @@ func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, ms
 			}
 		}
 	}
+}
+
+type authHeaderRoundTripper struct {
+	base      http.RoundTripper
+	getHeader func(context.Context) (string, error)
+}
+
+func (t *authHeaderRoundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if base, ok := t.base.(closeIdler); ok {
+		base.CloseIdleConnections()
+	}
+}
+
+func (t *authHeaderRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	header, err := t.getHeader(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", header)
+	return t.base.RoundTrip(r)
 }

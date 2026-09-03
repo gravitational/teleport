@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"net"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,6 +69,11 @@ type mockMCPServerDialerClient struct {
 	tlsCA      *tlsca.CertAuthority
 	clock      *clockwork.FakeClock
 	identity   tlsca.Identity
+
+	issueCertCalls    atomic.Int32
+	issueCertStarted  chan struct{}
+	continueIssueCert <-chan struct{}
+	routeToApp        proto.RouteToApp
 }
 
 func (m *mockMCPServerDialerClient) DialALPN(_ context.Context, cert tls.Certificate, protocol alpncommon.Protocol) (net.Conn, error) {
@@ -89,11 +96,22 @@ func (m *mockMCPServerDialerClient) ListApps(_ context.Context, req *proto.ListR
 }
 
 func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, params ReissueParams) (*KeyRing, error) {
+	m.issueCertCalls.Add(1)
+	m.routeToApp = params.RouteToApp
+	if m.issueCertStarted != nil {
+		m.issueCertStarted <- struct{}{}
+	}
+	if m.continueIssueCert != nil {
+		<-m.continueIssueCert
+	}
 	if params.RouteToApp.Name == "" {
 		return nil, trace.BadParameter("missing app name")
 	}
 	if params.RouteToCluster != m.GetSiteName() {
 		return nil, trace.BadParameter("wrong cluster")
+	}
+	if params.RequesterName != proto.UserCertsRequest_TSH_APP_LOCAL_PROXY {
+		return nil, trace.BadParameter("expected in-memory requester name, got %v", params.RequesterName)
 	}
 	subject, err := m.identity.Subject()
 	if err != nil {
@@ -114,12 +132,54 @@ func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, par
 	}
 	return &KeyRing{
 		AppTLSCredentials: map[string]TLSCredential{
-			params.RouteToApp.Name: {
+			ScopedAppName(scopes.QualifiedName{Name: params.RouteToApp.Name, Scope: params.RouteToApp.Scope}): {
 				PrivateKey: tlsKey,
 				Cert:       tlsCert,
 			},
 		},
 	}, nil
+}
+
+func TestMCPServerDialerSerializesCachedAppAndCertificate(t *testing.T) {
+	t.Parallel()
+
+	tlsCA, _, err := newSelfSignedCA(CAPriv, "localhost")
+	require.NoError(t, err)
+
+	issueCertStarted := make(chan struct{}, 2)
+	continueIssueCert := make(chan struct{})
+	mockClient := &mockMCPServerDialerClient{
+		appServers:        types.AppServers{mustMakeAppServer(t, "http-mcp", "mcp+http://localhost:1234")},
+		clock:             clockwork.NewFakeClock(),
+		tlsCA:             tlsCA,
+		identity:          tlsca.Identity{Username: "test"},
+		issueCertStarted:  issueCertStarted,
+		continueIssueCert: continueIssueCert,
+	}
+	dialer := NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: "http-mcp"})
+	dialer.clock = mockClient.clock
+
+	errC := make(chan error, 2)
+	go func() {
+		_, err := dialer.DialALPN(t.Context())
+		errC <- err
+	}()
+	<-issueCertStarted
+
+	if dialer.mu.TryLock() {
+		dialer.mu.Unlock()
+		t.Fatal("DialALPN did not lock the app and certificate cache")
+	}
+
+	go func() {
+		_, err := dialer.DialALPN(t.Context())
+		errC <- err
+	}()
+	close(continueIssueCert)
+
+	require.NoError(t, <-errC)
+	require.NoError(t, <-errC)
+	require.Equal(t, int32(1), mockClient.issueCertCalls.Load())
 }
 
 func (m *mockMCPServerDialerClient) ProfileStatus() (*ProfileStatus, error) {
@@ -139,6 +199,8 @@ func TestMCPServerDialer(t *testing.T) {
 			mustMakeAppServer(t, "http-app", "http://localhost:1234"),
 			mustMakeAppServer(t, "http-mcp", "mcp+http://localhost:1234"),
 			mustMakeAppServer(t, "sse-mcp", "mcp+sse+http://localhost:1234"),
+			mustMakeAppServer(t, "scoped-mcp", "mcp+http://prod.example.com", "/prod"),
+			mustMakeAppServer(t, "scoped-mcp", "mcp+http://dev.example.com", "/dev"),
 		},
 		clock: clockwork.NewFakeClock(),
 		tlsCA: tlsCA,
@@ -171,16 +233,28 @@ func TestMCPServerDialer(t *testing.T) {
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				dialer := NewMCPServerDialer(mockClient, test.name)
+				dialer := NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: test.name})
 				_, err := dialer.GetApp(t.Context())
 				test.checkResult(t, err)
 			})
 		}
 	})
 
+	t.Run("GetScopedApp", func(t *testing.T) {
+		dialer := NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: "scoped-mcp", Scope: "/prod"})
+		app, err := dialer.GetApp(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, "/prod", app.GetScope())
+		require.Equal(t, "mcp+http://prod.example.com", app.GetURI())
+
+		_, err = NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: "scoped-mcp"}).GetApp(t.Context())
+		require.Error(t, err)
+	})
+
 	t.Run("DialALPN", func(t *testing.T) {
 		tests := []struct {
 			name     string
+			scope    string
 			wantALPN alpncommon.Protocol
 		}{
 			{
@@ -191,15 +265,21 @@ func TestMCPServerDialer(t *testing.T) {
 				name:     "sse-mcp",
 				wantALPN: alpncommon.ProtocolMCP,
 			},
+			{
+				name:     "scoped-mcp",
+				scope:    "/prod",
+				wantALPN: alpncommon.ProtocolHTTP,
+			},
 		}
 		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				dialer := NewMCPServerDialer(mockClient, test.name)
+			t.Run(scopes.QualifiedName{Name: test.name, Scope: test.scope}.String(), func(t *testing.T) {
+				dialer := NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: test.name, Scope: test.scope})
 				dialer.clock = mockClient.clock
 
 				// Verify ALPN used.
 				firstConn, err := dialer.DialALPN(t.Context())
 				require.NoError(t, err)
+				require.Equal(t, test.scope, mockClient.routeToApp.Scope)
 				firstALPNConn, ok := firstConn.(*mockALPNConn)
 				require.True(t, ok)
 				require.Equal(t, test.wantALPN, firstALPNConn.protocol)
@@ -221,20 +301,15 @@ func TestMCPServerDialer(t *testing.T) {
 	})
 }
 
-func mustMakeAppServer(t *testing.T, name, uri string) types.AppServer {
-	t.Helper()
-	app := mustMakeApp(t, name, uri)
-	appServer, err := types.NewAppServerV3FromApp(app, "test", "test")
-	require.NoError(t, err)
-	return appServer
-}
-
-func mustMakeApp(t *testing.T, name, uri string) *types.AppV3 {
+func mustMakeAppServer(t *testing.T, name, uri string, scope ...string) types.AppServer {
 	t.Helper()
 	app, err := types.NewAppV3(
 		types.Metadata{Name: name},
 		types.AppSpecV3{URI: uri},
+		scope...,
 	)
 	require.NoError(t, err)
-	return app
+	appServer, err := types.NewAppServerV3FromApp(app, "test", "test")
+	require.NoError(t, err)
+	return appServer
 }

@@ -323,6 +323,7 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 
 	result, err := mcpResponse.GetListToolResult()
 	require.NoError(t, err)
+	require.NotNil(t, result.Tools)
 	checkToolsListResult(t, result, wantTools)
 }
 

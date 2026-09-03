@@ -681,6 +681,37 @@ func requireCertSubjectUserErr(t require.TestingT, err error, _ ...any) {
 	require.ErrorContains(t, err, "certificate subject is for user")
 }
 
+type testHTTPTransportMiddleware struct {
+	DefaultLocalProxyHTTPMiddleware
+}
+
+func (m *testHTTPTransportMiddleware) WrapRoundTripper(http.RoundTripper) http.RoundTripper {
+	return &testWrappedRoundTripper{}
+}
+
+type testWrappedRoundTripper struct{}
+
+func (t *testWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusTeapot,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader("wrapped response")),
+		Request:    req,
+	}, nil
+}
+
+func TestLocalProxyHTTPTransportMiddleware(t *testing.T) {
+	proxy := (&LocalProxy{cfg: LocalProxyConfig{
+		RemoteProxyAddr: "example.com",
+		HTTPMiddleware:  &testHTTPTransportMiddleware{},
+	}}).makeHTTPReverseProxy("example.com")
+
+	recorder := httptest.NewRecorder()
+	proxy.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://localhost", nil))
+	require.Equal(t, http.StatusTeapot, recorder.Code)
+	require.Equal(t, "wrapped response", recorder.Body.String())
+}
+
 func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()

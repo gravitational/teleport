@@ -21,9 +21,9 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -52,8 +52,8 @@ type MCPServerDialerClient interface {
 // MCPServerDialer is a wrapper of TeleportClient for handling MCP connections
 // to proxy.
 type MCPServerDialer struct {
-	client  MCPServerDialerClient
-	appName string
+	client MCPServerDialerClient
+	appSQN scopes.QualifiedName
 
 	mu     sync.Mutex
 	app    types.Application
@@ -63,11 +63,11 @@ type MCPServerDialer struct {
 }
 
 // NewMCPServerDialer creates a new MCPServerDialer.
-func NewMCPServerDialer(client MCPServerDialerClient, appName string) *MCPServerDialer {
+func NewMCPServerDialer(client MCPServerDialerClient, appSQN scopes.QualifiedName) *MCPServerDialer {
 	return &MCPServerDialer{
-		client:  client,
-		appName: appName,
-		clock:   clockwork.NewRealClock(),
+		client: client,
+		appSQN: appSQN,
+		clock:  clockwork.NewRealClock(),
 		logger: slog.With(
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentMCP, "dialer"),
@@ -85,20 +85,26 @@ func (d *MCPServerDialer) GetApp(ctx context.Context) (types.Application, error)
 // DialALPN dials Teleport Proxy to establish a TLS routing connection for the
 // MCP server.
 func (d *MCPServerDialer) DialALPN(ctx context.Context) (net.Conn, error) {
+	d.mu.Lock()
 	app, err := d.getAppLocked(ctx)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
 	cert, err := d.getCertLocked(ctx, app)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
-	switch types.GetMCPServerTransportType(app.GetURI()) {
-	case types.MCPTransportHTTP:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolHTTP)
-	default:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
+	protocol := alpncommon.ProtocolMCP
+	if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
+		protocol = alpncommon.ProtocolHTTP
 	}
+	d.mu.Unlock()
+
+	// The app and certificate caches must be serialized, but independent
+	// network connections should still be allowed to dial concurrently.
+	return d.client.DialALPN(ctx, cert, protocol)
 }
 
 // DialContext is a simple wrapper of DialALPN. This function is defined to be
@@ -112,31 +118,38 @@ func (d *MCPServerDialer) getAppLocked(ctx context.Context) (types.Application, 
 		return d.app, nil
 	}
 
+	appName := strings.TrimSpace(d.appSQN.Name)
+	var predicate strings.Builder
+	predicate.WriteString("name == ")
+	predicate.WriteString(strconv.Quote(appName))
+	if d.appSQN.Scope != "" {
+		predicate.WriteString(" && resource.scope == ")
+		predicate.WriteString(strconv.Quote(d.appSQN.Scope))
+	}
 	apps, err := d.client.ListApps(ctx, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		Namespace:           apidefaults.Namespace,
-		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(d.appName)),
+		PredicateExpression: predicate.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch len(apps) {
-	case 0:
-		return nil, trace.NotFound("no MCP servers found")
-	case 1:
-	default:
-		d.logger.WarnContext(ctx, "multiple appServers found, using the first one")
+	for _, app := range apps {
+		if app.GetScope() != d.appSQN.Scope {
+			continue
+		}
+		if !app.IsMCP() {
+			return nil, trace.BadParameter("app %q is not a MCP server", d.appSQN)
+		}
+		d.app = app
+		d.logger.InfoContext(ctx, "Successfully fetched app",
+			"name", d.app.GetName(),
+			"scope", d.app.GetScope(),
+			"transport", types.GetMCPServerTransportType(d.app.GetURI()),
+		)
+		return d.app, nil
 	}
-	if !apps[0].IsMCP() {
-		return nil, trace.BadParameter("app %q is not a MCP server", d.appName)
-	}
-
-	d.app = apps[0]
-	d.logger.InfoContext(ctx, "Successfully fetched app",
-		"name", d.app.GetName(),
-		"transport", types.GetMCPServerTransportType(d.app.GetURI()),
-	)
-	return d.app, nil
+	return nil, trace.NotFound("MCP server %q not found", d.appSQN)
 }
 
 func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
@@ -154,11 +167,14 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 		RouteToCluster: d.client.GetSiteName(),
 		RouteToApp: proto.RouteToApp{
 			Name:        mcpServer.GetName(),
+			Scope:       mcpServer.GetScope(),
 			PublicAddr:  mcpServer.GetPublicAddr(),
 			ClusterName: d.client.GetSiteName(),
 			URI:         mcpServer.GetURI(),
 		},
 		AccessRequests: profile.ActiveRequests,
+		// The local proxy requester avoids the one-minute MFA certificate cap.
+		RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
 	// Do NOT write the keyring to avoid race condition when AI clients run
