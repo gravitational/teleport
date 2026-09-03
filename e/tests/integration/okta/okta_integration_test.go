@@ -529,6 +529,13 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		require.NotEmpty(t, sar)
 	}, time.Minute, time.Millisecond*100)
 
+	hasAccessRequestSource := func(assignment types.OktaAssignment, accessRequest types.AccessRequest) bool {
+		return assignment.GetAllLabels()[eteleport.OktaAssignmentSourceLabel] == "access-request/"+accessRequest.GetName()
+	}
+	hasRBACSource := func(assignment types.OktaAssignment) bool {
+		return assignment.GetAllLabels()[eteleport.OktaAssignmentSourceLabel] == "user-assignment-creator"
+	}
+
 	t.Run("app access request", func(t *testing.T) {
 		var app types.AppServer
 		apps, err := auth.GetApplicationServers(t.Context(), "default")
@@ -543,52 +550,60 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		appID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 		require.True(t, ok)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-		}, time.Minute, time.Millisecond*250, "User %s was assigned to app %s", requester.Id, appID)
+		requireUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
+		require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
 
-		assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
+		oktaAssignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
 
 		t.Run("delete app access request", func(t *testing.T) {
 			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requesterLogin)
 			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewerLogin)
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			assignment := common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return hasAccessRequestSource(a, accessRequestApp) && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+			})
+			require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
 
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
+			requireUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
 			// TODO(smallinsky): remove dependency on locking access request.
 			deleteAccessRequest(t, sut, accessRequestApp.GetName())
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s is still assigned to app %s", requester.Id, appID)
-
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
+			common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return a.GetName() == assignment.GetName() && a.IsFinalized()
+			})
+			require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			requireUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 		})
 
 		t.Run("member was added to acl before access request was deleted", func(t *testing.T) {
 			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requesterLogin)
 			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewerLogin)
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			accessRequestAppAssignment := common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return hasAccessRequestSource(a, accessRequestApp) && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+			})
+			require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
 
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
+			requireUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
-			mustAddAccessListMember(t, sut, app.GetName(), reviewerLogin)
+			mustAddAccessListMember(t, sut, app.GetName(), requesterLogin)
 
-			err = sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
-			require.NoError(t, err)
+			common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return a.GetUser() == requesterLogin &&
+					hasRBACSource(a) &&
+					assignmentHasTarget(a, "application", app.GetName()) &&
+					a.GetCleanupTime().IsZero() &&
+					a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+			})
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+			deleteAccessRequest(t, sut, accessRequestApp.GetName())
 
-			assertUserIsAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
+			common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return a.GetName() == accessRequestAppAssignment.GetName() && a.IsFinalized()
+			})
+			require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			requireUserIsAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 		})
 	})
 
@@ -600,24 +615,27 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		require.NotNil(t, group)
 		groupID := group.GetName()
 
+		oktaAssignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
 		t.Run("delete group access request", func(t *testing.T) {
 			accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requesterLogin)
 
-			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+			requireUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 			approveAccessRequest(t, sut, accessRequest.GetName(), reviewerLogin)
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+			accessRequestAssignment := common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return hasAccessRequestSource(a, accessRequest) && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+			})
+			require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
 
 			// TODO(smallinsky): remove dependency on locking access request.
 			deleteAccessRequest(t, sut, accessRequest.GetName())
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
-			}, time.Minute, time.Millisecond*250, "User %s is still assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
-
-			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+			common.WaitForPutEvent(t, oktaAssignmentWatcher, func(a types.OktaAssignment) bool {
+				return a.GetName() == accessRequestAssignment.GetName() && a.IsFinalized()
+			})
+			require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
+			requireUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 		})
 	})
 }
@@ -664,30 +682,16 @@ func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName 
 	require.NoError(t, err)
 }
 
-// assertUserIsNotAccessListMember is deprecated.
-//
-// Deprecated: use requireUserIsNotAccessListMember and/or waitForResourceDeletion
-func assertUserIsNotAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) {
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
-		require.True(t, trace.IsNotFound(err))
-	}, time.Minute, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
+func requireUserIsAccessListMember(ctx context.Context, t *testing.T, sut *common.SUT, acl, user string) {
+	t.Helper()
+	_, err := sut.Teleport.Process.GetAuthServer().Services.AccessListsInternal.GetAccessListMember(ctx, acl, user)
+	require.NoError(t, err)
 }
 
 func requireUserIsNotAccessListMember(ctx context.Context, t *testing.T, sut *common.SUT, acl, user string) {
 	t.Helper()
-	_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
+	_, err := sut.Teleport.Process.GetAuthServer().Services.AccessListsInternal.GetAccessListMember(ctx, acl, user)
 	require.True(t, trace.IsNotFound(err))
-}
-
-func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) *accesslist.AccessListMember {
-	var member *accesslist.AccessListMember
-	var err error
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		member, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
-		require.NoError(t, err)
-	}, time.Minute, 500*time.Millisecond)
-	return member
 }
 
 // TestOktaAccessRequestWithSCIMOktaSync tests access requests when SCIM Okta sync is enabled.
@@ -845,11 +849,16 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	groupID := fakeOkta.provisionedGroups[0].Id
 
 	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	accessListMemberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
 
 	const iterCount = 10
 	for i := range iterCount {
+		t.Logf("Iteration %d", i+1)
+
 		fakeOkta.AddUserToGroup(groupID, memberID)
-		m := assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
+		m := common.WaitForPutEvent(t, accessListMemberWatcher, func(m *accesslist.AccessListMember) bool {
+			return m.Spec.AccessList == groupID && m.GetName() == memberLogin
+		})
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
 
 		// remove this check after RFD 0328 - Fix Okta Cleanup Assignment Race is implemeted.
@@ -860,7 +869,9 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 		})
 
 		fakeOkta.RemoveUserFromGroup(groupID, memberID)
-		assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+		common.WaitForDeleteEvent(t, accessListMemberWatcher, func(h *types.ResourceHeader) bool {
+			return h.Metadata.Name == memberLogin && h.Metadata.Description == groupID
+		})
 
 		common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
 			return r.GetName() == assignment.GetName()
@@ -916,6 +927,7 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	fakeOkta.AddUserToGroup(groupID, memberID)
 
 	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	accessListMemberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
 	createAndWaitForOktaIntegration(t, sut, fakeOkta, withAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
@@ -940,7 +952,10 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	auth := sut.Teleport.Process.GetAuthServer()
 
 	// Wait for the user to appear as access list member.
-	assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
+	common.WaitForPutEvent(t, accessListMemberWatcher, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.AccessList == groupID && m.GetName() == memberLogin
+	})
+	requireUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 
 	// Block the assignment processor from removing the user from the Okta group
 	// by making the DELETE endpoint return 429 (Too Many Requests).
@@ -973,7 +988,7 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	require.True(t, fakeOkta.UserAssignedGroup(groupID, memberID))
 
 	// Assert the user was NOT re-added as an access list member.
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
 
 	// Clear the overwrite so the assignment processor can complete the cleanup.
 	fakeOkta.SetRemoveUserFromGroupOverwrite(nil)
@@ -1448,16 +1463,21 @@ func TestAccessListSyncWithBidirectionalSyncDisabled(t *testing.T) {
 	)
 	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
 
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+
+	accessListMemberWatcher := sut.NewResourceWatcher(t, types.KindAccessListMember)
 
 	fakeOkta.AddUserToGroup(groupID, memberID)
+	common.WaitForPutEvent(t, accessListMemberWatcher, func(m *accesslist.AccessListMember) bool {
+		return m.Spec.AccessList == groupID && m.GetName() == memberLogin
+	})
+	requireUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 
-	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
-	assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
 	fakeOkta.RemoveUserFromGroup(groupID, memberID)
-
-	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+	common.WaitForDeleteEvent(t, accessListMemberWatcher, func(m *types.ResourceHeader) bool {
+		return m.GetMetadata().Description == groupID && m.GetName() == memberLogin
+	})
+	requireUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
 }
 
 // waitForNAssignmentTransitions waits for the assignment to transition n times.

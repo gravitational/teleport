@@ -127,7 +127,7 @@ func waitForEvents[T types.Resource](t *testing.T, watcher types.Watcher, op typ
 			}
 			resource, ok := event.Resource.(T)
 			if !ok {
-				continue
+				t.Fatalf("wanted event.Resource of type %T, but  got %T", resource, event.Resource)
 			}
 
 			for i, predicate := range unsatisfied {
