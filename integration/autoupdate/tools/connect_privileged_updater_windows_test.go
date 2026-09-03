@@ -151,7 +151,19 @@ func TestPrivilegedUpdateServiceRejectsMalformedMetadata(t *testing.T) {
 	}
 }
 
-func TestPrivilegedUpdateServiceRejectsUpdateBaseDirFile(t *testing.T) {
+func TestPrivilegedUpdateServiceRejectsNonExistingSystemTempDir(t *testing.T) {
+	up := update{
+		version: "999.0.0",
+		binary:  []byte("payload"),
+	}
+
+	baseDir := filepath.Join(t.TempDir(), "does-not-exist")
+
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestSystemTempDir(baseDir))
+	require.ErrorIs(t, err, trace.BadParameter("the updater requires %s to be available, ensure your system is up-to-date", baseDir))
+}
+
+func TestPrivilegedUpdateServiceRejectsInvalidSystemTempDir(t *testing.T) {
 	up := update{
 		version: "999.0.0",
 		binary:  []byte("payload"),
@@ -160,11 +172,11 @@ func TestPrivilegedUpdateServiceRejectsUpdateBaseDirFile(t *testing.T) {
 	baseDir := filepath.Join(t.TempDir(), "not-a-dir")
 	require.NoError(t, os.WriteFile(baseDir, []byte("x"), 0o600))
 
-	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(baseDir))
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestSystemTempDir(baseDir))
 	require.ErrorIs(t, err, trace.BadParameter("security violation: %s exists but is not a directory", baseDir))
 }
 
-func TestPrivilegedUpdateServiceRejectsUpdateBaseDirReparsePoint(t *testing.T) {
+func TestPrivilegedUpdateServiceRejectsSystemTempDirReparsePoint(t *testing.T) {
 	up := update{
 		version: "999.0.0",
 		binary:  []byte("payload"),
@@ -174,21 +186,24 @@ func TestPrivilegedUpdateServiceRejectsUpdateBaseDirReparsePoint(t *testing.T) {
 	baseDir := filepath.Join(t.TempDir(), "junction-base")
 	createJunction(t, baseDir, targetDir)
 
-	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(baseDir))
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestSystemTempDir(baseDir))
 	require.ErrorIs(t, err, trace.BadParameter("security violation: %s is a reparse point", baseDir))
 }
 
 func TestPrivilegedUpdateServiceSafelyCleanupOldUpdates(t *testing.T) {
 	updateBaseDir := t.TempDir()
+	updateRoot := filepath.Join(updateBaseDir, "TeleportConnectUpdater")
+	require.NoError(t, os.MkdirAll(updateRoot, 0o700))
+
 	outsideDir := t.TempDir()
 	outsideFile := filepath.Join(outsideDir, "must-stay.txt")
 	require.NoError(t, os.WriteFile(outsideFile, []byte("outside"), 0o600))
 
-	staleDir := filepath.Join(updateBaseDir, "stale-update")
+	staleDir := filepath.Join(updateRoot, "stale-update")
 	require.NoError(t, os.MkdirAll(staleDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(staleDir, "update.exe"), []byte("stale"), 0o600))
 
-	junctionPath := filepath.Join(updateBaseDir, "outside-junction")
+	junctionPath := filepath.Join(updateRoot, "outside-junction")
 	createJunction(t, junctionPath, outsideDir)
 
 	updateBinary := []byte("payload")
@@ -196,7 +211,7 @@ func TestPrivilegedUpdateServiceSafelyCleanupOldUpdates(t *testing.T) {
 		version: "999.0.0",
 		binary:  updateBinary,
 	}
-	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(updateBaseDir))
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestSystemTempDir(updateBaseDir))
 	require.NoError(t, err)
 
 	_, err = os.Stat(staleDir)
@@ -209,24 +224,60 @@ func TestPrivilegedUpdateServiceSafelyCleanupOldUpdates(t *testing.T) {
 	require.NoError(t, err, "cleanup must not remove files outside base dir via junction traversal")
 }
 
-func TestPrivilegedUpdateServiceCorrectsUpdateBaseDirACL(t *testing.T) {
+func TestPrivilegedUpdateServiceRemovesLegacyUpdateRoot(t *testing.T) {
+	programData := t.TempDir()
+	legacyRoot := filepath.Join(programData, "TeleportConnectUpdater")
+	staleDir := filepath.Join(legacyRoot, "stale")
+	require.NoError(t, os.MkdirAll(staleDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(staleDir, "update.exe"), []byte("stale"), 0o600))
+
+	// Plant a junction inside the legacy root pointing outside it. Cleanup must
+	// remove the junction entry without recursing into and deleting the target.
+	outsideDir := t.TempDir()
+	outsideFile := filepath.Join(outsideDir, "must-stay.txt")
+	require.NoError(t, os.WriteFile(outsideFile, []byte("outside"), 0o600))
+	junctionPath := filepath.Join(legacyRoot, "outside-junction")
+	createJunction(t, junctionPath, outsideDir)
+
 	up := update{
 		version: "999.0.0",
 		binary:  []byte("payload"),
 	}
-
-	defaultConfig := getDefaultConfig(t)
-	baseDir := filepath.Join(t.TempDir(), "new-dir")
-	require.NoError(t, os.MkdirAll(baseDir, 0o777))
-	// Everyone has Full Control over this object,
-	// and the permission is inherited by all subfolders and files.
-	// This access will be corrected by the service.
-	setDirectoryDACL(t, baseDir, "D:(A;OICI;GA;;;WD)")
-
-	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(baseDir))
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestProgramDataDir(programData))
 	require.NoError(t, err)
 
-	assertDirectorySecurityDescriptor(t, baseDir, defaultConfig.UpdateDirSecurityDescriptor)
+	require.NoDirExists(t, legacyRoot, "legacy update root should be removed during the update flow")
+	require.DirExists(t, programData, "ProgramData root itself must be left untouched")
+
+	_, err = os.Lstat(junctionPath)
+	require.ErrorIs(t, err, os.ErrNotExist, "junction entry should be removed")
+
+	require.FileExists(t, outsideFile, "cleanup must not remove files outside the legacy root via junction traversal")
+}
+
+// TestPrivilegedUpdateServiceLegacyUpdateRootIsJunction verifies that when the
+// legacy root itself is a junction, cleanup unlinks it without recursing into
+// and deleting the target.
+func TestPrivilegedUpdateServiceLegacyUpdateRootIsJunction(t *testing.T) {
+	programData := t.TempDir()
+	legacyRoot := filepath.Join(programData, "TeleportConnectUpdater")
+
+	outsideDir := t.TempDir()
+	outsideFile := filepath.Join(outsideDir, "must-stay.txt")
+	require.NoError(t, os.WriteFile(outsideFile, []byte("outside"), 0o600))
+	createJunction(t, legacyRoot, outsideDir)
+
+	up := update{
+		version: "999.0.0",
+		binary:  []byte("payload"),
+	}
+	err := runPrivilegedUpdaterFlow(t, up, withServiceTestProgramDataDir(programData))
+	require.NoError(t, err)
+
+	_, err = os.Lstat(legacyRoot)
+	require.ErrorIs(t, err, os.ErrNotExist, "legacy update root junction should be unlinked")
+
+	require.FileExists(t, outsideFile, "cleanup must not remove the junction target")
 }
 
 func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
@@ -281,9 +332,15 @@ type serviceConfig struct {
 
 type privilegedServiceMainConfigOption func(*serviceConfig)
 
-func withServiceTestUpdateBaseDir(path string) privilegedServiceMainConfigOption {
+func withServiceTestSystemTempDir(path string) privilegedServiceMainConfigOption {
 	return func(cfg *serviceConfig) {
-		cfg.UpdateBaseDir = path
+		cfg.SystemTempDir = path
+	}
+}
+
+func withServiceTestProgramDataDir(path string) privilegedServiceMainConfigOption {
+	return func(cfg *serviceConfig) {
+		cfg.ProgramDataDir = path
 	}
 }
 
@@ -345,8 +402,8 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 	installUpdateFromClientErr := make(chan error, 1)
 	go func() {
 		err := privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{
-			UpdateDirSecurityDescriptor:  cfg.UpdateDirSecurityDescriptor,
-			UpdateBaseDir:                cfg.UpdateBaseDir,
+			SystemTempDir:                cfg.SystemTempDir,
+			ProgramDataDir:               cfg.ProgramDataDir,
 			PolicyToolsVersion:           cfg.PolicyToolsVersion,
 			PolicyCDNBaseURL:             server.URL,
 			HTTPClient:                   server.Client(),
@@ -356,11 +413,11 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 		// We are attempting to run a non-exe file.
 		// It will fail, so we check if we ran the correct file.
 		// The pattern should match: <base-update-dir>\<guid>\update.exe.
-		// In the production code, base-update-dir is %ProgramData%\TeleportConnectUpdater.
+		// In the production code, base-update-dir is %WINDIR%\SystemTemp\TeleportConnectUpdater.
 		if err != nil && strings.Contains(err.Error(), "running installer") {
 			pattern := fmt.Sprintf(
-				`.*starting installer path=%s\\[0-9a-fA-F-]{36}\\update\.exe`,
-				regexp.QuoteMeta(cfg.UpdateBaseDir),
+				`.*starting installer path=%s\\TeleportConnectUpdater\\[0-9a-fA-F-]{36}\\update\.exe`,
+				regexp.QuoteMeta(cfg.SystemTempDir),
 			)
 			require.Regexp(t, pattern, err.Error())
 			require.Contains(t, err.Error(), "args=\"--updated /S /allusers\"")
@@ -405,28 +462,13 @@ func dialUpdaterPipe(t *testing.T, timeout time.Duration) net.Conn {
 	return conn
 }
 
-// getDefaultConfig returns a base dir and a security descriptor.
+// getDefaultConfig returns a base service-test config with a per-test staging dir.
 func getDefaultConfig(t *testing.T) *privilegedupdater.ServiceTestConfig {
 	t.Helper()
 
-	token := windows.GetCurrentProcessToken()
-	tokenUser, err := token.GetTokenUser()
-	require.NoError(t, err)
-	require.NotNil(t, tokenUser.User.Sid)
-
-	ownerSID := tokenUser.User.Sid.String()
-
-	// We can't use the production security descriptor as it requires the process to run with elevated privileges.
-	// Here we create a descriptor that restrict a bit the regular rights for authenticated users.
-	descriptor := "O:" + ownerSID +
-		"D:P" +
-		"(A;;FA;;;SY)" +
-		"(A;;FA;;;BA)" +
-		"(A;OICI;0x1301bf;;;AU)" // 0x1301bf - modify rights for AU (authenticated users) for dir and sub dirs (OICI)
-
 	return &privilegedupdater.ServiceTestConfig{
-		UpdateDirSecurityDescriptor: descriptor,
-		UpdateBaseDir:               t.TempDir(),
+		SystemTempDir:  t.TempDir(),
+		ProgramDataDir: t.TempDir(),
 		// Allow Authenticated Users to create the pipe in tests.
 		PipeAuthenticatedUsersAccess: windows.GENERIC_READ | windows.GENERIC_WRITE,
 		// Integration test updates are unsigned.
@@ -439,37 +481,5 @@ func createJunction(t *testing.T, linkPath, targetPath string) {
 
 	cmd := exec.Command("cmd", "/c", "mklink", "/J", linkPath, targetPath)
 	_, err := cmd.CombinedOutput()
-	require.NoError(t, err)
-}
-
-func assertDirectorySecurityDescriptor(t *testing.T, path string, expectedDescriptor string) {
-	t.Helper()
-
-	actualSD, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION)
-	require.NoError(t, err)
-
-	expectedSD, err := windows.SecurityDescriptorFromString(expectedDescriptor)
-	require.NoError(t, err)
-
-	// Comparing ACLs is non-trivial.
-	//
-	// In SDDL, "D:" starts the DACL section.
-	// "D:P" means the DACL is protected (no inheritance).
-	// After ACL changes, Windows may apply "D:PAI", where "AI" indicates
-	// auto-inherited ACEs. The descriptors are functionally equivalent
-	// for our purposes, so normalize before comparison.
-	expectedSDString := strings.Replace(expectedSD.String(), "D:P", "D:PAI", 1)
-	require.Equal(t, expectedSDString, actualSD.String(), "directory DACL does not match expected descriptor")
-}
-
-func setDirectoryDACL(t *testing.T, path string, descriptor string) {
-	t.Helper()
-
-	sd, err := windows.SecurityDescriptorFromString(descriptor)
-	require.NoError(t, err)
-	dacl, _, err := sd.DACL()
-	require.NoError(t, err)
-
-	err = windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
 	require.NoError(t, err)
 }
