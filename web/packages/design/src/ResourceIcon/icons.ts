@@ -310,6 +310,8 @@ export { default as tableau } from './assets/tableau.svg?no-inline';
 export { default as temporalDark } from './assets/temporal-dark.svg?no-inline';
 export { default as temporalLight } from './assets/temporal-light.svg?no-inline';
 export { default as terraform } from './assets/terraform.svg?no-inline';
+export { default as thanosDark } from './assets/thanos-dark.svg?no-inline';
+export { default as thanosLight } from './assets/thanos-light.svg?no-inline';
 export { default as torqDark } from './assets/torq-dark.svg?no-inline';
 export { default as torqLight } from './assets/torq-light.svg?no-inline';
 export { default as troopsAiDark } from './assets/troops.ai-dark.svg?no-inline';
