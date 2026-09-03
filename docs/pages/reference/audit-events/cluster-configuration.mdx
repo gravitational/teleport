@@ -1,0 +1,536 @@
+---
+title: Cluster Configuration Audit Events
+description: "Provides a list of Cluster Configuration audit events."
+sidebar_label: Cluster Configuration
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to changes in your Teleport cluster and account configuration.
+
+
+
+## cluster_networking_config.update
+
+Cluster Networking Configuration Updated
+
+Example:
+
+```json
+{
+  "code": "TCNET002I",
+  "event": "cluster_networking_config.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## contact.create
+
+Contact Created
+
+Example:
+
+```json
+{
+  "code": "TCTC001I",
+  "event": "contact.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## contact.delete
+
+Contact Deleted
+
+Example:
+
+```json
+{
+  "code": "TCTC002I",
+  "event": "contact.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## environmentprofile.update
+
+Environment Profile Updated
+
+Example:
+
+```json
+{
+  "code": "TEP01I",
+  "time": "2022-04-13T20:00:05.000Z",
+  "user": "alice@example.com",
+  "event": "environmentprofile.update",
+  "environment_profile": "staging"
+}
+```
+
+
+## health_check_config.create
+
+Health Check Config Created
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC001I",
+  "ei": 0,
+  "event": "health_check_config.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+## health_check_config.delete
+
+Health Check Config Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC003I",
+  "ei": 0,
+  "event": "health_check_config.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+## health_check_config.update
+
+Health Check Config Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC002I",
+  "ei": 0,
+  "event": "health_check_config.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+
+## integration.create
+
+Integration Created
+
+Example:
+
+```json
+{
+  "code": "IG001I",
+  "event": "integration.create",
+  "time": "2023-05-09T19:21:36.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+## integration.delete
+
+Integration Deleted
+
+Example:
+
+```json
+{
+  "code": "IG003I",
+  "event": "integration.delete",
+  "time": "2023-05-09T19:21:38.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+## integration.update
+
+Integration Updated
+
+Example:
+
+```json
+{
+  "code": "IG002I",
+  "event": "integration.update",
+  "time": "2023-05-09T19:21:37.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+
+## join_token.bound_keypair.join_state_verification_failed
+
+Bound Keypair Join Verification Failed
+
+Example:
+
+```json
+{
+  "code": "TBK003W",
+  "event": "join_token.bound_keypair.join_state_verification_failed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.bound_keypair.recovery
+
+Bound Keypair Recovery
+
+Example:
+
+```json
+{
+  "code": "TBK001I",
+  "event": "join_token.bound_keypair.recovery",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.bound_keypair.rotation
+
+Bound Keypair Rotation
+
+Example:
+
+```json
+{
+  "code": "TBK002I",
+  "event": "join_token.bound_keypair.rotation",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.create
+
+Join Token Created
+
+Example:
+
+```json
+{
+  "code": "TJT00I",
+  "event": "join_token.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## plugin.create
+
+Plugin Created
+
+Example:
+
+```json
+{
+  "code": "PG001I",
+  "event": "plugin.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## plugin.delete
+
+Plugin Deleted
+
+Example:
+
+```json
+{
+  "code": "PG003I",
+  "event": "plugin.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## plugin.update
+
+Plugin Updated
+
+Example:
+
+```json
+{
+  "code": "PG002I",
+  "event": "plugin.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## scoped_token.create
+
+There are multiple events with the `scoped_token.create` type.
+
+### TST000I
+
+Scoped Join Token Created
+
+Example:
+
+```json
+{
+  "code": "TST000I",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "success": true,
+  "user": "alice@example.com"
+}
+```
+
+### TST000E
+
+Scoped Join Token Create Failed
+
+Example:
+
+```json
+{
+  "code": "TST000E",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed create event"
+}
+```
+
+## scoped_token.delete
+
+There are multiple events with the `scoped_token.delete` type.
+
+### TST003I
+
+Scoped Join Token Deleted
+
+Example:
+
+```json
+{
+  "code": "TST003I",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST003E
+
+Scoped Join Token Delete Failed
+
+Example:
+
+```json
+{
+  "code": "TST003E",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed delete event"
+}
+```
+
+## scoped_token.update
+
+There are multiple events with the `scoped_token.update` type.
+
+### TST002I
+
+Scoped Join Token Updated
+
+Example:
+
+```json
+{
+  "code": "TST002I",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST002E
+
+Scoped Join Token Update Failed
+
+Example:
+
+```json
+{
+  "code": "TST002E",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed update event"
+}
+```
+
+## scoped_token.upsert
+
+There are multiple events with the `scoped_token.upsert` type.
+
+### TST001I
+
+Scoped Join Token Upserted
+
+Example:
+
+```json
+{
+  "code": "TST001I",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST001E
+
+Scoped Join Token Upsert Failed
+
+Example:
+
+```json
+{
+  "code": "TST001E",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed upsert event"
+}
+```
+
+
+## trusted_cluster.create
+
+Trusted Cluster Created
+
+Example:
+
+```json
+{
+  "code": "T7000I",
+  "event": "trusted_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## trusted_cluster.delete
+
+Trusted Cluster Deleted
+
+Example:
+
+```json
+{
+  "code": "T7001I",
+  "event": "trusted_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## trusted_cluster_token.create
+
+Trusted Cluster Token Created
+
+Example:
+
+```json
+{
+  "code": "T7002I",
+  "event": "trusted_cluster_token.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```

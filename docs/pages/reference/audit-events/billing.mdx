@@ -1,0 +1,89 @@
+---
+title: Billing Audit Events
+description: "Provides a list of Billing audit events."
+sidebar_label: Billing
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport billing.
+
+
+
+## billing.create_card
+
+Credit Card Added
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL00I",
+  "ei": 0,
+  "event": "billing.create_card",
+  "time": "2021-03-18T16:29:05.044Z",
+  "uid": "5c40b62a-4ddd-466c-87a0-fa2922f743d0",
+  "user": "root"
+}
+```
+
+## billing.delete_card
+
+Credit Card Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL01I",
+  "ei": 0,
+  "event": "billing.delete_card",
+  "time": "2021-03-18T16:28:51.219Z",
+  "uid": "056517e0-f7e1-4286-b437-c75f3a865af4",
+  "user": "root"
+}
+```
+
+## billing.update_card
+
+Credit Card Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL02I",
+  "ei": 0,
+  "event": "billing.update_card",
+  "time": "2021-03-18T16:28:49.067Z",
+  "uid": "0a06aba1-b87c-4d58-8922-e173f6b9729f",
+  "user": "root"
+}
+```
+
+## billing.update_info
+
+Billing Information Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL03I",
+  "ei": 0,
+  "event": "billing.update_info",
+  "time": "2021-03-18T16:29:15.719Z",
+  "uid": "95344b33-d25c-4875-896e-f21abc911547",
+  "user": "root"
+}
+```

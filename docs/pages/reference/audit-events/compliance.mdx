@@ -1,0 +1,123 @@
+---
+title: Compliance Audit Events
+description: "Provides a list of Compliance audit events."
+sidebar_label: Compliance
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport compliance features.
+
+
+
+## cir.update
+
+Client IP Restrictions update
+
+Example:
+
+```json
+{
+  "client_ip_restrictions": [
+    "3.0.0.0/8"
+  ],
+  "cluster_name": "localhost",
+  "code": "CIR001I",
+  "ei": 0,
+  "enforcement_expires": "2026-10-21T20:45:14.775Z",
+  "event": "cir.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "mode": "enforced",
+  "name": "client_ip_restriction",
+  "success": true,
+  "time": "2025-10-21T20:45:14.775Z",
+  "updated_by": "admin",
+  "user": "admin",
+  "user_cluster_name": "localhost",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+
+## external_audit_storage.disable
+
+External Audit Storage Disabled
+
+Example:
+
+```json
+{
+  "code": "TEA002I",
+  "event": "external_audit_storage.disable",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## external_audit_storage.enable
+
+External Audit Storage Enabled
+
+Example:
+
+```json
+{
+  "code": "TEA001I",
+  "event": "external_audit_storage.enable",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+
+## secreports.audit.query.run
+
+Access Monitoring Query Executed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "SRE001I",
+  "data_scanned_in_bytes": 4045,
+  "days": 90,
+  "event": "secreports.audit.query.run",
+  "query": "select * FROM cert_create",
+  "success": true,
+  "time": "2023-10-09T10:09:10.473Z",
+  "total_execution_time_in_millis": 1440,
+  "uid": "dc29d36c-c5b6-4ffc-9aa7-2d9ba18a3953",
+  "user": "marek"
+}
+```
+
+## secreports.report.run
+
+Access Monitoring Report Executed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "SRE002I",
+  "data_scanned_in_bytes": 13258,
+  "event": "secreports.report.run",
+  "name": "privilege_access_report_90_days",
+  "success": true,
+  "time": "2023-10-09T09:10:03.633Z",
+  "total_execution_time_in_millis": 14082,
+  "uid": "f44871b9-7247-467b-a760-8159d3f47bac",
+  "user": "system"
+}
+```
