@@ -236,7 +236,7 @@ func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 			},
 		)
 
-		err := runKubectlReexec(cf, fullArgs, args, writer)
+		err = runKubectlReexec(cf, fullArgs, args, writer)
 		writer.CloseWithError(io.EOF)
 
 		if scanErr := group.Wait(); scanErr != nil {
