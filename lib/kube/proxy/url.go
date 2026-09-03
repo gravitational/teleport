@@ -47,7 +47,9 @@ type apiResource struct {
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
 // All fields of the returned apiResource may be empty.
-func parseResourcePath(p string) apiResource {
+// Returns an error if the path still contains a '%' after Go's URL parser has done its one decode pass,
+// outside the opaque tail of a proxy subresource where a '%' from wire '%25' is legitimate.
+func parseResourcePath(p string) (apiResource, error) {
 	// Kubernetes API reference: https://kubernetes.io/docs/reference/kubernetes-api/
 	// Let's try to parse this. Here be dragons!
 	//
@@ -91,14 +93,21 @@ func parseResourcePath(p string) apiResource {
 		r.apiGroup, r.apiGroupVersion = parts[2], parts[3]
 		parts = parts[4:]
 	case len(parts) >= 2 && (parts[1] == "api" || parts[1] == "apis"):
-		// /api or /apis.
-		// This is part of API discovery. Don't emit to audit log to reduce
-		// noise.
+		// This is part of API discovery.
+		// Don't emit to audit log to reduce noise.
+		// These paths never legitimately contain a '%', so a surviving one means the path was percent-encoded more than once.
+		if strings.ContainsRune(p, '%') {
+			return apiResource{}, trace.BadParameter("invalid kubernetes resource path: percent-encoded byte after URL decoding")
+		}
 		r.skipEvent = true
-		return r
+		return r, nil
 	default:
 		// Doesn't look like a k8s API path, return empty result.
-		return r
+		// These paths never legitimately contain a '%', so a surviving one means the path was percent-encoded more than once.
+		if strings.ContainsRune(p, '%') {
+			return apiResource{}, trace.BadParameter("invalid kubernetes resource path: percent-encoded byte after URL decoding")
+		}
+		return r, nil
 	}
 
 	// Watch API endpoints have an extra /watch/ prefix. For now, silently
@@ -112,9 +121,9 @@ func parseResourcePath(p string) apiResource {
 	case 0:
 		// e.g. /apis/apps/v1
 		// This is part of API discovery. Don't emit to audit log to reduce
-		// noise.
+		// noise. Fall through to validateNoEncodedSeparators below so a '%'
+		// hidden in the group or version segment is still rejected.
 		r.skipEvent = true
-		return r
 	case 1:
 		// e.g. /api/v1/pods - list pods in all namespaces
 		r.resourceKind = parts[0]
@@ -155,7 +164,36 @@ func parseResourcePath(p string) apiResource {
 			}
 		}
 	}
-	return r
+	if err := validateNoEncodedSeparators(r); err != nil {
+		return apiResource{}, trace.Wrap(err)
+	}
+	return r, nil
+}
+
+// validateNoEncodedSeparators rejects a literal '%' in any RBAC-relevant field of r.
+// After Go's URL parser has done its one decode pass, a surviving '%' in an RBAC field
+// would only come from a path that was percent-encoded more than once,
+// so the decoded form no longer matches how the apiserver segments the path for routing.
+// Rejecting it keeps Teleport's RBAC view aligned with what the apiserver will act on.
+//
+// The apiserver "proxy" subresource forwards a tail opaquely to a backend HTTP server and
+// may legitimately contain '%' from wire '%25', so the tail portion of resourceKind
+// (everything after "/proxy/" in shapes like "pods/proxy/{tail}", "services/proxy/{tail}", and "nodes/proxy/{tail}")
+// is exempt from this check.
+func validateNoEncodedSeparators(r apiResource) error {
+	for _, s := range []string{r.apiGroup, r.apiGroupVersion, r.namespace, r.resourceName} {
+		if strings.ContainsRune(s, '%') {
+			return trace.BadParameter("invalid kubernetes resource path: percent-encoded byte after URL decoding")
+		}
+	}
+	kindPrefix := r.resourceKind
+	if i := strings.Index(r.resourceKind, "/proxy/"); i >= 0 {
+		kindPrefix = r.resourceKind[:i+len("/proxy")]
+	}
+	if strings.ContainsRune(kindPrefix, '%') {
+		return trace.BadParameter("invalid kubernetes resource path: percent-encoded byte after URL decoding")
+	}
+	return nil
 }
 
 // stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
@@ -232,7 +270,10 @@ var defaultRBACResources = rbacSupportedResources{
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, error) {
-	apiResource := parseResourcePath(req.URL.Path)
+	apiResource, err := parseResourcePath(req.URL.Path)
+	if err != nil {
+		return nil, apiResource, trace.Wrap(err)
+	}
 	verb := apiResource.getVerb(req)
 	if kubeDetails == nil {
 		return nil, apiResource, nil
