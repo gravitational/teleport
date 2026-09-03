@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
@@ -261,19 +262,7 @@ func (a *AppV3) GetRewrite() *Rewrite {
 
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
-	// TODO(greedy52) support region based console URL like:
-	// https://us-east-1.console.aws.amazon.com/
-	for _, consoleURL := range []string{
-		constants.AWSConsoleURL,
-		constants.AWSUSGovConsoleURL,
-		constants.AWSCNConsoleURL,
-	} {
-		if strings.HasPrefix(a.Spec.URI, consoleURL) {
-			return true
-		}
-	}
-
-	return a.Spec.Cloud == CloudAWS
+	return a.Spec.Cloud == CloudAWS || awsutils.IsConsoleURL(a.Spec.URI)
 }
 
 // IsAzureCloud returns true if this app is Azure Cloud instance.

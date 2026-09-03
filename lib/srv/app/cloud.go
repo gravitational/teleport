@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -37,7 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/constants"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -76,6 +75,9 @@ func (r *AWSSigninRequest) CheckAndSetDefaults() error {
 	}
 	if r.TargetURL == "" {
 		return trace.BadParameter("missing TargetURL")
+	}
+	if !apiawsutils.IsConsoleURL(r.TargetURL) {
+		return trace.BadParameter("invalid AWS console URL %q", r.TargetURL)
 	}
 	if r.Issuer == "" {
 		return trace.BadParameter("missing Issuer")
@@ -131,7 +133,10 @@ func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWS
 		return nil, trace.Wrap(err)
 	}
 
-	federationURL := getFederationURL(req.TargetURL)
+	federationURL, err := getFederationURL(req.TargetURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	signinToken, err := c.getAWSSigninToken(ctx, &req, federationURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -355,20 +360,23 @@ type federationResponse struct {
 //
 // https://docs.aws.amazon.com/general/latest/gr/signin-service.html
 // https://docs.amazonaws.cn/en_us/aws/latest/userguide/endpoints-Beijing.html
-func getFederationURL(targetURL string) string {
-	// TODO(greedy52) support region based sign-in.
-	switch {
+func getFederationURL(targetURL string) (string, error) {
+	partition, ok := apiawsutils.ConsoleURLPartition(targetURL)
+	if !ok {
+		return "", trace.BadParameter("invalid AWS console URL %q", targetURL)
+	}
+	switch partition {
 	// AWS GovCloud (US) Partition.
-	case strings.HasPrefix(targetURL, constants.AWSUSGovConsoleURL):
-		return "https://signin.amazonaws-us-gov.com/federation"
+	case apiawsutils.USGovPartition:
+		return "https://signin.amazonaws-us-gov.com/federation", nil
 
 	// AWS China Partition.
-	case strings.HasPrefix(targetURL, constants.AWSCNConsoleURL):
-		return "https://signin.amazonaws.cn/federation"
+	case apiawsutils.CNPartition:
+		return "https://signin.amazonaws.cn/federation", nil
 
 	// AWS Standard Partition.
 	default:
-		return "https://signin.aws.amazon.com/federation"
+		return "https://signin.aws.amazon.com/federation", nil
 	}
 }
 
