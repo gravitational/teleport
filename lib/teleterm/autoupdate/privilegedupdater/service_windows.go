@@ -67,11 +67,55 @@ const (
 	// the pipe should not set GENERIC_WRITE for standard users as it would allow them to create the pipe.
 	SafePipeReadWriteAccess = windows.GENERIC_READ | windows.FILE_WRITE_DATA
 
-	updateDirSecurityDescriptor = "O:SY" + // Owner SYSTEM
-		"D:P" + // 'P' blocks permissions inheritance from the parent directory
-		"(A;OICI;GA;;;SY)" + // Allow System Full Access
-		"(A;OICI;GA;;;BA)" // Allow Built-in Administrators Full Access
+	// updateRootDirName is the staging directory under SystemTemp.
+	updateRootDirName = "TeleportConnectUpdater"
 )
+
+var (
+	modkernel32       = windows.NewLazySystemDLL("kernel32.dll")
+	procGetTempPath2W = modkernel32.NewProc("GetTempPath2W")
+)
+
+// getSystemTempPath resolves the SystemTemp path (%WINDIR%\SystemTemp) without creating it.
+//
+// Staging updates here is what keeps the privileged updater safe: SystemTemp lives under
+// %WINDIR% and is writable only by SYSTEM and Administrators, so a standard user cannot
+// pre-create the staging root, plant files, or open the staged installer to tamper with it.
+// This relies on the service running as LocalSystem: GetTempPath2W returns the secure
+// SystemTemp path only for SYSTEM callers (other callers get a regular temp directory).
+//
+// The path GetTempPath2W for SYSTEM callers comes from %SYSTEMTEMP%, which defaults
+// to %WINDIR%\SystemTemp. An administrator can point it at a custom location, and we do not
+// check that location's ACLs, since doing so reliably is complex. Keeping a custom location
+// locked down is therefore the administrator's responsibility; Microsoft documents how to
+// change the variable safely in
+// https://support.microsoft.com/en-us/servicing/dotnetframework/2024/12/gettemppath-changes-in-windows-february-cumulative-update-preview.
+//
+// We prefer GetTempPath2W and fall back to %WINDIR%\SystemTemp on older builds. The caller
+// verifies the resolved path exists and is a real directory, aborting the update otherwise.
+func getSystemTempPath() (string, error) {
+	// When Windows updates released in March 2025 and later are installed, this API will be supported on Windows 10,
+	// version 1607 (Build 14393.7876) and later and Windows Server 2016 Build 14393.7876 and later versions.
+	if err := procGetTempPath2W.Find(); err == nil {
+		return getTempPath2()
+	}
+
+	// Fallback for older builds: %WINDIR%\SystemTemp was introduced sometime before Windows 10 build 19042.
+	windowsDir, err := windows.KnownFolderPath(windows.FOLDERID_Windows, 0)
+	if err != nil {
+		return "", trace.Wrap(err, "reading Windows path")
+	}
+	return filepath.Join(windowsDir, "SystemTemp"), nil
+}
+
+func getTempPath2() (string, error) {
+	buf := make([]uint16, windows.MAX_PATH+1)
+	ret, _, err := procGetTempPath2W.Call(uintptr(len(buf)), uintptr(unsafe.Pointer(&buf[0])))
+	if ret == 0 {
+		return "", trace.Wrap(err, "GetTempPath2W failed")
+	}
+	return filepath.Clean(windows.UTF16ToString(buf[:ret])), nil
+}
 
 // makePipeServerSecurityDescriptor allows SYSTEM/Admins Full Control and grants Authenticated Users the passed access mask.
 func makePipeServerSecurityDescriptor(authenticatedUsersAccess uint32) string {
@@ -86,10 +130,11 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
 // ServiceTestConfig allows overriding certain updater config properties.
 // For test use only.
 type ServiceTestConfig struct {
-	// UpdateDirSecurityDescriptor overrides updateDirSecurityDescriptor.
-	UpdateDirSecurityDescriptor string
-	// UpdateBaseDir overrides the default %ProgramData%\TeleportConnectUpdater update path.
-	UpdateBaseDir string
+	// SystemTempDir overrides the default %WINDIR%\SystemTemp root directory. Tests point this at t.TempDir().
+	SystemTempDir string
+	// ProgramDataDir overrides the default %ProgramData% root used for legacy
+	// update-dir cleanup. Tests point this at t.TempDir().
+	ProgramDataDir string
 	// PolicyToolsVersion overrides ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
 	PolicyToolsVersion string
 	// PolicyCDNBaseURL overrides CdnBaseUrl in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
@@ -196,6 +241,9 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 	if err = verifyUpdateChecksum(updatePath, hash); err != nil {
 		return trace.Wrap(err, "verifying update checksum")
 	}
+
+	// TODO(gzdunek): REMOVE IN 20.0.0.
+	h.removeLegacyUpdateRoots()
 
 	return trace.Wrap(runInstaller(updatePath, updateMeta.ForceRun), "running installer")
 }
@@ -304,129 +352,81 @@ func waitForSingleClient(ctx context.Context, authenticatedUsersAccess uint32) (
 	}
 }
 
-// getSecureUpdateDir secures %ProgramData%\TeleportConnectUpdater directory and then returns
-// a unique  %ProgramData%\TeleportConnectUpdater\<GUID> path.
+// getSecureUpdateDir returns a fresh per-update staging directory under
+// SystemTemp\TeleportConnectUpdater\<GUID>.
 func (h *handler) getSecureUpdateDir() (string, error) {
-	updateRoot := h.testCfg.UpdateBaseDir
-	if updateRoot == "" {
-		programData, err := windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	systemTempDir := h.testCfg.SystemTempDir
+	if systemTempDir == "" {
+		temp, err := getSystemTempPath()
 		if err != nil {
-			return "", trace.Wrap(err, "reading ProgramData path")
+			return "", trace.Wrap(err, "resolving SystemTemp")
 		}
-		updateRoot = filepath.Join(programData, "TeleportConnectUpdater")
+		systemTempDir = temp
+	}
+	// SystemTemp is provisioned by Windows; verify it before staging.
+	if err := verifyRealDirectory(systemTempDir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", trace.BadParameter("the updater requires %s to be available, ensure your system is up-to-date", systemTempDir)
+		}
+		return "", trace.Wrap(err, "verifying SystemTemp %s", systemTempDir)
 	}
 
-	descriptor := updateDirSecurityDescriptor
-	if h.testCfg.UpdateDirSecurityDescriptor != "" {
-		descriptor = h.testCfg.UpdateDirSecurityDescriptor
-	}
-	sd, err := windows.SecurityDescriptorFromString(descriptor)
-	if err != nil {
-		return "", trace.Wrap(err, "creating security descriptor")
+	updateRoot := filepath.Join(systemTempDir, updateRootDirName)
+
+	// Inherit SystemTemp's locked-down ACL.
+	if err := os.MkdirAll(updateRoot, 0); err != nil {
+		return "", trace.Wrap(err, "creating staging root %s", updateRoot)
 	}
 
-	sa := &windows.SecurityAttributes{
-		Length:             uint32(unsafe.Sizeof(windows.SecurityAttributes{})),
-		SecurityDescriptor: sd,
-		InheritHandle:      0,
-	}
-
-	if err = ensureDirIsSecure(updateRoot, sa); err != nil {
-		return "", trace.Wrap(err, "securing TeleportConnectUpdater directory")
-	}
-
-	err = cleanupOldUpdates(updateRoot)
-	if err != nil {
+	if err := cleanupOldUpdates(updateRoot); err != nil {
 		return "", trace.Wrap(err, "cleaning up old updates")
 	}
 
-	// Create a per-update random directory. This prevents DLL planting attacks, as the update is executed from its own directory.
+	// Isolate each install.
 	newGUID := uuid.New().String()
 	updateDir := filepath.Join(updateRoot, newGUID)
-	updateDirPtr, err := windows.UTF16PtrFromString(updateDir)
-	if err != nil {
-		return "", trace.Wrap(err)
+	if err := os.Mkdir(updateDir, 0); err != nil {
+		return "", trace.Wrap(err, "creating update dir %s", updateDir)
 	}
-
-	if err = windows.CreateDirectory(updateDirPtr, sa); err != nil {
-		return "", trace.Wrap(err, "failed to create update dir")
-	}
-
 	return updateDir, nil
 }
 
-// ensureDirIsSecure guarantees that the directory exists and is locked down to SYSTEM/Admins only.
-func ensureDirIsSecure(dir string, sa *windows.SecurityAttributes) error {
-	namePtr, err := windows.UTF16PtrFromString(dir)
+func verifyRealDirectory(path string) error {
+	namePtr, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Try to create the directory with the secure ACLs immediately.
-	err = windows.CreateDirectory(namePtr, sa)
-	// If the directory exists, continue with verification and reapply the ACLs.
-	if err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
-		return trace.Wrap(err, "creating directory")
-	}
-
-	// If the directory exists, open a handle with DACL modification rights
-	// We use FILE_FLAG_OPEN_REPARSE_POINT to ensure we open the directory itself,
-	// not a target it might point to (it could be a junction).
-	dirHandle, err := windows.CreateFile(
+	handle, err := windows.CreateFile(
 		namePtr,
-		windows.READ_CONTROL|windows.WRITE_DAC|windows.WRITE_OWNER,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+		windows.READ_CONTROL,
+		// Metadata-only verification handle, closed immediately after the attribute
+		// check, so we don't block concurrent readers/writers/deleters.
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
 		nil,
 		windows.OPEN_EXISTING,
 		windows.FILE_FLAG_OPEN_REPARSE_POINT|windows.FILE_FLAG_BACKUP_SEMANTICS,
 		0,
 	)
 	if err != nil {
-		return trace.Wrap(err, "failed to open handle to existing directory")
+		return trace.Wrap(err, "opening directory %s", path)
 	}
-	defer windows.CloseHandle(dirHandle)
+	defer windows.CloseHandle(handle)
 
-	// Verify it is a real directory (not a symlink/junction)
-	// This prevents redirection attacks where we might unexpectedly secure a system folder.
 	var info windows.ByHandleFileInformation
-	if err = windows.GetFileInformationByHandle(dirHandle, &info); err != nil {
+	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {
 		return trace.Wrap(err, "getting file information")
 	}
-
+	// Defense-in-depth: although SystemTemp is considered trusted, reject reparse points
+	// to prevent file I/O from being redirected through a junction, mount point, or
+	// symbolic link.
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-		return trace.BadParameter("security violation: %s is a reparse point", dir)
+		return trace.BadParameter("security violation: %s is a reparse point", path)
 	}
-
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY == 0 {
-		return trace.BadParameter("security violation: %s exists but is not a directory", dir)
+		return trace.BadParameter("security violation: %s exists but is not a directory", path)
 	}
-
-	owner, _, err := sa.SecurityDescriptor.Owner()
-	if err != nil {
-		return trace.Wrap(err, "reading owner from security descriptor")
-	}
-	dacl, _, err := sa.SecurityDescriptor.DACL()
-	if err != nil {
-		return trace.Wrap(err, "reading DACL from security descriptor")
-	}
-	if dacl == nil {
-		return trace.BadParameter("security violation: DACL must not be empty")
-	}
-
-	// Reapply directory ACLs.
-	err = windows.SetSecurityInfo(
-		dirHandle,
-		windows.SE_FILE_OBJECT,
-		// PROTECTED_DACL_SECURITY_INFORMATION stops the directory from inheriting
-		// "User Write" permissions from the parent (%ProgramData%).
-		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
-		owner,
-		nil,
-		dacl,
-		nil,
-	)
-
-	return trace.Wrap(err, "resetting directory security")
+	return nil
 }
 
 // cleanupOldUpdates removes stale update directories and files from the cache.
@@ -454,6 +454,29 @@ func cleanupOldUpdates(baseDir string) error {
 		}
 	}
 	return nil
+}
+
+// removeLegacyUpdateRoots best-effort cleans up old %ProgramData% staging dir.
+// The new SystemTemp staging path does not depend on this succeeding.
+func (h *handler) removeLegacyUpdateRoots() {
+	programData := h.testCfg.ProgramDataDir
+	if programData == "" {
+		var err error
+		programData, err = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+		if err != nil {
+			log.WarnContext(context.Background(), "Skipping legacy update-root cleanup; cannot resolve ProgramData", "error", err)
+			return
+		}
+	}
+	name := "TeleportConnectUpdater"
+	path := filepath.Join(programData, name)
+	// This function runs with SYSTEM privileges and relies on the Go standard library’s
+	// os.RemoveAll implementation on Windows. It detects reparse points (symlinks and
+	// junctions) and removes the link itself without ever recursing into the target,
+	// mitigating junction/symlink crossing attacks.
+	if err := os.RemoveAll(path); err != nil {
+		log.WarnContext(context.Background(), "Failed to remove legacy update root", "path", path, "error", err)
+	}
 }
 
 func ensureIsUpgrade(updateVersion string) error {
