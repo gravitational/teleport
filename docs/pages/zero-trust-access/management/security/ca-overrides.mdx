@@ -89,9 +89,9 @@ The `cert_authority_override` resource targets a CA with the following fields:
   override-aware Teleport version.
 
 - For safety, back up your cluster state before starting and retain downstream
-  trust to the self-signed CA certificates until the upgrade is fully verified.
+  trust in the self-signed CA certificates until the upgrade is fully verified.
 
-## Step 1/5. Prepare the override certificate CSR
+## Step 1/6. Prepare the override certificate CSR
 
 The `windows` CA is used as an example. Replace with your target CA, as
 appropriate.
@@ -122,7 +122,7 @@ issuing the `create-override-csr` command. Teleport will automatically collect
 CSRs from all online Auth Service instances.
 </Admonition>
 
-## Step 2/5. Issue override certificates using your external CA
+## Step 2/6. Issue override certificates using your external CA
 
 Using the CSRs from step 1, issue the override certificates with your external
 CA.
@@ -136,7 +136,32 @@ The certificates must meet the following requirements:
   (first element) or in the OID `1.3.9999.4.1`.
   CSRs from step 1 always have a valid subject.
 
-## Step 3/5. Configure downstream trust
+## Step 3/6. Create the disabled certificate overrides
+
+Using the certificates acquired in step 2, create a disabled certificate
+override for each certificate:
+
+```code
+$ tctl auth create-override --disabled --type=windows cert.pem
+```
+
+### Multi-Auth Service clusters with per-instance HSM keys
+
+In clusters with multiple Auth Service instances and a separate HSM key per
+instance, each Auth Service instance may only be able to access its own private
+keys. In this scenario, make sure all Auth Service instances are online and
+healthy, then create your overrides in the disabled state. The Auth Service
+instances automatically sign CRLs in the background for their respective keys.
+
+```code
+# Create the override. Repeat for each certificate override.
+$ tctl auth create-override --disabled --type=windows cert.pem
+
+# Verify that CRLs are present.
+$ tctl get ca_overrides/windows
+```
+
+## Step 4/6. Configure downstream trust
 
 Using the certificates acquired in step 2, configure downstream trust before
 proceeding. We recommend retaining trust in the self-signed Teleport CA for a
@@ -152,6 +177,90 @@ but are not limited to, MariaDB, MySQL, PostgreSQL, Redis and Oracle.
 
 We recommend checking your database documentation and verifying access after
 applying the CA override in a controlled environment.
+
+### db_client - Microsoft SQL Server with PKINIT authentication
+
+Configuring [MSSQL Server with PKINIT authentication](
+../../../enroll-resources/database-access/enrollment/self-hosted/sql-server-ad-pkinit.mdx)
+requires that you:
+
+1. Import the CA chain's trusted root and intermediates, as required by the
+   domain, including the override CA certificate.
+
+2. Publish the override CA certificate to NTAuth.
+
+3. Publish the override CA CRLs.
+
+   The CA override must exist before this step. Each certificate override must
+   generate a CRL; verify that async CRL generation has completed via `tctl get
+   ca_overrides/db_client`.
+
+   Run the command below and follow its instructions.
+
+   ```code
+   $ tctl auth crl --type=db_client --out=./out
+   Writing 2 files with prefix "./out"
+   ./out-db_client-5b7ec7f7.crl
+   ./out-db_client-override-5b7ec7f7.crl
+
+   To publish CRLs, run the following in Windows:
+     certutil -dspublish ./out-db_client-5b7ec7f7.crl TeleportDB "example.com"
+     certutil -dspublish ./out-db_client-override-5b7ec7f7.crl TeleportDB "B4TK2353F87SEBD6J60P4N4IC8SVE5OH_example.com"
+   ```
+
+4. Describe the complete trust chain, for each certificate override, in the
+   `cert_authority_override` resource (leaf to root). This allows `kinit` to
+   pass its self-validation step.
+
+   For example:
+
+   ```yaml
+   kind: cert_authority_override
+   sub_kind: db_client
+   version: v1
+   metadata:
+     name: example.com
+   spec:
+     certificate_overrides:
+     - certificate: |-
+         -----BEGIN CERTIFICATE-----
+         (override certificate)
+         -----END CERTIFICATE-----
+       chain:
+       - |-
+         -----BEGIN CERTIFICATE-----
+         (intermediate 2)
+         -----END CERTIFICATE-----
+       - |-
+         -----BEGIN CERTIFICATE-----
+         (intermediate 1)
+         -----END CERTIFICATE-----
+       - |-
+         -----BEGIN CERTIFICATE-----
+         (root)
+         -----END CERTIFICATE-----
+       disabled: true
+   ```
+
+   You may supply the chain using the dedicated `tctl auth` CA override
+   commands or via `tctl edit`.
+
+   ```code
+   tctl auth create-override --type=db-client \
+     --disabled \
+     cert.pem \
+     int2.pem \
+     int1.pem \
+     root.pem
+
+   tctl auth update-override --type=db-client \
+     --public-key='<Var name="public-key" />' \
+     --set-chain=int2.pem \
+     --set-chain=int1.pem \
+     --set-chain=root.pem
+
+   tctl edit ca_overrides/db_client
+   ```
 
 ### windows
 
@@ -187,38 +296,18 @@ Verify the override CA chain:
 $ certutil -verify -urlfetch .\override.cer
 ```
 
-## Step 4/5. Create the certificate overrides
+## Step 5/6. Enable the certificate overrides
 
-After issuing certificates and configuring downstream trust, create a
-certificate override for each certificate:
-
-```code
-$ tctl auth create-override --type=windows cert.pem
-```
-
-### Disabled overrides
-
-You may create a disabled override and enable it later. A disabled override
-works as if it didn't exist, leaving signing to the self-signed CA certificate.
-
-This is useful for environments with staged rollouts, so overrides may be
-created in a disabled state until downstream services are ready to accept them.
-Set `disabled` to `false` when you are ready to enable the override.
-
-Create the disabled override:
-
-```code
-$ tctl auth create-override --type=windows cert.pem --disabled
-```
-
-Enable it:
+After configuring downstream trust, execute the command below for each
+certificate override to enable it:
 
 ```code
 $ tctl auth update-override --type=windows --public-key=<Var name="public-key" /> --set-disabled=false
 ```
 
 You can find the public key of the target override using the `tctl auth
-pub-key-hash` command or reading it from the ca_override itself.
+pub-key-hash` command or by reading it from the `cert_authority_override`
+resource.
 
 Using `tctl auth pub-key-hash`:
 
@@ -238,27 +327,7 @@ Alternatively, you may edit directly using:
 $ tctl edit ca_overrides/windows
 ```
 
-### Multi-Auth Service clusters with per-instance HSM keys
-
-In clusters with multiple Auth Service instances and a separate HSM key per
-instance, each Auth Service instance may only be able to access its own private
-keys. In this scenario, make sure all Auth Service instances are online and
-healthy, then create your overrides in the disabled state. The Auth Service
-instances automatically sign CRLs in the background for their respective keys.
-After a certificate override has a matching CRL it can be enabled.
-
-```code
-# Create the override. Repeat for each certificate override.
-$ tctl auth create-override --disabled --type=windows cert.pem
-
-# Verify that CRLs are present.
-$ tctl get ca_overrides/windows
-
-# Enable the override. Repeat for each certificate override.
-$ tctl auth update-override --type=windows --public-key=<Var name="public-key" /> --set-disabled=false
-```
-
-## Step 5/5. Exercise the CA override
+## Step 6/6. Exercise the CA override
 
 Exercise the override by attempting a connection with the appropriate protocol
 (RDP for `windows`, `tsh db connect` for `db_client`, etc).
