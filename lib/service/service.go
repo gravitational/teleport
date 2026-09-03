@@ -5419,7 +5419,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		grpcServerMTLS           *grpc.Server
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
-		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		clientTLSConfigGenerator *authclient.ClientTLSConfigGenerator
 		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
@@ -6146,7 +6146,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// clientTLSConfigGenerator pre-generates specialized per-cluster client TLS config values
-	clientTLSConfigGenerator, err = auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+	clientTLSConfigGenerator, err = authclient.NewClientTLSConfigGenerator(authclient.ClientTLSConfigGeneratorConfig{
 		TLS:                  sshGRPCTLSConfig,
 		ClusterName:          clusterName,
 		PermitRemoteClusters: true,
@@ -6814,7 +6814,7 @@ func (process *TeleportProcess) setupTLSConfigClientCAGeneratorForCluster(tlsCon
 
 	// Set up the client CA generator containing for the local cluster's CAs in
 	// order to be able to validate certificates provided by app access CLI clients.
-	generator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+	generator, err := authclient.NewClientTLSConfigGenerator(authclient.ClientTLSConfigGeneratorConfig{
 		TLS:                  tlsClone,
 		ClusterName:          clusterName,
 		PermitRemoteClusters: false,

@@ -58,13 +58,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
-// Useful for trust-related components that need to watch for changes.
-type AccessCacheWithEvents interface {
-	authclient.AccessCache
-	types.Events
-}
-
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
 	// Listener is a listener to bind to
@@ -78,7 +71,7 @@ type TLSServerConfig struct {
 	// LimiterConfig is limiter config
 	LimiterConfig limiter.Config
 	// AccessPoint is a caching access point
-	AccessPoint AccessCacheWithEvents
+	AccessPoint authclient.AccessCacheWithEvents
 	// Component is used for debugging purposes
 	Component string
 	// AcceptedUsage restricts authentication
@@ -136,7 +129,7 @@ type TLSServer struct {
 	mux *multiplexer.TLSListener
 	// clientTLSConfigGenerator pre-generates and caches specialized per-cluster
 	// client TLS configs.
-	clientTLSConfigGenerator *ClientTLSConfigGenerator
+	clientTLSConfigGenerator *authclient.ClientTLSConfigGenerator
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -222,7 +215,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
 
-	server.clientTLSConfigGenerator, err = NewClientTLSConfigGenerator(ClientTLSConfigGeneratorConfig{
+	server.clientTLSConfigGenerator, err = authclient.NewClientTLSConfigGenerator(authclient.ClientTLSConfigGeneratorConfig{
 		TLS:                  tlsConfig,
 		ClusterName:          localClusterName.GetClusterName(),
 		PermitRemoteClusters: true,
