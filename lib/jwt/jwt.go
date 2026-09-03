@@ -30,6 +30,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -111,9 +112,6 @@ type SignParams struct {
 	// Expiry is time to live for the token.
 	Expires time.Time
 
-	// URI is the URI of the recipient application.
-	URI string
-
 	// Audience is the Audience for the Token.
 	Audience string
 
@@ -132,8 +130,8 @@ func (p *SignParams) Check() error {
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")
 	}
-	if p.URI == "" {
-		return trace.BadParameter("uri missing")
+	if p.Audience == "" {
+		return trace.BadParameter("audience missing")
 	}
 
 	return nil
@@ -219,12 +217,18 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	// Filter out empty traits in place so the resulting JWT doesn't have a
+	// bunch of entries with nil values.
+	maps.DeleteFunc(p.Traits, func(_ string, values []string) bool {
+		return len(values) == 0
+	})
+
 	// Sign the claims and create a JWT token.
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    cmp.Or(p.Issuer, k.config.ClusterName),
-			Audience:  jwt.Audience{p.URI},
+			Audience:  jwt.Audience{p.Audience},
 			ID:        uuid.NewString(),
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
@@ -604,9 +608,6 @@ type VerifyParams struct {
 	// RawToken is the JWT token.
 	RawToken string
 
-	// URI is the URI of the recipient application.
-	URI string
-
 	// Audience is the Audience for the token
 	Audience string
 
@@ -622,8 +623,8 @@ func (p *VerifyParams) Check() error {
 	if p.RawToken == "" {
 		return trace.BadParameter("raw token missing")
 	}
-	if p.URI == "" {
-		return trace.BadParameter("uri missing")
+	if p.Audience == "" {
+		return trace.BadParameter("audience missing")
 	}
 
 	return nil
@@ -702,7 +703,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	expectedClaims := jwt.Expected{
 		Issuer:   cmp.Or(p.Issuer, k.config.ClusterName),
 		Subject:  p.Username,
-		Audience: jwt.Audience{p.URI},
+		Audience: jwt.Audience{p.Audience},
 		Time:     k.config.Clock.Now(),
 	}
 

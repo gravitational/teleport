@@ -118,6 +118,51 @@ func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
 	return keys.ParsePrivateKey(bytes)
 }
 
+// VerifyCertificateWithClockSkew verifies the certificate chain and expiry with
+// clock skew tolerance in both directions.
+func VerifyCertificateWithClockSkew(cert *x509.Certificate, clock clockwork.Clock, skew time.Duration, opts x509.VerifyOptions) error {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
+	// cert.Verify applies CurrentTime to every certificate in the chain and
+	// does not support separate NotBefore/NotAfter leeway for the leaf
+	// certificate.
+	//
+	// For this reason we perform the certificate verify in two steps:
+	//   1. Verify certificate validity using custom clock-skew policy.
+	//   2. Perform the remaining verification on the cert using a shallow copy
+	//      of the certificate that will pass the expiry verification.
+	//
+	// The shallow copy usage still checks the original TBSCertificate bytes,
+	// the only effective difference is the Verify's leaf time check.
+	now := clock.Now()
+	if now.Add(skew).Before(cert.NotBefore) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate is not yet valid",
+		}
+	}
+
+	if now.Add(-skew).After(cert.NotAfter) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate has expired",
+		}
+	}
+
+	verifyCert := *cert
+	verifyCert.NotAfter = now.Add(time.Second)
+	verifyCert.NotBefore = now.Add(-time.Second)
+	opts.CurrentTime = now
+	if _, err := verifyCert.Verify(opts); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // VerifyCertificateExpiryWithLeeway checks the certificate's expiration status
 // with leeway. The provided leeway value is added to the current time and can
 // be used to account for potential client-side clock drift. Clients validating

@@ -612,29 +612,8 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 		}
 	}
 
-	// cert.Verify applies CurrentTime to every certificate in the chain and
-	// does not support separate NotBefore/NotAfter leeway for the leaf
-	// certificate.
-	//
-	// For this reason we perform the certificate verify in two steps:
-	//   1. Verify certificate validity using custom clock-skew policy.
-	//   2. Perform the remaining verification on the cert using a shallow copy
-	//      of the certificate that will pass the expiry verification.
-	//
-	// The shallow copy usage still checks the original TBSCertificate bytes,
-	// the only effective difference is the Verify's leaf time check.
-	now := s.clock.Now()
-	if err := verifyCertValidityWithSkew(cert, now); err != nil {
-		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
-	}
-
-	verifyCert := *cert
-	verifyCert.NotAfter = now.Add(time.Second)
-	verifyCert.NotBefore = now.Add(-time.Second)
-
-	if _, err := verifyCert.Verify(x509.VerifyOptions{
-		Roots:       roots,
-		CurrentTime: now,
+	if err := utils.VerifyCertificateWithClockSkew(cert, s.clock, certVerifyClockSkewAllowance, x509.VerifyOptions{
+		Roots: roots,
 		KeyUsages: []x509.ExtKeyUsage{
 			// Extensions added by tlsca.
 			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
@@ -1275,23 +1254,3 @@ func serialString(serial *big.Int) string {
 // certVerifyClockSkewAllowance is the amount of leeway added to the
 // certificate's expiration status check to allow for clock drift.
 const certVerifyClockSkewAllowance = 1 * time.Minute
-
-func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
-	if now.Add(certVerifyClockSkewAllowance).Before(cert.NotBefore) {
-		return x509.CertificateInvalidError{
-			Cert:   cert,
-			Reason: x509.Expired,
-			Detail: "certificate is not yet valid",
-		}
-	}
-
-	if now.Add(-certVerifyClockSkewAllowance).After(cert.NotAfter) {
-		return x509.CertificateInvalidError{
-			Cert:   cert,
-			Reason: x509.Expired,
-			Detail: "certificate has expired",
-		}
-	}
-
-	return nil
-}
