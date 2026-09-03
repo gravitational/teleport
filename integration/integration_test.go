@@ -8099,6 +8099,25 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 				_, err = sftpClient.Open(symlinkFile)
 				require.ErrorContains(t, err, "following symlinks is not allowed")
 			})
+
+			t.Run("block exec sessions", func(t *testing.T) {
+				createAndApproveTransferRequest(t, tracessh.FileTransferReq{
+					Download: true,
+					Location: reqFile,
+				})
+				execSession, err := tc.sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
+					ModeratedSessionID: sessTracker.GetSessionID(),
+				})
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					isNilOrEOFErr(t, execSession.Close())
+				})
+				err = execSession.Run(ctx, "ls")
+				if assert.Error(t, err) {
+					// ensure file transfer is consumed.
+					require.NoError(t, openSFTPClient(t).Close())
+				}
+			})
 		})
 	}
 }

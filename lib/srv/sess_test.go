@@ -423,18 +423,6 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 				require.ErrorIs(t, err, errCannotStartUnattendedSession)
 			},
 		},
-		{
-			name: "exec unapproved moderated file transfer",
-			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
-				return reg.OpenExecSession(ctx, ch, scx)
-			},
-			configure: func(t *testing.T, _ *mockServer, scx *ServerContext, _ *trackerService) {
-				scx.SetEnv(sftp.EnvModeratedSessionID, string(rsession.NewID()))
-			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsNotFound(err))
-			},
-		},
 	}
 
 	for _, tt := range cases {

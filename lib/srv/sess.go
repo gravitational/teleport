@@ -429,11 +429,6 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		}
 	}()
 
-	approved, err := s.isApprovedFileTransfer(scx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	sess.mu.Lock()
 	canStart, _, err := sess.checkIfStartUnderLock()
 	sess.mu.Unlock()
@@ -441,9 +436,8 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return trace.Wrap(err)
 	}
 
-	// canStart will be true for non-moderated sessions. If canStart is false, check to
-	// see if the request has been approved through a moderated session next.
-	if !canStart && !approved {
+	// canStart will be true for non-moderated sessions.
+	if !canStart {
 		return errCannotStartUnattendedSession
 	}
 
