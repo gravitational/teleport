@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -167,23 +166,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.NextProtos = []string{"teleport-tdpb-1.0"}
 	// Populate the correct CAs for the incoming client connection.
-	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		var clusterName string
-		var err error
-		if info.ServerName != "" {
-			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-			if err != nil && !trace.IsNotFound(err) {
-				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
-			}
-		}
-		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsCopy := tlsConfig.Clone()
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
+	tlsConfig.GetConfigForClient = authclient.WithClusterCAs(tlsConfig, accessPoint, clusterName, logger)
 
 	connLimiter := limiter.NewConnectionsLimiter(cfg.LinuxDesktop.ConnLimiter.MaxConnections)
 

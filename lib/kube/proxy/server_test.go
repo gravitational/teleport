@@ -56,7 +56,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	require.NoError(t, err)
 
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
-		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
+		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name, Organization: []string{name}}, nil, time.Minute)
 		require.NoError(t, err)
 		key, err = keys.MarshalPrivateKey(caKey)
 		require.NoError(t, err)
@@ -83,10 +83,17 @@ func TestMTLSClientCAs(t *testing.T) {
 	// Generate user and host credentials, using the same private key.
 	userHostKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	genCert := func(t *testing.T, cn string, sans ...string) tls.Certificate {
+	genCert := func(t *testing.T, id *tlsca.Identity, sans ...string) tls.Certificate {
+		var subj pkix.Name
+		if id != nil {
+			subj, err = id.Subject()
+			require.NoError(t, err)
+		} else {
+			subj = pkix.Name{CommonName: "localhost"}
+		}
 		certRaw, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			PublicKey: userHostKey.Public(),
-			Subject:   pkix.Name{CommonName: cn},
+			Subject:   subj,
 			NotAfter:  time.Now().Add(time.Minute),
 			DNSNames:  sans,
 		})
@@ -97,8 +104,12 @@ func TestMTLSClientCAs(t *testing.T) {
 		require.NoError(t, err)
 		return cert
 	}
-	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
-	userCert := genCert(t, "user")
+	hostCert := genCert(t, nil, "localhost", "127.0.0.1", "::1")
+	userCert := genCert(t, &tlsca.Identity{
+		Username:        "node",
+		Groups:          []string{string(types.RoleNode)},
+		TeleportCluster: mainClusterName,
+	})
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
 			Log: logtest.NewLogger(),

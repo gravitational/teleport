@@ -81,14 +81,21 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	}
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+	hostCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	userCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -113,6 +120,7 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 		RouteToCluster:    cfg.RouteToCluster,
 		KubernetesCluster: cfg.KubeCluster,
 		PinnedIP:          cfg.PinnedIP,
+		TeleportCluster:   clusterName.GetClusterName(),
 	}
 	subj, err := id.Subject()
 	if err != nil {
@@ -129,7 +137,7 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	}
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:     ca.GetActiveKeys().TLS[0].Cert,
+		CAData:     hostCA.GetActiveKeys().TLS[0].Cert,
 		CertData:   cert,
 		KeyData:    privPEM,
 		ServerName: cfg.CustomTLSServerName,

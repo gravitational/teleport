@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"log/slog"
@@ -109,10 +108,6 @@ func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind 
 
 func (a *Server) GenerateAndUpsertRecoveryCodes(ctx context.Context, username string) (*proto.RecoveryCodes, error) {
 	return a.generateAndUpsertRecoveryCodes(ctx, username)
-}
-
-func (p *HostAndUserCAPoolInfo) VerifyPeerCert() func([][]byte, [][]*x509.Certificate) error {
-	return p.verifyPeerCert()
 }
 
 func (a *Server) CheckPassword(ctx context.Context, user string, password []byte, otpToken string) error {

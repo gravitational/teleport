@@ -6591,7 +6591,7 @@ func TestVerifyPeerCert(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			verify := caPool.VerifyPeerCert()
+			verify := authclient.VerifyPeerCertificate(caPool.CATypes)
 			err := verify(nil, [][]*x509.Certificate{{tt.peer}})
 			if tt.wantErr {
 				require.ErrorContains(t, err, "access denied: invalid client certificate")
@@ -6602,8 +6602,8 @@ func TestVerifyPeerCert(t *testing.T) {
 	}
 }
 
-func buildPoolInfo(t *testing.T, ca ...types.CertAuthority) *auth.HostAndUserCAPoolInfo {
-	poolInfo := auth.HostAndUserCAPoolInfo{
+func buildPoolInfo(t *testing.T, ca ...types.CertAuthority) *authclient.HostAndUserCAPoolInfo {
+	poolInfo := authclient.HostAndUserCAPoolInfo{
 		Pool:    x509.NewCertPool(),
 		CATypes: make(authclient.HostAndUserCAInfo),
 	}

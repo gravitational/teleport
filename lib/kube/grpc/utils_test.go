@@ -574,13 +574,18 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(c.Context, types.CertAuthID{
+	hostCA, err := authServer.GetCertAuthority(c.Context, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
+	userCA, err := authServer.GetCertAuthority(c.Context, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.Context, ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.Context, userCA)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
@@ -602,6 +607,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+		TeleportCluster:   clusterName.GetClusterName(),
 		Traits:            user.GetTraits(),
 	}
 	for _, opt := range opts {
@@ -619,7 +625,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	require.NoError(t, err)
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:     ca.GetActiveKeys().TLS[0].Cert,
+		CAData:     hostCA.GetActiveKeys().TLS[0].Cert,
 		CertData:   cert,
 		KeyData:    privPEM,
 		ServerName: "teleport.cluster.local",

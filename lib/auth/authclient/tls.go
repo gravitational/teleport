@@ -25,10 +25,18 @@ import (
 
 	"github.com/gravitational/trace"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// AccessCacheWithEvents extends the [AccessCache] interface with [types.Events].
+// Useful for trust-related components that need to watch for changes.
+type AccessCacheWithEvents interface {
+	AccessCache
+	types.Events
+}
 
 // CAGetter is an interface for retrieving certificate authorities.
 type CAGetter interface {
@@ -78,8 +86,10 @@ func ClientCertPool(ctx context.Context, client CAGetter, clusterName string, ca
 	return pool, totalSubjectsLen, nil
 }
 
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(ctx context.Context, client CAGetter, clusterName string) (*x509.CertPool, HostAndUserCAInfo, int64, error) {
+// defaultClientCertPool returns default trusted x509 certificate authority pool.
+// Use [WithClusterCAs] for setting up TLS client authentication on servers,
+// or [ClientTLSConfigGenerator] for cached, event-driven TLS configs.
+func defaultClientCertPool(ctx context.Context, client CAGetter, clusterName string) (*x509.CertPool, HostAndUserCAInfo, int64, error) {
 	authorities, err := getCACerts(ctx, client, clusterName, types.HostCA, types.UserCA)
 	if err != nil {
 		return nil, nil, 0, trace.Wrap(err)
@@ -152,6 +162,20 @@ func getCACerts(ctx context.Context, client CAGetter, clusterName string, caType
 // TLS config with client CAs pool of the specified cluster.
 func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName string, logger *slog.Logger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		// onPoolErr decides what to do when the client CA pool can't be loaded.
+		// If client certs are required, fail closed by aborting the handshake.
+		// Otherwise keep no-cert handshakes working but reject any presented cert:
+		// the empty pool must be non-nil, since a nil ClientCAs makes crypto/tls verify against the host's system roots.
+		onPoolErr := func(err error) (*tls.Config, error) {
+			if tlsConfig.ClientAuth == tls.RequireAndVerifyClientCert || tlsConfig.ClientAuth == tls.RequireAnyClientCert {
+				return nil, trace.Wrap(err)
+			}
+			tlsCopy := tlsConfig.Clone()
+			tlsCopy.ClientCAs = x509.NewCertPool()
+			tlsCopy.VerifyPeerCertificate = nil
+			return tlsCopy, nil
+		}
+
 		var clusterName string
 		var err error
 		if info.ServerName != "" {
@@ -164,11 +188,10 @@ func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName strin
 				}
 			}
 		}
-		pool, _, totalSubjectsLen, err := DefaultClientCertPool(info.Context(), ap, clusterName)
+		pool, caMap, totalSubjectsLen, err := defaultClientCertPool(info.Context(), ap, clusterName)
 		if err != nil {
 			logger.ErrorContext(info.Context(), "Failed to retrieve client pool for cluster", "error", err, "cluster", clusterName)
-			// this falls back to the default config
-			return nil, nil
+			return onPoolErr(err)
 		}
 
 		// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
@@ -186,15 +209,81 @@ func WithClusterCAs(tlsConfig *tls.Config, ap CAGetter, currentClusterName strin
 		if totalSubjectsLen >= int64(math.MaxUint16) {
 			logger.DebugContext(info.Context(), "Number of CAs in client cert pool is too large and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; will use only the CA of the current cluster to validate")
 
-			pool, _, _, err = DefaultClientCertPool(info.Context(), ap, currentClusterName)
+			pool, caMap, _, err = defaultClientCertPool(info.Context(), ap, currentClusterName)
 			if err != nil {
 				logger.ErrorContext(info.Context(), "Failed to retrieve client pool for cluster", "error", err, "cluster", currentClusterName)
-				// this falls back to the default config
-				return nil, nil
+				return onPoolErr(err)
 			}
 		}
 		tlsCopy := tlsConfig.Clone()
 		tlsCopy.ClientCAs = pool
+		tlsCopy.VerifyPeerCertificate = VerifyPeerCertificate(caMap)
 		return tlsCopy, nil
 	}
+}
+
+const invalidCertErrMsg = "access denied: invalid client certificate"
+
+// VerifyPeerCertificate returns a tls.Config.VerifyPeerCertificate callback
+// that checks the client peer certificate's claimed cluster name matches the
+// cluster name of the CA that issued it, and that the CA type (host vs user)
+// matches the cert's role type.
+func VerifyPeerCertificate(caMap HostAndUserCAInfo) func([][]byte, [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
+			return nil
+		}
+
+		peerCert := verifiedChains[0][0]
+		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
+		if err != nil {
+			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
+			return trace.Wrap(err)
+		}
+
+		certClusterName := identity.TeleportCluster
+		issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
+		if err != nil {
+			slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+		if certClusterName != issuerClusterName {
+			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		ca, ok := caMap[string(peerCert.RawIssuer)]
+		if !ok {
+			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		systemRole, found := findPrimarySystemRole(identity)
+		if found && !ca.IsHostCA {
+			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
+			return trace.AccessDenied(invalidCertErrMsg)
+		} else if !found && !ca.IsUserCA {
+			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		return nil
+	}
+}
+
+func findPrimarySystemRole(i *tlsca.Identity) (types.SystemRole, bool) {
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		role := types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
+		if err := role.Check(); err != nil {
+			return "", false
+		}
+		return role, true
+	}
+	for _, role := range i.Groups {
+		systemRole := types.SystemRole(role)
+		if err := systemRole.Check(); err == nil {
+			return systemRole, true
+		}
+	}
+	return "", false
 }
