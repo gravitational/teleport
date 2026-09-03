@@ -37,22 +37,24 @@ tool. After that, there is no need to update or relaunch the MCP client - just
 try using it again.`
 )
 
+// IsNetworkTimeoutError reports whether err is a network timeout.
+func IsNetworkTimeoutError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 // IsLikelyTemporaryNetworkError returns true if the error is likely a temporary
 // network error.
 func IsLikelyTemporaryNetworkError(err error) bool {
 	if trace.IsConnectionProblem(err) ||
-		isTemporarySyscallNetError(err) {
+		isTemporarySyscallNetError(err) ||
+		IsNetworkTimeoutError(err) {
 		return true
 	}
 
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {
 		return dnsErr.Temporary()
-	}
-
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return netErr.Timeout()
 	}
 
 	return false

@@ -50,6 +50,11 @@ type LocalProxyHTTPMiddleware interface {
 	ClearCerts()
 }
 
+// LocalProxyHTTPTransportMiddleware wraps the upstream HTTP transport.
+type LocalProxyHTTPTransportMiddleware interface {
+	WrapRoundTripper(base http.RoundTripper) http.RoundTripper
+}
+
 // DefaultLocalProxyHTTPMiddleware provides default no-op implementations for
 // [LocalProxyHTTPMiddleware].
 type DefaultLocalProxyHTTPMiddleware struct {
