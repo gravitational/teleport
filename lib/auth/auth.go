@@ -3522,8 +3522,8 @@ func (a *Server) augmentUserCertificates(
 			principal = sshCert.ValidPrincipals[0]
 		}
 
-		certChecker := &ssh.CertChecker{
-			Clock: a.clock.Now,
+		certChecker := &apisshutils.CertChecker{
+			CertChecker: ssh.CertChecker{Clock: a.clock.Now},
 		}
 		if err := certChecker.CheckCert(principal, sshCert); err != nil {
 			return nil, trace.Wrap(err)

@@ -360,7 +360,7 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 			// IPv6
 			ip = i.PinnedIP + "/128"
 		}
-		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip
+		cert.CriticalOptions[constants.CertCriticalOptionSourceAddress] = ip
 	}
 
 	for _, extension := range i.CertificateExtensions {
@@ -609,10 +609,10 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
 
-	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
+	if v, ok := cert.CriticalOptions[constants.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")
 		if len(parts) != 2 {
-			return nil, trace.BadParameter("failed to parse value %q for critical option %q as CIDR", v, teleport.CertCriticalOptionSourceAddress)
+			return nil, trace.BadParameter("failed to parse value %q for critical option %q as CIDR", v, constants.CertCriticalOptionSourceAddress)
 		}
 		ident.PinnedIP = parts[0]
 	}
