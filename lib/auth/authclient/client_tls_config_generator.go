@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package authclient
 
 import (
 	"context"
@@ -29,12 +29,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
 
@@ -90,73 +87,7 @@ type ClientTLSConfigGenerator struct {
 // easy to view info on its certs so this info is stored alongside it.
 type HostAndUserCAPoolInfo struct {
 	Pool    *x509.CertPool
-	CATypes authclient.HostAndUserCAInfo
-}
-
-// findPrimarySystemRole finds the primary role for the identity and validates that it is
-// a system role.
-// It returns the validated role and a bool indicating whether or not the role was found.
-func findPrimarySystemRole(i *tlsca.Identity) (types.SystemRole, bool) {
-	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
-		role := types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
-		if !role.IsValid() {
-			return "", false
-		}
-		return role, true
-	}
-	for _, role := range i.Groups {
-		systemRole := types.SystemRole(role)
-		if systemRole.IsValid() {
-			return systemRole, true
-		}
-	}
-	return "", false
-}
-
-// verifyPeerCert returns a function that checks that the client peer
-// certificate's cluster name matches the cluster name of the CA
-// that issued it.
-func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
-			return nil
-		}
-
-		peerCert := verifiedChains[0][0]
-		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
-		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
-			return trace.Wrap(err)
-		}
-		certClusterName := identity.TeleportCluster
-		issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
-		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-		if certClusterName != issuerClusterName {
-			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
-		if !ok {
-			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		// Ensure the CA that issued this client cert is of the appropriate type
-		systemRole, found := findPrimarySystemRole(identity)
-		if found && !ca.IsHostCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
-			return trace.AccessDenied(invalidCertErrMsg)
-		} else if !found && !ca.IsUserCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		return nil
-	}
+	CATypes HostAndUserCAInfo
 }
 
 // NewClientTLSConfigGenerator sets up a new generator based on the supplied parameters.
@@ -194,8 +125,6 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	return c, nil
 }
 
-const invalidCertErrMsg = "access denied: invalid client certificate"
-
 // GetConfigForClient is intended to be slotted into the GetConfigForClient field of tls.Config.
 func (c *ClientTLSConfigGenerator) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
 	var clusterName string
@@ -219,7 +148,7 @@ func (c *ClientTLSConfigGenerator) GetConfigForClient(info *tls.ClientHelloInfo)
 		cfg.ClientCAs = poolInfo.Pool
 		// Verify that the peer cert matches the cluster name of the
 		// issuer CA and that the CA type matches the cert Teleport role
-		cfg.VerifyPeerCertificate = poolInfo.verifyPeerCert()
+		cfg.VerifyPeerCertificate = VerifyPeerCertificate(poolInfo.CATypes)
 	}
 
 	return cfg, trace.Wrap(err)
@@ -241,7 +170,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 
 	// update client certificate pool based on currently trusted TLS
 	// certificate authorities.
-	pool, caMap, totalSubjectsLen, err := authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
+	pool, caMap, totalSubjectsLen, err := defaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to retrieve client cert pool for target cluster", "cluster_name", clusterName, "error", err)
 		// this falls back to the default config
@@ -262,7 +191,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 	// client will be rejected.
 	if totalSubjectsLen >= int64(math.MaxUint16) {
 		slog.WarnContext(ctx, "cluster subject name set too large for TLS handshake, falling back to using local cluster CAs only")
-		pool, caMap, _, err = authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
+		pool, caMap, _, err = defaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to retrieve client cert pool for current cluster", "cluster_name", c.cfg.ClusterName, "error", err)
 			// this falls back to the default config
