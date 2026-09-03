@@ -35,9 +35,9 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.yaml.in/yaml/v2"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
