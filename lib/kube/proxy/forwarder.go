@@ -379,7 +379,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		router.Handle(method, "/v1/teleport/:base64Cluster/:base64KubeCluster/*path", fwd.singleCertHandler())
 	}
 
-	router.NotFound = fwd.withAuthStd(fwd.catchAll)
+	router.NotFound = fwd.withAuthStd(fwd.catchAllNotFound)
 
 	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
 
@@ -2355,6 +2355,27 @@ func computeAndValidateImpersonatedPrincipals(kubeUsers, kubeGroups map[string]s
 	}
 
 	return impersonateUser, impersonateGroups, nil
+}
+
+// catchAllNotFound serves requests that matched no registered route.
+// exec, attach, portforward, ephemeralcontainers (PATCH/PUT) and selfsubjectaccessreviews have
+// dedicated handlers and must not be served by the generic forwarder, so reject them here.
+func (f *Forwarder) catchAllNotFound(authCtx *authContext, w http.ResponseWriter, req *http.Request) (any, error) {
+	if base, sub := splitResourceSubresource(authCtx.metaResource.requestedResource.resourceKind); base == "pods" {
+		switch sub {
+		case "exec", "attach", "portforward":
+			return nil, trace.BadParameter("invalid kubernetes resource path")
+		case "ephemeralcontainers":
+			if req.Method == http.MethodPatch || req.Method == http.MethodPut {
+				return nil, trace.BadParameter("invalid kubernetes resource path")
+			}
+		}
+	}
+	if r := authCtx.metaResource.requestedResource; r.apiGroup == "authorization.k8s.io" &&
+		r.resourceKind == "selfsubjectaccessreviews" && req.Method == http.MethodPost {
+		return nil, trace.BadParameter("invalid kubernetes resource path")
+	}
+	return f.catchAll(authCtx, w, req)
 }
 
 // catchAll forwards all HTTP requests to the target k8s API server
