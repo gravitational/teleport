@@ -25,6 +25,7 @@ import {
   windowsDesktopUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
+import { routing } from 'teleterm/ui/uri';
 
 import * as types from './types';
 
@@ -99,7 +100,7 @@ export function makeDocumentPtySession(
     kind: 'doc.terminal_shell',
     uri: '/docs/terminal_shell',
     title: '/Users/alice/Documents',
-    rootClusterId: 'teleport-local',
+    rootClusterId: routing.parseClusterName(rootClusterUri),
     ...props,
   };
 }
@@ -113,7 +114,7 @@ export function makeDocumentTshNode(
     title: 'alice@node',
     serverUri: makeServer().uri,
     status: '',
-    rootClusterId: 'teleport-local',
+    rootClusterId: routing.parseClusterName(rootClusterUri),
     leafClusterId: '',
     origin: 'connection_list',
     serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',
@@ -130,7 +131,7 @@ export function makeDocumentGatewayCliClient(
     kind: 'doc.gateway_cli_client',
     uri: '/docs/gateway_cli_client',
     title: 'psql · aurora (sre)',
-    rootClusterId: 'teleport-local',
+    rootClusterId: routing.parseClusterName(rootClusterUri),
     leafClusterId: '',
     targetProtocol: gw.protocol,
     targetUri: gw.targetUri,
@@ -149,7 +150,7 @@ export function makeDocumentGatewayKube(
     kind: 'doc.gateway_kube',
     uri: '/docs/gateway_kube',
     title: 'cookie',
-    rootClusterId: 'teleport-local',
+    rootClusterId: routing.parseClusterName(rootClusterUri),
     leafClusterId: '',
     targetUri: gw.targetUri,
     status: '',
