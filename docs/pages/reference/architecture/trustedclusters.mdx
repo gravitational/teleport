@@ -6,6 +6,7 @@ tags:
  - conceptual
  - zero-trust
  - infrastructure-identity
+page_type: conceptual
 ---
 
 <Admonition type="note">
@@ -14,7 +15,8 @@ Trusted clusters are only available for self-hosted Teleport clusters.
 
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of Teleport connected resources. Each cluster
-manages a set of certificate authorities (CAs) for its users and resources.
+manages a set of certificate authorities (CAs) for its users and resources. This
+page describes the architecture of Teleport Trusted Clusters.
 
 Trusted Clusters allow the users of one cluster, the **root cluster**, to
 access resources registered with another cluster, the **leaf cluster**, while

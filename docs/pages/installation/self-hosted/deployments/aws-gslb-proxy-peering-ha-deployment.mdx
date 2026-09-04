@@ -6,10 +6,13 @@ tags:
  - conceptual
  - platform-wide
  - aws
+page_type: conceptual
 ---
 
-This deployment architecture features two important design decisions:
+This page describes how to deploy a Teleport cluster with Proxy Service instances
+spread across multiple AWS regions.
 
+This deployment architecture features two important design decisions:
 - Amazon Route 53 latency-based routing is used to ensure that users and agents connect to the closest available proxy.
 - Teleport's [Proxy Peering](../../../zero-trust-access/management/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
 
