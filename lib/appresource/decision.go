@@ -82,6 +82,9 @@ const (
 	// DenyInvalidRequest is the denial category for a malformed request
 	// path, e.g. containing a ".." segment. No rule is evaluated.
 	DenyInvalidRequest DenyKind = "teleport_invalid_request"
+	// DenyTooManyRules is the kind for a request whose roles hold more than
+	// maxRulesPerRequest rules combined. No rule is evaluated.
+	DenyTooManyRules DenyKind = "teleport_too_many_rules"
 )
 
 // Decision is the aggregated [Result] of evaluating one request against the
@@ -93,12 +96,14 @@ type Decision struct {
 	Allow *AllowDetails
 	// Deny contains details iff Allowed is false.
 	Deny *DenyDetails
-	// EvaluatedRoles lists the roles evaluated, in evaluation order.
-	EvaluatedRoles []string
+	// Roles lists the caller's roles, in evaluation order.
+	Roles []string
 }
 
 // AllowDetails is an allow decision record derived from the matching rule.
 type AllowDetails struct {
+	// Role is the name of the role whose rule matched.
+	Role string
 	// Vars contains the path segments the matching rule captured.
 	Vars map[string]string
 	// Code is the matching rule's allow_code.
@@ -111,29 +116,31 @@ type AllowDetails struct {
 type DenyDetails struct {
 	// Kind is the structured reason for the deny.
 	Kind DenyKind
-	// Hints lists every hint that fired, in rule order.
+	// Hints lists the hints recorded, in rule order, capped at maxHints.
 	Hints []Hint
 }
 
 // decisionJSON is the flat wire form of a Decision.
 type decisionJSON struct {
-	Allowed        bool              `json:"allowed"`
-	EvaluatedRoles []string          `json:"evaluated_roles,omitempty"`
-	Vars           map[string]string `json:"vars,omitempty"`
-	AllowCode      string            `json:"allow_code,omitempty"`
-	AllowReason    string            `json:"allow_reason,omitempty"`
-	DenyKind       DenyKind          `json:"deny_kind,omitempty"`
-	Hints          []Hint            `json:"hints,omitempty"`
+	Allowed     bool              `json:"allowed"`
+	Roles       []string          `json:"roles,omitempty"`
+	AllowRole   string            `json:"allow_role,omitempty"`
+	Vars        map[string]string `json:"vars,omitempty"`
+	AllowCode   string            `json:"allow_code,omitempty"`
+	AllowReason string            `json:"allow_reason,omitempty"`
+	DenyKind    DenyKind          `json:"deny_kind,omitempty"`
+	Hints       []Hint            `json:"hints,omitempty"`
 }
 
 // MarshalJSON encodes the decision in its flat wire form, with unset fields
 // omitted. Detail on the side that does not match Allowed is dropped.
 func (d Decision) MarshalJSON() ([]byte, error) {
 	out := decisionJSON{
-		Allowed:        d.Allowed,
-		EvaluatedRoles: d.EvaluatedRoles,
+		Allowed: d.Allowed,
+		Roles:   d.Roles,
 	}
 	if d.Allowed && d.Allow != nil {
+		out.AllowRole = d.Allow.Role
 		out.Vars = d.Allow.Vars
 		out.AllowCode = d.Allow.Code
 		out.AllowReason = d.Allow.Reason

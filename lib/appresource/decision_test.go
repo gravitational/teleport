@@ -36,15 +36,17 @@ func TestDecisionJSON(t *testing.T) {
 			decision: Decision{
 				Allowed: true,
 				Allow: &AllowDetails{
+					Role:   "developer",
 					Vars:   map[string]string{"project": "42"},
 					Code:   "repo_read",
 					Reason: "Read access to the repository API",
 				},
-				EvaluatedRoles: []string{"developer"},
+				Roles: []string{"developer"},
 			},
 			want: `{
 				"allowed": true,
-				"evaluated_roles": ["developer"],
+				"roles": ["developer"],
+				"allow_role": "developer",
 				"vars": {"project": "42"},
 				"allow_code": "repo_read",
 				"allow_reason": "Read access to the repository API"
@@ -53,11 +55,11 @@ func TestDecisionJSON(t *testing.T) {
 		{
 			name: "bare allow omits unset fields",
 			decision: Decision{
-				Allowed:        true,
-				Allow:          &AllowDetails{},
-				EvaluatedRoles: []string{"developer"},
+				Allowed: true,
+				Allow:   &AllowDetails{},
+				Roles:   []string{"developer"},
 			},
-			want: `{"allowed": true, "evaluated_roles": ["developer"]}`,
+			want: `{"allowed": true, "roles": ["developer"]}`,
 		},
 		{
 			name: "deny with hints",
@@ -69,11 +71,11 @@ func TestDecisionJSON(t *testing.T) {
 						{Code: "needs_dev"},
 					},
 				},
-				EvaluatedRoles: []string{"developer", "reader"},
+				Roles: []string{"developer", "reader"},
 			},
 			want: `{
 				"allowed": false,
-				"evaluated_roles": ["developer", "reader"],
+				"roles": ["developer", "reader"],
 				"deny_kind": "teleport_request_not_allowed",
 				"hints": [
 					{"code": "project_not_allowed", "reason": "Project is not in the caller's allowlist"},
@@ -84,17 +86,17 @@ func TestDecisionJSON(t *testing.T) {
 		{
 			name: "invalid request deny",
 			decision: Decision{
-				Deny:           &DenyDetails{Kind: DenyInvalidRequest},
-				EvaluatedRoles: []string{"developer"},
+				Deny:  &DenyDetails{Kind: DenyInvalidRequest},
+				Roles: []string{"developer"},
 			},
 			want: `{
 				"allowed": false,
-				"evaluated_roles": ["developer"],
+				"roles": ["developer"],
 				"deny_kind": "teleport_invalid_request"
 			}`,
 		},
 		{
-			name: "misconfigured default-deny omits evaluated_roles",
+			name: "misconfigured default-deny omits roles",
 			decision: Decision{
 				Deny: &DenyDetails{Kind: DenyNotAllowed},
 			},
@@ -111,7 +113,7 @@ func TestDecisionJSON(t *testing.T) {
 		{
 			name: "mismatched allow detail on a deny is dropped",
 			decision: Decision{
-				Allow: &AllowDetails{Vars: map[string]string{"project": "42"}, Code: "repo_read"},
+				Allow: &AllowDetails{Role: "developer", Vars: map[string]string{"project": "42"}, Code: "repo_read"},
 			},
 			want: `{"allowed": false}`,
 		},
