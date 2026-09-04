@@ -362,26 +362,33 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 
 // OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
-	session := scx.getSession()
-	if session != nil && !session.isStopped() {
-		scx.Infof("Joining existing session %v.", session.id)
-		mode := types.SessionParticipantMode(scx.env[teleport.EnvSSHJoinMode])
-		if mode == "" {
-			mode = types.SessionPeerMode
+	if joinSessionID, mode := scx.GetJoinParams(); joinSessionID != "" {
+		id, err := rsession.ParseID(joinSessionID)
+		if err != nil {
+			return trace.BadParameter("invalid session ID %q", joinSessionID)
 		}
 
-		switch mode {
-		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
-		default:
-			return trace.BadParameter("Unrecognized session participant mode: %v", mode)
-		}
+		// If the requested session is not found, fall through and create a new
+		// session below. This preserves legacy behavior for clients that set
+		// TELEPORT_SESSION for a session that has since ended.
+		if session, found := s.findSession(*id); found && !session.isStopped() {
+			switch mode {
+			case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+			default:
+				return trace.BadParameter("Unrecognized session participant mode: %v", mode)
+			}
 
-		// Update the in-memory data structure that a party member has joined.
-		if err := session.join(ch, scx, mode); err != nil {
-			return trace.Wrap(err)
-		}
+			scx.Infof("Joining existing session %v.", session.id)
 
-		return nil
+			scx.setSession(session, ch)
+
+			// Update the in-memory data structure that a party member has joined.
+			if err := session.join(ch, scx, mode); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		}
 	}
 
 	if scx.JoinOnly {

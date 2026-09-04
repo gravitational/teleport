@@ -623,11 +623,10 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return trace.BadParameter("invalid session ID")
 	}
 
-	// update ctx with the session if it exists
+	// Record the requested session ID if the session exists.
 	if sess, found := reg.findSession(*id); found {
 		c.sessionID = *id
-		c.session = sess
-		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Logger.Debugf("Will join session %v for SSH connection %v.", sess.id, c.ServerConn.RemoteAddr())
 	} else {
 		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
