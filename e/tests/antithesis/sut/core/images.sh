@@ -14,6 +14,7 @@ IMAGES=(
   "${REGISTRY:+${REGISTRY}/}antithesis/pki:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/pg:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}"
+  "${REGISTRY:+${REGISTRY}/}antithesis/k3s-rancher:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}"
 )
 

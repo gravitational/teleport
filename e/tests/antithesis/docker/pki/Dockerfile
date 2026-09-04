@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS="${target_os}" GOARCH="${target_arch}" \
         go build -o /out/helper_generate_license ./cmd/helper_generate_license
 
-FROM alpine:3.24
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 ARG TARGETARCH
 ARG MKCERT_VERSION=1.4.4
 

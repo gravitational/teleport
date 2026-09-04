@@ -49,12 +49,15 @@ registry, and builder values for your environment. For local-only runs,
 
 ## Local iteration
 
-From the `e/tests/antithesis` path, build and load the example images into Docker, then write
-the SUT env file used by Docker Compose:
+From the `e/tests/antithesis` path, build and load the example images into Docker, write
+the k3s image archives, then write the SUT env file used by Docker Compose:
 
 ```shell
-make local write-env
+make local build-k3s-preload write-env
 ```
+
+The preload target writes `sut/core/k3s/preload/nginx.tar` so k3s can import the
+nginx image without pulling from a registry at runtime.
 
 Start the stack from this SUT directory:
 

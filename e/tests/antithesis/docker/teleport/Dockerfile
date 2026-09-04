@@ -116,7 +116,29 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/parallel_driver_db_access ./cmd/parallel_driver_db_access
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS kubectl
+ARG KUBECTL_VERSION=v1.31.5
+ARG TARGETARCH
+# Checksums are published at https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/{amd64,arm64}/kubectl.sha256
+ARG KUBECTL_SHA256_AMD64=fbecbfd375b3686002c2e81d51c390172f5ffba3d6b47920d55342cb03f557af
+ARG KUBECTL_SHA256_ARM64=697c8b4239f9e53cba46296e114bcc02c726b5c7a45e1c464804aad56e5c7a86
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,source=e/tests/antithesis/scripts/fetch_verify.sh,target=/fetch_verify.sh \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && case "${arch}" in \
+         amd64) sha256="${KUBECTL_SHA256_AMD64}" ;; \
+         arm64) sha256="${KUBECTL_SHA256_ARM64}" ;; \
+         *) echo "error: no kubectl checksum for architecture ${arch}" >&2; exit 1 ;; \
+       esac \
+    && bash /fetch_verify.sh \
+         "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
+         "${sha256}" \
+         /usr/local/bin/kubectl \
+    && chmod 0755 /usr/local/bin/kubectl \
+    && kubectl version --client=true
+
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
@@ -158,6 +180,7 @@ COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/cru
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/ssh/eventually_cache_is_healthy
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/apps/eventually_cache_is_healthy
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/db/eventually_cache_is_healthy
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/kube/eventually_cache_is_healthy
 
 CMD ["/usr/local/bin/teleport", "start"]
 
@@ -171,6 +194,7 @@ COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/crud
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/ssh/eventually_auth_consistent
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/apps/eventually_auth_consistent
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/db/eventually_auth_consistent
+COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/kube/eventually_auth_consistent
 
 CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
@@ -181,9 +205,14 @@ CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/admin.yaml"]
 FROM runtime AS workload
 
 #  postgresql-client is required by the workload one time DB setup.
+# jq is required by the workload to parse the JSON output of tsh.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
+    jq \
     && rm -rf /var/lib/apt/lists/*
+
+# kubectl is used for the kube CLI tests
+COPY --from=kubectl /usr/local/bin/kubectl /usr/local/bin/kubectl
 
 RUN mkdir -p \
     /etc/tbot \
@@ -200,3 +229,4 @@ COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test
 COPY --from=builder /out/parallel_driver_app_access /opt/antithesis/test/v1/apps/parallel_driver_app_access
 COPY --from=builder /out/parallel_driver_db_access /opt/antithesis/test/v1/db/parallel_driver_db_access
 COPY e/tests/antithesis/workloads/cmd/first_db_configure.sh /opt/antithesis/test/v1/db/first_db_configure.sh
+COPY e/tests/antithesis/workloads/cmd/serial_driver_cli_kube_access.sh /opt/antithesis/test/v1/kube/serial_driver_cli_kube_access.sh

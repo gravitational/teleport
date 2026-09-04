@@ -179,12 +179,77 @@ services:
       retries: 10
       start_period: 5s
 
+  k3s:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/k3s-rancher:${TAG:-latest}
+    hostname: k3s
+    container_name: k3s
+    privileged: true
+    environment:
+      K3S_KUBECONFIG_MODE: "0644"
+      K3S_NODE_NAME: antithesis-k3s
+    command:
+      - server
+      - --cluster-init
+      - --tls-san=k3s
+      - --write-kubeconfig-mode=0644
+      - --disable=traefik
+      - --disable=servicelb
+      - --disable=local-storage
+
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "--raw", "/readyz"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 1m
+    volumes:
+      - k3s-server:/var/lib/rancher/k3s
+      - k3s-config:/etc/rancher/k3s
+      - ./k3s/preload:/var/lib/rancher/k3s/agent/images:ro
+
+  k3s-configure:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/k3s-rancher:${TAG:-latest}
+    container_name: k3s-configure
+    depends_on:
+      k3s:
+        condition: service_healthy
+    environment:
+      K3S_SERVER_URL: https://k3s:6443
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        mkdir -p /out
+        # k3s rewrites k3s.yaml on every server start; wait for a non-empty file
+        for i in $$(seq 1 60); do
+          [ -s /k3s/k3s.yaml ] && break
+          sleep 1
+        done
+        [ -s /k3s/k3s.yaml ] || { echo "k3s.yaml never appeared" >&2; exit 1; }
+
+        cp /k3s/k3s.yaml /out/k3s.yaml
+        chmod 0600 /out/k3s.yaml
+
+        kubectl --kubeconfig=/out/k3s.yaml config set-cluster default \
+          --server="$${K3S_SERVER_URL}"
+
+        kubectl --kubeconfig=/out/k3s.yaml version --request-timeout=10s
+        kubectl --kubeconfig=/out/k3s.yaml get --raw /readyz
+    volumes:
+      - k3s-config:/k3s:ro
+      - kubeconfig:/out
+    restart: "no"
+
   agent:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
     hostname: agent
     container_name: agent
     depends_on:
-      - proxy-lb
+      proxy-lb:
+        condition: service_started
+      k3s-configure:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "teleport", "debug", "readyz"]
       interval: 5s
@@ -194,6 +259,7 @@ services:
     volumes:
       - certs:/certs:ro
       - ./teleport/agent.yaml:/etc/teleport.yaml:ro
+      - kubeconfig:/kubeconfig:ro
 
   workload:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}
@@ -219,3 +285,6 @@ volumes:
   bkdata:
   pgtest:
   machine-id:
+  k3s-server:
+  k3s-config:
+  kubeconfig:

@@ -51,3 +51,9 @@ db_service:
       static_labels:
         test_template: db
         type: static
+
+kubernetes_service:
+  enabled: true
+  kubeconfig_file: /kubeconfig/k3s.yaml
+  labels:
+    test_template: kube

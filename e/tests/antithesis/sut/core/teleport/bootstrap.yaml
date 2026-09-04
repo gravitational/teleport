@@ -176,6 +176,45 @@ spec:
       - resources: [db]
         verbs: ['*']
 ---
+kind: role
+version: v8
+metadata:
+  name: kube-allow
+spec:
+  allow:
+    kubernetes_labels:
+      '*': ['*']
+    kubernetes_groups: ['system:masters']
+    kubernetes_users: ['teleport-antithesis']
+    kubernetes_resources:
+      - kind: '*'
+        api_group: '*'
+        name: '*'
+        namespace: '*'
+        verbs: ['*']
+      - kind: '*'
+        api_group: '*'
+        name: '*'
+        namespace: ''
+        verbs: ['*']
+    rules:
+      - resources: [kube_cluster]
+        verbs: [list, read]
+---
+kind: role
+version: v8
+metadata:
+  name: kube-deny
+spec:
+  allow:
+    rules:
+      # Mirrors app-deny: the bot still needs role reads to mint a cert.
+      - resources: [role]
+        verbs: [read]
+  deny:
+    kubernetes_labels:
+      '*': ['*']
+---
 kind: token
 version: v2
 metadata:

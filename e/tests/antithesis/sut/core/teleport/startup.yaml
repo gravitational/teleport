@@ -23,6 +23,7 @@ spec:
     - app-allow
     - app-mint
     - db-allow
+    - kube-allow
 ---
 kind: bot
 version: v1
@@ -34,6 +35,7 @@ spec:
     - node-deny
     - app-deny
     - db-deny
+    - kube-deny
 ---
 kind: bot
 version: v1

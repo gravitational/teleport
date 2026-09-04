@@ -26,7 +26,7 @@ PLATFORM_FLAG = $(if $(DOCKER_PLATFORMS),--platform $(DOCKER_PLATFORMS),)
 BUILD_ARGS = --build-arg GO_VERSION=$(GO_VERSION)
 
 .PHONY: build-all
-build-all: build-teleport build-tbot build-pki build-pg build-nginx build-workload
+build-all: build-teleport build-tbot build-pki build-pg build-nginx build-k3s-rancher build-workload
 
 TELEPORT_IMAGE ?= $(IMAGE_PREFIX)antithesis/teleport:$(TAG)
 AUTH_IMAGE ?= $(IMAGE_PREFIX)antithesis/auth:$(TAG)
@@ -100,6 +100,19 @@ build-nginx:
 		--file $(ANTITHESIS_DIR)/docker/Dockerfile.nginx \
 		$(ANTITHESIS_DIR)/docker
 
+K3S_VERSION ?= v1.30.2-k3s1@sha256:0f499649d68b4528de51056e09197942a22dcc116779bea3a2709ebe5e3079c9
+K3S_RANCHER_IMAGE ?= $(IMAGE_PREFIX)antithesis/k3s-rancher:$(TAG)
+.PHONY: build-k3s-rancher
+build-k3s-rancher:
+	docker buildx build \
+		$(BUILDER_FLAG) \
+		$(PLATFORM_FLAG) \
+		--build-arg K3S_VERSION=$(K3S_VERSION) \
+		--tag $(K3S_RANCHER_IMAGE) \
+		$(DOCKER_OUTPUT) \
+		--file $(ANTITHESIS_DIR)/docker/k3s-rancher/Dockerfile \
+		$(ANTITHESIS_DIR)/docker/k3s-rancher
+
 WORKLOAD_IMAGE ?= $(IMAGE_PREFIX)antithesis/workload-$(SUT):$(TAG)
 WORKLOAD_TARGET ?= workload-$(SUT)
 .PHONY: build-workload
@@ -116,7 +129,7 @@ build-workload:
 
 CONFIG_IMAGE ?= $(IMAGE_PREFIX)antithesis/config-$(SUT):$(TAG)
 .PHONY: build-config
-build-config: write-env
+build-config: write-env build-k3s-preload
 	docker buildx build \
 		$(BUILDER_FLAG) \
 		$(PLATFORM_FLAG) \
@@ -133,7 +146,7 @@ build-workload-go:
 
 ## Build and load images locally
 .PHONY: local
-local: local-teleport local-tbot local-pki local-pg local-nginx local-workload
+local: local-teleport local-tbot local-pki local-pg local-nginx local-k3s-rancher local-workload
 
 .PHONY: local-teleport
 local-teleport: LOCAL=1
@@ -155,9 +168,27 @@ local-pg: build-pg
 local-nginx: LOCAL=1
 local-nginx: build-nginx
 
+.PHONY: local-k3s-rancher
+local-k3s-rancher: LOCAL=1
+local-k3s-rancher: build-k3s-rancher
+
 .PHONY: local-workload
 local-workload: LOCAL=1
 local-workload: build-workload
+
+K3S_PRELOAD_DIR ?= $(ANTITHESIS_DIR)/sut/$(SUT)/k3s/preload
+K3S_VERSION_TAG := $(firstword $(subst @, ,$(K3S_VERSION)))
+K3S_AIRGAP_BUNDLE := k3s-airgap-images-amd64.tar.zst
+K3S_AIRGAP_URL := https://github.com/k3s-io/k3s/releases/download/$(subst -k3s,%2Bk3s,$(K3S_VERSION_TAG))/$(K3S_AIRGAP_BUNDLE)
+K3S_AIRGAP_SHA256 ?= b2e8e18a1a3a285b466687f06ed80e862f2acca966a19372cf9bac48f6ba2a42
+
+# Locally k3s will be able to pull the images it needs. On Antithesis this is not the case, there is no network access
+# we preload the amd64 airgap bundle to able able to run it.
+.PHONY: build-k3s-preload
+build-k3s-preload:
+	$(ANTITHESIS_DIR)/scripts/fetch_verify.sh $(K3S_AIRGAP_URL) $(K3S_AIRGAP_SHA256) $(K3S_PRELOAD_DIR)/$(K3S_AIRGAP_BUNDLE)
+	if ! docker image inspect $(NGINX_IMAGE) >/dev/null 2>&1; then docker pull $(NGINX_IMAGE); fi
+	docker save $(NGINX_IMAGE) -o $(K3S_PRELOAD_DIR)/nginx.tar
 
 ## Write the env file copied into the Antithesis config image.
 .PHONY: write-env
