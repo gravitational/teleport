@@ -133,7 +133,7 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	// Verify the token matches.
-	if subtle.ConstantTimeCompare([]byte(mfaSess.Token), []byte(token)) == 0 {
+	if token == "" || mfaSess.Token == "" || subtle.ConstantTimeCompare([]byte(mfaSess.Token), []byte(token)) == 0 {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
 	}
 
