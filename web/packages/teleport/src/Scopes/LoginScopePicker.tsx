@@ -54,7 +54,7 @@ export function LoginScopePicker() {
   }
 
   return (
-    <Box px="5" width="100%" overflow="scroll">
+    <Box px="5" width="100%" overflow="auto">
       <Card my="5" mx="auto" width="100%" maxWidth={600} p={4}>
         <H1>Welcome back, {storeUser.getUsername()}</H1>
         <H2 mt={5} mb={3}>
