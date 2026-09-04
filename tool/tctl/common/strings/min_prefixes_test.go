@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/gravitational/teleport/tool/tctl/common/strings"
+	tctlstrings "github.com/gravitational/teleport/tool/tctl/common/strings"
 )
 
 func TestFindMinPrefixes(t *testing.T) {
@@ -93,7 +93,7 @@ func TestFindMinPrefixes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := strings.FindMinPrefixes(test.in)
+			got := tctlstrings.FindMinPrefixes(test.in)
 			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Errorf("FindMinPrefixes mismatch (-want +got)\n%s", diff)
 			}
