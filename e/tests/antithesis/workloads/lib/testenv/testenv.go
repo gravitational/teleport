@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -15,8 +16,17 @@ const (
 	// DefaultProxyAddr is the default Teleport proxy address for Antithesis workloads.
 	DefaultProxyAddr = "antithesis.teleport.local:3080"
 
+	// DefaultClusterName is the default Teleport cluster name for Antithesis workloads.
+	DefaultClusterName = "antithesis.teleport.local"
+
 	// DefaultIdentityFile is the default identity filename under an identity directory.
 	DefaultIdentityFile = "identity"
+
+	AuditEventEmitDeadline  = 20 * time.Minute
+	MaxTolerableClockJitter = 10 * time.Minute
+	// AuditEventSessionChunkTTL is the default Teleport TTL for emitting session events keyed on session ID.
+	// When executing in parallel it is possible that another concurrent run of this test already emitted this event.
+	AuditEventSessionChunkTTL = 5 * time.Minute
 )
 
 // CredsDir returns the directory where workload identities are stored.

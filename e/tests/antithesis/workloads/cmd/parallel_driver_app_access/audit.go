@@ -9,6 +9,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/testenv"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -29,7 +30,7 @@ func (p *TestCaseParams) assertExistingSessionAppAccessAuditEvents(ctx context.C
 	// credential itself, so the only audit event we can expect here is app chunk.
 	return eventually.Assert(ctx, eventually.AssertParams{
 		Message: "Existing-session HTTP app access eventually emits at least one app.session.chunk audit event with matching app metadata",
-		Timeout: auditEventEmitDeadline,
+		Timeout: testenv.AuditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			for evt, err := range workloadclient.RangeAllAuditEventsByType(
@@ -74,7 +75,7 @@ func (p *TestCaseParams) assertMintedAppAccessAuditEvents(ctx context.Context, s
 
 	return eventually.Assert(ctx, eventually.AssertParams{
 		Message: "HTTP app access with minted credentials eventually emits exactly 1 app.session.start audit event with matching app metadata",
-		Timeout: auditEventEmitDeadline,
+		Timeout: testenv.AuditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			eventmap := map[string]int{}
@@ -125,7 +126,7 @@ func (p *TestCaseParams) assertTCPAppAccessAuditEvents(ctx context.Context, sess
 
 	return eventually.Assert(ctx, eventually.AssertParams{
 		Message: "TCP app access with minted credentials eventually emits exactly 2 app.session.start audit events and exactly 1 app.session.end audit event with matching app metadata",
-		Timeout: auditEventEmitDeadline,
+		Timeout: testenv.AuditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			eventmap := map[string]int{}

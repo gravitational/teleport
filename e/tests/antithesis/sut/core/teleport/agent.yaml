@@ -33,3 +33,21 @@ app_service:
       public_addr: app-alpha-tcp.antithesis.teleport.local
       labels:
         app: alpha-tcp
+
+db_service:
+  enabled: true
+  resources:
+    - labels:
+        test_template: db
+        type: dynamic
+  databases:
+    - name: static
+      description: Antithesis Postgres Database Access static test target
+      protocol: postgres
+      uri: pgtest:5432
+      tls:
+        mode: verify-full
+        ca_cert_file: /certs/rootCA.pem
+      static_labels:
+        test_template: db
+        type: static

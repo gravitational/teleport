@@ -7,10 +7,12 @@ services:
       SANS: localhost 127.0.0.1 antithesis.teleport.local proxy1 proxy2 app-alpha.antithesis.teleport.local app-alpha-tcp.antithesis.teleport.local
       PG_CERT_DIR: /certs
       BACKEND_PG_CERT_DIR: /certs/bk
+      TEST_PG_CERT_DIR: /testcerts/pg/
       LICENSE_FILE: /license/license.pem
     volumes:
       - certs:/certs
       - license:/license
+      - testcerts:/testcerts
     restart: "no"
 
   pg:
@@ -155,6 +157,28 @@ services:
       retries: 10
       start_period: 5s
 
+  pgtest:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/pg:${TAG:-latest}
+    container_name: pgtest
+    hostname: pgtest
+    volumes:
+      - pgtest:/var/lib/postgresql
+      - testcerts:/certs:ro
+      - ./pgtest/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./pgtest/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./pgtest/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    depends_on:
+      pki:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
   agent:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
     hostname: agent
@@ -180,13 +204,18 @@ services:
         condition: service_healthy
       agent:
         condition: service_healthy
+      pgtest:
+        condition: service_healthy
     volumes:
       - ./tbot:/etc/tbot:ro
       - machine-id:/opt/machine-id
       - certs:/certs:ro
+      - testcerts:/testcerts
 
 volumes:
   certs:
   license:
+  testcerts:
   bkdata:
+  pgtest:
   machine-id:

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/random"
@@ -22,13 +21,6 @@ const (
 	deniedIdentity     = "denied"
 	allowedBotUsername = "bot-workload-allowed"
 	deniedBotUsername  = "bot-workload-denied"
-)
-
-const (
-	defaultClusterName      = "antithesis.teleport.local"
-	auditEventEmitDeadline  = 20 * time.Minute
-	auditSessionChunkTTL    = 5 * time.Minute
-	maxTolerableClockJitter = 10 * time.Minute
 )
 
 const (

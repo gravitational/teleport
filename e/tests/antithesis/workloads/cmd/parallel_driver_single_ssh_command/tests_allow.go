@@ -9,13 +9,24 @@ import (
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/testenv"
 )
 
 func runAllowedSSHCommandProperty(ctx context.Context, params *TestCaseParams) error {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 
-	clt, cleanup, err := setupClient(ctx, params, stdout, stderr)
+	clt, cleanup, err := workloadclient.NewTeleportClient(ctx, workloadclient.TeleportClientConfig{
+		Identity:            params.Identity,
+		Host:                params.Target.host(),
+		Labels:              params.Target.labels(),
+		PredicateExpression: params.Target.PredicateExpression,
+		HostLogin:           params.HostUser,
+		Stdout:              stdout,
+		Stderr:              stderr,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -27,10 +38,10 @@ func runAllowedSSHCommandProperty(ctx context.Context, params *TestCaseParams) e
 	}
 
 	command := []string{"/bin/echo", marker.String()}
-	start := time.Now().Add(-maxTolerableClockJitter)
+	start := time.Now().Add(-testenv.MaxTolerableClockJitter)
 	err = clt.SSH(ctx, command)
 	// Padding to account for delay between session ending and the event being emitted.
-	end := time.Now().Add(auditEventEmitDeadline + maxTolerableClockJitter)
+	end := time.Now().Add(testenv.AuditEventEmitDeadline + testenv.MaxTolerableClockJitter)
 
 	details := params.Details(map[string]any{
 		"command": command,

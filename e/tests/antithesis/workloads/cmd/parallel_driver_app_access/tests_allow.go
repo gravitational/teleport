@@ -39,14 +39,11 @@ func runAllowedAppAccessTbotCredProperty(ctx context.Context, params *TestCasePa
 		return trace.Wrap(err, "generating marker")
 	}
 
-	// Session chunk events are TTLd by session ID, when executing in parallel it is possible that
-	// another concurrent run of this test already emitted this event. We add some window before and after
-	// to allow the search to match the cached events.
-	start := time.Now().Add(-(auditSessionChunkTTL*2 + maxTolerableClockJitter))
+	start := time.Now().Add(-(testenv.AuditEventSessionChunkTTL*2 + testenv.MaxTolerableClockJitter))
 	body, statusCode, err := fetchAppBody(ctx, cert, params.App.PublicAddr, marker.String())
 	// Padding to account for delay between session ending and the event
 	// being emitted.
-	end := time.Now().Add(auditEventEmitDeadline + (auditSessionChunkTTL * 2) + maxTolerableClockJitter)
+	end := time.Now().Add(testenv.AuditEventEmitDeadline + (testenv.AuditEventSessionChunkTTL * 2) + testenv.MaxTolerableClockJitter)
 
 	assert.Sometimes(err == nil && statusCode == http.StatusOK,
 		"An HTTP app request using tbot credentials can return HTTP 200",
@@ -87,7 +84,7 @@ func runAllowedAppAccessMintedCredProperty(ctx context.Context, params *TestCase
 	}
 	defer appClient.Close()
 
-	start := time.Now().Add(-maxTolerableClockJitter)
+	start := time.Now().Add(-testenv.MaxTolerableClockJitter)
 	cert, err := mintAppCert(ctx, appClient, allowedBotUsername, params.App)
 	assert.Sometimes(err == nil,
 		"An authorized identity can mint an HTTP app credential",
@@ -108,7 +105,7 @@ func runAllowedAppAccessMintedCredProperty(ctx context.Context, params *TestCase
 	}
 
 	body, statusCode, err := fetchAppBody(ctx, cert, params.App.PublicAddr, marker.String())
-	end := time.Now().Add(auditEventEmitDeadline + maxTolerableClockJitter)
+	end := time.Now().Add(testenv.AuditEventEmitDeadline + testenv.MaxTolerableClockJitter)
 
 	assert.Sometimes(err == nil && statusCode == http.StatusOK,
 		"An HTTP app request using minted credentials can return HTTP 200",
@@ -142,7 +139,7 @@ func runAllowedTCPAppAccessMintedCredProperty(ctx context.Context, params *TestC
 	}
 	defer appClient.Close()
 
-	start := time.Now().Add(-maxTolerableClockJitter)
+	start := time.Now().Add(-testenv.MaxTolerableClockJitter)
 	cert, err := mintAppCert(ctx, appClient, allowedBotUsername, params.App)
 	assert.Sometimes(err == nil,
 		"An authorized identity can mint a TCP app credential",
@@ -163,7 +160,7 @@ func runAllowedTCPAppAccessMintedCredProperty(ctx context.Context, params *TestC
 	}
 
 	body, statusCode, err := fetchTCPAppBody(ctx, cert, params.App.PublicAddr, marker.String())
-	end := time.Now().Add(auditEventEmitDeadline + maxTolerableClockJitter)
+	end := time.Now().Add(testenv.AuditEventEmitDeadline + testenv.MaxTolerableClockJitter)
 
 	assert.Sometimes(err == nil && statusCode == http.StatusOK,
 		"A TCP app request using minted credentials can proxy to the app and return HTTP 200",

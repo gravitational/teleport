@@ -23,7 +23,7 @@ auth_service:
   cluster_name: antithesis.teleport.local
   tokens:
     - "proxy:proxy-token"
-    - "node,app:agent-token"
+    - "node,app,db:agent-token"
 
 proxy_service:
   enabled: false

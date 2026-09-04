@@ -144,7 +144,7 @@ func mintAppCert(ctx context.Context, clt *apiclient.Client, username string, ap
 		RouteToApp: proto.RouteToApp{
 			Name:        app.Name,
 			PublicAddr:  app.PublicAddr,
-			ClusterName: defaultClusterName,
+			ClusterName: testenv.DefaultClusterName,
 			URI:         app.URI,
 		},
 	})

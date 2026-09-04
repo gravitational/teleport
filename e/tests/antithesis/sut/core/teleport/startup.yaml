@@ -22,6 +22,7 @@ spec:
     - node-allow
     - app-allow
     - app-mint
+    - db-allow
 ---
 kind: bot
 version: v1
@@ -32,6 +33,7 @@ spec:
   roles:
     - node-deny
     - app-deny
+    - db-deny
 ---
 kind: bot
 version: v1

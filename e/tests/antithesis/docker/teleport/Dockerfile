@@ -111,6 +111,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/parallel_driver_app_access ./cmd/parallel_driver_app_access
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/parallel_driver_db_access ./cmd/parallel_driver_db_access
+
 FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -152,6 +157,7 @@ FROM runtime AS teleport
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/crud/eventually_cache_is_healthy
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/ssh/eventually_cache_is_healthy
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/apps/eventually_cache_is_healthy
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/db/eventually_cache_is_healthy
 
 CMD ["/usr/local/bin/teleport", "start"]
 
@@ -164,6 +170,7 @@ FROM teleport AS auth
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/crud/eventually_auth_consistent
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/ssh/eventually_auth_consistent
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/apps/eventually_auth_consistent
+COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/db/eventually_auth_consistent
 
 CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
@@ -172,6 +179,11 @@ CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/admin.yaml"]
 
 
 FROM runtime AS workload
+
+#  postgresql-client is required by the workload one time DB setup.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p \
     /etc/tbot \
@@ -186,3 +198,5 @@ FROM workload AS workload-core
 COPY --from=builder /out/parallel_driver_crud_fuzzer /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
 COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test/v1/ssh/parallel_driver_single_ssh_command
 COPY --from=builder /out/parallel_driver_app_access /opt/antithesis/test/v1/apps/parallel_driver_app_access
+COPY --from=builder /out/parallel_driver_db_access /opt/antithesis/test/v1/db/parallel_driver_db_access
+COPY e/tests/antithesis/workloads/cmd/first_db_configure.sh /opt/antithesis/test/v1/db/first_db_configure.sh

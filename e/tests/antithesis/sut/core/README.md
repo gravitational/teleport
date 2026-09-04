@@ -17,3 +17,4 @@ This SUT runs:
 * `crud`, tests focusing on properties of CRUD operations. 
 * `ssh`, tests running commands against a Teleport SSH service agent.
 * `apps`, issues user certificate and performs a http request using said cert.
+* `db`, registers static and dynamic Postgres databases and runs Database Access queries.

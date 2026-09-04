@@ -6,6 +6,7 @@ import (
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/google/uuid"
+	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 	"github.com/gravitational/trace"
 )
 
@@ -13,7 +14,15 @@ func runDeniedSSHCommandProperty(ctx context.Context, params *TestCaseParams) er
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 
-	clt, cleanup, err := setupClient(ctx, params, stdout, stderr)
+	clt, cleanup, err := workloadclient.NewTeleportClient(ctx, workloadclient.TeleportClientConfig{
+		Identity:            params.Identity,
+		Host:                params.Target.host(),
+		Labels:              params.Target.labels(),
+		PredicateExpression: params.Target.PredicateExpression,
+		HostLogin:           params.HostUser,
+		Stdout:              stdout,
+		Stderr:              stderr,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

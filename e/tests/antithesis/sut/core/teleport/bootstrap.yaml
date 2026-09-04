@@ -148,6 +148,34 @@ spec:
     app_labels:
       '*': ['*']
 ---
+kind: role
+version: v8
+metadata:
+  name: db-allow
+spec:
+  allow:
+    db_labels:
+      "*": "*"
+    db_names:
+      - postgres
+    db_users:
+      - testuser
+    rules:
+      - resources: [db]
+        verbs: ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: db-deny
+spec:
+  deny:
+    db_labels:
+      "*": "*"
+    rules:
+      - resources: [db]
+        verbs: ['*']
+---
 kind: token
 version: v2
 metadata:

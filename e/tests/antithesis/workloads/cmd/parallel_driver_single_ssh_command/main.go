@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/antithesishq/antithesis-sdk-go/random"
@@ -22,12 +21,6 @@ const (
 	adminIdentity   = "admin"
 	allowedIdentity = "allowed"
 	deniedIdentity  = "denied"
-)
-
-const (
-	defaultClusterName      = "antithesis.teleport.local"
-	auditEventEmitDeadline  = 20 * time.Minute
-	maxTolerableClockJitter = 10 * time.Minute
 )
 
 func main() {

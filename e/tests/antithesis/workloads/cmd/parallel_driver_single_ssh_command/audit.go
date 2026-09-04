@@ -10,6 +10,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/testenv"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -31,7 +32,7 @@ func (p *TestCaseParams) assertSSHCommandAuditEvents(ctx context.Context, marker
 	// with the command matching the marker we have used.
 	err = eventually.Assert(ctx, eventually.AssertParams{
 		Message: "exec event for marker command is discoverable",
-		Timeout: auditEventEmitDeadline,
+		Timeout: testenv.AuditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			for evt, err := range workloadclient.RangeAllAuditEventsByType(
@@ -67,7 +68,7 @@ func (p *TestCaseParams) assertSSHCommandAuditEvents(ctx context.Context, marker
 	// to ensure no duplicate events have been emitted.
 	return trace.Wrap(eventually.Assert(ctx, eventually.AssertParams{
 		Message: "Successful SSH command has exactly one SessionLeaveEvent, SessionStartEvent and SessionEndEvent event",
-		Timeout: auditEventEmitDeadline,
+		Timeout: testenv.AuditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			eventmap := map[string]int{}

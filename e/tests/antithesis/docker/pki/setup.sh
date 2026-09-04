@@ -54,6 +54,15 @@ generate_backend_pg_certs() {
     generate_pg_certs "$cert_dir" "$server_names" "$client_cn" "$uid" "$gid"
 }
 
+generate_test_pg_certs() {
+    local cert_dir="${TEST_PG_CERT_DIR:-${PG_CERT_DIR:-$OUT}}"
+    local server_names="${TEST_PG_SERVER_NAMES:-pgtest localhost 127.0.0.1}"
+    local client_cn="${TEST_PG_CLIENT_CN:-${PG_CLIENT_CN:-teleport}}"
+    local uid="${TEST_PG_CERT_UID:-${PG_SERVER_CERT_UID:-999}}"
+    local gid="${TEST_PG_CERT_GID:-${PG_SERVER_CERT_GID:-999}}"
+    generate_pg_certs "$cert_dir" "$server_names" "$client_cn" "$uid" "$gid"
+}
+
 generate_proxy_cert() {
     export CAROOT="$OUT/ca"
     mkdir -p "$CAROOT" "$OUT"
@@ -85,5 +94,6 @@ generate_license() {
 generate_proxy_cert
 generate_license
 generate_backend_pg_certs
+generate_test_pg_certs
 
 ls -lR "$OUT" 1>&2
