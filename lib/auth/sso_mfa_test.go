@@ -551,29 +551,6 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 			},
 		},
 		{
-			name:     "NOK non validated session data",
-			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
-				RequestID:     "request2",
-				Username:      samlUser.GetName(),
-				ConnectorID:   samlConnector.GetName(),
-				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-				},
-			},
-			ssoResponse: &proto.SSOResponse{
-				RequestId: "request2",
-				Token:     "token",
-			},
-			requiredExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
-			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
-			},
-		},
-		{
 			name:     "NOK mismatch scope",
 			username: samlUser.GetName(),
 			sd: &services.MFASessionData{
@@ -730,6 +707,51 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 					Device:     ssoDevice,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				}, mad)
+			},
+		},
+		{
+			name:     "NOK non validated session data",
+			username: samlUser.GetName(),
+			sd: &services.SSOMFASessionData{
+				RequestID:     "request9",
+				Username:      samlUser.GetName(),
+				ConnectorID:   samlConnector.GetName(),
+				ConnectorType: samlConnector.GetKind(),
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+			},
+			ssoResponse: &proto.SSOResponse{
+				RequestId: "request9",
+				Token:     "token",
+			},
+			requiredExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		},
+		{
+			name:     "NOK non validated session data and empty response",
+			username: samlUser.GetName(),
+			sd: &services.SSOMFASessionData{
+				RequestID:     "request10",
+				Username:      samlUser.GetName(),
+				ConnectorID:   samlConnector.GetName(),
+				ConnectorType: samlConnector.GetKind(),
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+			},
+			ssoResponse: &proto.SSOResponse{
+				RequestId: "request10",
+			},
+			requiredExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
 	} {
