@@ -1,0 +1,211 @@
+# Builds the cab file that is submitted to the Microsoft LSA file signing portal,
+# signs it with the EV code signing certificate, and uploads it to S3 for a
+# human to hand to the portal. Manual only.
+name: "Windows Auth Package Signing CAB"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: >-
+          Signing credentials and artifact bucket to use. Only prod/build
+          produces a submittable cab: the LSA portal requires an EV certificate,
+          and the stage certificate is OV. Pick stage/build to exercise this
+          pipeline end to end without prod credentials -- it validates
+          everything up to the portal handoff -- then discard the result.
+        type: choice
+        options:
+          - prod/build
+          - stage/build
+        default: prod/build
+        required: true
+      windowsauth-version:
+        description: >-
+          Version to stamp into the windowsauth DLL and CAB filename. This is
+          independent from the Teleport version of the source tree being built.
+          A leading `v` is optional. Temporary bootstrap input only: the
+          long-term flow should derive this from a protected windowsauth
+          release/tag rather than free-typed workflow input.
+        type: string
+        required: true
+
+concurrency:
+  group: windows-auth-package-cab-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  build-cab:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      teleport-version: ${{ steps.teleport-version.outputs.teleport-version }}
+      windowsauth-version: ${{ steps.windowsauth-version.outputs.windowsauth-version }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'e/windowsauth/installer/go.mod'
+
+      - name: Setup Rust
+        # This uses the version of rust in rust-toolchain.toml but sets the
+        # global rustup config to use the -gnu toolchain rather than the -msvc
+        # one because of cross-compilation problems with the embedded-resource
+        # crate.
+        run: |
+          rustup set default-host x86_64-pc-windows-gnu
+          cd e/windowsauth
+          rustup install
+          rustup show
+
+      - name: Read the Teleport version
+        id: teleport-version
+        # This is provenance only: it records which Teleport source tree the
+        # windowsauth release was cut from.
+        run: |
+          $Version = "v$(make --no-print-directory print-version)".Trim()
+          "teleport-version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Normalize the windowsauth version
+        id: windowsauth-version
+        env:
+          INPUT_WINDOWSAUTH_VERSION: ${{ inputs.windowsauth-version }}
+        run: |
+          $Version = "$env:INPUT_WINDOWSAUTH_VERSION".Trim()
+          if (-not $Version.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $Version = "v$Version"
+          }
+          if ($Version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "windowsauth-version input must match vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH with optional prerelease suffix"
+          }
+          Write-Host "Building the authentication package DLL as windowsauth $Version from Teleport ${{ steps.teleport-version.outputs.teleport-version }}"
+          "windowsauth-version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run tests
+        run: make -C e/windowsauth test
+
+      - name: Build the cabinet
+        env:
+          WINDOWSAUTH_VERSION: ${{ steps.windowsauth-version.outputs.windowsauth-version }}
+        run: make -C e/windowsauth VERSION="$env:WINDOWSAUTH_VERSION" cab
+
+      - name: Upload the unsigned cabinet
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-cab
+          path: e/windowsauth/build/*.cab
+          if-no-files-found: error
+          retention-days: 7
+
+  sign-and-upload:
+    needs: build-cab
+    # Pinned to 22.04 rather than ubuntu-latest: the osslsigncode release that
+    # setup-windows-signing installs is built for 22.04, and aws-kms-pkcs11
+    # needs libssl1.1, which later Ubuntu releases do not package.
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      CAB_NAME: teleport-auth-package-${{ needs.build-cab.outputs.windowsauth-version }}.cab
+      TELEPORT_VERSION: ${{ needs.build-cab.outputs.teleport-version }}
+      WINDOWSAUTH_VERSION: ${{ needs.build-cab.outputs.windowsauth-version }}
+      ENVIRONMENT: ${{ inputs.environment }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: ${{ inputs.environment }}
+          value-sets: windows-signing
+          environments-directory: e/.environments
+
+      - name: Download the unsigned cabinet
+        uses: actions/download-artifact@v8
+        with:
+          name: unsigned-cab
+          path: unsigned
+
+      # This role needs only kms:Sign and ssm:GetParameter, for the signing key
+      # and the certificate. Uploading is done later under a separate role.
+      - name: Assume AWS code signing role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.WINDOWS_SIGNING_ROLE_ARN }}
+          role-session-name: "auth-package-cab-${{ github.run_number }}"
+          role-duration-seconds: 1800
+
+      - name: Set up Windows code signing
+        uses: ./.github/actions/setup-windows-signing
+        with:
+          cert-ssm-parameter-path: ${{ env.WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH }}
+          kms-key-arn: ${{ env.WINDOWS_SIGNING_KEY_ARN }}
+
+      - name: Sign the cabinet
+        run: |
+          sign-binary "unsigned/$CAB_NAME" "signed/$CAB_NAME"
+
+          echo "::group::Verifying the signed cabinet..."
+          osslsigncode verify -in "signed/$CAB_NAME"
+          echo "::endgroup::"
+
+          cd signed && sha256sum "$CAB_NAME" | tee "$CAB_NAME.sha256"
+
+      # Uploading is a separate role from signing so that the signing role stays
+      # scoped to KMS and SSM, matching how the release pipeline authorizes its
+      # own artifact uploads.
+      - name: Assume AWS artifact upload role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "auth-package-cab-upload-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Upload the unsigned cabinet for submission
+        run: |
+          # <origin>/<tag>/<commit>/<file>. The origin names the environment that
+          # produced the artifact, and is required rather than cosmetic: the
+          # stage signed bucket receives replicated prod objects, and S3
+          # replication preserves keys exactly, so the only way prod and stage
+          # artifacts cannot collide is for the origin to be in the key from the
+          # moment it is written. The windowsauth version is the primary release
+          # identity, while the Teleport version and commit identify the source
+          # tree the release was cut from.
+          CAB_KEY="${ENVIRONMENT%%/*}/${WINDOWSAUTH_VERSION#v}/${TELEPORT_VERSION#v}/${GITHUB_SHA:0:9}/$CAB_NAME"
+          echo "CAB_KEY=$CAB_KEY" >> "$GITHUB_ENV"
+
+          aws s3 cp "signed/$CAB_NAME" "s3://$WINDOWSAUTH_UNSIGNED_BUCKET/$CAB_KEY" --no-progress
+          aws s3 cp "signed/$CAB_NAME.sha256" "s3://$WINDOWSAUTH_UNSIGNED_BUCKET/$CAB_KEY.sha256" --no-progress
+
+      - name: Summarize the handoff
+        run: |
+          {
+            echo "## Signing cabinet ready for submission"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Cabinet | \`$CAB_NAME\` |"
+            echo "| windowsauth version | \`$WINDOWSAUTH_VERSION\` |"
+            echo "| Teleport source version | \`$TELEPORT_VERSION\` |"
+            echo "| Environment | \`$ENVIRONMENT\` |"
+            echo "| S3 | \`s3://$WINDOWSAUTH_UNSIGNED_BUCKET/$CAB_KEY\` |"
+            echo "| SHA256 | \`$(cut -d' ' -f1 "signed/$CAB_NAME.sha256")\` |"
+
+            if [ "$ENVIRONMENT" != "prod/build" ]; then
+              echo
+              echo "> **Not submittable.** Signed with \`$ENVIRONMENT\` credentials, which are not EV."
+              echo "> The LSA portal accepts only a cab signed with the prod EV certificate, so this"
+              echo "> run validates the pipeline and nothing else. Discard the result."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

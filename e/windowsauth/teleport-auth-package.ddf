@@ -1,0 +1,34 @@
+; Directive file for makecab, used to build the cab file submitted to the
+; Microsoft LSA file signing portal.
+;
+; Microsoft requires LSA submissions to be a single cabinet containing no
+; folders and nothing but the binaries to be signed, so exactly one file goes
+; in, stored as a bare "teleport.dll" with no path component. The two-token
+; entry at the bottom is what guarantees that: the second token is the name the
+; file is stored under, independent of where it was read from.
+;
+; The cabinet name is supplied by the Makefile via /D CabinetNameTemplate so
+; that the DLL version lives in one place.
+
+.OPTION EXPLICIT
+
+.Set Cabinet=on
+.Set Compress=on
+.Set CompressionType=MSZIP
+
+; No size limit, so the output is always a single cabinet rather than a split
+; set. The portal accepts one file only.
+.Set MaxDiskSize=0
+
+; Authenticode signatures are written into space reserved inside the cabinet
+; header, not appended. Without a reservation, signing the cabinet fails.
+.Set ReservePerCabinetSize=6144
+
+.Set DiskDirectory1=build
+
+; Suppress the setup.rpt and setup.inf files makecab writes by default; they are
+; build noise and must not end up in the cabinet.
+.Set RptFileName=nul
+.Set InfFileName=nul
+
+installer\teleport.dll teleport.dll

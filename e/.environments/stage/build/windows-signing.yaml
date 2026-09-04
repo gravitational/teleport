@@ -2,3 +2,8 @@
 WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: /stage/windows/signing/build-stage/certificate
 WINDOWS_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:603330915152:alias/teleport-windows-signing-key
 WINDOWS_SIGNING_ROLE_ARN: arn:aws:iam::603330915152:role/windows-signing-build-stage-role
+# Cabs submitted to the Microsoft LSA signing portal, written by CI.
+WINDOWSAUTH_UNSIGNED_BUCKET: tp-603330915152-us-west-2-windowsauth-unsigned-stage
+# DLLs returned by Microsoft. Prod is the only environment that can submit, so
+# this bucket receives the prod signed artifacts by replication.
+WINDOWSAUTH_SIGNED_BUCKET: tp-603330915152-us-west-2-windowsauth-signed-stage

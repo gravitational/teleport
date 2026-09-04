@@ -2,3 +2,7 @@
 WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: /prod/windows/signing/build-prod/certificate
 WINDOWS_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:146628656107:alias/teleport-windows-signing-key
 WINDOWS_SIGNING_ROLE_ARN: arn:aws:iam::146628656107:role/windows-signing-build-prod-role
+# Cabs submitted to the Microsoft LSA signing portal, written by CI.
+WINDOWSAUTH_UNSIGNED_BUCKET: tp-146628656107-us-west-2-windowsauth-unsigned-prod
+# DLLs returned by Microsoft, uploaded by hand. Read by release builds.
+WINDOWSAUTH_SIGNED_BUCKET: tp-146628656107-us-west-2-windowsauth-signed-prod

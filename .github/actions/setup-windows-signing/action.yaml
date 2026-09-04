@@ -1,0 +1,33 @@
+name: Set up Windows code signing
+description: >-
+  Installs osslsigncode and the aws-kms-pkcs11 provider, points them at the
+  KMS-backed Windows code signing certificate, and installs a sign-binary helper
+  on PATH.
+
+  Linux runners only. A Windows runner that signs through WSL cannot use this
+  action, because a composite action's shell cannot be selected at runtime --
+  it should call setup.sh in this directory through its own WSL shell instead,
+  which is why the work lives in scripts rather than inline steps.
+
+inputs:
+  cert-ssm-parameter-path:
+    description: SSM parameter path holding the code signing certificate.
+    required: true
+  kms-key-arn:
+    description: ARN or alias of the KMS key holding the signing key.
+    required: true
+  aws-region:
+    description: Region holding the KMS key and SSM parameter.
+    required: false
+    default: us-west-2
+
+runs:
+  using: composite
+  steps:
+    - name: Install and configure the signing toolchain
+      shell: bash
+      env:
+        WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: ${{ inputs.cert-ssm-parameter-path }}
+        WINDOWS_SIGNING_KEY_ARN: ${{ inputs.kms-key-arn }}
+        WINDOWS_SIGNING_AWS_REGION: ${{ inputs.aws-region }}
+      run: "${GITHUB_ACTION_PATH}/setup.sh"
