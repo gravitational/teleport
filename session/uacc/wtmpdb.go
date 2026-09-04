@@ -53,52 +53,79 @@ func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 	return &WtmpdbBackend{db: db}, nil
 }
 
-// Login creates a new session entry for the given user.
-func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (int64, error) {
-	// Schema: https://github.com/thkukuk/wtmpdb?tab=readme-ov-file#database
-	stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	defer stmt.Close()
-	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, hostFromAddr(remote))
-	if err != nil {
-		var e *sqlite.Error
-		if ok := errors.As(err, &e); ok {
-			if e.Code() == sqlite3.SQLITE_READONLY {
-				return 0, trace.AccessDenied("cannot write to wtmpdb file, is Teleport running as root?")
+// retryTransaction retries a transaction a few times if the database was locked.
+func retryTransaction(f func() error) error {
+	const attempts = 5
+	var err error
+	for range attempts {
+		err = f()
+		if err == nil {
+			return nil
+		} else if sqlErr, ok := errors.AsType[*sqlite.Error](err); ok {
+			if sqlErr.Code() == sqlite3.SQLITE_BUSY {
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
 		}
-		return 0, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return id, nil
+	return trace.Wrap(err)
+}
+
+// Login creates a new session entry for the given user.
+func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (int64, error) {
+	var id int64
+	retryErr := retryTransaction(func() error {
+		// Schema: https://github.com/thkukuk/wtmpdb?tab=readme-ov-file#database
+		stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+		result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, hostFromAddr(remote))
+		if err != nil {
+			var e *sqlite.Error
+			if ok := errors.As(err, &e); ok {
+				if e.Code() == sqlite3.SQLITE_READONLY {
+					return trace.AccessDenied("cannot write to wtmpdb file, is Teleport running as root?")
+				}
+			}
+			return trace.Wrap(err)
+		}
+		id, err = result.LastInsertId()
+		return trace.Wrap(err)
+	})
+	return id, trace.Wrap(retryErr)
 }
 
 // Logout marks the user corresponding to the given id (returned from Login) as logged out.
 func (w *WtmpdbBackend) Logout(id int64, ts time.Time) error {
-	stmt, err := w.db.Prepare("UPDATE wtmp SET Logout = ? WHERE ID = ?")
-	if err != nil {
+	return trace.Wrap(retryTransaction(func() error {
+		stmt, err := w.db.Prepare("UPDATE wtmp SET Logout = ? WHERE ID = ?")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+		_, err = stmt.Exec(ts.UnixMicro(), id)
 		return trace.Wrap(err)
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(ts.UnixMicro(), id)
-	return trace.Wrap(err)
+	}))
 }
 
 // IsUserLoggedIn checks if the given user has an active session.
 func (w *WtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
-	stmt, err := w.db.Prepare("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL")
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer stmt.Close()
 	var count int
-	if err := stmt.QueryRow(username).Scan(&count); err != nil {
-		return false, nil
-	}
-	return count != 0, nil
+	retryErr := retryTransaction(func() error {
+		stmt, err := w.db.Prepare("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer stmt.Close()
+		if err := stmt.QueryRow(username).Scan(&count); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	return count != 0, trace.Wrap(retryErr)
 }

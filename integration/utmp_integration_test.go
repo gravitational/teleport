@@ -21,8 +21,10 @@ package integration
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -51,11 +53,13 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/uacc"
 )
@@ -84,7 +88,11 @@ type SrvCtx struct {
 func checkUserInFile(t assert.TestingT, utmp *uacc.UtmpBackend, uaccFile, username string, expectPresent bool) {
 	inFile, err := utmp.IsUserInFile(uaccFile, username)
 	assert.NoError(t, err)
-	assert.Equal(t, expectPresent, inFile)
+	if expectPresent {
+		assert.True(t, inFile, "missing entry for user %q in file %s", username, path.Base(uaccFile))
+	} else {
+		assert.False(t, inFile, "unexpected entry for user %q in file %s", username, path.Base(uaccFile))
+	}
 }
 
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
@@ -148,7 +156,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportTestUser)
 			assert.NoError(collect, err)
 			assert.True(collect, inWtmpdb)
-		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
+		}, 5*time.Minute, time.Second, "did not detect utmp and wtmpdb entries within 5 minutes")
 	})
 
 	t.Run("unsuccessful login is logged in btmp", func(t *testing.T) {
@@ -347,6 +355,10 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	nodeDir := t.TempDir()
+	level := &slog.LevelVar{}
+	if testing.Verbose() {
+		level.Set(slog.LevelDebug)
+	}
 	srv, err := regular.New(
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
@@ -377,6 +389,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		regular.SetInventoryControlHandle(inventoryHandle),
+		regular.SetChildLogConfig(&servicecfg.Config{
+			LoggerLevel: level,
+			LogConfig: log.Config{
+				Format: "json",
+			},
+			LogWriter: os.Stderr,
+		}),
 	)
 	require.NoError(t, err)
 	s.srv = srv

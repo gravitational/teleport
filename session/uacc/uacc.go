@@ -125,6 +125,7 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 			anySucceeded = true
 			session.utmpKey = ttyName
 		} else {
+			slog.WarnContext(context.Background(), "failed to log session in utmp", "error", err)
 			errors = append(errors, err)
 		}
 	}
@@ -134,6 +135,7 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 			anySucceeded = true
 			session.wtmpdbKey = &key
 		} else {
+			slog.WarnContext(context.Background(), "failed to log session in wtmpdb", "error", err)
 			errors = append(errors, err)
 		}
 	}
