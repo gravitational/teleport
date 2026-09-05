@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
+	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
 // AuthClient is a subset of the full Auth API that must be connected.
@@ -64,4 +65,15 @@ type Service struct {
 func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
 	res, err := s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
 	return res, trace.Wrap(err)
+}
+
+// EnrollDevice forwards the enrollment ceremony stream to the same RPC in the
+// Auth Service.
+func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
+	err := grpcutils.ProxyBidiStream(s.log, stream,
+		func(ctx context.Context) (publicdevicepb.DeviceTrustService_EnrollDeviceClient, error) {
+			server, err := s.authClient.PublicDevicesClient().EnrollDevice(ctx)
+			return server, trace.Wrap(err)
+		})
+	return trace.Wrap(err)
 }
