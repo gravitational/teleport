@@ -18,7 +18,9 @@ package grpcproxy
 
 import (
 	"context"
+	"io"
 	"net"
+	"slices"
 	"sync"
 	"testing"
 
@@ -63,7 +65,7 @@ func TestService_CreatePairedDeviceEnrollToken(t *testing.T) {
 	})
 
 	t.Run("propagates errors from the auth service", func(t *testing.T) {
-		fake := &fakeAuthService{err: trace.AccessDenied("denied")}
+		fake := &fakeAuthService{createTokenErr: trace.AccessDenied("denied")}
 		client := newProxyClient(t, fake)
 
 		_, err := client.CreatePairedDeviceEnrollToken(t.Context(),
@@ -74,22 +76,139 @@ func TestService_CreatePairedDeviceEnrollToken(t *testing.T) {
 	})
 }
 
+func TestService_EnrollDevice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("forwards the stream in both directions", func(t *testing.T) {
+		fake := &fakeAuthService{}
+		client := newProxyClient(t, fake)
+
+		stream, err := client.EnrollDevice(t.Context())
+		require.NoError(t, err)
+
+		init := publicdevicepb.EnrollDeviceRequest_builder{
+			Init: publicdevicepb.EnrollDeviceInit_builder{
+				Token:        "enroll-token",
+				CredentialId: "credential-id",
+				DeviceData: devicepb.DeviceCollectedData_builder{
+					OsType:       devicepb.OSType_OS_TYPE_IOS,
+					SerialNumber: "CXXXXXXXXX01",
+				}.Build(),
+				Ios: publicdevicepb.IOSEnrollPayload_builder{
+					PublicKeyDer: []byte("public-key"),
+				}.Build(),
+			}.Build(),
+		}.Build()
+		require.NoError(t, stream.Send(init))
+
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, []byte("challenge"), resp.GetIosChallenge().GetChallenge())
+
+		chalResp := publicdevicepb.EnrollDeviceRequest_builder{
+			IosChallengeResponse: publicdevicepb.IOSEnrollChallengeResponse_builder{
+				Signature: []byte("signed-challenge"),
+			}.Build(),
+		}.Build()
+		require.NoError(t, stream.Send(chalResp))
+
+		success, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, "device-id", success.GetSuccess().GetDevice().GetId())
+
+		_, err = stream.Recv()
+		require.ErrorIs(t, err, io.EOF)
+
+		// The auth service saw exactly the messages the client sent.
+		assert.Empty(t, cmp.Diff(
+			[]*publicdevicepb.EnrollDeviceRequest{init, chalResp},
+			fake.getEnrollReqs(),
+			protocmp.Transform(),
+		))
+	})
+
+	t.Run("propagates errors from the auth service", func(t *testing.T) {
+		fake := &fakeAuthService{enrollErr: trace.AccessDenied("denied")}
+		client := newProxyClient(t, fake)
+
+		stream, err := client.EnrollDevice(t.Context())
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	})
+}
+
 // fakeAuthService stands in for the auth-side public Device Trust service.
 type fakeAuthService struct {
 	publicdevicepb.UnimplementedDeviceTrustServiceServer
 
-	resp *publicdevicepb.CreatePairedDeviceEnrollTokenResponse
-	err  error
+	resp           *publicdevicepb.CreatePairedDeviceEnrollTokenResponse
+	createTokenErr error
+	// enrollErr fails EnrollDevice before any message is read.
+	enrollErr error
 
-	mu      sync.Mutex
-	lastReq *publicdevicepb.CreatePairedDeviceEnrollTokenRequest
+	mu         sync.Mutex
+	lastReq    *publicdevicepb.CreatePairedDeviceEnrollTokenRequest
+	enrollReqs []*publicdevicepb.EnrollDeviceRequest
 }
 
 func (f *fakeAuthService) CreatePairedDeviceEnrollToken(_ context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
 	f.mu.Lock()
 	f.lastReq = req
 	f.mu.Unlock()
-	return f.resp, f.err
+	return f.resp, f.createTokenErr
+}
+
+// EnrollDevice runs a scripted happy-path ceremony: init in, challenge out,
+// challenge response in, success out.
+func (f *fakeAuthService) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
+	if f.enrollErr != nil {
+		return f.enrollErr
+	}
+
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	f.recordEnrollReq(req)
+	if req.GetInit() == nil {
+		return trace.BadParameter("expected EnrollDeviceInit")
+	}
+
+	if err := stream.Send(publicdevicepb.EnrollDeviceResponse_builder{
+		IosChallenge: publicdevicepb.IOSEnrollChallenge_builder{
+			Challenge: []byte("challenge"),
+		}.Build(),
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err = stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	f.recordEnrollReq(req)
+	if req.GetIosChallengeResponse() == nil {
+		return trace.BadParameter("expected IOSEnrollChallengeResponse")
+	}
+
+	return trace.Wrap(stream.Send(publicdevicepb.EnrollDeviceResponse_builder{
+		Success: publicdevicepb.EnrollDeviceSuccess_builder{
+			Device: devicepb.Device_builder{Id: "device-id"}.Build(),
+		}.Build(),
+	}.Build()))
+}
+
+func (f *fakeAuthService) recordEnrollReq(req *publicdevicepb.EnrollDeviceRequest) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.enrollReqs = append(f.enrollReqs, req)
+}
+
+func (f *fakeAuthService) getEnrollReqs() []*publicdevicepb.EnrollDeviceRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.enrollReqs)
 }
 
 func (f *fakeAuthService) getLastReq() *publicdevicepb.CreatePairedDeviceEnrollTokenRequest {
@@ -129,6 +248,7 @@ func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer) pu
 	lis := bufconn.Listen(1024)
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(grpcinterceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(grpcinterceptors.GRPCServerStreamErrorInterceptor),
 	)
 	publicdevicepb.RegisterDeviceTrustServiceServer(server, svc)
 	go func() {
@@ -146,6 +266,7 @@ func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer) pu
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithChainUnaryInterceptor(grpcinterceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithChainStreamInterceptor(grpcinterceptors.GRPCClientStreamErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })

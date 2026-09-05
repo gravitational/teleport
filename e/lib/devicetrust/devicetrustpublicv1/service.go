@@ -11,7 +11,9 @@ package devicetrustpublicv1
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -22,9 +24,12 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
+	dterrors "github.com/gravitational/teleport/e/lib/devicetrust/errors"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -241,7 +246,7 @@ func (s *Service) requestEnrollment(ctx context.Context, token string, cd *devic
 	// Reconstruct the pairing user's identity in the context and run the
 	// centralized authz, so create_enroll_token is evaluated through the same
 	// entry point the authenticated service uses.
-	if err := s.authorizeUser(ctx, user); err != nil {
+	if err := s.authorizeUser(ctx, user, types.KindMobileDevice, types.VerbCreateEnrollToken); err != nil {
 		s.logger.DebugContext(ctx,
 			"CreatePairedDeviceEnrollToken: user authorization failed",
 			"error", err,
@@ -384,9 +389,10 @@ func (s *Service) authorizeProxy(ctx context.Context) error {
 	return nil
 }
 
-// authorizeUser reconstructs the pairing user's identity in the context and
-// runs the centralized authz to check the create_enroll_token permission.
-func (s *Service) authorizeUser(ctx context.Context, user string) error {
+// authorizeUser reconstructs the identity of user, the one the caller's token
+// is bound to, and runs the centralized authz on it before checking access to
+// verb on kind.
+func (s *Service) authorizeUser(ctx context.Context, user, kind, verb string) error {
 	u, err := s.cachedUsers.GetUser(ctx, user, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -413,7 +419,7 @@ func (s *Service) authorizeUser(ctx context.Context, user string) error {
 
 	return trace.Wrap(authCtx.Checker.CheckAccessToRule(
 		&services.Context{User: authCtx.User},
-		defaults.Namespace, types.KindMobileDevice, types.VerbCreateEnrollToken,
+		defaults.Namespace, kind, verb,
 	), "check rule access")
 }
 
@@ -422,6 +428,26 @@ func deviceMetadataFromCollectedData(cd *devicepb.DeviceCollectedData) *apievent
 		OsType:   apievents.OSType(cd.GetOsType()),
 		AssetTag: cd.GetSerialNumber(),
 	}
+}
+
+func deviceMetadataFromDevice(d *devicepb.Device) *apievents.DeviceMetadata {
+	return &apievents.DeviceMetadata{
+		OsType:       apievents.OSType(d.GetOsType()),
+		AssetTag:     d.GetAssetTag(),
+		DeviceId:     d.GetId(),
+		CredentialId: d.GetCredential().GetId(),
+		DeviceOrigin: apievents.DeviceOrigin(d.GetSource().GetOrigin()),
+	}
+}
+
+// enrollDeviceMetadata describes the device for an enroll audit event: the
+// inventory record when the handler has resolved one, the caller's collected
+// data otherwise.
+func enrollDeviceMetadata(dev *devicepb.Device, cd *devicepb.DeviceCollectedData) *apievents.DeviceMetadata {
+	if dev != nil {
+		return deviceMetadataFromDevice(dev)
+	}
+	return deviceMetadataFromCollectedData(cd)
 }
 
 // awaitApproval blocks until the owning user approves the pairing in the Web
@@ -560,4 +586,265 @@ func (s *Service) emitAuditEvent(ctx context.Context, evt apievents.AuditEvent) 
 			"code", evt.GetCode(),
 		)
 	}
+}
+
+// errEnrollTokenLookupUnavailable stands in for a token resolution that failed
+// for a reason other than a missing device or token, so that backend state
+// doesn't reach the unauthenticated caller. The real error survives in the
+// audit event and a Debug log.
+//
+// It is a ConnectionProblemError, and thus retryable, so that a transient
+// storage failure doesn't read as a terminal rejection of a token that is still
+// good.
+var errEnrollTokenLookupUnavailable = &trace.ConnectionProblemError{Message: "enrollment token lookup failed"}
+
+// errEnrollDeviceUnavailable stands in for an enrollment ceremony error that is
+// not written for the caller and happened while the token was still stored, so
+// that backend and inventory state doesn't reach the unauthenticated caller.
+// The real error survives in the audit event and a Debug log.
+//
+// It is a ConnectionProblemError, and thus retryable, so that a transient
+// backend failure doesn't read as a terminal rejection of a token that is still
+// good. See [errEnrollDeviceFailed] for failures past the point where the token
+// is spent.
+var errEnrollDeviceUnavailable = &trace.ConnectionProblemError{Message: "device enrollment failed"}
+
+// errEnrollDeviceFailed stands in for an enrollment ceremony error that is not
+// written for the caller and happened after the token was spent.
+//
+// A retry with the same token will fail, so unlike [errEnrollDeviceUnavailable]
+// this error must not read as retryable: the caller has to start a new pairing
+// flow. CompareFailedError gets translated to FailedPrecondition, so that the
+// caller knows it cannot just repeat the request.
+var errEnrollDeviceFailed = &trace.CompareFailedError{Message: "device enrollment failed, request a new enrollment token"}
+
+// enrollAllowedOSTypes gates the public EnrollDevice to mobile devices.
+// Desktop OS types enroll through the private Device Trust service.
+var enrollAllowedOSTypes = []devicepb.OSType{
+	devicepb.OSType_OS_TYPE_IOS,
+	devicepb.OSType_OS_TYPE_IPADOS,
+}
+
+// EnrollDevice implements the device enrollment ceremony over the public Device
+// Trust service.
+//
+// The caller is identified by the enrollment token sent in the init message:
+// the handler resolves the token's user, reruns authorization on their behalf
+// and only then lets the ceremony from the private service spend the token.
+func (s *Service) EnrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_EnrollDeviceServer) error {
+	ctx := stream.Context()
+	if err := s.authorizeProxy(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	init := req.GetInit()
+	if err := validateEnrollDeviceInit(init); err != nil {
+		return trace.Wrap(err)
+	}
+
+	dev, user, err := s.resolveEnrollToken(ctx, init)
+	if err != nil {
+		s.logger.DebugContext(ctx,
+			"EnrollDevice: enroll token resolution failed",
+			"error", err,
+		)
+		s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(dev, init.GetDeviceData()), err)
+		return trace.Wrap(redactEnrollTokenError(ctx, err))
+	}
+	// mobile_device.create_enroll_token gates the ceremony as well as the token:
+	// the private service's device.enroll rule and its auto-enroll exemption
+	// have no mobile counterpart, and the user established their right to
+	// enroll this device when the token was minted for them. Rechecking the
+	// same permission here catches a lock or a revoked role between the two
+	// calls, before the token is spent.
+	if err := s.authorizeUser(ctx, user, types.KindMobileDevice, types.VerbCreateEnrollToken); err != nil {
+		s.logger.DebugContext(ctx,
+			"EnrollDevice: token user authorization failed",
+			"error", err,
+		)
+		s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(dev, init.GetDeviceData()), err)
+		return trace.Wrap(redactUserAuthzError(ctx, err))
+	}
+
+	dev, tokenSpent, err := devicetrustv1.RunEnrollDeviceCeremony(
+		&enrollDeviceStreamAdapter{DeviceTrustService_EnrollDeviceServer: stream, init: init},
+		devicetrustv1.EnrollDeviceCeremonyParams{
+			Logger:  s.logger,
+			Storage: s.storage,
+			AuditCallback: func(d *devicepb.Device, err error) {
+				s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(d, init.GetDeviceData()), err)
+			},
+			AllowedOSTypes: enrollAllowedOSTypes,
+			User:           user,
+		})
+	if err != nil {
+		s.logEnrollCeremonyError(ctx, dev, err)
+	}
+
+	return trace.Wrap(redactEnrollError(ctx, err, tokenSpent))
+}
+
+// logEnrollCeremonyError logs a failed ceremony. Collected data drift is logged
+// at Warn with the device it was detected on, as the private service does, so
+// that a mobile device failing drift checks is visible in the Auth Service log
+// at the default level like a desktop one. The audit event carries the same
+// error. Other failures stay at Debug.
+func (s *Service) logEnrollCeremonyError(ctx context.Context, dev *devicepb.Device, err error) {
+	if errors.Is(err, &storage.CollectedDataDriftError{}) {
+		s.logger.WarnContext(ctx,
+			"Collected data drift detected",
+			"error", err,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
+		)
+		return
+	}
+	s.logger.DebugContext(ctx,
+		"EnrollDevice: enrollment ceremony failed",
+		"error", err,
+	)
+}
+
+// validateEnrollDeviceInit checks just enough of the init message for the
+// handler to resolve the token user. The ceremony re-runs the equivalent checks
+// on the adapted message.
+//
+// The OS type gate runs here, before any storage access, so that a token
+// stolen from a desktop device cannot be probed for validity through this
+// RPC: a non-mobile init fails the same way whether or not the token is good.
+func validateEnrollDeviceInit(init *devicetrustpublicv1pb.EnrollDeviceInit) error {
+	switch {
+	case init == nil:
+		return trace.BadParameter("bad payload, expected EnrollDeviceInit")
+	case init.GetToken() == "":
+		return trace.BadParameter("enrollment token required")
+	case !init.HasDeviceData():
+		return trace.BadParameter("device data required")
+	case init.GetDeviceData().GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return trace.BadParameter("device OS type required")
+	case !slices.Contains(enrollAllowedOSTypes, init.GetDeviceData().GetOsType()):
+		return trace.BadParameter("unsupported OS type: %v",
+			dtoss.FriendlyOSType(init.GetDeviceData().GetOsType()))
+	case init.GetDeviceData().GetSerialNumber() == "":
+		return trace.BadParameter("device serial number required")
+	}
+	return nil
+}
+
+// resolveEnrollToken resolves the device and the user the enrollment token from
+// init is bound to, without spending the token, so that a rejected attempt
+// doesn't burn it.
+//
+// The enroll ceremony spends the token as soon as it runs, so the user must be
+// resolved and authorized before it: a rejection at these stages, such as a
+// locked user or revoked permissions, leaves the still-valid token stored for a
+// later attempt instead of forcing a new pairing flow to mint another
+// enrollment token.
+//
+// Tokens without a bound user, such as admin-issued tokens, are rejected: they
+// have no user to authorize on the public path.
+//
+// The device is returned whenever the lookup resolved one, so that the audit
+// event for a rejected attempt can name it.
+// Errors are returned unredacted so that the caller can audit them. They must
+// pass through [redactEnrollTokenError] before leaving the RPC.
+func (s *Service) resolveEnrollToken(ctx context.Context, init *devicetrustpublicv1pb.EnrollDeviceInit) (*devicepb.Device, string, error) {
+	dev, data, err := s.storage.GetDeviceEnrollTokenDataUsingData(ctx, init.GetDeviceData(), init.GetToken())
+	if err != nil {
+		return dev, "", trace.Wrap(err)
+	}
+	if data.User == "" {
+		return dev, "", trace.AccessDenied("enrollment token has no user")
+	}
+	// Currently, tokens with non-empty User are always CreatedByAutoEnroll, but
+	// let's make this explicit here.
+	if !data.CreatedByAutoEnroll {
+		return dev, "", trace.AccessDenied("enrollment token is not an auto-enroll token")
+	}
+	return dev, data.User, nil
+}
+
+func redactEnrollTokenError(ctx context.Context, err error) error {
+	switch {
+	case trace.IsNotFound(err), trace.IsBadParameter(err), trace.IsAccessDenied(err):
+		return trace.Wrap(dterrors.ErrInvalidDeviceEnrollToken)
+	case ctx.Err() != nil:
+		return trace.Wrap(ctx.Err())
+	default:
+		// err swallowed on purpose.
+		return trace.Wrap(errEnrollTokenLookupUnavailable)
+	}
+}
+
+// redactEnrollError maps a ceremony error onto an error fit for the
+// unauthenticated caller. Errors written for the caller pass through, anything
+// else is erased. tokenSpent picks the erased error: retryable while the token
+// is still stored, terminal once the ceremony has spent it.
+//
+// By the time redactEnrollError is called, the user is already authorized, so
+// revealing whether a token is spent should not pose a security risk and allows
+// for a better UX on the client side.
+func redactEnrollError(ctx context.Context, err error, tokenSpent bool) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, dterrors.ErrInvalidDeviceEnrollToken):
+		return trace.Wrap(err)
+	case errors.Is(err, &storage.CollectedDataDriftError{}):
+		// Drift is reported as the private service reports it: a constant
+		// message for the caller, the drifted field only in the audit trail and
+		// the Warn log.
+		// err swallowed on purpose.
+		return trace.AccessDenied("%s", devicetrustv1.DataDriftDetectedMessage)
+	case trace.IsBadParameter(err):
+		// The ceremony's BadParameter errors describe the caller's own payload.
+		return trace.Wrap(err)
+	case ctx.Err() != nil:
+		// Cancellation is the caller's own doing.
+		return trace.Wrap(ctx.Err())
+	case tokenSpent:
+		// err swallowed on purpose.
+		return trace.Wrap(errEnrollDeviceFailed)
+	default:
+		// err swallowed on purpose.
+		return trace.Wrap(errEnrollDeviceUnavailable)
+	}
+}
+
+// emitEnrollEvent emits the device enrollment audit event, success or failure.
+// user is empty when the failure precedes user resolution. The audit trail
+// keeps the real error even when the RPC returns a redacted one.
+func (s *Service) emitEnrollEvent(ctx context.Context, user string, device *apievents.DeviceMetadata, err error) {
+	evt := &apievents.DeviceEvent2{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEnrollEvent,
+			Code: events.DeviceEnrollCode,
+		},
+		Device: device,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+	if user != "" {
+		// TODO(ravicious): Put full user metadata into audit events.
+		// https://github.com/gravitational/teleport.e/issues/9351
+		evt.UserMetadata = apievents.UserMetadata{User: user}
+	}
+	if err != nil {
+		evt.Status.Success = false
+		evt.Status.Error = err.Error()
+		// No error reachable through the public service carries a custom
+		// UserMessage today. Reading it anyway keeps the audit event in step with
+		// the private service if a ceremony error gains one.
+		evt.Status.UserMessage = devicetrustv1.UserMessage(err)
+	} else {
+		// The enrolled device is the trusted device in use. It's not in a user cert
+		// at this stage, so it's assigned manually, as in the private service.
+		evt.UserMetadata.TrustedDevice = device
+	}
+	s.emitAuditEvent(ctx, evt)
 }

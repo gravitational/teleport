@@ -19,7 +19,14 @@ func (e auditStatusError) Unwrap() error {
 	return e.Err
 }
 
-func getUserMessage(err error) string {
+// UserMessage returns the custom audit Status.UserMessage carried by err, or
+// an empty string.
+//
+// TODO(ravicious): Consider moving this to e/lib/devicetrust/errors and making
+// use of auditStatusError within e/lib/devicetrust/devicetrustpublicv1.
+// For now, it is exported so that the public Device Trust service can audit
+// ceremony outcomes the same way the private handlers do.
+func UserMessage(err error) string {
 	var auditErr auditStatusError
 	if errors.As(err, &auditErr) {
 		return auditErr.UserMessage

@@ -1737,6 +1737,28 @@ type DeviceEnrollTokenData struct {
 	User string
 }
 
+// GetDeviceEnrollTokenDataUsingData resolves the device matching cd and reads
+// the data of its enrollment token without spending it. This lets callers
+// authenticated by other means than a user cert, like the public Device Trust
+// service, resolve and authorize the token user before the enrollment ceremony
+// consumes the token.
+// Callers are encouraged to "erase" the resulting errors with a constant
+// type/message, as to avoid leaking information about storage state.
+//
+// The resolved device is returned alongside token errors, so that callers can
+// attribute the failure to it in logs and audit events.
+func (s *S) GetDeviceEnrollTokenDataUsingData(ctx context.Context, cd *devicepb.DeviceCollectedData, token string) (*devicepb.Device, *DeviceEnrollTokenData, error) {
+	dev, err := s.findDeviceByCollectedData(ctx, cd)
+	if err != nil {
+		// No device resolved, no token compared. Burn a comparison so that this
+		// rejection takes as long as rejecting a mismatched token.
+		s.fakeCompareDeviceEnrollToken(token)
+		return nil, nil, trace.Wrap(err)
+	}
+	data, err := s.readDeviceEnrollToken(ctx, dev.GetId(), token)
+	return dev, data, trace.Wrap(err)
+}
+
 // SpendDeviceEnrollToken spends an existing enrollment token, allowing the
 // enrollment ceremony to proceed.
 // The token is immediately spent in a positive match.

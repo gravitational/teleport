@@ -43,6 +43,10 @@ const (
 // multi-step ceremonies, such as device enrollment.
 func ValidateDeviceCredential(cred *devicepb.DeviceCredential, os devicepb.OSType) (crypto.PublicKey, error) {
 	isTPM := (os == devicepb.OSType_OS_TYPE_WINDOWS || os == devicepb.OSType_OS_TYPE_LINUX)
+	// Secure Enclave platforms enroll an ECDSA public key.
+	isSecureEnclave := os == devicepb.OSType_OS_TYPE_MACOS ||
+		os == devicepb.OSType_OS_TYPE_IOS ||
+		os == devicepb.OSType_OS_TYPE_IPADOS
 	switch {
 	case cred == nil:
 		return nil, trace.BadParameter("device credential required")
@@ -50,7 +54,7 @@ func ValidateDeviceCredential(cred *devicepb.DeviceCredential, os devicepb.OSTyp
 		return nil, trace.BadParameter("credential ID required")
 	case len(cred.GetId()) > maxCredentialIDLength:
 		return nil, trace.BadParameter("credential ID exceeds %v characters", maxCredentialIDLength)
-	case os == devicepb.OSType_OS_TYPE_MACOS && len(cred.GetPublicKeyDer()) == 0:
+	case isSecureEnclave && len(cred.GetPublicKeyDer()) == 0:
 		return nil, trace.BadParameter("credential public key required")
 	case isTPM && len(cred.GetTpmAkPublic()) == 0:
 		return nil, trace.BadParameter("credential TPM AK public required")

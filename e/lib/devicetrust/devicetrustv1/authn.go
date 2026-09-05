@@ -515,7 +515,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 		)
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("platform attestation verification failed"),
-			UserMessage: getUserMessage(err), // Use the message from finishPlatformAttestation.
+			UserMessage: UserMessage(err), // Use the message from finishPlatformAttestation.
 		}
 	}
 

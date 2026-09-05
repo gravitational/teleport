@@ -840,7 +840,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 				},
 				Status: apievents.Status{
 					Success:     success,
-					UserMessage: getUserMessage(err),
+					UserMessage: UserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,
@@ -947,7 +947,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 				},
 				Status: apievents.Status{
 					Success:     success,
-					UserMessage: getUserMessage(err),
+					UserMessage: UserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,
@@ -1009,7 +1009,7 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 		},
 		Status: apievents.Status{
 			Success:     err == nil,
-			UserMessage: getUserMessage(err),
+			UserMessage: UserMessage(err),
 		},
 		UserMetadata: apievents.UserMetadata{
 			User:          user,

@@ -79,6 +79,11 @@ type DeviceTrustServiceClient interface {
 	//
 	// Only iOS and iPadOS devices may enroll through this RPC.
 	//
+	// Transient backend failures before the token is spent are returned as
+	// Unavailable errors and are safe to retry with the same token.
+	// FailedPrecondition means the ceremony failed after spending the token, so a
+	// retry cannot succeed and the client has to start over with a new token.
+	//
 	// iOS/iPadOS enrollment flow:
 	// -> EnrollDeviceInit (client)
 	// <- IOSEnrollChallenge (server)
@@ -159,6 +164,11 @@ type DeviceTrustServiceServer interface {
 	// bound to a user, such as admin-issued tokens, are rejected.
 	//
 	// Only iOS and iPadOS devices may enroll through this RPC.
+	//
+	// Transient backend failures before the token is spent are returned as
+	// Unavailable errors and are safe to retry with the same token.
+	// FailedPrecondition means the ceremony failed after spending the token, so a
+	// retry cannot succeed and the client has to start over with a new token.
 	//
 	// iOS/iPadOS enrollment flow:
 	// -> EnrollDeviceInit (client)

@@ -3723,6 +3723,56 @@ func TestS_CreateDeviceEnrollTokenUsingData_DuplicateTagAndOSType(t *testing.T) 
 	assert.ErrorContains(t, err, "collected data matches more than one device, aborting", "CreateDeviceEnrollTokenUsingData error mismatch")
 }
 
+func TestS_GetDeviceEnrollTokenDataUsingData(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+	s := env.S
+	ctx := t.Context()
+
+	dev, err := s.CreateDevice(ctx, devicepb.Device_builder{
+		OsType:   devicepb.OSType_OS_TYPE_IOS,
+		AssetTag: "reader-llama",
+	}.Build(), false /* createAsResource */)
+	require.NoError(t, err)
+	cd := collectedDataForDevice(dev)
+
+	created, err := s.CreateDeviceEnrollTokenUsingData(ctx, cd, "llama")
+	require.NoError(t, err)
+	token := created.GetEnrollToken().GetToken()
+
+	// Reads return the token data without consuming the token.
+	for range 2 {
+		gotDev, data, err := s.GetDeviceEnrollTokenDataUsingData(ctx, cd, token)
+		require.NoError(t, err)
+		assert.Equal(t, dev.GetId(), gotDev.GetId())
+		assert.Equal(t, "llama", data.User)
+		assert.True(t, data.CreatedByAutoEnroll)
+	}
+
+	// A token mismatch still names the device it was checked against.
+	gotDev, _, err := s.GetDeviceEnrollTokenDataUsingData(ctx, cd, "not-the-token")
+	assert.ErrorAs(t, err, new(*trace.BadParameterError))
+	assert.Equal(t, dev.GetId(), gotDev.GetId())
+
+	unknownCD := devicepb.DeviceCollectedData_builder{
+		CollectTime:  timestamppb.Now(),
+		OsType:       devicepb.OSType_OS_TYPE_IOS,
+		SerialNumber: "no-such-device",
+	}.Build()
+	gotDev, _, err = s.GetDeviceEnrollTokenDataUsingData(ctx, unknownCD, token)
+	assert.ErrorAs(t, err, new(*trace.NotFoundError))
+	assert.Nil(t, gotDev)
+
+	// The token survives the reads and is spent exactly once.
+	data, err := s.SpendDeviceEnrollToken(ctx, dev.GetId(), token)
+	require.NoError(t, err)
+	assert.Equal(t, "llama", data.User)
+	_, _, err = s.GetDeviceEnrollTokenDataUsingData(ctx, cd, token)
+	assert.ErrorAs(t, err, new(*trace.NotFoundError))
+}
+
 func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	t.Parallel()
 
@@ -3947,7 +3997,7 @@ func TestDefaultFakeEnrollTokenHash(t *testing.T) {
 	}
 }
 
-func TestS_SpendDeviceEnrollToken_rejectionTiming(t *testing.T) {
+func TestS_DeviceEnrollToken_rejectionTiming(t *testing.T) {
 	t.Parallel()
 
 	// Rejections must take at least as long as a bcrypt comparison, otherwise
@@ -3985,38 +4035,53 @@ func TestS_SpendDeviceEnrollToken_rejectionTiming(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		deviceID  string
-		token     string
+		call      func(ctx context.Context) (*storage.DeviceEnrollTokenData, error)
 		errTarget any
 	}{
 		{
-			name:      "device not found",
-			deviceID:  "unknown",
-			token:     token.GetToken(),
+			name: "SpendDeviceEnrollToken device not found",
+			call: func(ctx context.Context) (*storage.DeviceEnrollTokenData, error) {
+				return s.SpendDeviceEnrollToken(ctx, "unknown", token.GetToken())
+			},
 			errTarget: new(*trace.NotFoundError),
 		},
 		{
-			name:      "device without token",
-			deviceID:  devWithoutToken.GetId(),
-			token:     token.GetToken(),
+			name: "SpendDeviceEnrollToken device without token",
+			call: func(ctx context.Context) (*storage.DeviceEnrollTokenData, error) {
+				return s.SpendDeviceEnrollToken(ctx, devWithoutToken.GetId(), token.GetToken())
+			},
 			errTarget: new(*trace.NotFoundError),
 		},
 		{
-			name:      "mismatched token",
-			deviceID:  devWithToken.GetId(),
-			token:     token.GetToken() + "bad",
+			name: "SpendDeviceEnrollToken mismatched token",
+			call: func(ctx context.Context) (*storage.DeviceEnrollTokenData, error) {
+				return s.SpendDeviceEnrollToken(ctx, devWithToken.GetId(), token.GetToken()+"bad")
+			},
 			errTarget: new(*trace.BadParameterError),
+		},
+		{
+			name: "GetDeviceEnrollTokenDataUsingData device not resolved",
+			call: func(ctx context.Context) (*storage.DeviceEnrollTokenData, error) {
+				unresolvedCD := devicepb.DeviceCollectedData_builder{
+					CollectTime:  timestamppb.Now(),
+					OsType:       devicepb.OSType_OS_TYPE_IOS,
+					SerialNumber: "no-such-device",
+				}.Build()
+				_, data, err := s.GetDeviceEnrollTokenDataUsingData(ctx, unresolvedCD, token.GetToken())
+				return data, err
+			},
+			errTarget: new(*trace.NotFoundError),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			start := time.Now()
-			_, err := s.SpendDeviceEnrollToken(ctx, test.deviceID, test.token)
+			_, err := test.call(ctx)
 			elapsed := time.Since(start)
 			require.ErrorAs(t, err, test.errTarget)
 			if elapsed < minElapsed {
-				t.Errorf("SpendDeviceEnrollToken rejected in %v, want at least %v (a bcrypt comparison)", elapsed, minElapsed)
+				t.Errorf("rejected in %v, want at least %v (a bcrypt comparison)", elapsed, minElapsed)
 			}
 		})
 	}

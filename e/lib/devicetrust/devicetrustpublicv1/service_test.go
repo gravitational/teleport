@@ -21,10 +21,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustpublicv1"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
+	dterrors "github.com/gravitational/teleport/e/lib/devicetrust/errors"
+	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	osstestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -135,6 +139,52 @@ func TestService_authz(t *testing.T) {
 			assert.ErrorContains(t, err, "not licensed for device trust")
 
 			assert.Empty(t, emitter.Events(user))
+		})
+	}
+}
+
+func TestService_rejectsNonProxyCaller(t *testing.T) {
+	t.Parallel()
+
+	emitter := &eventstest.MockRecorderEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(builtinRoleAuthorizer{role: types.RoleNode}),
+		testenv.WithEmitter(emitter),
+	)
+	client := env.PublicDevicesClient
+
+	rpcs := []struct {
+		name string
+		call func(t *testing.T) error
+	}{
+		{
+			name: "CreatePairedDeviceEnrollToken",
+			call: func(t *testing.T) error {
+				_, err := client.CreatePairedDeviceEnrollToken(t.Context(),
+					makeRequest("some-token", makeCollectedData()))
+				return err
+			},
+		},
+		{
+			name: "EnrollDevice",
+			call: func(t *testing.T) error {
+				stream, err := client.EnrollDevice(t.Context())
+				require.NoError(t, err)
+				// The proxy check runs before the handler reads anything, so the stream
+				// fails without a single message sent.
+				_, err = stream.Recv()
+				return err
+			},
+		},
+	}
+	for _, rpc := range rpcs {
+		t.Run(rpc.name, func(t *testing.T) {
+			t.Parallel()
+			err := rpc.call(t)
+			assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+			assert.ErrorContains(t, err, "can only be executed by a proxy")
+			// The Proxy check runs before the user is resolved, so nothing is attributed.
+			assert.Empty(t, emitter.Events())
 		})
 	}
 }
@@ -451,23 +501,6 @@ func TestService_CreatePairedDeviceEnrollToken_badParameters(t *testing.T) {
 	}
 }
 
-func TestService_CreatePairedDeviceEnrollToken_rejectsNonProxyCaller(t *testing.T) {
-	t.Parallel()
-
-	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.NewUsingT(t,
-		testenv.WithAuthorizer(builtinRoleAuthorizer{role: types.RoleNode}),
-		testenv.WithEmitter(emitter),
-	)
-
-	_, err := env.PublicDevicesClient.CreatePairedDeviceEnrollToken(t.Context(),
-		makeRequest("some-token", makeCollectedData()))
-	assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
-	assert.ErrorContains(t, err, "can only be executed by a proxy")
-	// The Proxy check runs before the user is resolved, so nothing is attributed.
-	assert.Empty(t, emitter.Events())
-}
-
 // TestService_CreatePairedDeviceEnrollToken_concurrentClaim exercises the
 // branch where a competing device claims the pairing between the handler's read
 // and its compare-and-swap: the swap fails and the handler re-reads to find the
@@ -721,6 +754,497 @@ func TestService_CreatePairedDeviceEnrollToken_deleteFailure(t *testing.T) {
 	assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollTokenIssuanceFailed)
 }
 
+func TestService_EnrollDevice(t *testing.T) {
+	t.Parallel()
+
+	emitter := &testenv.KeyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(&fakeAuthorizer{authorizedUsers: []string{"alice", "bob"}}),
+		testenv.WithEmitter(emitter),
+	)
+
+	tests := []struct {
+		osType devicepb.OSType
+		user   string
+	}{
+		{osType: devicepb.OSType_OS_TYPE_IOS, user: "alice"},
+		{osType: devicepb.OSType_OS_TYPE_IPADOS, user: "bob"},
+	}
+	for _, test := range tests {
+		t.Run(test.osType.String(), func(t *testing.T) {
+			t.Parallel()
+			dev, err := osstestenv.NewFakeIOSDevice(test.osType)
+			require.NoError(t, err)
+			createUser(t, env, test.user)
+			registerDevice(t, env, dev.CollectDeviceData())
+			token := createUserBoundEnrollToken(t, env, test.user, dev.CollectDeviceData())
+
+			ctx := testenv.WithOutgoingEmitterKey(t.Context(), test.user)
+			resp, err := runEnrollDevice(ctx, env.PublicDevicesClient, dev.EnrollDeviceInit(token), dev.SignChallenge)
+			require.NoError(t, err)
+
+			enrolled := resp.GetSuccess().GetDevice()
+			require.NotNil(t, enrolled, "expected EnrollDeviceSuccess, got %v", resp)
+			assert.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, enrolled.GetEnrollStatus())
+			assert.Equal(t, test.user, enrolled.GetOwner())
+			assert.Equal(t, test.osType, enrolled.GetOsType())
+			assert.Equal(t, dev.ID, enrolled.GetCredential().GetId())
+
+			evt := lastDeviceEvent(t, emitter.LastEvent(test.user))
+			assert.Equal(t, events.DeviceEnrollEvent, evt.GetType())
+			assert.Equal(t, events.DeviceEnrollCode, evt.Metadata.Code)
+			assert.True(t, evt.Status.Success)
+			assert.Equal(t, test.user, evt.UserMetadata.User)
+			assert.NotNil(t, evt.UserMetadata.TrustedDevice)
+			assert.Equal(t, dev.SerialNumber, evt.Device.AssetTag)
+		})
+	}
+}
+
+// TestService_EnrollDevice_authz verifies the permission the handler checks for
+// the user reconstructed from the token, and the feature gate.
+// It doesn't ride the shared authz table: the fixture that mints the token
+// calls CreatePairedDeviceEnrollToken itself, which the table's checkers would
+// reject or misattribute.
+func TestService_EnrollDevice_authz(t *testing.T) {
+	t.Parallel()
+
+	authorizer := &fakeAuthorizer{authorizedUsers: []string{"alice"}}
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithModules(testModules),
+	)
+
+	createUser(t, env, "alice")
+	dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+	require.NoError(t, err)
+	registerDevice(t, env, dev.CollectDeviceData())
+	token := createUserBoundEnrollToken(t, env, "alice", dev.CollectDeviceData())
+
+	checker := &ruleVerifyingChecker{want: []wantRuleVerb{
+		{rule: types.KindMobileDevice, verb: types.VerbCreateEnrollToken},
+	}}
+	authorizer.checker = checker
+
+	resp, err := runEnrollDevice(t.Context(), env.PublicDevicesClient, dev.EnrollDeviceInit(token), dev.SignChallenge)
+	require.NoError(t, err)
+	assert.NotNil(t, resp.GetSuccess())
+	assert.NoError(t, checker.verifyMatches())
+
+	// The feature check is bundled with the proxy authz, so a disabled feature
+	// fails the stream before anything is read from it.
+	testModules.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: false}
+	stream, err := env.PublicDevicesClient.EnrollDevice(t.Context())
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	assert.ErrorContains(t, err, "not licensed for device trust")
+}
+
+func TestService_EnrollDevice_errors(t *testing.T) {
+	t.Parallel()
+
+	emitter := &testenv.KeyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(&fakeAuthorizer{authorizedUsers: []string{"carol", "dave", "erin", "grace"}}),
+		testenv.WithEmitter(emitter),
+	)
+	client := env.PublicDevicesClient
+
+	t.Run("rejects an invalid token without leaking storage state", func(t *testing.T) {
+		t.Parallel()
+		// dev is deliberately not registered: an unknown device and a bad token
+		// must be indistinguishable to the caller.
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "unknown-device")
+		_, unknownDeviceErr := runEnrollDevice(ctx, client, dev.EnrollDeviceInit("some-token"), dev.SignChallenge)
+		assertErrorIsAndEqual(t, unknownDeviceErr, dterrors.ErrInvalidDeviceEnrollToken)
+
+		registered, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registeredDev := registerDevice(t, env, registered.CollectDeviceData())
+		ctx = testenv.WithOutgoingEmitterKey(t.Context(), "bad-token")
+		_, badTokenErr := runEnrollDevice(ctx, client, registered.EnrollDeviceInit("bad-token"), registered.SignChallenge)
+		assert.Equal(t, unknownDeviceErr.Error(), badTokenErr.Error())
+
+		// The failure is audited without a user, as none could be resolved. The
+		// audit trail keeps the real error behind the redacted one.
+		evt := lastDeviceEvent(t, emitter.LastEvent("bad-token"))
+		assert.False(t, evt.Status.Success)
+		assert.Empty(t, evt.UserMetadata.User)
+		assert.Equal(t, registeredDev.GetId(), evt.Device.DeviceId)
+
+		unknownEvt := lastDeviceEvent(t, emitter.LastEvent("unknown-device"))
+		assert.Contains(t, unknownEvt.Status.Error, "device not found")
+		assert.Empty(t, unknownEvt.Device.DeviceId)
+	})
+
+	t.Run("rejects a token that is not bound to a user", func(t *testing.T) {
+		t.Parallel()
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registered := registerDevice(t, env, dev.CollectDeviceData())
+		token := createAdminEnrollToken(t, env, registered.GetId())
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "admin-token")
+		_, err = runEnrollDevice(ctx, client, dev.EnrollDeviceInit(token), dev.SignChallenge)
+		assertErrorIsAndEqual(t, err, dterrors.ErrInvalidDeviceEnrollToken)
+
+		// The redacted error is told apart from the other token failures only in the
+		// audit trail.
+		evt := lastDeviceEvent(t, emitter.LastEvent("admin-token"))
+		assert.False(t, evt.Status.Success)
+		assert.Contains(t, evt.Status.Error, "token has no user")
+		assert.Equal(t, registered.GetId(), evt.Device.DeviceId)
+	})
+
+	t.Run("returns NotFound when the token user no longer exists", func(t *testing.T) {
+		t.Parallel()
+		createUser(t, env, "erin")
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registerDevice(t, env, dev.CollectDeviceData())
+		token := createUserBoundEnrollToken(t, env, "erin", dev.CollectDeviceData())
+		require.NoError(t, env.IdentityService.DeleteUser(t.Context(), "erin"))
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "erin-gone")
+		_, err = runEnrollDevice(ctx, client, dev.EnrollDeviceInit(token), dev.SignChallenge)
+		// The caller never supplies a username, it comes out of the verified
+		// token's own record, so it's safe to disclose this NotFound error.
+		// This should help somewhat in situations where an SSO user expires before
+		// the device is enrolled.
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+		assert.ErrorContains(t, err, "user not found")
+	})
+
+	t.Run("a failed ceremony spends the token but doesn't enroll the device", func(t *testing.T) {
+		t.Parallel()
+		createUser(t, env, "carol")
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registerDevice(t, env, dev.CollectDeviceData())
+		token := createUserBoundEnrollToken(t, env, "carol", dev.CollectDeviceData())
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "carol")
+		_, err = runEnrollDevice(ctx, client, dev.EnrollDeviceInit(token),
+			func([]byte) ([]byte, error) { return []byte("not a valid signature"), nil })
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+		assert.ErrorContains(t, err, "signature verification failed")
+
+		evt := lastDeviceEvent(t, emitter.LastEvent("carol"))
+		assert.False(t, evt.Status.Success)
+		assert.Equal(t, "carol", evt.UserMetadata.User)
+
+		// The ceremony spends the token before the challenge, so the failed attempt
+		// consumed it.
+		_, err = runEnrollDevice(ctx, client, dev.EnrollDeviceInit(token), dev.SignChallenge)
+		assertErrorIsAndEqual(t, err, dterrors.ErrInvalidDeviceEnrollToken)
+
+		// The device is not enrolled: a fresh token and a correct signature enroll
+		// it all the way.
+		token = createUserBoundEnrollToken(t, env, "carol", dev.CollectDeviceData())
+		resp, err := runEnrollDevice(ctx, client, dev.EnrollDeviceInit(token), dev.SignChallenge)
+		require.NoError(t, err)
+		assert.NotNil(t, resp.GetSuccess())
+	})
+
+	t.Run("an erased failure after the token is spent is terminal", func(t *testing.T) {
+		t.Parallel()
+		createUser(t, env, "grace")
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registered := registerDevice(t, env, dev.CollectDeviceData())
+		token := createUserBoundEnrollToken(t, env, "grace", dev.CollectDeviceData())
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "grace")
+		stream, err := client.EnrollDevice(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+			Init: dev.EnrollDeviceInit(token),
+		}.Build()))
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetIosChallenge(), "expected IOSEnrollChallenge, got %v", resp)
+
+		// The token is spent by the time the challenge arrives. Removing the device
+		// now makes the final storage write fail with an error the caller must not
+		// see, past the point where a retry with the same token could succeed.
+		deleteDevice(t, env, registered.GetId())
+
+		sig, err := dev.SignChallenge(resp.GetIosChallenge().GetChallenge())
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+			IosChallengeResponse: devicetrustpublicv1pb.IOSEnrollChallengeResponse_builder{
+				Signature: sig,
+			}.Build(),
+		}.Build()))
+		_, err = stream.Recv()
+		assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollDeviceFailed)
+
+		// The audit trail keeps the real error behind the redacted one.
+		evt := lastDeviceEvent(t, emitter.LastEvent("grace"))
+		assert.False(t, evt.Status.Success)
+		assert.Contains(t, evt.Status.Error, "not found")
+	})
+
+	t.Run("rejects a second message that is not a challenge response", func(t *testing.T) {
+		t.Parallel()
+		createUser(t, env, "dave")
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registerDevice(t, env, dev.CollectDeviceData())
+		token := createUserBoundEnrollToken(t, env, "dave", dev.CollectDeviceData())
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "dave")
+		stream, err := client.EnrollDevice(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+			Init: dev.EnrollDeviceInit(token),
+		}.Build()))
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetIosChallenge(), "expected IOSEnrollChallenge, got %v", resp)
+
+		// Replay the init instead of answering the challenge. The error is written
+		// for the caller, so redactEnrollError must pass it through intact.
+		require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+			Init: dev.EnrollDeviceInit(token),
+		}.Build()))
+		_, err = stream.Recv()
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+		assert.ErrorContains(t, err, "expected IOSEnrollChallengeResponse")
+	})
+
+	t.Run("redacts a transient failure of the user authorization", func(t *testing.T) {
+		t.Parallel()
+		authorizer := &fakeAuthorizer{authorizedUsers: []string{"henry"}}
+		emitter := &testenv.KeyedEmitter{}
+		// The subtest injects failures into its authorizer, so it builds an env of
+		// its own instead of sharing the suite's.
+		env := testenv.NewUsingT(t,
+			testenv.WithAuthorizer(authorizer),
+			testenv.WithEmitter(emitter),
+		)
+
+		createUser(t, env, "henry")
+		dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+		require.NoError(t, err)
+		registerDevice(t, env, dev.CollectDeviceData())
+		token := createUserBoundEnrollToken(t, env, "henry", dev.CollectDeviceData())
+
+		// Set userAuthorizeErr to a transient backend failure rather than a
+		// denial: its details must not reach the caller, unlike the deliberate
+		// NotFound and AccessDenied outcomes.
+		authorizer.userAuthorizeErr = trace.Errorf("backend shard 7 unavailable")
+
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "henry")
+		_, err = runEnrollDevice(ctx, env.PublicDevicesClient, dev.EnrollDeviceInit(token), dev.SignChallenge)
+		assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrUserAuthzUnavailable)
+
+		// The audit trail keeps the real error behind the redacted one.
+		evt := lastDeviceEvent(t, emitter.LastEvent("henry"))
+		assert.False(t, evt.Status.Success)
+		assert.Equal(t, "henry", evt.UserMetadata.User)
+		assert.Contains(t, evt.Status.Error, "shard")
+	})
+}
+
+// TestService_EnrollDevice_authzFailurePreservesToken verifies that the rule
+// check runs against the user reconstructed from the token, and, unlike in the
+// private service, before the token is spent, so a rejected attempt doesn't
+// burn the token.
+func TestService_EnrollDevice_authzFailurePreservesToken(t *testing.T) {
+	t.Parallel()
+
+	authorizer := &fakeAuthorizer{authorizedUsers: []string{"frank"}}
+	emitter := &testenv.KeyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithEmitter(emitter),
+	)
+
+	createUser(t, env, "frank")
+	dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+	require.NoError(t, err)
+	registered := registerDevice(t, env, dev.CollectDeviceData())
+	token := createUserBoundEnrollToken(t, env, "frank", dev.CollectDeviceData())
+
+	// Deny the rule check, simulating a user whose permissions were revoked
+	// between token issuance and the enrollment attempt.
+	authorizer.checker = &fakeChecker{authorized: false}
+
+	ctx := testenv.WithOutgoingEmitterKey(t.Context(), "frank")
+	_, err = runEnrollDevice(ctx, env.PublicDevicesClient, dev.EnrollDeviceInit(token), dev.SignChallenge)
+	assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	assert.ErrorContains(t, err, "access denied")
+
+	evt := lastDeviceEvent(t, emitter.LastEvent("frank"))
+	assert.False(t, evt.Status.Success)
+	assert.Equal(t, "frank", evt.UserMetadata.User)
+	assert.Equal(t, registered.GetId(), evt.Device.DeviceId)
+
+	authorizer.checker = nil
+	resp, err := runEnrollDevice(ctx, env.PublicDevicesClient, dev.EnrollDeviceInit(token), dev.SignChallenge)
+	require.NoError(t, err)
+	assert.NotNil(t, resp.GetSuccess())
+}
+
+func TestService_EnrollDevice_badParameters(t *testing.T) {
+	t.Parallel()
+
+	emitter := &testenv.KeyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(&fakeAuthorizer{}),
+		testenv.WithEmitter(emitter),
+	)
+
+	dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+	require.NoError(t, err)
+
+	makeInit := func(mutate func(init *devicetrustpublicv1pb.EnrollDeviceInit)) *devicetrustpublicv1pb.EnrollDeviceInit {
+		init := dev.EnrollDeviceInit("fake-token")
+		mutate(init)
+		return init
+	}
+
+	for _, test := range []struct {
+		name    string
+		init    *devicetrustpublicv1pb.EnrollDeviceInit
+		wantErr string
+	}{
+		{
+			name:    "missing token",
+			init:    makeInit(func(init *devicetrustpublicv1pb.EnrollDeviceInit) { init.SetToken("") }),
+			wantErr: "enrollment token required",
+		},
+		{
+			name:    "missing device data",
+			init:    makeInit(func(init *devicetrustpublicv1pb.EnrollDeviceInit) { init.ClearDeviceData() }),
+			wantErr: "device data required",
+		},
+		{
+			name: "missing OS type",
+			init: makeInit(func(init *devicetrustpublicv1pb.EnrollDeviceInit) {
+				init.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_UNSPECIFIED)
+			}),
+			wantErr: "device OS type required",
+		},
+		{
+			name: "missing serial number",
+			init: makeInit(func(init *devicetrustpublicv1pb.EnrollDeviceInit) {
+				init.GetDeviceData().SetSerialNumber("")
+			}),
+			wantErr: "device serial number required",
+		},
+		{
+			// Desktop devices enroll through the private service. The request is
+			// rejected based on the submitted OS type, before any storage access, so
+			// a stolen desktop-device token cannot be probed for validity through
+			// this RPC.
+			//
+			// Devices are resolved by (serial number, OS type), so if an attacker
+			// steals a desktop token and then lies about OS type, they still won't be
+			// able to probe anything through the public EnrollDevice RPC.
+			name: "OS type outside iOS and iPadOS",
+			init: makeInit(func(init *devicetrustpublicv1pb.EnrollDeviceInit) {
+				init.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_MACOS)
+			}),
+			wantErr: "unsupported OS type",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testenv.WithOutgoingEmitterKey(t.Context(), test.name)
+			_, err := runEnrollDevice(ctx, env.PublicDevicesClient, test.init, dev.SignChallenge)
+			assert.ErrorAs(t, err, new(*trace.BadParameterError))
+			assert.ErrorContains(t, err, test.wantErr)
+			assert.Empty(t, emitter.Events(test.name))
+		})
+	}
+
+	t.Run("first message is not init", func(t *testing.T) {
+		t.Parallel()
+		ctx := testenv.WithOutgoingEmitterKey(t.Context(), "not-init")
+		stream, err := env.PublicDevicesClient.EnrollDevice(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+			IosChallengeResponse: devicetrustpublicv1pb.IOSEnrollChallengeResponse_builder{
+				Signature: []byte("signature"),
+			}.Build(),
+		}.Build()))
+		_, err = stream.Recv()
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+		assert.ErrorContains(t, err, "expected EnrollDeviceInit")
+		assert.Empty(t, emitter.Events("not-init"))
+	})
+}
+
+// TestRedactEnrollError pins that the public boundary redacts errors
+// deny-by-default: only ceremony errors written for the caller pass through,
+// anything else is erased, including errors added to the shared ceremony in the
+// future.
+func TestRedactEnrollError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil stays nil", func(t *testing.T) {
+		assert.NoError(t, devicetrustpublicv1.RedactEnrollError(t.Context(), nil, false /* tokenSpent */))
+	})
+
+	t.Run("caller-facing errors pass through", func(t *testing.T) {
+		err := devicetrustpublicv1.RedactEnrollError(t.Context(),
+			trace.Wrap(dterrors.ErrInvalidDeviceEnrollToken), false /* tokenSpent */)
+		assert.ErrorIs(t, err, dterrors.ErrInvalidDeviceEnrollToken)
+
+		// A bad signature is only ever detected after the token is spent.
+		payloadErr := trace.BadParameter("signature verification failed")
+		err = devicetrustpublicv1.RedactEnrollError(t.Context(), payloadErr, true /* tokenSpent */)
+		assert.ErrorIs(t, err, payloadErr)
+	})
+
+	t.Run("drift is reported without the drifted field", func(t *testing.T) {
+		driftErr := trace.Wrap(storage.NewCollectedDataDriftError("os_type drift detected"))
+		err := devicetrustpublicv1.RedactEnrollError(t.Context(), driftErr, true /* tokenSpent */)
+		assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		assert.EqualError(t, err, devicetrustv1.DataDriftDetectedMessage)
+		assert.NotContains(t, err.Error(), "os_type")
+	})
+
+	t.Run("anything else is erased", func(t *testing.T) {
+		for _, unexpected := range []error{
+			trace.NotFound("device %q/%v not registered", "serial", "macOS"),
+			trace.Errorf("shard 7 on fire"),
+		} {
+			err := devicetrustpublicv1.RedactEnrollError(t.Context(), unexpected, false /* tokenSpent */)
+			assert.ErrorIs(t, err, devicetrustpublicv1.ErrEnrollDeviceUnavailable)
+			assert.NotContains(t, err.Error(), "not registered")
+			assert.NotContains(t, err.Error(), "shard")
+
+			// Once the token is spent a retry cannot succeed, so the erased error
+			// turns terminal.
+			err = devicetrustpublicv1.RedactEnrollError(t.Context(), unexpected, true /* tokenSpent */)
+			assert.ErrorIs(t, err, devicetrustpublicv1.ErrEnrollDeviceFailed)
+			assert.NotContains(t, err.Error(), "not registered")
+			assert.NotContains(t, err.Error(), "shard")
+		}
+	})
+
+	t.Run("cancellation surfaces as the context error", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		err := devicetrustpublicv1.RedactEnrollError(ctx, trace.Errorf("stream torn down"), true /* tokenSpent */)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+}
+
 // fakeAuthorizer stands in for both Authorize calls the handler makes: to
 // verify the incoming Proxy identity and to verify the pairing user
 // reconstructed from the pairing token.
@@ -729,6 +1253,9 @@ type fakeAuthorizer struct {
 	// checker overrides the fakeChecker derived from authorizedUsers, so that a
 	// test can assert which rule and verb the handler checks.
 	checker services.AccessChecker
+	// userAuthorizeErr, when set, fails the Authorize call for a reconstructed
+	// user, simulating a transient authorization failure rather than a denial.
+	userAuthorizeErr error
 }
 
 // Authorize returns either a context with the user (if the user was injected
@@ -736,6 +1263,9 @@ type fakeAuthorizer struct {
 func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	if u, err := authz.UserFromContext(ctx); err == nil {
 		if localUser, ok := u.(authz.LocalUser); ok {
+			if a.userAuthorizeErr != nil {
+				return nil, a.userAuthorizeErr
+			}
 			user, err := types.NewUser(localUser.Username)
 			if err != nil {
 				return nil, err
@@ -783,18 +1313,19 @@ func (c *fakeChecker) CheckAccessToRule(_ services.RuleContext, _, rule, verb st
 	return nil
 }
 
-// deviceRegistrar is the identity [registerDevice] uses to register devices
-// through the private Device Trust service.
+// deviceRegistrar is the identity the device fixtures ([registerDevice],
+// [deleteDevice], [createAdminEnrollToken]) use to call the private Device
+// Trust service.
 const deviceRegistrar = "device-registrar"
 
-// registrarChecker authorizes the device registration fixture and nothing
-// else.
+// registrarChecker authorizes the device fixtures, registration, removal and
+// admin-issued enrollment tokens, and nothing else.
 type registrarChecker struct {
 	testenv.NoopChecker
 }
 
 func (registrarChecker) CheckAccessToRule(_ services.RuleContext, _, rule, verb string) error {
-	if rule == types.KindDevice && verb == types.VerbCreate {
+	if rule == types.KindDevice && (verb == types.VerbCreate || verb == types.VerbDelete || verb == types.VerbCreateEnrollToken) {
 		return nil
 	}
 	return trace.AccessDenied("access denied to %v/%v", rule, verb)
@@ -879,6 +1410,47 @@ func registerDevice(t *testing.T, env *testenv.E, cd *devicepb.DeviceCollectedDa
 	}.Build())
 	require.NoError(t, err)
 	return dev
+}
+
+// createAdminEnrollToken mints an enrollment token for the device through the
+// private Device Trust service. Admin-issued tokens carry no user and can't be
+// used for enrollment through the public service.
+func createAdminEnrollToken(t *testing.T, env *testenv.E, deviceID string) string {
+	t.Helper()
+	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{Username: deviceRegistrar})
+	token, err := env.DevicesService.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
+		DeviceId: deviceID,
+	}.Build())
+	require.NoError(t, err)
+	return token.GetToken()
+}
+
+// deleteDevice removes the device from the inventory through the private Device
+// Trust service.
+func deleteDevice(t *testing.T, env *testenv.E, deviceID string) {
+	t.Helper()
+	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{Username: deviceRegistrar})
+	_, err := env.DevicesService.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
+		DeviceId: deviceID,
+	}.Build())
+	require.NoError(t, err)
+}
+
+// createUserBoundEnrollToken mints an enrollment token bound to user by running
+// the full pairing flow: create, claim, approve, issue. The device described by
+// cd must already be registered and user must exist and pass authz.
+//
+// The fixture uses an emitter key of its own so that its audit events don't
+// pollute the calling test's assertions – its primary use case is for tests of
+// the flow beyond CreatePairedDeviceEnrollToken.
+func createUserBoundEnrollToken(t *testing.T, env *testenv.E, user string, cd *devicepb.DeviceCollectedData) string {
+	t.Helper()
+	token := createPairing(t, env, user)
+	approvePairing(t, env, token, cd)
+	ctx := testenv.WithOutgoingEmitterKey(t.Context(), user+"-token-fixture")
+	resp, err := env.PublicDevicesClient.CreatePairedDeviceEnrollToken(ctx, makeRequest(token, cd))
+	require.NoError(t, err)
+	return resp.GetDeviceEnrollToken().GetToken()
 }
 
 // approvePairing drives the pairing behind token through a claim by the device
@@ -1158,4 +1730,47 @@ type failingDeleteEnrollPairing struct {
 
 func (f *failingDeleteEnrollPairing) DeleteEnrollPairing(ctx context.Context, pairing *devicepb.EnrollPairing) error {
 	return f.err
+}
+
+// runEnrollDevice drives the public enrollment ceremony: init, challenge,
+// signed response. sign is called with the server challenge and its result
+// rides in the IOSEnrollChallengeResponse.
+func runEnrollDevice(ctx context.Context,
+	client devicetrustpublicv1pb.DeviceTrustServiceClient,
+	init *devicetrustpublicv1pb.EnrollDeviceInit,
+	sign func(chal []byte) ([]byte, error),
+) (*devicetrustpublicv1pb.EnrollDeviceResponse, error) {
+	stream, err := client.EnrollDevice(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+		Init: init,
+	}.Build()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chal := resp.GetIosChallenge()
+	if chal == nil {
+		return resp, trace.BadParameter("expected IOSEnrollChallenge, got %v", resp)
+	}
+
+	sig, err := sign(chal.GetChallenge())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+		IosChallengeResponse: devicetrustpublicv1pb.IOSEnrollChallengeResponse_builder{
+			Signature: sig,
+		}.Build(),
+	}.Build()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err = stream.Recv()
+	return resp, trace.Wrap(err)
 }

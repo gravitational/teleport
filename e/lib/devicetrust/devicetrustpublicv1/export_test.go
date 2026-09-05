@@ -9,3 +9,8 @@ var ErrPairingDeniedOrExpired = errPairingDeniedOrExpired
 var ErrPairingConsumed = errPairingConsumed
 var ErrEnrollVerificationFailed = errEnrollVerificationFailed
 var ErrEnrollTokenIssuanceFailed = errEnrollTokenIssuanceFailed
+var ErrUserAuthzUnavailable = errUserAuthzUnavailable
+var ErrEnrollDeviceUnavailable = errEnrollDeviceUnavailable
+var ErrEnrollDeviceFailed = errEnrollDeviceFailed
+
+var RedactEnrollError = redactEnrollError

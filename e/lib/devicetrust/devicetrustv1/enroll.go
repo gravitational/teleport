@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	dterrors "github.com/gravitational/teleport/e/lib/devicetrust/errors"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
@@ -18,11 +19,46 @@ import (
 
 var errDeniedByNonAutoToken = errors.New("user lacks permissions to spend non auto-enroll token")
 
-// errInvalidDeviceEnrollToken is returned for every enrollment token failure
-// that must stay indistinguishable to the caller: a bad, expired or
-// already-spent token, and a token minted for a different user.
-var errInvalidDeviceEnrollToken = &trace.AccessDeniedError{
-	Message: "invalid device enrollment token",
+// EnrollDeviceCeremonyParams configures [RunEnrollDeviceCeremony].
+type EnrollDeviceCeremonyParams struct {
+	Logger  *slog.Logger
+	Storage *storage.S
+	// AuditCallback is called exactly once with the ceremony outcome, either
+	// after the first error or before the last Send of the stream.
+	AuditCallback func(d *devicepb.Device, err error)
+	// AllowedOSTypes gates which device OS types may enroll through the calling
+	// RPC surface: desktop OS types belong to the private Device Trust service,
+	// mobile ones to the public service. See RFD 32e.
+	AllowedOSTypes []devicepb.OSType
+	// User the enrollment token must be bound to.
+	User string
+}
+
+// RunEnrollDeviceCeremony runs the enrollment ceremony on behalf of RPC
+// surfaces outside the package, such as the public Device Trust service.
+//
+// Returns the enrolled device and an error. As long as any device information
+// is acquired from the stream, a non-nil device is returned, even if the
+// ceremony itself failed.
+//
+// tokenSpent reports whether the ceremony got as far as spending the enrollment
+// token. A failure with tokenSpent set cannot be retried with the same token.
+func RunEnrollDeviceCeremony(
+	stream devicepb.DeviceTrustService_EnrollDeviceServer,
+	params EnrollDeviceCeremonyParams,
+) (dev *devicepb.Device, tokenSpent bool, err error) {
+	c := &enrollCeremony{
+		logger:         params.Logger,
+		storage:        params.Storage,
+		auditCallback:  params.AuditCallback,
+		allowedOSTypes: params.AllowedOSTypes,
+	}
+	// The auto-enroll exemption belongs to the private service's authorization
+	// path. Callers of this function authorize on their own terms before the
+	// ceremony runs, so allowedByAutoEnroll has nothing to restrict here. See
+	// [enrollCeremony.EnrollDevice].
+	dev, err = c.EnrollDevice(stream, params.User, false /* allowedByAutoEnroll */)
+	return dev, c.tokenSpent, trace.Wrap(err)
 }
 
 type enrollCeremony struct {
@@ -34,6 +70,9 @@ type enrollCeremony struct {
 	// RPC surface: desktop OS types belong to the private Device Trust service,
 	// mobile ones to the public service. See RFD 32e.
 	allowedOSTypes []devicepb.OSType
+	// tokenSpent is set once SpendDeviceEnrollToken succeeds, so that callers can
+	// tell a failure that left the token intact from one that consumed it.
+	tokenSpent bool
 }
 
 // EnrollDevice implements the device enrollment ceremony, as described by
@@ -47,6 +86,16 @@ type enrollCeremony struct {
 // The ceremony auditCallback is guaranteed to be called exactly once, either
 // after the first error or before the last Send of the stream.
 // The outcome of the last Send is not considered for audit purposes.
+//
+// user is the caller the token is spent for. A token bound to a user can only
+// be spent by that user. Admin-issued tokens carry no user and are spendable by
+// whoever the caller authenticated.
+//
+// allowedByAutoEnroll records that the caller passed authorization only through
+// the cluster's auto-enroll exemption, after failing the device.enroll rule
+// check. Such a caller may enroll only with tokens minted by auto-enroll, so
+// the exemption does not extend to admin-issued tokens. A caller that passed
+// the rule check outright passes false, which restricts nothing.
 func (c *enrollCeremony) EnrollDevice(
 	stream devicepb.DeviceTrustService_EnrollDeviceServer,
 	user string,
@@ -111,8 +160,9 @@ func (c *enrollCeremony) enrollDevice(
 	tokenData, err := c.storage.SpendDeviceEnrollToken(ctx, dev.GetId(), initReq.GetToken())
 	if err != nil {
 		// err swallowed/obscured on purpose.
-		return dev, trace.Wrap(errInvalidDeviceEnrollToken)
+		return dev, trace.Wrap(dterrors.ErrInvalidDeviceEnrollToken)
 	}
+	c.tokenSpent = true
 	if allowedByAutoEnroll && !tokenData.CreatedByAutoEnroll {
 		return dev, trace.Wrap(errDeniedByNonAutoToken)
 	}
@@ -124,7 +174,7 @@ func (c *enrollCeremony) enrollDevice(
 	if tokenData.User != "" && tokenData.User != user {
 		message := fmt.Sprintf("enrollment token user mismatch (want %s, got %s)", tokenData.User, user)
 		return dev, auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceEnrollToken),
+			Err:         trace.Wrap(dterrors.ErrInvalidDeviceEnrollToken),
 			UserMessage: message,
 		}
 	}
@@ -150,6 +200,11 @@ func (c *enrollCeremony) enrollDevice(
 	var cred *devicepb.DeviceCredential
 	switch dev.GetOsType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
+		cred, err = c.enrollDeviceMacOS(initReq, dev, stream)
+	case devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS:
+		// iOS and iPadOS keys live in Secure Enclave like macOS keys, and the
+		// public service adapts their payloads onto the macOS fields, so the macOS
+		// flow applies as is.
 		cred, err = c.enrollDeviceMacOS(initReq, dev, stream)
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		cred, err = c.enrollDeviceTPM(initReq, dev, stream)
