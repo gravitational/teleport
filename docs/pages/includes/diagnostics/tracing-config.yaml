@@ -23,6 +23,6 @@ tracing_service:
   ca_certs:
     - /var/lib/teleport/exporter_ca.pem
   # Optional TLS certificates are used to enable mTLS for the exporter
-  https_keypairs:
+  keypairs:
     - key_file: /var/lib/teleport/exporter_key.pem
       cert_file: /var/lib/teleport/exporter_cert.pem
