@@ -16,12 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { waitFor } from '@testing-library/react';
 import { createRef } from 'react';
+import { beforeAll, expect, test, vi } from 'vitest';
 
 import { act, fireEvent, render, screen } from 'design/utils/testing';
+import type { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 
+import Logger, { NullService } from 'teleterm/logger';
+import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import type { Shell } from 'teleterm/mainProcess/shell';
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
 import {
+  makeKubeGateway,
   makeRootCluster,
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
@@ -29,7 +36,11 @@ import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesC
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { Document } from 'teleterm/ui/services/workspacesService';
-import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import {
+  makeDocumentCluster,
+  makeDocumentGatewayKube,
+  makeDocumentPtySession,
+} from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { routing } from 'teleterm/ui/uri';
 
@@ -48,22 +59,42 @@ function getMockDocuments(): Document[] {
   ];
 }
 
-async function getTestSetup({ documents }: { documents: Document[] }) {
-  const appContext = new MockAppContext();
-  jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
+async function getTestSetup({
+  documents,
+  availableShells,
+  gateway,
+}: {
+  documents: Document[];
+  availableShells?: Shell[];
+  gateway?: Gateway;
+}) {
+  const runtimeSettings = makeRuntimeSettings();
+  if (availableShells?.length) {
+    runtimeSettings.availableShells = availableShells;
+    runtimeSettings.defaultOsShellId = availableShells[0].id;
+  }
+  const appContext = new MockAppContext(runtimeSettings);
+  vi.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
+  vi.spyOn(appContext.terminalsService, 'createPtyProcess');
 
   appContext.addRootClusterWithDoc(makeRootCluster(), documents);
+  if (gateway) {
+    appContext.clustersService.setState(draftState => {
+      draftState.gateways.set(gateway.uri, gateway);
+    });
+  }
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
 
-  jest.spyOn(docsService, 'add');
-  jest.spyOn(docsService, 'open');
-  jest.spyOn(docsService, 'close');
-  jest.spyOn(docsService, 'swapPosition');
-  jest.spyOn(docsService, 'closeOthers');
-  jest.spyOn(docsService, 'closeToRight');
-  jest.spyOn(docsService, 'duplicatePtyAndActivate');
+  vi.spyOn(docsService, 'add');
+  vi.spyOn(docsService, 'open');
+  vi.spyOn(docsService, 'close');
+  vi.spyOn(docsService, 'swapPosition');
+  vi.spyOn(docsService, 'closeOthers');
+  vi.spyOn(docsService, 'closeToRight');
+  vi.spyOn(docsService, 'duplicatePtyAndActivate');
+  vi.spyOn(docsService, 'reopenPtyInShell');
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -85,8 +116,13 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
   return {
     docsService,
     mainProcessClient: appContext.mainProcessClient,
+    terminalsService: appContext.terminalsService,
   };
 }
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
 
 test('render documents', async () => {
   const { docsService } = await getTestSetup({
@@ -120,15 +156,15 @@ test('open context menu', async () => {
     docsService;
   const documents = docsService.getDocuments();
   const document = documents[0];
+  const spy = vi.spyOn(mainProcessClient, 'openTabContextMenu');
 
   const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.contextMenu($tabTitle);
   expect(openTabContextMenu).toHaveBeenCalled();
 
-  // @ts-expect-error `openTabContextMenu` doesn't know about jest
-  const options: TabContextMenuOptions = openTabContextMenu.mock.calls[0][0];
-  expect(options.document).toEqual(document);
+  const options: TabContextMenuOptions = spy.mock.calls[0][0];
+  expect(options.capabilities).toEqual({ canDuplicatePty: false });
 
   act(() => {
     options.onClose();
@@ -150,6 +186,87 @@ test('open context menu', async () => {
   });
   expect(duplicatePtyAndActivate).toHaveBeenCalledWith(document.uri);
 });
+
+const currentShell: Shell = {
+  id: 'shell-1',
+  binPath: '/bin/shell-1',
+  binName: 'shell-1',
+  friendlyName: 'shell-1',
+};
+const selectedShell: Shell = {
+  id: 'shell-2',
+  binPath: '/bin/shell-2',
+  binName: 'shell-2',
+  friendlyName: 'shell-2',
+};
+const availableShells = [currentShell, selectedShell];
+
+test.each([
+  {
+    documentType: 'PTY session',
+    expectedCanDuplicatePty: true,
+    setupOptions: {
+      documents: [makeDocumentPtySession({ shellId: currentShell.id })],
+      availableShells,
+    },
+  },
+  {
+    documentType: 'Kube gateway',
+    expectedCanDuplicatePty: false,
+    setupOptions: {
+      documents: [makeDocumentGatewayKube({ shellId: currentShell.id })],
+      availableShells,
+      gateway: makeKubeGateway(),
+    },
+  },
+])(
+  'change shell for $documentType document from context menu',
+  async ({ expectedCanDuplicatePty, setupOptions }) => {
+    const [document] = setupOptions.documents;
+    const { terminalsService, mainProcessClient } =
+      await getTestSetup(setupOptions);
+    const openTabContextMenuSpy = vi.mocked(
+      mainProcessClient.openTabContextMenu
+    );
+    const { createPtyProcess } = terminalsService;
+
+    await waitFor(() => {
+      expect(createPtyProcess).toHaveBeenCalledTimes(1);
+    });
+    expect(createPtyProcess).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: 'pty.shell',
+        shellId: currentShell.id,
+      })
+    );
+
+    fireEvent.contextMenu(screen.getByTitle(document.title));
+
+    expect(openTabContextMenuSpy).toHaveBeenCalledOnce();
+    const options: TabContextMenuOptions =
+      openTabContextMenuSpy.mock.calls[0][0];
+    expect(options.capabilities).toEqual({
+      canDuplicatePty: expectedCanDuplicatePty,
+      shellSelector: {
+        activeShellId: currentShell.id,
+      },
+    });
+
+    act(() => {
+      options.onReopenPtyInShell(selectedShell);
+    });
+
+    await waitFor(() => {
+      expect(createPtyProcess).toHaveBeenCalledTimes(2);
+    });
+    expect(createPtyProcess).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: 'pty.shell',
+        shellId: selectedShell.id,
+      })
+    );
+  }
+);
 
 test('open new tab', async () => {
   const { docsService } = await getTestSetup({

@@ -41,11 +41,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { promisify } from 'util';
+import { promisify } from 'node:util';
 
-import { md, pki } from 'node-forge';
+import nf from 'node-forge';
 
-const generateKeyPair = promisify(pki.rsa.generateKeyPair.bind(pki.rsa));
+const generateKeyPair = promisify(nf.pki.rsa.generateKeyPair.bind(nf.pki.rsa));
 
 interface GeneratedCert {
   key: string;
@@ -101,14 +101,14 @@ async function generateRawCert({
   validityDays,
   signWith,
 }: {
-  subject: pki.CertificateField[];
-  issuer: pki.CertificateField[];
+  subject: nf.pki.CertificateField[];
+  issuer: nf.pki.CertificateField[];
   extensions: any[];
   validityDays: number;
   signWith?: string;
 }): Promise<GeneratedCert> {
   const keyPair = await generateKeyPair({ bits: 2048, workers: 4 });
-  const cert = pki.createCertificate();
+  const cert = nf.pki.createCertificate();
 
   cert.publicKey = keyPair.publicKey;
   cert.serialNumber = '0';
@@ -123,12 +123,12 @@ async function generateRawCert({
 
   // sign the certificate with its own private key if no separate signing key is provided
   const privateKey = signWith
-    ? pki.privateKeyFromPem(signWith)
+    ? nf.pki.privateKeyFromPem(signWith)
     : keyPair.privateKey;
-  cert.sign(privateKey, md.sha256.create());
+  cert.sign(privateKey, nf.md.sha256.create());
 
   return {
-    key: pki.privateKeyToPem(keyPair.privateKey),
-    cert: pki.certificateToPem(cert),
+    key: nf.pki.privateKeyToPem(keyPair.privateKey),
+    cert: nf.pki.certificateToPem(cert),
   };
 }

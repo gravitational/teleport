@@ -30,17 +30,17 @@ const { argv, env } = process;
 
 const RESOURCES_PATH = app.isPackaged
   ? process.resourcesPath
-  : path.join(__dirname, '../../..');
+  : path.join(import.meta.dirname, '../../..');
 
 // Optional root directory for app data; when set, Connect stores `home`, `userData`, and `sessionData` under this path.
 // Used in e2e tests.
 const CONNECT_DATA_DIR_ENV_VAR = 'CONNECT_DATA_DIR';
 const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
-// __dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
+// import.meta.dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
 // We default to teleport/build/tsh.
 // prettier-ignore
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
-  __dirname,
+  import.meta.dirname,
   '..', '..', '..', '..', '..', '..',
   'build', process.platform === 'win32' ? 'tsh.exe' : 'tsh',
 );

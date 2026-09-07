@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// agentCleanupDaemon.mjs is a JavaScript file and not a TypeScript file on purpose.
+// agentCleanupDaemon.js is a JavaScript file and not a TypeScript file on purpose.
 //
 // If it was written in TypeScript, we'd have to run it through something like ts-node in tests.
 // Unfortunately, tools like ts-node mess up with the actual processes being executed [1] and in
@@ -25,16 +25,12 @@
 // To keep things in tests as close to production as possible, we opted to use a regular JS module
 // that can be simply forked.
 //
-// What's more, it cannot be an ESM module (.mjs). Electron doesn't support them well yet [3],
-// particularly when ESM modules are forked from asar.
-//
 // [1] https://github.com/TypeStrong/ts-node/tree/47d4f45f35e824a2515e17383a563be7dba7d8ff#native-ecmascript-modules
 // [2] https://github.com/TypeStrong/ts-node/tree/47d4f45f35e824a2515e17383a563be7dba7d8ff#how-it-works
-// [3] https://github.com/electron/electron/issues/21457
 
-const { setTimeout } = require('node:timers/promises');
+import { setTimeout } from 'node:timers/promises';
 
-const { format, createLogger, transports } = require('winston');
+import { format, createLogger, transports } from 'winston';
 
 const agentPid = parseInt(process.argv[2], 10);
 // Pass ppid over argv rather than reading process.ppid, as ppid can change when the cleanup deamon
@@ -115,7 +111,7 @@ process.send(null, undefined, undefined, () => {
 
 logger.info('Spawned and ready.');
 
-postLaunchChecks();
+await postLaunchChecks();
 
 async function postLaunchChecks() {
   // Terminate the agent if the parent got terminated before the cleanup daemon was able to fully
@@ -138,7 +134,6 @@ async function postLaunchChecks() {
     // 42 is a custom exit code so that we don't collide with Node.js exit codes.
     // https://nodejs.org/docs/latest-v18.x/api/process.html#exit-codes
     process.exitCode = 42;
-    return;
   }
 }
 
