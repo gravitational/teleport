@@ -66,7 +66,7 @@ import (
 
 func TestE2E_ApplicationTunnelService(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Spin up a test HTTP server
@@ -130,20 +130,20 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 		AddressKind: connection.AddressKindProxy,
 		Insecure:    true,
 	}
+	registry := readyz.NewRegistry()
+	reporter := registry.AddService(TunnelServiceType, "tunnel")
+	builder := TunnelServiceBuilder(
+		&TunnelConfig{Listener: botListener, AppName: appName},
+		connCfg, bot.DefaultCredentialLifetime, time.Minute,
+	)
 	b, err := bot.New(bot.Config{
 		Connection: connCfg,
 		Logger:     log,
 		Onboarding: *onboarding,
 		Services: []bot.ServiceBuilder{
-			TunnelServiceBuilder(
-				&TunnelConfig{
-					Listener: botListener,
-					AppName:  appName,
-				},
-				connCfg,
-				bot.DefaultCredentialLifetime,
-				time.Minute,
-			),
+			bot.NewServiceBuilder(TunnelServiceType, "tunnel", func(deps bot.ServiceDependencies) (bot.Service, error) {
+				return builder.Build(deps.WithStatusReporter(reporter))
+			}),
 		},
 	})
 	require.NoError(t, err)
@@ -178,6 +178,15 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, wantBody, body)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Closing the listener makes the local proxy return nil without canceling the bot.
+	require.NoError(t, botListener.Close())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		status, ok := registry.ServiceStatus("tunnel")
+		assert.True(t, ok)
+		assert.Equal(t, readyz.Unhealthy, status.Status)
+		assert.Empty(t, status.Reason)
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
