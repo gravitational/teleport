@@ -7,6 +7,7 @@ import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
 
+import cscoLogoDark from '../Main/cscoLogo/cscoLogoDark.svg';
 import { LoginContainer as Login } from './Login';
 
 function LoginTest({ initialURL }: { initialURL?: string }) {
@@ -20,6 +21,7 @@ function LoginTest({ initialURL }: { initialURL?: string }) {
 
 beforeEach(() => {
   jest.restoreAllMocks();
+  cfg.customTheme = '';
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'replace').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
@@ -41,6 +43,16 @@ test('renders Beams branding when beamsUi is enabled', () => {
 
   expect(screen.getByText('Sign in to Beams')).toBeInTheDocument();
   expect(screen.queryByText('Sign in to Teleport')).not.toBeInTheDocument();
+});
+
+test('renders CSCO branding', () => {
+  cfg.customTheme = 'csco';
+
+  render(<LoginTest />);
+
+  expect(screen.getAllByRole('img')[0]).toHaveAttribute('src', cscoLogoDark);
+  expect(screen.getByText('Sign in')).toBeInTheDocument();
+  expect(screen.getByAltText('powered by teleport')).toBeInTheDocument();
 });
 
 describe.each([

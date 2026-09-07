@@ -93,7 +93,12 @@ const TopBarContainer = styled(TopNav)`
   width: 100%;
   display: flex;
   justify-content: space-between;
-  background: ${p => p.theme.colors.levels.surface};
+  background: ${p =>
+    cfg.customTheme === 'csco'
+      ? 'linear-gradient(90deg, #373c42, #0f1214)'
+      : p.theme.colors.levels.surface};
+  color: ${p =>
+    cfg.customTheme === 'csco' ? '#f7f7f7' : p.theme.colors.text.main};
   overflow-y: initial;
   overflow-x: none;
   flex-shrink: 0;

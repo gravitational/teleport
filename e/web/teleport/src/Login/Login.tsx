@@ -10,6 +10,8 @@ import Motd from 'teleport/Login/Motd';
 import useLogin, { State } from 'teleport/Login/useLogin';
 import history from 'teleport/services/history';
 
+import cscoLogoDark from '../Main/cscoLogo/cscoLogoDark.svg';
+import cscoLogoLight from '../Main/cscoLogo/cscoLogoLight.svg';
 import mcLogo from '../Main/mcLogo/mcLogo.svg';
 import spacexLogoDark from '../Main/spacexLogo/spacexLogoDark.svg';
 import spacexLogoLight from '../Main/spacexLogo/spacexLogoLight.svg';
@@ -59,6 +61,15 @@ export function Login({
 
   let logo = <LogoHero />;
   switch (cfg.oss.customTheme) {
+    case 'csco':
+      logo = (
+        <LogoHero
+          customSrc={theme.type === 'dark' ? cscoLogoDark : cscoLogoLight}
+          maxWidth="100%"
+        />
+      );
+      isCustomForm = true;
+      break;
     case 'mc':
       logo = <LogoHero customSrc={mcLogo} />;
       isCustomForm = true;

@@ -16,6 +16,7 @@ import { storageService } from 'teleport/services/storageService';
 
 import { BblpLogo } from './bblpLogo';
 import { BeamsLogo } from './beamsLogo/BeamsLogo';
+import { CscoLogo } from './cscoLogo';
 import { McLogo } from './mcLogo';
 
 export function MainE() {
@@ -46,6 +47,7 @@ export function MainE() {
 
   const CustomLogos: Record<string, () => React.ReactElement> = {
     bblp: BblpLogo,
+    csco: CscoLogo,
     mc: McLogo,
   };
 
