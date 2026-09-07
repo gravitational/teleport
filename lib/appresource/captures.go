@@ -313,7 +313,7 @@ func childArgs(call *ast.CallExpr) []ast.Expr {
 		return nil
 	}
 	switch id.Name {
-	case "literal", "capture":
+	case "literal", "capture", "glob_without":
 		if len(call.Args) > 1 {
 			return call.Args[1:]
 		}
@@ -359,6 +359,8 @@ func validateMatcherConstructors(parsed ast.Expr) error {
 			} else if !captureNameRE.MatchString(s) {
 				err = trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", elide(s))
 			}
+		case isIdentCall(call, "glob_without") && len(call.Args) > 0:
+			err = checkExcludes(call.Args[0])
 		case isIdentCall(call, "optional") && len(call.Args) == 0:
 			err = trace.BadParameter("optional requires at least one child subtree")
 		case isIdentCall(call, "root"):
@@ -371,6 +373,26 @@ func validateMatcherConstructors(parsed ast.Expr) error {
 		return err == nil
 	})
 	return trace.Wrap(err)
+}
+
+// checkExcludes checks that the excludes argument of glob_without is a
+// set(...) of string literals that validateExclude accepts.
+func checkExcludes(arg ast.Expr) error {
+	const want = "the excludes argument of glob_without must be a set of string literals"
+	setCall, ok := ast.Unparen(arg).(*ast.CallExpr)
+	if !ok || !isIdentCall(setCall, "set") {
+		return trace.BadParameter(want)
+	}
+	for _, elem := range setCall.Args {
+		s, ok := stringLiteral(elem)
+		if !ok {
+			return trace.BadParameter(want)
+		}
+		if err := validateExclude(s); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // captureName returns the string-literal name "foo" of a valid

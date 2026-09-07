@@ -24,7 +24,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -206,11 +205,24 @@ func TestCompileRolesValidatesRules(t *testing.T) {
 	require.ErrorContains(t, err, "byte maximum")
 }
 
-func TestCompileRolesRejectsPathRules(t *testing.T) {
-	_, err := CompileRoles([]Role{{
-		Name:      "dev",
-		Resources: []Rule{{AllowAll: true}, {Paths: []string{"/api/v4/health"}}},
-	}})
-	require.True(t, trace.IsNotImplemented(err))
-	require.ErrorContains(t, err, `role "dev" app_resources 1`)
+func TestRoleSetEvaluatePathRule(t *testing.T) {
+	roles := []Role{{Name: "dev", Resources: []Rule{{
+		Paths:       []string{"/api/{version}/**"},
+		Methods:     []string{"GET"},
+		Where:       `vars.version == "v4"`,
+		AllowCode:   "api_v4",
+		AllowReason: "Allowed.",
+	}}}}
+	set, err := CompileRoles(roles)
+	require.NoError(t, err)
+
+	decision, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/health"}, Identity{Name: "alice"})
+	require.NoError(t, err)
+	require.True(t, decision.Allowed)
+	require.Equal(t, &AllowDetails{Role: "dev", Vars: map[string]string{"version": "v4"}, Code: "api_v4", Reason: "Allowed."}, decision.Allow)
+
+	decision, err = set.Evaluate(Request{Method: "POST", Path: "/api/v4/health"}, Identity{Name: "alice"})
+	require.NoError(t, err)
+	require.False(t, decision.Allowed)
+	require.Equal(t, DenyNotAllowed, decision.Deny.Kind)
 }

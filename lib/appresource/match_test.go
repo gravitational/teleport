@@ -82,6 +82,30 @@ func TestMatchGlob(t *testing.T) {
 	require.True(t, matched, "an encoded space is content")
 }
 
+func TestMatchGlobWithout(t *testing.T) {
+	tree := Literal("files", GlobWithout([]string{"secret", "my x"}, Greedy()))
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/files/public/x", true},
+		{"/files/secret/x", false},
+		{"/files/Secret/x", true},
+		{"/files/secret", false},
+		{"/files/my%20x/y", false},
+		{"/files/secrets/x", true},
+		{"/files", false},
+		{"/files/", false},
+		{"/files/group%2Fproject", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			matched, _ := evalPath(t, tree, tt.path)
+			require.Equal(t, tt.want, matched)
+		})
+	}
+}
+
 func TestMatchCaptureBindsDecodedContent(t *testing.T) {
 	tree := Literal("projects", Capture("project", Greedy()))
 	matched, captures := evalPath(t, tree, "/projects/My%20Project/jobs")
@@ -259,6 +283,16 @@ func TestCompileErrors(t *testing.T) {
 			name:    "trailing slash in literal",
 			root:    Literal("api/"),
 			wantErr: `literal("api/"): a literal segment cannot be empty`,
+		},
+		{
+			name:    "empty exclude",
+			root:    Literal("files", GlobWithout([]string{""})),
+			wantErr: `literal("files") > glob_without(set("")): an excluded segment cannot be empty`,
+		},
+		{
+			name:    "slash in exclude",
+			root:    GlobWithout([]string{"a/b"}),
+			wantErr: `glob_without(set("a/b")): excluded segment "a/b" cannot contain /`,
 		},
 		{
 			name:    "empty optional",

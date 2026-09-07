@@ -62,6 +62,8 @@ func TestPathMatch(t *testing.T) {
 		{`path.match(root(literal("api"), literal("health")))`, "/health", true},
 		{`path.match(root(literal("api"), literal("health")))`, "/metrics", false},
 		{`path.match(capture("name"))`, "/acme", true},
+		{`path.match(literal("files", glob_without(set("secret"), greedy())))`, "/files/public/x", true},
+		{`path.match(literal("files", glob_without(set("secret"), greedy())))`, "/files/secret/x", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.expr+" "+tt.path, func(t *testing.T) {
@@ -324,6 +326,21 @@ func TestCompileExpressionRejectsBadConstructorArgs(t *testing.T) {
 
 	_, err = compileExpression(`path.match(capture(user.name))`)
 	require.ErrorContains(t, err, "the name argument of capture must be a string literal")
+
+	_, err = compileExpression(`path.match(glob_without(set(user.name)))`)
+	require.ErrorContains(t, err, "the excludes argument of glob_without must be a set of string literals")
+
+	_, err = compileExpression(`path.match(glob_without(user.roles))`)
+	require.ErrorContains(t, err, "the excludes argument of glob_without must be a set of string literals")
+
+	_, err = compileExpression(`path.match(glob_without())`)
+	require.Error(t, err)
+
+	_, err = compileExpression(`path.match(glob_without(set("")))`)
+	require.ErrorContains(t, err, "cannot be empty")
+
+	_, err = compileExpression(`path.match(glob_without(set("a/b")))`)
+	require.ErrorContains(t, err, "cannot contain /")
 }
 
 // TestCompileExpressionRejectsUnguaranteedVarsRead checks that a vars read
@@ -350,6 +367,7 @@ func TestCompileExpressionRejectsUnguaranteedVarsRead(t *testing.T) {
 		`allow_code("ok", "Allowed.", path.match(capture("v"))) && vars.v == "x"`,
 		`deny_hint("no", "Denied.", path.match(capture("v"))) && vars.v == "x"`,
 		`path.match(capture("id")) && contains(user.roles, vars.id)`,
+		`path.match(glob_without(set("x"), capture("id"))) && vars.id == "1"`,
 		`path.match(capture("id")) && contains(user.traits[vars.id], "x")`,
 	}
 	for _, expr := range accepted {

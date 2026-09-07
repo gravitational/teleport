@@ -47,6 +47,7 @@ var encodedSegmentText = rapid.SampledFrom([]string{"a%2Fb", "a%20b", "caf%C3%A9
 const (
 	kindLiteral = iota
 	kindGlob
+	kindGlobWithout
 	kindCapture
 	kindGreedy
 	kindSlash
@@ -56,7 +57,7 @@ const (
 
 // treeKind draws a node kind for drawTree. Capture appears three times, so a
 // drawn tree usually holds one and the bindings get exercised.
-var treeKind = rapid.SampledFrom([]int{kindLiteral, kindGlob, kindCapture, kindCapture, kindCapture, kindGreedy, kindSlash, kindOptional, kindRoot})
+var treeKind = rapid.SampledFrom([]int{kindLiteral, kindGlob, kindGlobWithout, kindCapture, kindCapture, kindCapture, kindGreedy, kindSlash, kindOptional, kindRoot})
 
 // drawTree draws an arbitrary tree of bounded depth and width that
 // Compile accepts.
@@ -74,6 +75,8 @@ func drawTree(t *rapid.T, depth int, top bool, bound []string) Node {
 		return Literal(smallText.Draw(t, "literal"), drawChildren(bound)...)
 	case kindGlob:
 		return Glob(drawChildren(bound)...)
+	case kindGlobWithout:
+		return GlobWithout([]string{smallText.Draw(t, "exclude")}, drawChildren(bound)...)
 	case kindCapture:
 		var free []string
 		for _, name := range smallAlphabet {
@@ -118,16 +121,6 @@ func compilePattern(t *rapid.T, root Node) *Pattern {
 	return pattern
 }
 
-// captureNames collects the capture names a tree can bind.
-func captureNames(node Node, names map[string]struct{}) {
-	if capture, ok := node.(*captureNode); ok {
-		names[capture.name] = struct{}{}
-	}
-	for _, child := range node.children() {
-		captureNames(child, names)
-	}
-}
-
 // matchRef matches like Match with cloned bindings and an index instead
 // of a shared map and reslicing, for TestMatchEqualsReferenceWalk.
 func matchRef(node Node, tokens []Token, i int, captures map[string]string) (bool, map[string]string) {
@@ -157,6 +150,10 @@ func matchRef(node Node, tokens []Token, i int, captures map[string]string) (boo
 		}
 	case *globNode:
 		if i >= len(tokens) || tokens[i].Raw == "" || tokens[i].hasEncodedSlash() {
+			return false, nil
+		}
+	case *globWithoutNode:
+		if i >= len(tokens) || tokens[i].Raw == "" || tokens[i].hasEncodedSlash() || slices.Contains(n.excludes, tokens[i].Decoded) {
 			return false, nil
 		}
 	case *captureNode:
@@ -229,10 +226,9 @@ func TestMatchArbitraryTrees(t *testing.T) {
 		if !matched && captures != nil {
 			t.Fatalf("no match for %q returned a non-nil map %v", path, captures)
 		}
-		names := map[string]struct{}{}
-		captureNames(root, names)
+		names := captureNames(root)
 		for name := range captures {
-			if _, ok := names[name]; !ok {
+			if !slices.Contains(names, name) {
 				t.Fatalf("match for %q bound %q, which no capture node holds", path, name)
 			}
 		}
