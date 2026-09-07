@@ -30,6 +30,8 @@ Global flags:
 |`--log-format`|`text` (one of: `json`, `text`)|Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.|
 |`--[no-]fips`|`false`|Enables FIPS compliance mode. This requires the FIPS binary is in use.|
 |`--[no-]insecure`|`false`|Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.|
+|`--[no-]trace`|`false`|Capture and export distributed traces. Overrides tracing.enabled in the configuration file.|
+|`--trace-exporter`|*no default*|An OTLP exporter URL to send spans to. Overrides tracing.exporter_url in the configuration file.|
 
 Global environment variables:
 

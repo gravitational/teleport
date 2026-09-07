@@ -221,6 +221,16 @@ func TestBotConfig_YAML(t *testing.T) {
 				Oneshot:    true,
 				AuthServer: "example.teleport.sh:443",
 				DiagAddr:   "127.0.0.1:1337",
+				Tracing: TracingConfig{
+					Enabled:                true,
+					ExporterURL:            "grpc://collector.example.com:4317",
+					SamplingRatePerMillion: new(500_000),
+					CACerts:                []string{"/bot/exporter_ca.pem"},
+					KeyPairs: []KeyPair{{
+						PrivateKey:  "/bot/exporter_key.pem",
+						Certificate: "/bot/exporter_cert.pem",
+					}},
+				},
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,
 					RenewalInterval: time.Second * 30,

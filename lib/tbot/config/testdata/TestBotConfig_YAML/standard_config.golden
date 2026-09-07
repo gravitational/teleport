@@ -85,3 +85,12 @@ renewal_interval: 30s
 oneshot: true
 fips: true
 diag_addr: 127.0.0.1:1337
+tracing:
+  enabled: true
+  exporter_url: grpc://collector.example.com:4317
+  sampling_rate_per_million: 500000
+  ca_certs:
+    - /bot/exporter_ca.pem
+  keypairs:
+    - key_file: /bot/exporter_key.pem
+      cert_file: /bot/exporter_cert.pem

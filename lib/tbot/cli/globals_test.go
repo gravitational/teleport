@@ -39,7 +39,7 @@ func TestGlobalArgs(t *testing.T) {
 		"--config=foo.yaml",
 		"--fips",
 		"--trace",
-		"--trace-exporter=foo",
+		"--trace-exporter=grpc://foo:4317",
 		"--insecure",
 		"--log-format=json",
 	})
@@ -49,7 +49,7 @@ func TestGlobalArgs(t *testing.T) {
 	require.True(t, globals.FIPS)
 	require.True(t, globals.Insecure)
 	require.True(t, globals.Trace)
-	require.Equal(t, "foo", globals.TraceExporter)
+	require.Equal(t, "grpc://foo:4317", globals.TraceExporter)
 	require.Equal(t, "foo.yaml", globals.ConfigPath)
 
 	// Clear the config path, otherwise LoadConfigWithMutators will try to load
@@ -64,6 +64,8 @@ func TestGlobalArgs(t *testing.T) {
 	require.True(t, cfg.Debug)
 	require.True(t, cfg.FIPS)
 	require.True(t, cfg.Insecure)
+	require.True(t, cfg.Tracing.Enabled)
+	require.Equal(t, "grpc://foo:4317", cfg.Tracing.ExporterURL)
 }
 
 func TestGlobalInvertedFlags(t *testing.T) {
@@ -75,9 +77,8 @@ func TestGlobalInvertedFlags(t *testing.T) {
 		"--no-debug",
 		"--no-fips",
 		"--no-insecure",
+		"--no-trace",
 		"--config=foo.yaml",
-		"--trace",
-		"--trace-exporter=foo",
 		"--log-format=json",
 	})
 	require.NoError(t, err)
@@ -86,10 +87,12 @@ func TestGlobalInvertedFlags(t *testing.T) {
 		Debug:    true,
 		FIPS:     true,
 		Insecure: true,
+		Tracing:  config.TracingConfig{Enabled: true, ExporterURL: "grpc://foo:4317"},
 	}, globals)
 	require.NoError(t, err)
 
 	require.False(t, cfg.Debug)
 	require.False(t, cfg.FIPS)
 	require.False(t, cfg.Insecure)
+	require.False(t, cfg.Tracing.Enabled)
 }

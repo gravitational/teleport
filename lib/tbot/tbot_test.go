@@ -435,6 +435,7 @@ func TestBot(t *testing.T) {
 			insecure:      true,
 		},
 	)
+
 	b := New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
 
