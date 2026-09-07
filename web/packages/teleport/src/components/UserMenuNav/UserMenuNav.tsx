@@ -39,6 +39,7 @@ import {
   INCREMENT_TRANSITION_DELAY,
   STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
+import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
 import session from 'teleport/services/websession';
@@ -49,12 +50,15 @@ import { useUser } from 'teleport/User/UserContext';
 const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
 const CornerUserDisplay = styled(UserDisplayName)`
+  color: ${props =>
+    cfg.customTheme === 'csco' ? '#f7f7f7' : props.theme.colors.text.main};
   display: none;
   @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
   }
   span {
     line-height: 1.2;
+    ${() => cfg.customTheme === 'csco' && 'color: inherit;'}
   }
 `;
 
@@ -77,6 +81,11 @@ const StyledAvatar = styled.div`
   height: 24px;
   max-width: 24px;
   min-width: 24px;
+`;
+
+const Arrow = styled(DropdownArrow)`
+  color: ${p =>
+    cfg.customTheme === 'csco' ? '#f7f7f7' : p.theme.colors.text.main};
 `;
 
 export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
@@ -164,9 +173,9 @@ export function UserMenuNav({ hideFeatures }: { hideFeatures?: boolean }) {
           <DeviceTrustStatus iconOnly />
         </Box>
 
-        <DropdownArrow open={open}>
+        <Arrow open={open}>
           <ChevronDown size="medium" />
-        </DropdownArrow>
+        </Arrow>
       </DropdownButton>
 
       <Dropdown
