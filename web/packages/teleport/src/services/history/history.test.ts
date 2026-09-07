@@ -125,10 +125,13 @@ describe('services/history', () => {
   });
 
   describe('goToLogin()', () => {
-    it('should navigate to login with URL that has redirect parameter with current location', () => {
+    beforeEach(() => {
       jest
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
+    });
+
+    it('should navigate to login with URL that has redirect parameter with current location', () => {
       location.pathname = '/current-location';
       history.goToLogin({ rememberLocation: true });
 
@@ -138,9 +141,6 @@ describe('services/history', () => {
     });
 
     it('should not attempt to redirect from an unknown path', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/another-location']);
       location.pathname = '/bogus-location';
       history.goToLogin({ rememberLocation: true });
 
@@ -149,9 +149,6 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with access_changed param and no redirect_uri', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/current-location']);
       location.pathname = '/current-location';
       history.goToLogin({ withAccessChangedMessage: true });
 
@@ -160,9 +157,6 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with access_changed param and redirect_uri', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/current-location']);
       location.pathname = '/current-location';
       history.goToLogin({
         rememberLocation: true,
@@ -175,9 +169,6 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with no params', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/current-location']);
       location.pathname = '/current-location';
       history.goToLogin();
 
@@ -186,9 +177,6 @@ describe('services/history', () => {
     });
 
     it('should preserve query params in the redirect_uri', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/current-location']);
       location.pathname = '/current-location';
       location.search = '?test=value';
       history.goToLogin({
@@ -202,10 +190,6 @@ describe('services/history', () => {
     });
 
     it('should preserve query params when router navigation is not initialized yet', () => {
-      jest
-        .spyOn(history, 'getRoutes')
-        .mockReturnValue(['/web/login', '/current-location']);
-
       history.init(null);
       window.history.replaceState({}, '', '/current-location?test=value');
 
@@ -219,6 +203,20 @@ describe('services/history', () => {
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
 
       window.history.replaceState({}, '', '/');
+    });
+
+    it('should set scope if defined', () => {
+      history.goToLogin({ scope: '/foo/bar' });
+
+      expect(history._pageRefresh).toHaveBeenCalledWith(
+        '/web/login?scope=%2Ffoo%2Fbar'
+      );
+    });
+
+    it('should explicitly set an empty scope', () => {
+      history.goToLogin({ scope: '' });
+
+      expect(history._pageRefresh).toHaveBeenCalledWith('/web/login?scope=');
     });
   });
 
