@@ -1188,6 +1188,81 @@ func TestService_EnrollDevice_badParameters(t *testing.T) {
 	})
 }
 
+// TestService_EnrollDevice_timeout checks that the timeout ends a stream whose
+// client stalls. Before the init message the handler cannot even identify the
+// caller, so ending the stream on its own is the only way to free the handler,
+// and the proxy stream in front of it.
+func TestService_EnrollDevice_timeout(t *testing.T) {
+	t.Parallel()
+
+	// awaitTimeout waits for the stream to end and asserts that the timeout is
+	// what ended it. Recv runs in a goroutine, so that a regression that leaves
+	// the handler blocked fails the test instead of hanging it.
+	awaitTimeout := func(t *testing.T, stream devicetrustpublicv1pb.DeviceTrustService_EnrollDeviceClient, start time.Time) {
+		t.Helper()
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := stream.Recv()
+			errCh <- err
+		}()
+		select {
+		case err := <-errCh:
+			assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollDeviceTimeout)
+			assert.Equal(t, devicetrustpublicv1.EnrollDeviceTimeout, time.Since(start))
+		case <-time.After(devicetrustpublicv1.EnrollDeviceTimeout + time.Minute):
+			t.Fatal("timed out waiting for EnrollDevice to end the stream")
+		}
+	}
+
+	t.Run("client never sends init", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			env := testenv.NewUsingT(t, testenv.WithAuthorizer(&fakeAuthorizer{}))
+
+			start := time.Now()
+			stream, err := env.PublicDevicesClient.EnrollDevice(t.Context())
+			require.NoError(t, err)
+			awaitTimeout(t, stream, start)
+		})
+	})
+
+	t.Run("client never answers the challenge", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			emitter := &testenv.KeyedEmitter{}
+			env := testenv.NewUsingT(t,
+				testenv.WithAuthorizer(&fakeAuthorizer{authorizedUsers: []string{"alice"}}),
+				testenv.WithEmitter(emitter),
+			)
+			createUser(t, env, "alice")
+			dev, err := osstestenv.NewFakeIOSDevice(devicepb.OSType_OS_TYPE_IOS)
+			require.NoError(t, err)
+			registerDevice(t, env, dev.CollectDeviceData())
+			token := createUserBoundEnrollToken(t, env, "alice", dev.CollectDeviceData())
+
+			start := time.Now()
+			ctx := testenv.WithOutgoingEmitterKey(t.Context(), "alice")
+			stream, err := env.PublicDevicesClient.EnrollDevice(ctx)
+			require.NoError(t, err)
+			require.NoError(t, stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+				Init: dev.EnrollDeviceInit(token),
+			}.Build()))
+			resp, err := stream.Recv()
+			require.NoError(t, err)
+			require.NotNil(t, resp.GetIosChallenge(), "expected IOSEnrollChallenge, got %v", resp)
+			awaitTimeout(t, stream, start)
+
+			// The ceremony audits once its pending Recv fails, which happens after
+			// the handler has returned and the client has seen the error. The audit
+			// trail must name the timeout, not the stream teardown it caused.
+			synctest.Wait()
+			evt := lastDeviceEvent(t, emitter.LastEvent("alice"))
+			assert.False(t, evt.Status.Success)
+			assert.Equal(t, devicetrustpublicv1.ErrEnrollDeviceTimeout.Error(), evt.Status.Error)
+		})
+	})
+}
+
 // TestRedactEnrollError pins that the public boundary redacts errors
 // deny-by-default: only ceremony errors written for the caller pass through,
 // anything else is erased, including errors added to the shared ceremony in the
