@@ -40,31 +40,8 @@ var expressionParser = mustNewParser(expressionSpec())
 // [evaluateExpression].
 func expressionSpec() typical.ParserSpec[Env] {
 	spec := whereSpec()
-	// allow_code records the audit code and reason if the given expression
-	// is true, and returns the expression unchanged. A later true call
-	// overrides the results of an earlier one.
-	spec.Functions["allow_code"] = typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
-		if e.result == nil {
-			return false, trace.BadParameter("internal error: evaluating allow_code without an evaluation result")
-		}
-		if expr {
-			e.result.AuditRecord.AllowCode = code
-			e.result.AuditRecord.AllowReason = clamp(reason, maxReasonBytes)
-		}
-		return expr, nil
-	})
-	// deny_hint records a hint if the given expression is false, and
-	// returns the expression unchanged. Each false call appends its hint.
-	spec.Functions["deny_hint"] = typical.TernaryFunctionWithEnv(func(e Env, code, reason string, expr bool) (bool, error) {
-		if e.result == nil {
-			return false, trace.BadParameter("internal error: evaluating deny_hint without an evaluation result")
-		}
-		if !expr && len(e.result.AuditRecord.DenyHints) < maxHints {
-			hint := Hint{Code: code, Reason: clamp(reason, maxReasonBytes)}
-			e.result.AuditRecord.DenyHints = append(e.result.AuditRecord.DenyHints, hint)
-		}
-		return expr, nil
-	})
+	spec.Functions["allow_code"] = typical.TernaryFunctionWithEnv(recordAllowCode)
+	spec.Functions["deny_hint"] = typical.TernaryFunctionWithEnv(recordDenyHint)
 	// path.match walks the request path tokens against the matcher root
 	// and records the bound segments for later vars.<name> reads.
 	spec.Functions["path.match"] = typical.UnaryFunctionWithEnv(func(e Env, root Node) (bool, error) {
@@ -104,6 +81,9 @@ func expressionSpec() typical.ParserSpec[Env] {
 	})
 	spec.Functions["glob"] = typical.UnaryVariadicFunction[Env](func(children ...Node) (Node, error) {
 		return Glob(children...), nil
+	})
+	spec.Functions["glob_without"] = typical.BinaryVariadicFunction[Env](func(excludes []string, children ...Node) (Node, error) {
+		return GlobWithout(excludes, children...), nil
 	})
 	spec.Functions["greedy"] = typical.NullaryFunction[Env, Node](func() (Node, error) {
 		return Greedy(), nil
@@ -149,6 +129,33 @@ func compileExpression(expr string) (typical.Expression[Env, bool], error) {
 		}
 	}
 	return expression, nil
+}
+
+// recordAllowCode records code and reason on the evaluation result if value
+// is true, and returns value unchanged. A later true call overrides an
+// earlier one.
+func recordAllowCode(e Env, code, reason string, value bool) (bool, error) {
+	if e.result == nil {
+		return false, trace.BadParameter("internal error: recording an allow code without an evaluation result")
+	}
+	if value {
+		e.result.AuditRecord.AllowCode = code
+		e.result.AuditRecord.AllowReason = clamp(reason, maxReasonBytes)
+	}
+	return value, nil
+}
+
+// recordDenyHint appends a hint to the evaluation result if value is false,
+// and returns value unchanged. Hints past maxHints are dropped.
+func recordDenyHint(e Env, code, reason string, value bool) (bool, error) {
+	if e.result == nil {
+		return false, trace.BadParameter("internal error: recording a deny hint without an evaluation result")
+	}
+	if !value && len(e.result.AuditRecord.DenyHints) < maxHints {
+		hint := Hint{Code: code, Reason: clamp(reason, maxReasonBytes)}
+		e.result.AuditRecord.DenyHints = append(e.result.AuditRecord.DenyHints, hint)
+	}
+	return value, nil
 }
 
 // evaluateExpression evaluates one compiled expression against env. The

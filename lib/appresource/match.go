@@ -128,6 +128,11 @@ func matchNode(node Node, tokens []Token, captures map[string]string) bool {
 			return false
 		}
 		return matchNodes(n.childNodes, tokens[1:], captures)
+	case *globWithoutNode:
+		if len(tokens) == 0 || tokens[0].Raw == "" || tokens[0].hasEncodedSlash() || slices.Contains(n.excludes, tokens[0].Decoded) {
+			return false
+		}
+		return matchNodes(n.childNodes, tokens[1:], captures)
 	case *literalNode:
 		// n.text never contains "/", so the equality includes
 		// !hasEncodedSlash().

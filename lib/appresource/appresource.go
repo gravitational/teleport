@@ -36,8 +36,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // maxRulesPerRequest is the maximum number of rules across a caller's roles.
@@ -62,17 +60,12 @@ func (r Role) hasAllowAll() bool {
 // RoleSet is the compiled rules of a caller's roles, in evaluation order.
 type RoleSet []compiledRole
 
-// compiledRole is one role's compiled rules.
+// compiledRole is one role's compiled rules. allowAll is set when any
+// app_resources entry sets allow_all.
 type compiledRole struct {
-	name  string
-	rules []compiledRule
-}
-
-// compiledRule is one ready-to-evaluate rule. An allow_all rule sets allowAll
-// and has no expression.
-type compiledRule struct {
-	expression typical.Expression[Env, bool]
-	allowAll   bool
+	name     string
+	allowAll bool
+	rules    []ruleEvaluator
 }
 
 // CompileRoles compiles the roles a caller holds into a RoleSet. Roles with
@@ -92,9 +85,9 @@ func CompileRoles(roles []Role) (RoleSet, error) {
 	})
 	set := make(RoleSet, 0, len(sorted))
 	for _, role := range sorted {
-		compiled := compiledRole{name: role.Name}
+		compiled := compiledRole{name: role.Name, allowAll: role.hasAllowAll()}
 		for i, rule := range role.Resources {
-			c, err := compileRule(rule)
+			c, err := newCompiledRule(rule)
 			if err != nil {
 				return nil, trace.Wrap(err, "role %q app_resources %d", role.Name, i)
 			}
@@ -105,23 +98,11 @@ func CompileRoles(roles []Role) (RoleSet, error) {
 			if err != nil {
 				return nil, trace.Wrap(err, "role %q app_resources_expressions %d", role.Name, i)
 			}
-			compiled.rules = append(compiled.rules, compiledRule{expression: expression})
+			compiled.rules = append(compiled.rules, expression)
 		}
 		set = append(set, compiled)
 	}
 	return set, nil
-}
-
-// compileRule compiles one app_resources entry.
-func compileRule(r Rule) (compiledRule, error) {
-	if err := r.validate(); err != nil {
-		return compiledRule{}, trace.Wrap(err)
-	}
-	// TODO(juliaogris): Compile path rules once desugaring is added.
-	if !r.AllowAll {
-		return compiledRule{}, trace.NotImplemented("path rules are not implemented in this version")
-	}
-	return compiledRule{allowAll: true}, nil
 }
 
 // roleNames returns the role names in the set, in evaluation order.
@@ -170,7 +151,7 @@ func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) 
 	var hints []Hint
 	for _, role := range s {
 		for _, rule := range role.rules {
-			result, err := evaluateExpression(rule.expression, env)
+			result, err := evaluateExpression(rule, env)
 			if err != nil {
 				return Decision{}, trace.Wrap(err)
 			}
@@ -207,13 +188,8 @@ func (s RoleSet) ruleCount() int {
 // and "" otherwise. Roles with an allow_all rule sort first, so no other role
 // can have one.
 func (s RoleSet) allowAllRole() string {
-	if len(s) == 0 {
+	if len(s) == 0 || !s[0].allowAll {
 		return ""
 	}
-	for _, rule := range s[0].rules {
-		if rule.allowAll {
-			return s[0].name
-		}
-	}
-	return ""
+	return s[0].name
 }

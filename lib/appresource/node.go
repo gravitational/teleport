@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -50,6 +51,18 @@ type Node interface {
 	// spelling, such as literal("api") or glob().
 	String() string
 	children() []Node
+}
+
+// captureNames returns the names of the captures in a tree.
+func captureNames(node Node) []string {
+	var names []string
+	if n, ok := node.(*captureNode); ok {
+		names = append(names, n.name)
+	}
+	for _, child := range node.children() {
+		names = append(names, captureNames(child)...)
+	}
+	return names
 }
 
 // literalNode is the node [Literal] creates.
@@ -126,6 +139,34 @@ func Capture(name string, children ...Node) Node {
 		return &errNode{failedCall: fmt.Sprintf("capture(%q)", name), err: err}
 	}
 	return &captureNode{name: name, childNodes: slices.Clone(children)}
+}
+
+// globWithoutNode is the node [GlobWithout] creates.
+type globWithoutNode struct {
+	excludes   []string
+	childNodes []Node
+}
+
+func (n *globWithoutNode) children() []Node { return n.childNodes }
+func (n *globWithoutNode) String() string   { return "glob_without(" + setSource(n.excludes) + ")" }
+
+// GlobWithout creates a node that matches exactly one non-empty token whose
+// decoded content is none of the excluded strings. It is the desugared `!seg`
+// segment. Literal("files", GlobWithout([]string{"secret"}, Greedy())) matches
+// "/files/public/x" but not "/files/secret/x". The comparison is exact, so
+// the same node matches "/files/Secret/x". A token containing the encoded
+// slash (%2F) does not match.
+//
+// Each excluded string must be the decoded content of one token, as for
+// Literal. For an invalid excluded string, GlobWithout returns an error node
+// that Compile rejects.
+func GlobWithout(excludes []string, children ...Node) Node {
+	for _, s := range excludes {
+		if err := validateExclude(s); err != nil {
+			return &errNode{failedCall: "glob_without(" + setSource(excludes) + ")", err: err}
+		}
+	}
+	return &globWithoutNode{excludes: slices.Clone(excludes), childNodes: slices.Clone(children)}
 }
 
 // greedyNode is the node [Greedy] creates.
@@ -221,6 +262,28 @@ func checkLiteral(s string) ([]string, error) {
 		}
 	}
 	return segments, nil
+}
+
+// validateExclude rejects an excluded segment that no token can equal. The
+// text must be non-empty, hold no "/", and pass validateSegment.
+func validateExclude(s string) error {
+	if s == "" {
+		return trace.BadParameter("an excluded segment cannot be empty")
+	}
+	if strings.Contains(s, "/") {
+		return trace.BadParameter("excluded segment %q cannot contain /", elide(s))
+	}
+	return trace.Wrap(validateSegment(s))
+}
+
+// setSource returns the strings as a set(...) call in the predicate language
+// spelling, such as set("a", "b").
+func setSource(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, v := range values {
+		quoted = append(quoted, strconv.Quote(v))
+	}
+	return "set(" + strings.Join(quoted, ", ") + ")"
 }
 
 // validateSegment rejects invalid literal text segments. The text must be
