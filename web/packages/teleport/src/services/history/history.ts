@@ -30,6 +30,8 @@ let _nav: NavigationFunctions | null = null;
 type LoginOptions = {
   rememberLocation?: boolean;
   withAccessChangedMessage?: boolean;
+  // Scope to log into. Undefined means ask for scope if necessary, empty
+  // string means explicitly log in to the global scope ("Teleport Home").
   scope?: string;
 };
 
@@ -67,7 +69,7 @@ const history = {
   goToLogin({
     rememberLocation = false,
     withAccessChangedMessage = false,
-    scope = '',
+    scope,
   }: LoginOptions = {}) {
     const params = new URLSearchParams();
 
@@ -84,7 +86,7 @@ const history = {
       params.set('redirect_uri', knownRedirect + search);
     }
 
-    if (scope) {
+    if (scope !== undefined) {
       params.set('scope', scope);
     }
 

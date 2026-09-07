@@ -20,8 +20,7 @@ import React from 'react';
 import { Link, matchPath, useLocation } from 'react-router';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, breakpointsPx, Flex, Image, Text, TopNav } from 'design';
-import * as Icon from 'design/Icon';
+import { Box, breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { useStore } from 'shared/libs/stores';
 
@@ -34,6 +33,8 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import useTeleport from 'teleport/useTeleport';
+
+import { ScopeSwitcher } from './ScopeSwitcher';
 
 export function TopBar({
   CustomLogo,
@@ -48,6 +49,7 @@ export function TopBar({
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
   const scope = storeUser.getScope();
+  const scopes = storeUser.getAvailableScopes();
 
   // find active feature
   const feature = features.find(
@@ -66,15 +68,10 @@ export function TopBar({
 
   return (
     <TopBarContainer>
-      <Flex alignItems="center">
+      <Flex alignItems="center" height="100%">
         <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
-        {scope && !feature?.logoOnlyTopbar && (
-          <HoverTooltip tipContent="Current scope">
-            <Flex alignItems="center" gap={1}>
-              <Icon.Contract aria-label="scope" />
-              <Text typography="body1">{scope}</Text>
-            </Flex>
-          </HoverTooltip>
+        {!feature?.logoOnlyTopbar && scopes.length > 0 && !scopePickerMode && (
+          <ScopeSwitcher scopes={scopes} scope={scope} />
         )}
       </Flex>
       {!feature?.logoOnlyTopbar && (
