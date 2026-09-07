@@ -197,6 +197,27 @@ services:
 # keep configuration within the `services` field where possible.
 outputs:
   - type: example
+
+# tracing configures the export of distributed traces from `tbot`. This is
+# disabled by default. See the Tracing section of the Diagnostics Service
+# reference page for more details.
+tracing:
+  # enabled turns tracing on.
+  enabled: true
+  # exporter_url is the OTLP exporter to send traces to. The same formats as
+  # the Teleport `tracing_service` are accepted: `grpc://`, `http://`,
+  # `https://` and `file://`.
+  exporter_url: grpc://collector.example.com:4317
+  # sampling_rate_per_million is the number of spans to sample per million.
+  # Defaults to 1000000, which samples all spans.
+  sampling_rate_per_million: 1000000
+  # ca_certs are paths to CA certificates used to validate the exporter.
+  ca_certs:
+    - /var/lib/teleport/exporter_ca.pem
+  # keypairs are TLS client certificates used to enable mTLS for the exporter.
+  keypairs:
+    - key_file: /var/lib/teleport/exporter_key.pem
+      cert_file: /var/lib/teleport/exporter_cert.pem
 ```
 
 If no configuration file is provided, a simple configuration is used based

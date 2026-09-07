@@ -51,11 +51,10 @@ type GlobalArgs struct {
 	// LogFormat configures the output format of the logger
 	LogFormat string
 
-	// Trace indicates whether tracing should be enabled.
+	// Trace enables tracing, overriding `tracing.enabled` in the config file.
 	Trace bool
 
-	// TraceExporter is a manually provided URI to send traces to instead of
-	// forwarding them to the Auth service.
+	// TraceExporter overrides `tracing.exporter_url` in the config file.
 	TraceExporter string
 
 	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
@@ -67,6 +66,7 @@ type GlobalArgs struct {
 	fipsSetByUser     bool
 	debugSetByUser    bool
 	insecureSetByUser bool
+	traceSetByUser    bool
 }
 
 // NewGlobalArgs appends global flags to the application and returns a struct
@@ -78,8 +78,8 @@ func NewGlobalArgs(app *kingpin.Application) *GlobalArgs {
 	app.Flag("config", "Path to a configuration file.").Short('c').Envar(TBotConfigPathEnvVar).StringVar(&g.ConfigPath)
 	app.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(TBotConfigEnvVar).StringVar(&g.ConfigString)
 	app.Flag("fips", "Enables FIPS compliance mode. This requires the FIPS binary is in use.").IsSetByUser(&g.fipsSetByUser).BoolVar(&g.FIPS)
-	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&g.Trace)
-	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&g.TraceExporter)
+	app.Flag("trace", "Capture and export distributed traces. Overrides tracing.enabled in the configuration file.").IsSetByUser(&g.traceSetByUser).BoolVar(&g.Trace)
+	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Overrides tracing.exporter_url in the configuration file.").StringVar(&g.TraceExporter)
 	app.Flag(
 		"insecure",
 		"Insecure configures the bot to trust the certificates from the Auth "+
@@ -117,6 +117,14 @@ func (g *GlobalArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 
 	if g.insecureSetByUser {
 		cfg.Insecure = g.Insecure
+	}
+
+	if g.traceSetByUser {
+		cfg.Tracing.Enabled = g.Trace
+	}
+
+	if g.TraceExporter != "" {
+		cfg.Tracing.ExporterURL = g.TraceExporter
 	}
 
 	return nil

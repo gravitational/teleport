@@ -200,33 +200,6 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err, "setting up logger")
 	}
 
-	if globalCfg.Trace {
-		log.InfoContext(
-			ctx,
-			"Initializing tracing provider. Traces will be exported",
-			"trace_exporter", globalCfg.TraceExporter,
-		)
-		tp, err := initializeTracing(ctx, globalCfg.TraceExporter)
-		if err != nil {
-			return trace.Wrap(err, "initializing tracing")
-		}
-		defer func() {
-			ctx, cancel := context.WithTimeout(
-				ctx, 5*time.Second,
-			)
-			defer cancel()
-			log.InfoContext(ctx, "Shutting down tracing provider")
-			if err := tp.Shutdown(ctx); err != nil {
-				log.ErrorContext(
-					ctx,
-					"Failed to shut down tracing provider",
-					"error", err,
-				)
-			}
-			log.InfoContext(ctx, "Shut down tracing provider")
-		}()
-	}
-
 	if cpuProfile != "" {
 		log.DebugContext(ctx, "capturing CPU profile", "profile_path", cpuProfile)
 		f, err := os.Create(cpuProfile)
@@ -325,26 +298,34 @@ func buildConfigAndConfigure(ctx context.Context, globals *cli.GlobalArgs, outPa
 	}
 }
 
-func initializeTracing(
-	ctx context.Context, endpoint string,
-) (*tracing.Provider, error) {
-	if endpoint == "" {
-		return nil, trace.BadParameter("trace exporter URL must be provided")
+// startTracing registers the global tracing provider if tracing is enabled.
+// The returned function flushes and shuts down the provider.
+func startTracing(ctx context.Context, cfg config.TracingConfig) (func(), error) {
+	if !cfg.Enabled {
+		return func() {}, nil
 	}
-
-	provider, err := tracing.NewTraceProvider(ctx, tracing.Config{
-		Service:     teleport.ComponentTBot,
-		ExporterURL: endpoint,
-		// We are using 1 here to record all spans as a result of this tbot command. Teleport
-		// will respect the recording flag of remote spans even if the spans it generates
-		// wouldn't otherwise be recorded due to its configured sampling rate.
-		SamplingRate: 1.0,
-	})
+	traceCfg, err := cfg.TraceConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return provider, nil
+	log.InfoContext(
+		ctx,
+		"Initializing tracing provider. Traces will be exported",
+		"trace_exporter", traceCfg.ExporterURL,
+	)
+	provider, err := tracing.NewTraceProvider(ctx, *traceCfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "initializing tracing")
+	}
+	return func() {
+		// The parent ctx is canceled on shutdown, but the final flush must
+		// still complete.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := provider.Shutdown(ctx); err != nil {
+			log.ErrorContext(ctx, "Failed to shut down tracing provider", "error", err)
+		}
+	}, nil
 }
 
 func onVersion() error {
@@ -458,6 +439,12 @@ func onMigrate(
 func onStart(ctx context.Context, botConfig *config.BotConfig) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	shutdownTracing, err := startTracing(ctx, botConfig.Tracing)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer shutdownTracing()
 
 	reloadCh := make(chan struct{})
 	botConfig.ReloadCh = reloadCh
