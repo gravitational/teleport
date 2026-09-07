@@ -114,6 +114,8 @@ func waitForEvents[T types.Resource](t *testing.T, watcher types.Watcher, op typ
 	defer cancel()
 
 	var results []T
+	timer := time.NewTimer(time.Minute * 2)
+	defer timer.Stop()
 
 	unsatisfied := slices.Clone(predicates)
 	for len(unsatisfied) > 0 {
@@ -138,6 +140,8 @@ func waitForEvents[T types.Resource](t *testing.T, watcher types.Watcher, op typ
 				}
 			}
 
+		case <-timer.C:
+			t.Fatal("timeout waiting for event")
 		case <-ctx.Done():
 			t.Fatalf("timed out waiting for resources. %d of %d predicates satisfied.",
 				len(predicates)-len(unsatisfied),
