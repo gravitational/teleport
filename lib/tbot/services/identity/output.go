@@ -449,11 +449,10 @@ func renderSSHConfig(
 		ExecutablePath:      executablePath,
 		DestinationDir:      absDestPath,
 
-		PureTBotProxyCommand: true,
-		Insecure:             insecure,
-		FIPS:                 fips,
-		TLSRouting:           proxyPing.Proxy.TLSRoutingEnabled,
-		ConnectionUpgrade:    connUpgradeRequired,
+		Insecure:          insecure,
+		FIPS:              fips,
+		TLSRouting:        proxyPing.Proxy.TLSRoutingEnabled,
+		ConnectionUpgrade: connUpgradeRequired,
 		// Session resumption is enabled by default, this can be
 		// configurable at a later date if we discover reasons for this to
 		// be disabled.
