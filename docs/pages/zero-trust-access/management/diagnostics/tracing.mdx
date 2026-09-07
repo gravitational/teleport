@@ -46,8 +46,8 @@ By default the connection to the exporter is insecure, to support TLS add the fo
    # Optional path to CA certificates are used to validate the exporter.
   ca_certs:
     - /var/lib/teleport/exporter_ca.pem
-  # Optional path tp TLS certificates are used to enable mTLS for the exporter
-  https_keypairs:
+  # Optional path to TLS certificates are used to enable mTLS for the exporter
+  keypairs:
     - key_file: /var/lib/teleport/exporter_key.pem
       cert_file: /var/lib/teleport/exporter_cert.pem
 ````
