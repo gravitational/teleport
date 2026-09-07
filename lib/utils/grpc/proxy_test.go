@@ -142,6 +142,38 @@ func TestProxyBidiStream_PropagatesServerErrorAfterClientEOF(t *testing.T) {
 	require.ErrorContains(t, recvErr, "post-EOF validation failed")
 }
 
+// TestProxyBidiStream_PropagatesServerErrorMidStream asserts that a terminal
+// error the server produces after messages have flowed both ways, while the
+// client's send side is still open, reaches the client rather than being
+// dropped while the proxy waits on the client's next message.
+func TestProxyBidiStream_PropagatesServerErrorMidStream(t *testing.T) {
+	t.Parallel()
+	_, fakeServerSvcClient := newFakeServerSvc(t)
+
+	lis := bufconn.Listen(1024)
+	newProxyService(t, lis, fakeServerSvcClient)
+	// Short timeout so a swallowed status surfaces as a test failure rather than
+	// waiting out the default go-test timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	client := newProxyServiceClient(t, lis)
+	stream, err := client.ConnectToDesktop(ctx)
+	require.NoError(t, err)
+
+	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	// Empty data makes the server return an error on its second Recv.
+	err = stream.Send(&teletermv1.ConnectToDesktopRequest{})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	require.ErrorContains(t, err, "empty data")
+}
+
 // TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly asserts that when the
 // server ends its handler cleanly (nil) *before* the client has half-closed,
 // the proxy propagates that as io.EOF to the client rather than hanging or
