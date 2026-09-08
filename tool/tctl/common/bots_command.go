@@ -1399,21 +1399,22 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 // addresses an instance of a scoped bot; scope is empty when the prefix is
 // absent.
 func parseInstanceID(s string) (scope string, name string, uuid string, err error) {
-	if before, after, ok := strings.Cut(s, scopes.QualifiedNameSeparator); ok {
-		if err := scopes.StrongValidate(before); err != nil {
+	qn, err := scopes.ParseOptionallyQualifiedName(s)
+	if err != nil {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
+	}
+	if qn.Scope != "" {
+		if err := scopes.StrongValidate(qn.Scope); err != nil {
 			return "", "", "", trace.Wrap(err)
 		}
-		scope, s = before, after
-	} else if scopes.MaybeSQN(s) {
+	}
+
+	name, uuid, ok := strings.Cut(qn.Name, "/")
+	if !ok || name == "" {
 		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
 	}
 
-	name, uuid, ok := strings.Cut(s, "/")
-	if !ok {
-		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
-	}
-
-	return scope, name, uuid, nil
+	return qn.Scope, name, uuid, nil
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.

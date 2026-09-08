@@ -106,12 +106,11 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 	// the old format always treats token/token as kind/name, but if id was set then the second token
 	// is actually a subkind in the new format.
 	subKind := r.Name
-	if scopes.MaybeSQN(id) {
-		qn, err := scopes.ParseQualifiedName(id)
-		if err != nil {
-			return ScopedRef{}, trace.Wrap(err)
-		}
-
+	qn, err := scopes.ParseOptionallyQualifiedName(id)
+	if err != nil {
+		return ScopedRef{}, trace.Wrap(err)
+	}
+	if qn.Scope != "" {
 		// A user may provide the token name as either <token_name> OR <token_name>:<encoded_secret>.
 		// Both formats are supported to improve UX, however, only the token name is consumed
 		// for tctl commands to operate properly. Strip the secret after parsing the SQN so

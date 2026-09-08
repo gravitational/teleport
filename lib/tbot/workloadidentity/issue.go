@@ -39,12 +39,12 @@ import (
 // travels in the issuance request and the server matches it against the named
 // resource's scope.
 func parseNameSelector(selector string) (name, scope string, err error) {
-	if !scopes.MaybeSQN(selector) {
-		return selector, "", nil
-	}
-	qn, err := scopes.ParseQualifiedName(selector)
+	qn, err := scopes.ParseOptionallyQualifiedName(selector)
 	if err != nil {
 		return "", "", trace.Wrap(err)
+	}
+	if qn.Scope == "" {
+		return qn.Name, "", nil
 	}
 	if err := qn.StrongValidate(); err != nil {
 		return "", "", trace.Wrap(err)

@@ -18,6 +18,36 @@
 
 package application
 
-import "go.opentelemetry.io/otel"
+import (
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
+
+	"github.com/gravitational/teleport/api/scopes"
+)
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/application")
+
+// validateAppName validates an application service's app_name field. In scope
+// mode the name must be a strongly valid scope-qualified name
+// ("<scope>::<name>"); otherwise it must be a plain, non-qualified app name.
+func validateAppName(name string, scoped bool) error {
+	if scoped {
+		sqn, err := scopes.ParseQualifiedName(name)
+		if err != nil {
+			return trace.BadParameter("app_name: %v", err)
+		}
+
+		if err := sqn.StrongValidate(); err != nil {
+			return trace.BadParameter("app_name: %v", err)
+		}
+
+		return nil
+	}
+
+	qn, err := scopes.ParseOptionallyQualifiedName(name)
+	if err != nil || qn.Scope != "" {
+		return trace.BadParameter("app_name: can not be a scope-qualified name when not in scope mode")
+	}
+
+	return nil
+}
