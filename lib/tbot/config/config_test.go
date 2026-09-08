@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -589,6 +590,73 @@ func TestBotConfig_Base64(t *testing.T) {
 			cfg, err := ReadConfigFromBase64String(tt.configBase64, false)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, *cfg)
+		})
+	}
+}
+
+func TestBotConfig_JoinMethodsCheck(t *testing.T) {
+	testCases := []struct {
+		scoped  bool
+		method  types.JoinMethod
+		wantErr string
+	}{
+		{scoped: true, method: types.JoinMethodAzure},
+		{scoped: true, method: types.JoinMethodAzureDevops},
+		{scoped: true, method: types.JoinMethodBitbucket},
+		{scoped: true, method: types.JoinMethodCircleCI},
+		{scoped: true, method: types.JoinMethodGCP},
+		{scoped: true, method: types.JoinMethodGitHub},
+		{scoped: true, method: types.JoinMethodGitLab},
+		{scoped: true, method: types.JoinMethodIAM},
+		{scoped: true, method: types.JoinMethodKubernetes},
+		{scoped: true, method: types.JoinMethodSpacelift},
+		{scoped: true, method: types.JoinMethodTPM},
+		{scoped: true, method: types.JoinMethodTerraformCloud},
+		{scoped: true, method: types.JoinMethodOracle},
+		{scoped: true, method: types.JoinMethodBoundKeypair},
+		{scoped: true, method: types.JoinMethodEnv0},
+		{scoped: true, method: types.JoinMethodGenericOIDC},
+		{scoped: true, method: types.JoinMethodToken, wantErr: `"token" is not supported in scoped mode`},
+
+		{scoped: false, method: types.JoinMethodAzure},
+		{scoped: false, method: types.JoinMethodAzureDevops},
+		{scoped: false, method: types.JoinMethodBitbucket},
+		{scoped: false, method: types.JoinMethodCircleCI},
+		{scoped: false, method: types.JoinMethodGCP},
+		{scoped: false, method: types.JoinMethodGitHub},
+		{scoped: false, method: types.JoinMethodGitLab},
+		{scoped: false, method: types.JoinMethodIAM},
+		{scoped: false, method: types.JoinMethodKubernetes},
+		{scoped: false, method: types.JoinMethodSpacelift},
+		{scoped: false, method: types.JoinMethodTPM},
+		{scoped: false, method: types.JoinMethodTerraformCloud},
+		{scoped: false, method: types.JoinMethodOracle},
+		{scoped: false, method: types.JoinMethodBoundKeypair},
+		{scoped: false, method: types.JoinMethodEnv0},
+		{scoped: false, method: types.JoinMethodGenericOIDC},
+		{scoped: false, method: types.JoinMethodToken},
+	}
+
+	require.Len(t, testCases, 2*len(onboarding.SupportedJoinMethods), "not all supported join methods are being tested")
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Scoped %t: %s", tc.scoped, tc.method), func(t *testing.T) {
+			cfg := BotConfig{
+				Version:     V2,
+				Scoped:      tc.scoped,
+				ProxyServer: "example.teleport.sh:443",
+				Onboarding: onboarding.Config{
+					JoinMethod: tc.method,
+				},
+			}
+
+			err := cfg.CheckAndSetDefaults()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }

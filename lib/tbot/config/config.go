@@ -291,6 +291,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if !slices.Contains(onboarding.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 		}
+
+		if conf.Scoped && conf.Onboarding.JoinMethod == types.JoinMethodToken {
+			return trace.BadParameter("%q is not supported in scoped mode", types.JoinMethodToken)
+		}
 	}
 
 	// Validate Insecure and CA Settings

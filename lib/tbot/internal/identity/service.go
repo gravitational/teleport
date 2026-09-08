@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -746,6 +747,10 @@ func botIdentityFromToken(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validateTokenValue(cfg.Scoped, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cipherSuites := utils.DefaultCipherSuites()
 	if cfg.FIPS {
 		cipherSuites = defaults.FIPSCipherSuites
@@ -855,6 +860,30 @@ func botIdentityFromToken(
 	}
 
 	return ident, nil
+}
+
+// validateTokenValue checks if the token value is valid within the current scoped mode of the bot.
+// An SQN TokenValue should not be acceptable on a non-scoped bot, or vice-versa.
+func validateTokenValue(scoped bool, value string) error {
+	if value == "" {
+		return trace.BadParameter("join token cannot be empty")
+	}
+
+	if scoped {
+		// Scoped bots should never use `token` as join method, so it's safe
+		// to say that the value itself won't be a credential nor contain
+		// one encoded.
+		sqn, err := scopes.ParseQualifiedName(value)
+		if err != nil {
+			return trace.BadParameter("join token must be a valid SQN when in scoped mode: %v", err)
+		}
+
+		if err := sqn.StrongValidate(); err != nil {
+			return trace.BadParameter("join token must be a valid SQN when in scoped mode: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // checkScopeCorrectness returns an error if the presented identity is:
