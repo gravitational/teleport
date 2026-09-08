@@ -25,12 +25,18 @@ import (
 
 // ForAuthServer returns features that an Auth server can support/participate in.
 func ForAuthServer() *componentfeaturesv1.ComponentFeatures {
-	return New(FeatureResourceConstraintsV1)
+	return New(
+		FeatureResourceConstraintsV1,
+		FeatureResourceConstraintsSSHV1,
+	)
 }
 
 // ForSSHServer returns features that an SSH server can support/participate in.
 func ForSSHServer() *componentfeaturesv1.ComponentFeatures {
-	return New(FeatureResourceConstraintsV1)
+	return New(
+		FeatureResourceConstraintsV1,
+		FeatureResourceConstraintsSSHV1,
+	)
 }
 
 type appServerInfoGetter interface {

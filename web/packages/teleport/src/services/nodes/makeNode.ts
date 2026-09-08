@@ -29,7 +29,7 @@ export default function makeNode(json: any): Node {
     tunnel,
     tags,
     sshLogins,
-    sshLoginDetails,
+    principals,
     aws,
     requiresRequest,
     supportedFeatureIds,
@@ -46,7 +46,7 @@ export default function makeNode(json: any): Node {
     tunnel,
     requiresRequest,
     sshLogins: sshLogins ?? [],
-    sshLoginDetails: sshLoginDetails ?? [],
+    principals: principals ?? [],
     awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
     supportedFeatureIds,
   };
