@@ -23,9 +23,23 @@ proc_label:BEGIN
 
         -- If the user has active connections, make sure the provided roles
         -- match what the user currently has.
-        IF is_active = 1 THEN
+        IF is_active >= 1 THEN
             SELECT json_arrayagg(FROM_USER) INTO cur_roles FROM mysql.role_edges WHERE FROM_USER != 'teleport-auto-user' AND TO_USER = username;
-            SELECT @roles = cur_roles INTO are_roles_same;
+            -- Compare roles as sets (order-independent) rather than exact
+            -- string match, since role ordering is not deterministic.
+            IF JSON_LENGTH(@roles) = JSON_LENGTH(cur_roles) THEN
+                SET are_roles_same = 1;
+                SET role_index = 0;
+                WHILE role_index < JSON_LENGTH(@roles) DO
+                    SELECT JSON_UNQUOTE(JSON_EXTRACT(@roles, CONCAT('$[',role_index,']'))) INTO role;
+                    IF NOT JSON_CONTAINS(cur_roles, CONCAT('"', role, '"')) THEN
+                        SET are_roles_same = 0;
+                    END IF;
+                    SET role_index = role_index + 1;
+                END WHILE;
+            ELSE
+                SET are_roles_same = 0;
+            END IF;
             IF are_roles_same = 1 THEN
                 LEAVE proc_label;
             ELSE

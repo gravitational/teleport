@@ -24,7 +24,7 @@ proc_label:BEGIN
         -- match what the user currently has. JSON_EQUALS was added in MariaDB
         -- 10.7.0. Use loop and JSON_CONTAINS instead of JSON_EQUALS to support
         -- older versions.
-        IF is_active = 1 THEN
+        IF is_active >= 1 THEN
             SELECT JSON_ARRAYAGG(Role) INTO cur_roles FROM mysql.roles_mapping WHERE USER = @all_in_one_role AND Admin_option = 'N';
             IF JSON_LENGTH(@roles) != JSON_LENGTH(cur_roles) THEN
                 SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
