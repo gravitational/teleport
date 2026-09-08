@@ -1316,7 +1316,7 @@ type clusterNodesGetResponse struct {
 
 func TestClusterNodesGet(t *testing.T) {
 	t.Parallel()
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withSSHNode())
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
@@ -1709,9 +1709,9 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
 	expectedKinds := map[string]int{
-		types.KindApp:            3,  // my-app, my-aws-app and the SAML IdP service provider
-		types.KindDatabase:       1,  // 3 db servers, single resource
-		types.KindNode:           21, // 20 created above, plus SSH node in newWebPack
+		types.KindApp:            3, // my-app, my-aws-app and the SAML IdP service provider
+		types.KindDatabase:       1, // 3 db servers, single resource
+		types.KindNode:           20,
 		types.KindWindowsDesktop: 1,
 		types.KindGitServer:      1,
 	}
@@ -1799,7 +1799,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 12)
+	require.Len(t, res.Items, 11)
 	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
@@ -2700,8 +2700,9 @@ func TestTerminalRouting(t *testing.T) {
 }
 
 func TestTerminalRequireSessionMFA(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
+	t.Parallel()
+	ctx := t.Context()
+	env := newWebPack(t, 1, withSSHNode())
 	proxy := env.proxies[0]
 
 	const username = "llama2999"
@@ -2793,7 +2794,8 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 }
 
 func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
-	env := newWebPack(t, 1)
+	t.Parallel()
+	env := newWebPack(t, 1, withSSHNode())
 
 	proxy := env.proxies[0]
 
@@ -6725,7 +6727,8 @@ func TestNewSessionResponseWithRenewSession(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5265
 func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
-	env := newWebPack(t, 2)
+	t.Parallel()
+	env := newWebPack(t, 2, withSSHNode())
 
 	proxy1, proxy2 := env.proxies[0], env.proxies[1]
 	// Connect to both proxies
@@ -7672,7 +7675,8 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 }
 
 func TestDiagnoseSSHConnection(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	osUser, err := user.Current()
 	require.NoError(t, err)
@@ -7728,7 +7732,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	}
 	require.NotNil(t, roleWithPrincipal)
 
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withSSHNode())
 	nodeName := env.node.GetInfo().GetHostname()
 
 	// Wait for node to show up
@@ -7741,7 +7745,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		return true
 	}, 5*time.Second, 250*time.Millisecond)
 
-	for _, tt := range []struct {
+	testCases := []struct {
 		name            string
 		teleportUser    string
 		roles           []types.Role
@@ -7927,71 +7931,79 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				},
 			},
 		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			localEnv := env
+	}
 
-			if tt.stopNode {
-				localEnv = newWebPack(t, 1)
-				require.NoError(t, localEnv.node.Close())
-			}
+	// The subtests run in parallel, so they are grouped to ensure they all
+	// finish before the per-session MFA check below, which alters the cluster
+	// auth preference.
+	t.Run("connection diagnostics", func(t *testing.T) {
+		for _, tt := range testCases {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				localEnv := env
 
-			clusterName := localEnv.server.ClusterName()
-			pack := localEnv.proxies[0].authPack(t, tt.teleportUser, tt.roles)
-
-			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
-
-			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
-				ResourceKind:       types.KindNode,
-				ResourceName:       tt.resourceName,
-				SSHPrincipal:       tt.nodeUser,
-				SSHNodeOS:          tt.nodeOS,
-				SSHNodeSetupMethod: tt.setupMethod,
-			})
-			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, resp.Code())
-
-			var connectionDiagnostic webui.ConnectionDiagnostic
-			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
-
-			gotFailedTraces := 0
-			expectedFailedTraces := 0
-
-			t.Log(tt.name)
-			t.Log(connectionDiagnostic.Message, connectionDiagnostic.Success)
-			for i, trace := range connectionDiagnostic.Traces {
-				if trace.Status == types.ConnectionDiagnosticTrace_FAILED.String() {
-					gotFailedTraces++
+				if tt.stopNode {
+					localEnv = newWebPack(t, 1, withSSHNode())
+					require.NoError(t, localEnv.node.Close())
 				}
 
-				t.Logf("%d status='%s' type='%s' details='%s' error='%s'\n", i, trace.Status, trace.TraceType, trace.Details, trace.Error)
-			}
+				clusterName := localEnv.server.ClusterName()
+				pack := localEnv.proxies[0].authPack(t, tt.teleportUser, tt.roles)
 
-			require.Equal(t, tt.expectedSuccess, connectionDiagnostic.Success)
-			require.Equal(t, tt.expectedMessage, connectionDiagnostic.Message)
+				createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
-			for _, expectedTrace := range tt.expectedTraces {
-				if expectedTrace.Status == types.ConnectionDiagnosticTrace_FAILED {
-					expectedFailedTraces++
-				}
+				resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+					ResourceKind:       types.KindNode,
+					ResourceName:       tt.resourceName,
+					SSHPrincipal:       tt.nodeUser,
+					SSHNodeOS:          tt.nodeOS,
+					SSHNodeSetupMethod: tt.setupMethod,
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
 
-				foundTrace := false
-				for _, returnedTrace := range connectionDiagnostic.Traces {
-					if expectedTrace.Type.String() != returnedTrace.TraceType {
-						continue
+				var connectionDiagnostic webui.ConnectionDiagnostic
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
+
+				gotFailedTraces := 0
+				expectedFailedTraces := 0
+
+				t.Log(tt.name)
+				t.Log(connectionDiagnostic.Message, connectionDiagnostic.Success)
+				for i, trace := range connectionDiagnostic.Traces {
+					if trace.Status == types.ConnectionDiagnosticTrace_FAILED.String() {
+						gotFailedTraces++
 					}
 
-					foundTrace = true
-					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
-					require.Contains(t, returnedTrace.Details, expectedTrace.Details)
-					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
+					t.Logf("%d status='%s' type='%s' details='%s' error='%s'\n", i, trace.Status, trace.TraceType, trace.Details, trace.Error)
 				}
 
-				require.True(t, foundTrace, "expected trace '%v' was not found, got '%v'", expectedTrace, connectionDiagnostic.Traces)
-			}
-			require.Equal(t, expectedFailedTraces, gotFailedTraces)
-		})
-	}
+				require.Equal(t, tt.expectedSuccess, connectionDiagnostic.Success)
+				require.Equal(t, tt.expectedMessage, connectionDiagnostic.Message)
+
+				for _, expectedTrace := range tt.expectedTraces {
+					if expectedTrace.Status == types.ConnectionDiagnosticTrace_FAILED {
+						expectedFailedTraces++
+					}
+
+					foundTrace := false
+					for _, returnedTrace := range connectionDiagnostic.Traces {
+						if expectedTrace.Type.String() != returnedTrace.TraceType {
+							continue
+						}
+
+						foundTrace = true
+						require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
+						require.Contains(t, returnedTrace.Details, expectedTrace.Details)
+						require.Contains(t, returnedTrace.Error, expectedTrace.Error)
+					}
+
+					require.True(t, foundTrace, "expected trace '%v' was not found, got '%v'", expectedTrace, connectionDiagnostic.Traces)
+				}
+				require.Equal(t, expectedFailedTraces, gotFailedTraces)
+			})
+		}
+	})
 
 	// Test success with per-session MFA.
 
@@ -8005,6 +8017,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get a totp code to re-auth.
+	// TODO: authPack overwrites the cluster auth prefernce, dropping the RequireMFAType_SESSION we set above.
 	pack := env.proxies[0].authPack(t, "llama", roleWithFullAccess("success", osUsername))
 	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
 	require.NoError(t, err)
@@ -9239,12 +9252,19 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 	return cookie.SessionID
 }
 
+// nodeID is the host ID and node name of the SSH node that [newWebPack]
+// creates when [withSSHNode] is set.
+const nodeID = "node"
+
 type WebPackOptions struct {
 	proxyOptions    []proxyOption
 	enableAuthCache bool
 	modules         *modulestest.Modules
 	insecureMode    bool
 	scopesFeatures  scopes.Features
+
+	// sshNode creates and starts an SSH node named [nodeID].
+	sshNode bool
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -9276,6 +9296,14 @@ func withInsecureMode() webPackOptions {
 func withScopesFeatures(scopesFeatures scopes.Features) webPackOptions {
 	return func(cfg *WebPackOptions) {
 		cfg.scopesFeatures = scopesFeatures
+	}
+}
+
+// withSSHNode registers an SSH node named [nodeID] with the cluster.
+// Only tests that need to connect to the node should use this.
+func withSSHNode() webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.sshNode = true
 	}
 }
 
@@ -9338,7 +9366,6 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
-	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
 		auth.HostCertsParams{
@@ -9356,65 +9383,68 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
-	nodeClient, err := server.TLS.NewClient(authtest.TestIdentity{
-		I: authz.BuiltinRole{
-			Role:     types.RoleNode,
-			Username: nodeID,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
+	var node *regular.Server
+	if options.sshNode {
+		nodeClient, err := server.TLS.NewClient(authtest.TestIdentity{
+			I: authz.BuiltinRole{
+				Role:     types.RoleNode,
+				Username: nodeID,
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
-	nodeLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentNode,
-			Client:    nodeClient,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(nodeLockWatcher.Close)
+		nodeLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentNode,
+				Client:    nodeClient,
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(nodeLockWatcher.Close)
 
-	nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
-		Semaphores:   nodeClient,
-		AccessPoint:  nodeClient,
-		LockEnforcer: nodeLockWatcher,
-		Emitter:      nodeClient,
-		Component:    teleport.ComponentNode,
-		ServerID:     nodeID,
-	})
-	require.NoError(t, err)
+		nodeSessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:   nodeClient,
+			AccessPoint:  nodeClient,
+			LockEnforcer: nodeLockWatcher,
+			Emitter:      nodeClient,
+			Component:    teleport.ComponentNode,
+			ServerID:     nodeID,
+		})
+		require.NoError(t, err)
 
-	// create SSH service:
-	nodeDataDir := t.TempDir()
-	node, err := regular.New(
-		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		nodeID,
-		sshutils.StaticHostSigners(hostSigners...),
-		nodeClient,
-		nodeDataDir,
-		"",
-		utils.NetAddr{},
-		nodeClient,
-		regular.SetUUID(nodeID),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
-		regular.SetTestLoginShell(noHistoryShell(t)),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetClock(clock),
-		regular.SetLockWatcher(nodeLockWatcher),
-		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
-		regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
-	)
-	require.NoError(t, err)
+		// create SSH service:
+		nodeDataDir := t.TempDir()
+		node, err = regular.New(
+			ctx,
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+			nodeID,
+			sshutils.StaticHostSigners(hostSigners...),
+			nodeClient,
+			nodeDataDir,
+			"",
+			utils.NetAddr{},
+			nodeClient,
+			regular.SetUUID(nodeID),
+			regular.SetNamespace(apidefaults.Namespace),
+			regular.SetEmitter(nodeClient),
+			regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+			regular.SetTestLoginShell(noHistoryShell(t)),
+			regular.SetBPF(&bpf.NOP{}),
+			regular.SetClock(clock),
+			regular.SetLockWatcher(nodeLockWatcher),
+			regular.SetSessionController(nodeSessionController),
+			regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+			regular.SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
+		)
+		require.NoError(t, err)
 
-	require.NoError(t, node.Start())
-	t.Cleanup(func() {
-		require.NoError(t, node.Close())
-		node.Wait()
-	})
+		require.NoError(t, node.Start())
+		t.Cleanup(func() {
+			require.NoError(t, node.Close())
+			node.Wait()
+		})
+	}
 
 	var proxies []*testProxy
 	for p := range numProxies {
@@ -9567,7 +9597,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	t.Cleanup(databaseServerWatcher.Close)
 
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ID:       node.ID(),
+		ID:       nodeID,
 		Listener: revTunListener,
 		GetClientTLSCertificate: func() (*tls.Certificate, error) {
 			return &authClient.TLSConfig().Certificates[0], nil
@@ -9680,7 +9710,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		AccessPoint:    client,
 		LockWatcher:    proxyLockWatcher,
 		Clock:          clock,
-		ServerID:       node.ID(),
+		ServerID:       nodeID,
 		Emitter:        client,
 		EmitterContext: ctx,
 		Logger:         logtest.NewLogger(),
