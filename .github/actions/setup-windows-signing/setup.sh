@@ -28,8 +28,14 @@ pkcs11_token_label=signing-key
 # This specific directory is required by aws-kms-pkcs11.
 config_dir=/etc/aws-kms-pkcs11
 
-osslsigncode_url=https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip
-osslsigncode_sha256=3cc2474891605f29adbc58e08e0330052cda1f53540d2ce751783be5bd9088e1
+# Need osslsigncode >= 2.7 because 2.6 corrupts signed CAB files. The last upstream
+# prebuilt binary compatible with Ubuntu 22.04 was version 2.6, as a result we build
+# a fixed version from source.
+#
+# Pinned by commit rather than tag or tarball: GitHub's generated archives are
+# not guaranteed byte-stable, but a commit hash is content-addressed.
+osslsigncode_repo=https://github.com/mtrojnar/osslsigncode.git
+osslsigncode_commit=76ee550c9d3b9f0e559f044e18136b74c167fef2 # tag 2.9
 aws_kms_pkcs11_url=https://github.com/JackOfMostTrades/aws-kms-pkcs11/releases/download/v0.0.10/aws_kms_pkcs11.x86_64.so
 aws_kms_pkcs11_sha256=93c10632f11c6936373e9ff3a9877624320aa6c24bdcdff3da39cda519241ec7
 
@@ -52,7 +58,14 @@ echo "::group::Installing dependencies..."
 # on 22.04, so pull them from the 20.04 security repo.
 echo "deb http://security.ubuntu.com/ubuntu focal-security main" |
     $SUDO tee /etc/apt/sources.list.d/focal-security.list > /dev/null
-packages=(unzip libssl-dev libengine-pkcs11-openssl libssl1.1 libjson-c4 openssl)
+
+# cabextract verifies that a signed cabinet is still readable; the rest from
+# build-essential onwards are only needed to build osslsigncode from source.
+packages=(
+    unzip libssl-dev libengine-pkcs11-openssl libssl1.1 libjson-c4 openssl
+    cabextract git
+    build-essential cmake libcurl4-openssl-dev zlib1g-dev pkg-config
+)
 # Prefer an existing AWS CLI when present; otherwise install the distro package.
 if ! command -v aws > /dev/null; then
     packages+=(awscli)
@@ -61,13 +74,21 @@ $SUDO apt-get update
 $SUDO apt-get install --no-install-recommends -y "${packages[@]}"
 echo "::endgroup::"
 
-echo "::group::Installing osslsigncode..."
+echo "::group::Building osslsigncode..."
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
-curl -fsSL -o "$workdir/osslsigncode.zip" "$osslsigncode_url"
-verify_checksum "$workdir/osslsigncode.zip" "$osslsigncode_sha256" "osslsigncode archive"
-$SUDO unzip -o "$workdir/osslsigncode.zip" -d /usr
-$SUDO chmod +x /usr/bin/osslsigncode
+git -C "$workdir" init --quiet osslsigncode
+git -C "$workdir/osslsigncode" fetch --quiet --depth 1 "$osslsigncode_repo" "$osslsigncode_commit"
+git -C "$workdir/osslsigncode" checkout --quiet FETCH_HEAD
+# Make sure the fetched revision matches the pinned osslsigncode commit
+got="$(git -C "$workdir/osslsigncode" rev-parse HEAD)"
+if [ "$got" != "$osslsigncode_commit" ]; then
+    echo "error: expected osslsigncode commit $osslsigncode_commit but got $got" >&2
+    exit 1
+fi
+cmake -S "$workdir/osslsigncode" -B "$workdir/build" -DCMAKE_BUILD_TYPE=Release > /dev/null
+cmake --build "$workdir/build" -j "$(nproc)" > /dev/null
+$SUDO install -m 0755 "$workdir/build/osslsigncode" /usr/bin/osslsigncode
 osslsigncode --version
 echo "::endgroup::"
 
@@ -81,15 +102,38 @@ echo "::endgroup::"
 echo "::group::Configuring the signing key..."
 $SUDO mkdir -p "$config_dir"
 cert_path="$config_dir/signing-cert.crt"
-echo "Pulling the signing certificate from SSM at $WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH"
+intermediate_path="$config_dir/signing-intermediate.crt"
+echo "Pulling the signing certificate chain from SSM at $WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH"
 aws ssm get-parameter \
     --name "$WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH" \
-    --query Parameter.Value --output text |
-    $SUDO tee "$cert_path" > /dev/null
+    --query Parameter.Value --output text > "$workdir/chain.pem"
+
+# The parameter holds the full chain: leaf, issuing intermediate, root. Split the
+# first two out. aws-kms-pkcs11 presents only the first certificate through
+# PKCS#11, so the intermediate has to reach osslsigncode separately via -ac --
+# without it the signature carries the leaf alone and cannot be chained to a
+# trusted root. The root is deliberately not extracted: it belongs in the trust
+# store, not in the signature.
+awk '/BEGIN CERTIFICATE/{n++} n==1' "$workdir/chain.pem" | $SUDO tee "$cert_path" > /dev/null
+awk '/BEGIN CERTIFICATE/{n++} n==2' "$workdir/chain.pem" | $SUDO tee "$intermediate_path" > /dev/null
+
+if ! openssl x509 -in "$intermediate_path" -noout 2> /dev/null; then
+    echo "error: no intermediate certificate found in $WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH;" \
+        "it must hold the leaf followed by its issuing intermediate" >&2
+    exit 1
+fi
+if [ "$(openssl x509 -in "$cert_path" -noout -issuer_hash)" \
+    != "$(openssl x509 -in "$intermediate_path" -noout -subject_hash)" ]; then
+    echo "error: the second certificate in $WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH is not" \
+        "the issuer of the first; the chain is out of order or the leaf was reissued" >&2
+    exit 1
+fi
 
 echo "Signing certificate:"
 openssl x509 -in "$cert_path" -noout -subject -issuer -dates
 openssl x509 -in "$cert_path" -noout -ext certificatePolicies
+echo "Issuing intermediate:"
+openssl x509 -in "$intermediate_path" -noout -subject -dates
 
 kms_key_id="$(aws kms describe-key \
     --key-id "$WINDOWS_SIGNING_KEY_ARN" \

@@ -16,6 +16,11 @@ pkcs11_token_label=signing-key
 
 pkcs11_engine_path=/usr/lib/x86_64-linux-gnu/engines-3/pkcs11.so
 
+# Written by setup.sh, which splits it out of the SSM certificate chain; must
+# match intermediate_path there. PKCS#11 hands osslsigncode the leaf only, so
+# without this the signature cannot be chained to a trusted root.
+intermediate_path=/etc/aws-kms-pkcs11/signing-intermediate.crt
+
 if [ "$#" -ne 2 ]; then
     echo "usage: $(basename "$0") <unsigned-file> <signed-file>" >&2
     exit 1
@@ -35,6 +40,11 @@ signed_file="$(to_linux_path "$2")"
 
 echo "Signing $unsigned_file => $signed_file as AWS user $(aws sts get-caller-identity --query Arn --output text)"
 
+if [ ! -r "$intermediate_path" ]; then
+    echo "error: $intermediate_path is missing or unreadable; was setup.sh run?" >&2
+    exit 1
+fi
+
 mkdir -p "$(dirname "$signed_file")"
 export AWS_KMS_PKCS11_DEBUG=1
 
@@ -43,6 +53,7 @@ osslsigncode sign \
     -pkcs11engine "$pkcs11_engine_path" \
     -pkcs11module "$pkcs11_module_path" \
     -pkcs11cert "pkcs11:token=$pkcs11_token_label" \
+    -ac "$intermediate_path" \
     -ts http://timestamp.digicert.com \
     -in "$unsigned_file" \
     -out "$signed_file" \

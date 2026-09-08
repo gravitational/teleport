@@ -151,13 +151,36 @@ jobs:
           kms-key-arn: ${{ env.WINDOWS_SIGNING_KEY_ARN }}
 
       - name: Sign the cabinet
+        run: sign-binary "unsigned/$CAB_NAME" "signed/$CAB_NAME"
+
+      # Uploaded before verification, and on failure, so a cabinet that signs but
+      # fails to verify can still be inspected -- otherwise it is destroyed with
+      # the runner and the only evidence is the log. This is a GitHub artifact,
+      # never S3: the S3 bucket is the submission handoff and must only ever hold
+      # a cabinet that passed verification.
+      - name: Upload the signed cabinet for inspection
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-signed-cab
+          path: signed/*.cab
+          if-no-files-found: warn
+          retention-days: 7
+
+      # Two distinct checks. osslsigncode verify proves the signature and its
+      # chain; cabextract -t proves the cabinet is still readable, which the
+      # signature says nothing about -- osslsigncode 2.6 shipped a signed cab
+      # whose header pointed five bytes short of its own data, and verify passed
+      # on it. cabextract only reads, so it cannot alter the artifact, and it
+      # warns about the appended signature on every signed cab: the exit code is
+      # what matters, not the absence of warnings.
+      #
+      # The checksum is written only after both pass, so a cabinet that failed a
+      # check never gets one that could be mistaken for a blessing.
+      - name: Verify the signed cabinet
         run: |
-          sign-binary "unsigned/$CAB_NAME" "signed/$CAB_NAME"
-
-          echo "::group::Verifying the signed cabinet..."
           osslsigncode verify -in "signed/$CAB_NAME"
-          echo "::endgroup::"
-
+          cabextract -t "signed/$CAB_NAME"
           cd signed && sha256sum "$CAB_NAME" | tee "$CAB_NAME.sha256"
 
       # Uploading is a separate role from signing so that the signing role stays
