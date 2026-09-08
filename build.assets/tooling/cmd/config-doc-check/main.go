@@ -17,6 +17,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -383,26 +384,81 @@ func embeddedFieldName(expr ast.Expr) string {
 	}
 }
 
-// exampleTreeFromAny builds a key tree from a parsed YAML value.
-// For sequences it uses the first map element to infer key structure.
-func exampleTreeFromAny(v any) *yamlKeyTree {
+type elementType int
+
+const (
+	unknownType elementType = iota
+	mappingType
+	nonMappingType
+)
+
+// exampleTreeFromAny builds a key tree from a parsed YAML value. In sequences,
+// it expects either every element or no element to be a mapping, otherwise it
+// returns an error.
+//
+// For sequences of mappings, it treats the sequence as a single mapping that
+// includes the union of keys within each element. This way, it can compare YAML
+// examples with the expected struct types even when some elements in the
+// examples have unused, zeroed keys.
+//
+// Does not merge mappings within sequences past the first level, but rather
+// takes the last assigned value. This is because, in the current docs, all
+// mappings within sequences past the first level are arbitrary mappings instead
+// of declared struct types.
+func exampleTreeFromAny(v any) (*yamlKeyTree, error) {
 	switch m := v.(type) {
 	case map[string]any:
 		result := &yamlKeyTree{children: make(map[string]*yamlKeyTree)}
 		for k, val := range m {
-			result.children[k] = exampleTreeFromAny(val)
-		}
-		return result
-	case []any:
-		// Sequence: infer keys from the first map element, if any.
-		for _, elem := range m {
-			if sub, ok := elem.(map[string]any); ok {
-				return exampleTreeFromAny(sub)
+			keys, err := exampleTreeFromAny(val)
+			if err != nil {
+				return nil, err
 			}
+			result.children[k] = keys
 		}
-		return nil
+		return result, nil
+	case []any:
+		if len(m) == 0 {
+			return nil, nil
+		}
+
+		result := map[string]any{}
+		var sequenceType elementType
+		for _, el := range m {
+			switch a := el.(type) {
+			case map[string]any:
+				if sequenceType == unknownType {
+					sequenceType = mappingType
+				} else if sequenceType != mappingType {
+					return nil, errors.New("in example YAML sequences, either all elements must be maps or none must be")
+				}
+
+				for k, v := range a {
+					result[k] = v
+				}
+
+			default:
+				if sequenceType == unknownType {
+					sequenceType = nonMappingType
+				} else if sequenceType == mappingType {
+					return nil, errors.New("in example YAML sequences, either all elements must be maps or none must be")
+				}
+			}
+
+		}
+
+		if sequenceType == nonMappingType {
+			return nil, nil
+		}
+
+		tree, err := exampleTreeFromAny(result)
+		if err != nil {
+			return nil, err
+		}
+		return tree, nil
+
 	default:
-		return nil
+		return nil, nil
 	}
 }
 
@@ -571,7 +627,12 @@ func main() {
 				continue
 			}
 
-			exampleTree := exampleTreeFromAny(exampleSectionValue)
+			exampleTree, err := exampleTreeFromAny(exampleSectionValue)
+			if err != nil {
+				configErrors = append(configErrors, fmt.Errorf("warning: cannot collect keys from config example: %w", err))
+				failedToProcessSection = true
+				continue
+			}
 
 			// Build the YAML key tree for the struct type corresponding to this service section.
 			structTree, err := treeBuilder.treeForTypeName(fmt.Sprintf("%s/lib/config", teleportPackagePrefix), pair.TypeName)

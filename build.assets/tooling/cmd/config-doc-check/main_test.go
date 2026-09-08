@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestConfigKeyTreeBuilder(t *testing.T) {
@@ -175,6 +176,166 @@ service_sections: [{name: Auth Service, example_path: auth-service.yaml, key_typ
 	}
 }
 
+func TestExampleTreeFromAny(t *testing.T) {
+	cases := []struct {
+		description string
+		input       string
+		expected    *yamlKeyTree
+	}{
+		{
+			description: "union of map keys across elements",
+			input: `
+- "key1": "val1"
+  "key3": "val2"
+- "key2": "val2"
+  "key4": "val3"
+`,
+			expected: &yamlKeyTree{
+				children: map[string]*yamlKeyTree{
+					"key1": nil,
+					"key2": nil,
+					"key3": nil,
+					"key4": nil,
+				},
+			},
+		},
+		{
+			description: "sequence of bools",
+			input: `
+- false
+- true
+- false
+`,
+			expected: nil,
+		},
+		{
+			description: "sequence of ints",
+			input: `
+- 0
+- 1
+- 2
+`,
+			expected: nil,
+		},
+		{
+			description: "sequence of strings",
+			input: `
+- "one"
+- "two"
+- "three"
+`,
+			expected: nil,
+		},
+		{
+			description: "sequence of floats",
+			input: `
+- 1.1
+- .0003
+- 789.70
+`,
+			expected: nil,
+		},
+		{
+			description: "sequence of nulls",
+			input: `
+- null
+- null
+- null
+`,
+			expected: nil,
+		},
+		{
+			description: "sequence of dates",
+			input: `
+- 2026-01-02
+- 2026-01-03
+- 2026-01-04
+`,
+			expected: nil,
+		},
+		{
+			description: "mixed sequence",
+			input: `
+- 2026-01-02
+- 3
+- false
+- .101
+`,
+			expected: nil,
+		},
+		{
+			description: "nested maps with different keys",
+			input: `
+- "name": "example1"
+  "ad":   false
+  "addr": "win1.dev.example.com"
+  "labels":
+    "datacenter": "dc1"
+- "ad":   true
+  "addr": "win2.dev.example.com"
+  "labels":
+    "controller": "all"
+`,
+			expected: &yamlKeyTree{
+				children: map[string]*yamlKeyTree{
+					"name": nil,
+					"ad":   nil,
+					"addr": nil,
+					"labels": &yamlKeyTree{
+						children: map[string]*yamlKeyTree{
+							"controller": nil,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			var input any
+			// Decode each input as YAML to ensure that input types
+			// reflect actual decoded YAML types.
+			err := yaml.NewDecoder(strings.NewReader(c.input)).Decode(&input)
+			require.NoError(t, err)
+			actual, err := exampleTreeFromAny(input)
+			require.NoError(t, err)
+			require.Equal(t, c.expected, actual)
+		})
+	}
+}
+
+func TestExampleTreeFromAnyErrors(t *testing.T) {
+	cases := []struct {
+		description string
+		input       string
+		expected    string
+	}{
+		{
+			description: "mix of maps and scalars in sequence",
+			input: `
+- "key1": "val1"
+  "key3": "val2"
+- 5
+- "one"
+`,
+			expected: "blah blah",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			var input any
+			// Decode each input as YAML to ensure that input types
+			// reflect actual decoded YAML types.
+			err := yaml.NewDecoder(strings.NewReader(c.input)).Decode(&input)
+			require.NoError(t, err)
+			actual, err := exampleTreeFromAny(input)
+			require.Nil(t, actual)
+			require.ErrorContains(t, err, c.expected)
+		})
+	}
+}
 func TestCompareTrees(t *testing.T) {
 	structTree := &yamlKeyTree{children: map[string]*yamlKeyTree{
 		"shared": {children: map[string]*yamlKeyTree{
