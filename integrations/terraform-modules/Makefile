@@ -19,6 +19,7 @@ MODULE_DIRS := $(shell find . \
   2>/dev/null | sort -u)
 README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
+.NOTPARALLEL: docs
 .PHONY: docs
 docs: $(README_FILES)
 	./gen/docs.sh "$(VERSION)" $(PUBLISHED_TF_MODULES)
