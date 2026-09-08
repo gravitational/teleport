@@ -133,7 +133,7 @@ jobs:
           corepack enable pnpm
 
       - name: Install retry from GitHub Release
-        uses: gravitational/shared-workflows/.github/actions/install-gh-release@41eefbdab5c67d8e0169730e999f73cd315a8cb5
+        uses: gravitational/shared-workflows/.github/actions/install-gh-release@f1ef91ba64076a7c773bcd1f59c83e91777c4220
         with:
           tool-name: retry
           version: v0.0.2
