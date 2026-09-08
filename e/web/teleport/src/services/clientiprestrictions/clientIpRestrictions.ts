@@ -11,7 +11,7 @@ import {
 // The web UI can be ahead of the proxy it is talking to, which answers a
 // path-not-found 404 for an endpoint it does not have yet.
 // TODO(mcbattirola): DELETE IN v20.0.0
-const SUPPORTED_VERSION = '19.0.0';
+const SUPPORTED_VERSION = '18.12.0';
 
 const handleUnsupported = (err: unknown) =>
   withGenericUnsupportedError(err, SUPPORTED_VERSION);
