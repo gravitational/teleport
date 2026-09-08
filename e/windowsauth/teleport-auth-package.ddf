@@ -20,9 +20,9 @@
 ; set. The portal accepts one file only.
 .Set MaxDiskSize=0
 
-; Authenticode signatures are written into space reserved inside the cabinet
-; header, not appended. Without a reservation, signing the cabinet fails.
-.Set ReservePerCabinetSize=6144
+; No signature reservation. osslsigncode appends the Authenticode signature and
+; writes its own 20-byte header pointing at it; a ReservePerCabinetSize
+; reservation sets cbCFHeader to that size instead, which osslsigncode rejects.
 
 .Set DiskDirectory1=build
 
