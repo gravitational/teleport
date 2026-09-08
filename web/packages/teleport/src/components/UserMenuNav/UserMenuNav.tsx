@@ -35,6 +35,7 @@ import {
   INCREMENT_TRANSITION_DELAY,
   STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
+import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
 import session from 'teleport/services/websession';
@@ -68,7 +69,8 @@ const UserInfo = styled.div`
 `;
 
 const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
+  color: ${props =>
+    cfg.customTheme === 'csco' ? '#f7f7f7' : props.theme.colors.text.main};
   font-size: 14px;
   font-weight: 400;
   display: none;
@@ -101,6 +103,8 @@ const StyledAvatar = styled.div`
 const Arrow = styled.div<{ open?: boolean }>`
   line-height: 0;
   padding-left: ${p => p.theme.space[3]}px;
+  color: ${p =>
+    cfg.customTheme === 'csco' ? '#f7f7f7' : p.theme.colors.text.main};
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};

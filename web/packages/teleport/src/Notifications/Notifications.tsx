@@ -33,6 +33,7 @@ import Logger from 'shared/libs/logger';
 
 import { useTeleport } from 'teleport';
 import { Dropdown } from 'teleport/components/Dropdown';
+import cfg from 'teleport/config';
 import { ButtonIconContainer } from 'teleport/TopBar/Shared';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -171,7 +172,13 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
             </UnseenBadge>
           )}
           <NotificationIcon
-            color={open ? 'text.main' : 'text.muted'}
+            color={
+              cfg.customTheme === 'csco'
+                ? '#f7f7f7'
+                : open
+                  ? 'text.main'
+                  : 'text.muted'
+            }
             size={iconSize}
           />
         </ButtonIconContainer>

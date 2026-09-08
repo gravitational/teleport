@@ -45,16 +45,18 @@ const beamsLogos = {
 export const LogoHero = ({
   py = '48px',
   customSrc,
+  maxWidth = '200px',
 }: {
   py?: string;
   customSrc?: string;
+  maxWidth?: string;
 }) => {
   const theme = useTheme();
   const defaultSrc = cfg.beamsUi ? beamsLogos[theme.type] : logoSrc(theme.type);
   const src = customSrc || defaultSrc;
   return (
     <Box py={py}>
-      <Image src={src} maxHeight="120px" maxWidth="200px" mx="auto" />
+      <Image src={src} maxHeight="120px" maxWidth={maxWidth} mx="auto" />
     </Box>
   );
 };
