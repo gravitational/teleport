@@ -65,15 +65,18 @@ func (p *Plugin) registerCloudHandlers() {
 	}
 
 	// Stripe self-serve endpoints; only registered for Stripe-managed cloud tenants.
+	// Only /config uses withCloudCache: its response is near-static and safe to serve
+	// stale on upstream failure. Cards/invoices/invoice-settings are mutated by adjacent
+	// POST handlers, so a stale fallback would contradict what the user just did.
 	if features.GetCloud() && features.GetIsStripeManaged() {
 		p.h.GET("/enterprise/cloud/stripe/config", p.withCloudAuth(p.withCloudCache(p.getStripeConfigHandle)))
-		p.h.GET("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.withCloudCache(p.stripeListCardsHandle)))
+		p.h.GET("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeListCardsHandle))
 		p.h.POST("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeCreateCardHandle))
 		p.h.PUT("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeUpdateCardHandle))
 		p.h.DELETE("/enterprise/cloud/stripe/cards", p.withCloudAuth(p.stripeDeleteCardHandle))
 		p.h.POST("/enterprise/cloud/stripe/setup-intent", p.withCloudAuth(p.stripeCreateSetupIntentHandle))
-		p.h.GET("/enterprise/cloud/stripe/invoices", p.withCloudAuth(p.withCloudCache(p.stripeListInvoicesHandle)))
-		p.h.GET("/enterprise/cloud/stripe/invoice-settings", p.withCloudAuth(p.withCloudCache(p.stripeGetSettingsHandle)))
+		p.h.GET("/enterprise/cloud/stripe/invoices", p.withCloudAuth(p.stripeListInvoicesHandle))
+		p.h.GET("/enterprise/cloud/stripe/invoice-settings", p.withCloudAuth(p.stripeGetSettingsHandle))
 		p.h.POST("/enterprise/cloud/stripe/invoice-settings/email", p.withCloudAuth(p.stripeUpdateEmailHandle))
 		p.h.POST("/enterprise/cloud/stripe/invoice-settings/po-prefix", p.withCloudAuth(p.stripeUpdatePOPrefixHandle))
 		p.h.POST("/enterprise/cloud/stripe/invoice-settings/address", p.withCloudAuth(p.stripeUpdateStripeAddressHandle))

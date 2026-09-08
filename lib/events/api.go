@@ -233,6 +233,8 @@ const (
 	BillingCardUpdateEvent = "billing.update_card"
 	// BillingInformationUpdateEvent is emitted when a user updates their billing information.
 	BillingInformationUpdateEvent = "billing.update_info"
+	// BillingSubscriptionCancelEvent is emitted when a user cancels their billing subscription.
+	BillingSubscriptionCancelEvent = "billing.cancel_subscription"
 
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state

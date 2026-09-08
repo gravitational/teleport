@@ -4383,6 +4383,22 @@ message BillingCardDelete {
   ];
 }
 
+// BillingSubscriptionCancel is emitted when a user cancels their billing subscription.
+message BillingSubscriptionCancel {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // LockCreate is emitted when a lock is created/updated.
 // Locks are used to restrict access to a Teleport environment by disabling
 // interactions involving a user, an RBAC role, a node, etc.
@@ -5549,6 +5565,7 @@ message OneOf {
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
     events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
     events.AppSessionRequestDenied AppSessionRequestDenied = 272;
+    events.BillingSubscriptionCancel BillingSubscriptionCancel = 273;
   }
 }
 

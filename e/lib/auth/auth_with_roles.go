@@ -374,72 +374,164 @@ func (ac *cloudWithRoles) StripeCreateSetupIntent(ctx context.Context, req *v1.S
 
 // StripeCreateCard attaches a payment method to the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeCreateCard(ctx context.Context, req *v1.StripeCreateCardRequest) (*v1.StripeCreateCardResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeCreateCard(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeCreateCard(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingCardCreate{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingCardCreateEvent,
+			Code: libevents.BillingCardCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeUpdateCard updates a payment method on the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeUpdateCard(ctx context.Context, req *v1.StripeUpdateCardRequest) (*v1.StripeUpdateCardResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeUpdateCard(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeUpdateCard(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// BillingCardUpdate reuses the BillingCardCreate proto shape; see lib/events/dynamic.go.
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingCardCreate{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingCardUpdateEvent,
+			Code: libevents.BillingCardUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeDeleteCard detaches a payment method from the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeDeleteCard(ctx context.Context, req *v1.StripeDeleteCardRequest) (*v1.StripeDeleteCardResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeDeleteCard(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeDeleteCard(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingCardDelete{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingCardDeleteEvent,
+			Code: libevents.BillingCardDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeUpdateEmail updates the invoice email on the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeUpdateEmail(ctx context.Context, req *v1.StripeUpdateEmailRequest) (*v1.StripeUpdateEmailResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeUpdateEmail(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeUpdateEmail(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingInformationUpdateEvent,
+			Code: libevents.BillingInformationUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeUpdatePOPrefix updates the invoice PO prefix on the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeUpdatePOPrefix(ctx context.Context, req *v1.StripeUpdatePOPrefixRequest) (*v1.StripeUpdatePOPrefixResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeUpdatePOPrefix(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeUpdatePOPrefix(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingInformationUpdateEvent,
+			Code: libevents.BillingInformationUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeUpdateStripeAddress updates the billing address on the caller's Stripe customer.
 func (ac *cloudWithRoles) StripeUpdateStripeAddress(ctx context.Context, req *v1.StripeUpdateStripeAddressRequest) (*v1.StripeUpdateStripeAddressResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeUpdateStripeAddress(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeUpdateStripeAddress(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingInformationUpdateEvent,
+			Code: libevents.BillingInformationUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 // StripeCancel cancels the caller's Stripe subscription.
 func (ac *cloudWithRoles) StripeCancel(ctx context.Context, req *v1.StripeCancelRequest) (*v1.StripeCancelResponse, error) {
-	if err := ac.action(ctx, types.KindBilling, types.VerbUpdate); err != nil {
+	authCtx, err := ac.actionWithAuthContext(ctx, types.KindBilling, types.VerbUpdate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ac.plugin.cloudClient.StripeCancel(ctx, req)
+	resp, err := ac.plugin.cloudClient.StripeCancel(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ac.emitBillingAuditEvent(ctx, &apievents.BillingSubscriptionCancel{
+		Metadata: apievents.Metadata{
+			Type: libevents.BillingSubscriptionCancelEvent,
+			Code: libevents.BillingSubscriptionCancelCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+	})
+	return resp, nil
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions ...string) error {
+	_, err := ac.actionWithAuthContext(ctx, resource, actions...)
+	return trace.Wrap(err)
+}
+
+// actionWithAuthContext runs the same RBAC check as action but returns the
+// authenticated context on success so callers that need to emit an audit event
+// don't have to Authorize a second time.
+func (ac *cloudWithRoles) actionWithAuthContext(ctx context.Context, resource string, actions ...string) (*authz.Context, error) {
 	if ac.plugin.cloudClient == nil {
-		return trace.AccessDenied("cloud features are disabled")
+		return nil, trace.AccessDenied("cloud features are disabled")
 	}
 
 	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
-		return trace.AccessDenied("access denied")
+		return nil, trace.AccessDenied("access denied")
 	}
 
 	var errs []error
-
 	for _, action := range actions {
 		if err := authCtx.Checker.CheckAccessToRule(
 			&services.Context{User: authCtx.User},
@@ -449,8 +541,22 @@ func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions .
 			errs = append(errs, err)
 		}
 	}
+	if err := trace.NewAggregate(errs...); err != nil {
+		return nil, err
+	}
+	return authCtx, nil
+}
 
-	return trace.NewAggregate(errs...)
+// emitBillingAuditEvent emits a billing-related audit event and logs a warning
+// on failure. Audit emission must not fail the caller's request.
+func (ac *cloudWithRoles) emitBillingAuditEvent(ctx context.Context, event apievents.AuditEvent) {
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		slog.WarnContext(ctx, "failed to emit billing audit event",
+			"error", err,
+			"type", event.GetType(),
+			"code", event.GetCode(),
+		)
+	}
 }
 
 // hasBuiltinProxyRole checks if context contains built in role proxy

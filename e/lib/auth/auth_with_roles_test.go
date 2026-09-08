@@ -885,6 +885,176 @@ func TestCloudWithRoles_StripeRPCs(t *testing.T) {
 	}
 }
 
+// TestCloudWithRoles_StripeAuditEvents verifies that every mutating Stripe
+// RPC wrapper on cloudWithRoles emits the correct billing audit event on
+// success and emits nothing when the caller is not authorized.
+func TestCloudWithRoles_StripeAuditEvents(t *testing.T) {
+	ctx := t.Context()
+	suite := newCloudSuite(t)
+	originalAuthorize := suite.authorizer.authorize
+
+	tt := []struct {
+		name      string
+		setMock   func(c *cloud.MockedClient)
+		call      func(ac *cloudWithRoles) error
+		assertEvt func(t *testing.T, ev events.AuditEvent)
+	}{
+		{
+			name: "StripeCreateCard emits BillingCardCreate",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeCreateCard = func(ctx context.Context, in *cloudv1.StripeCreateCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeCreateCardResponse, error) {
+					return &cloudv1.StripeCreateCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeCreateCard(ctx, &cloudv1.StripeCreateCardRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingCardCreate)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingCardCreateEvent, e.Type)
+				require.Equal(t, libevents.BillingCardCreateCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeUpdateCard emits BillingCardUpdate",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateCard = func(ctx context.Context, in *cloudv1.StripeUpdateCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateCardResponse, error) {
+					return &cloudv1.StripeUpdateCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateCard(ctx, &cloudv1.StripeUpdateCardRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				// BillingCardUpdate reuses the BillingCardCreate proto shape.
+				e, ok := ev.(*events.BillingCardCreate)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingCardUpdateEvent, e.Type)
+				require.Equal(t, libevents.BillingCardUpdateCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeDeleteCard emits BillingCardDelete",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeDeleteCard = func(ctx context.Context, in *cloudv1.StripeDeleteCardRequest, opts ...grpc.CallOption) (*cloudv1.StripeDeleteCardResponse, error) {
+					return &cloudv1.StripeDeleteCardResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeDeleteCard(ctx, &cloudv1.StripeDeleteCardRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingCardDelete)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingCardDeleteEvent, e.Type)
+				require.Equal(t, libevents.BillingCardDeleteCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeUpdateEmail emits BillingInformationUpdate",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateEmail = func(ctx context.Context, in *cloudv1.StripeUpdateEmailRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateEmailResponse, error) {
+					return &cloudv1.StripeUpdateEmailResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateEmail(ctx, &cloudv1.StripeUpdateEmailRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingInformationUpdate)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingInformationUpdateEvent, e.Type)
+				require.Equal(t, libevents.BillingInformationUpdateCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeUpdatePOPrefix emits BillingInformationUpdate",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdatePOPrefix = func(ctx context.Context, in *cloudv1.StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdatePOPrefixResponse, error) {
+					return &cloudv1.StripeUpdatePOPrefixResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdatePOPrefix(ctx, &cloudv1.StripeUpdatePOPrefixRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingInformationUpdate)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingInformationUpdateEvent, e.Type)
+				require.Equal(t, libevents.BillingInformationUpdateCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeUpdateStripeAddress emits BillingInformationUpdate",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeUpdateStripeAddress = func(ctx context.Context, in *cloudv1.StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*cloudv1.StripeUpdateStripeAddressResponse, error) {
+					return &cloudv1.StripeUpdateStripeAddressResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeUpdateStripeAddress(ctx, &cloudv1.StripeUpdateStripeAddressRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingInformationUpdate)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingInformationUpdateEvent, e.Type)
+				require.Equal(t, libevents.BillingInformationUpdateCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+		{
+			name: "StripeCancel emits BillingSubscriptionCancel",
+			setMock: func(c *cloud.MockedClient) {
+				c.MockStripeCancel = func(ctx context.Context, in *cloudv1.StripeCancelRequest, opts ...grpc.CallOption) (*cloudv1.StripeCancelResponse, error) {
+					return &cloudv1.StripeCancelResponse{}, nil
+				}
+			},
+			call: func(ac *cloudWithRoles) error {
+				_, err := ac.StripeCancel(ctx, &cloudv1.StripeCancelRequest{})
+				return err
+			},
+			assertEvt: func(t *testing.T, ev events.AuditEvent) {
+				e, ok := ev.(*events.BillingSubscriptionCancel)
+				require.True(t, ok, "wrong event type (%T)", ev)
+				require.Equal(t, libevents.BillingSubscriptionCancelEvent, e.Type)
+				require.Equal(t, libevents.BillingSubscriptionCancelCode, e.Code)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, e.UserMetadata.User)
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		tc.setMock(suite.cloudClient)
+
+		t.Run(tc.name+"/unauthorized emits no event", func(t *testing.T) {
+			suite.emitter.in = nil
+			suite.authorizer.authorize = unauthorized
+			require.True(t, trace.IsAccessDenied(tc.call(suite.cloudWithRoles)))
+			require.Nil(t, suite.emitter.in)
+		})
+
+		t.Run(tc.name+"/successful emits event", func(t *testing.T) {
+			suite.emitter.in = nil
+			suite.authorizer.authorize = originalAuthorize
+			require.NoError(t, tc.call(suite.cloudWithRoles))
+			require.NotNil(t, suite.emitter.in)
+			tc.assertEvt(t, suite.emitter.in)
+		})
+	}
+}
+
 func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
 	t.Helper()
 

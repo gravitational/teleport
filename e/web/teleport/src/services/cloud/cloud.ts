@@ -379,7 +379,7 @@ function makeStripeGetSettingsResponse(json: any): StripeGetSettingsResponse {
     stripeCustomerName: json?.stripeCustomerName || '',
     stripeSubscriptionStatus: json?.stripeSubscriptionStatus || '',
     planName: json?.planName || '',
-    stripeTrialEnd: json?.stripeTrialEnd || 0,
+    stripeTrialEnd: Number(json?.stripeTrialEnd) || 0,
   };
 }
 

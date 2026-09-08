@@ -1701,6 +1701,15 @@ export const events = [
     user: 'root',
   },
   {
+    cluster_name: 'some-name',
+    code: 'TBL04I',
+    ei: 0,
+    event: 'billing.cancel_subscription',
+    time: '2021-03-18T16:28:47.302Z',
+    uid: '3a06d34a-2b47-4c11-9b21-3f6db3d7b184',
+    user: 'root',
+  },
+  {
     cluster_name: 'root',
     code: 'TDB00I',
     db_name: '',
