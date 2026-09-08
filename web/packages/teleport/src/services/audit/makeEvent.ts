@@ -1243,6 +1243,11 @@ export const formatters: Formatters = {
     desc: 'Billing Information Updated',
     format: ({ user }) => `User [${user}] has updated the billing information`,
   },
+  [eventCodes.BILLING_SUBSCRIPTION_CANCEL]: {
+    type: 'billing.cancel_subscription',
+    desc: 'Billing Subscription Cancelled',
+    format: ({ user }) => `User [${user}] cancelled the billing subscription`,
+  },
   [eventCodes.LOCK_CREATED]: {
     type: 'lock.created',
     desc: 'Lock Created',
