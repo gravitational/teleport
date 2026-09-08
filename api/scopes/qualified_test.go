@@ -21,6 +21,7 @@ package scopes
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,24 +96,24 @@ func TestQualifiedNameRoundTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			qn, err := ParseQualifiedName(tt.sqn)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.scope, qn.Scope)
+			assert.Equal(t, tt.rname, qn.Name)
+
 			if tt.strongErr {
-				require.Error(t, StrongValidateQualifiedName(tt.sqn))
+				assert.Error(t, qn.StrongValidate())
 			} else {
-				require.NoError(t, StrongValidateQualifiedName(tt.sqn))
+				assert.NoError(t, qn.StrongValidate())
 			}
 
 			if tt.weakErr {
-				require.Error(t, WeakValidateQualifiedName(tt.sqn))
+				assert.Error(t, qn.WeakValidate())
 			} else {
-				require.NoError(t, WeakValidateQualifiedName(tt.sqn))
+				assert.NoError(t, qn.WeakValidate())
 			}
 
 			require.Equal(t, tt.sqn, QualifiedName{Scope: tt.scope, Name: tt.rname}.String())
-
-			qn, err := ParseQualifiedName(tt.sqn)
-			require.NoError(t, err)
-			require.Equal(t, tt.scope, qn.Scope)
-			require.Equal(t, tt.rname, qn.Name)
 		})
 	}
 }
@@ -152,8 +153,6 @@ func TestParseQualifiedNameErrors(t *testing.T) {
 			t.Parallel()
 			_, err := ParseQualifiedName(tt.sqn)
 			require.Error(t, err)
-			require.Error(t, WeakValidateQualifiedName(tt.sqn))
-			require.Error(t, StrongValidateQualifiedName(tt.sqn))
 		})
 	}
 }
@@ -287,14 +286,21 @@ func TestValidateQualifiedName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := StrongValidateQualifiedName(tt.sqn)
+			qn, err := ParseQualifiedName(tt.sqn)
+			if err != nil {
+				require.False(t, tt.strongOk)
+				require.False(t, tt.weakOk)
+				return
+			}
+
+			err = qn.StrongValidate()
 			if tt.strongOk {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
 			}
 
-			err = WeakValidateQualifiedName(tt.sqn)
+			err = qn.WeakValidate()
 			if tt.weakOk {
 				require.NoError(t, err)
 			} else {
@@ -359,10 +365,72 @@ func TestSet(t *testing.T) {
 	}
 }
 
-func TestMaybeQualifiedName(t *testing.T) {
-	require.True(t, MaybeSQN("/foo/bar::llama"))
-	require.True(t, MaybeSQN("/llama"))
-	require.False(t, MaybeSQN("llama"))
-	require.False(t, MaybeSQN("llama/"))
-	require.False(t, MaybeSQN(""))
+func TestParseOptionallyQualifiedName(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name     string
+		input    string
+		ok       bool
+		expected QualifiedName
+	}{
+		{
+			name:     "qualified",
+			input:    "/foo/bar::llama",
+			ok:       true,
+			expected: QualifiedName{Scope: "/foo/bar", Name: "llama"},
+		},
+		{
+			name:     "bare name",
+			input:    "llama",
+			ok:       true,
+			expected: QualifiedName{Name: "llama"},
+		},
+		{
+			name:     "bare name with trailing slash",
+			input:    "llama/",
+			ok:       true,
+			expected: QualifiedName{Name: "llama/"},
+		},
+		{
+			name:     "empty",
+			input:    "",
+			ok:       true,
+			expected: QualifiedName{},
+		},
+		{
+			name:  "scope prefix without separator",
+			input: "/llama",
+			ok:    false,
+		},
+		{
+			name:  "empty scope component",
+			input: "::llama",
+			ok:    false,
+		},
+		{
+			name:  "empty name component",
+			input: "/foo::",
+			ok:    false,
+		},
+		{
+			name:  "single colon in qualified name",
+			input: "/foo:llama",
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			qn, err := ParseOptionallyQualifiedName(tt.input)
+			if !tt.ok {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, qn)
+		})
+	}
 }

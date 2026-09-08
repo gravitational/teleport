@@ -1430,13 +1430,13 @@ func TestScopedAndUnscopedBotResource(t *testing.T) {
 	t.Run("single-arg unscoped get returns the unscoped bot", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{"get", "bot/robot", "--format=text"})
 		require.NoError(t, err)
-		require.NotContains(t, buf.String(), scopes.QualifiedNameSeparator)
+		require.NotContains(t, buf.String(), "::")
 	})
 
 	t.Run("two-arg unscoped get returns the unscoped bot", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{"get", types.KindBot, "robot", "--format=text"})
 		require.NoError(t, err)
-		require.NotContains(t, buf.String(), scopes.QualifiedNameSeparator)
+		require.NotContains(t, buf.String(), "::")
 	})
 
 	t.Run("scope-qualified get selects the bot in that scope", func(t *testing.T) {

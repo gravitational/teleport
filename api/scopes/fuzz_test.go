@@ -88,14 +88,20 @@ func FuzzValidateQualifiedName(f *testing.F) {
 	f.Add("/staging::my::role")
 
 	f.Fuzz(func(t *testing.T, sqn string) {
-		var strongErr, weakErr error
+		var qn QualifiedName
+		var parseErr error
+		require.NotPanics(t, func() { qn, parseErr = ParseQualifiedName(sqn) })
+		if parseErr != nil {
+			return
+		}
 
-		require.NotPanics(t, func() { strongErr = StrongValidateQualifiedName(sqn) })
-		require.NotPanics(t, func() { weakErr = WeakValidateQualifiedName(sqn) })
+		var strongErr, weakErr error
+		require.NotPanics(t, func() { strongErr = qn.StrongValidate() })
+		require.NotPanics(t, func() { weakErr = qn.WeakValidate() })
 
 		// strong passing must imply weak passing
 		if strongErr == nil {
-			require.NoError(t, weakErr, "StrongValidateQualifiedName passed but WeakValidateQualifiedName failed for %q", sqn)
+			require.NoError(t, weakErr, "StrongValidate passed but WeakValidate failed for %q", sqn)
 		}
 	})
 }

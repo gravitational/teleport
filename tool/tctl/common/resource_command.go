@@ -834,9 +834,13 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 	// form arrives with its scope stranded in the name or the sub-kind. Kinds with
 	// only a scoped handler are already rejected below; kinds with both would
 	// otherwise treat it as an unscoped name and match nothing.
+	isQualified := func(s string) bool {
+		qn, err := scopes.ParseOptionallyQualifiedName(s)
+		return err != nil || qn.Scope != ""
+	}
 	_, classicFound := resources.Handlers()[ref.Kind]
 	_, scopedFound := resources.ScopedHandlers()[ref.Kind]
-	if classicFound && scopedFound && (scopes.MaybeSQN(ref.Name) || scopes.MaybeSQN(ref.SubKind)) {
+	if classicFound && scopedFound && (isQualified(ref.Name) || isQualified(ref.SubKind)) {
 		return nil, trace.BadParameter(
 			"resource type %q does not accept a scope-qualified name in the single-arg '<kind>/<name>' form, try:\n  tctl get %s <scope>::<name>",
 			ref.Kind, ref.Kind,

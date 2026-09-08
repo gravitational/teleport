@@ -197,8 +197,12 @@ func TestEncodedSort(t *testing.T) {
 	}
 }
 
+// maxGeneratedScopeSize bounds the length of randomly generated scopes,
+// matching the maximum scope size permitted by strong validation.
+const maxGeneratedScopeSize = 64
+
 func generateScope() string {
-	targetLen := 1 + rand.IntN(maxScopeSize)
+	targetLen := 1 + rand.IntN(maxGeneratedScopeSize)
 	var scope strings.Builder
 	for scope.Len() <= targetLen-2 {
 		scope.WriteString(separator)
@@ -230,7 +234,7 @@ func generateSegment(segmentLen int) string {
 func randomValidByteInRange(min, max int) byte {
 	for {
 		candidate := byte(min + rand.IntN(max-min+1))
-		if !strings.ContainsRune(breakingChars, rune(candidate)) {
+		if WeakValidateSegment(string([]byte{candidate})) == nil {
 			return candidate
 		}
 	}

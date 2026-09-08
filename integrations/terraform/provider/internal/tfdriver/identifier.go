@@ -156,13 +156,20 @@ func NewScopedQualifiedNameIdentifier(s string) (ScopeQualifiedNameIdentifier, e
 }
 
 // NewPossiblyUnscopedScopeQualifiedNameIdentifier parses an identifier that may
-// be either a scope-qualified name or an unscoped bare name.
+// be either a scope-qualified name or an unscoped bare name. Scope-qualified
+// names are strongly validated.
 func NewPossiblyUnscopedScopeQualifiedNameIdentifier(s string) (ScopeQualifiedNameIdentifier, error) {
-	if strings.Contains(s, scopes.QualifiedNameSeparator) {
-		return NewScopedQualifiedNameIdentifier(s)
+	sqn, err := scopes.ParseOptionallyQualifiedName(s)
+	if err != nil {
+		return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+	}
+	if sqn.Scope != "" {
+		if err := sqn.StrongValidate(); err != nil {
+			return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+		}
 	}
 
-	return ScopeQualifiedNameIdentifier{Name: s}, nil
+	return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}, nil
 }
 
 // ScopeQualifiedPath contains the paths to Terraform
@@ -254,12 +261,10 @@ func PossiblyUnscopedScopeQualifiedNameIdentifierPolicy[T any](p ScopeQualifiedP
 
 // NewCompositeIdentifier parses a composite identifier.
 func NewCompositeIdentifier(s string) (CompositeIdentifier, error) {
-	split := strings.Split(s, "/")
-	if len(split) != 2 {
+	prefix, name, ok := strings.Cut(s, "/")
+	if !ok || strings.Contains(name, "/") {
 		return CompositeIdentifier{}, trace.BadParameter("expected id %q to have a single %q separator", s, "/")
 	}
-	prefix := split[0]
-	name := split[1]
 
 	if prefix == "" {
 		return CompositeIdentifier{}, trace.BadParameter("expected id %q prefix to be non-empty", s)
@@ -312,41 +317,45 @@ func CompositeIdentifierPolicy[T any](p CompositeIdentifierPath, resourcePrefixA
 // name. For example: "access-list/alice", "/scope::access-list/alice", or
 // "/scope::access-list//scope::child-list".
 func NewScopeQualifiedCompositeIdentifier(s string) (ScopeQualifiedCompositeIdentifier, error) {
-	prefix, name, err := splitScopeQualifiedCompositeIdentifier(s)
-	if err != nil {
-		return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
-	}
-
-	return newScopeQualifiedCompositeIdentifier(prefix, name)
-}
-
-func splitScopeQualifiedCompositeIdentifier(s string) (prefix, name string, err error) {
+	// A scoped prefix means the id as a whole parses as an SQN whose name
+	// component carries "<prefix name>/<member name>".
 	if strings.HasPrefix(s, "/") {
-		scope, rest, ok := strings.Cut(s, scopes.QualifiedNameSeparator)
-		if !ok {
-			return "", "", trace.BadParameter("expected scoped composite id %q prefix to contain %q", s, scopes.QualifiedNameSeparator)
+		qn, err := scopes.ParseQualifiedName(s)
+		if err != nil {
+			return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("invalid scoped composite id %q: %v", s, err)
 		}
 
-		prefixName, name, ok := strings.Cut(rest, "/")
+		prefixName, name, ok := strings.Cut(qn.Name, "/")
 		if !ok {
-			return "", "", trace.BadParameter("expected id %q to have a %q separator after prefix", s, "/")
+			return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("expected id %q to have a %q separator after prefix", s, "/")
 		}
-		return scope + scopes.QualifiedNameSeparator + prefixName, name, nil
+		if name == "" {
+			return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("name must be non-empty")
+		}
+
+		prefix := scopes.QualifiedName{Scope: qn.Scope, Name: prefixName}
+		if err := prefix.StrongValidate(); err != nil {
+			return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
+		}
+
+		nameSQN, err := NewPossiblyUnscopedScopeQualifiedNameIdentifier(name)
+		if err != nil {
+			return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
+		}
+
+		return ScopeQualifiedCompositeIdentifier{
+			Prefix: ScopeQualifiedNameIdentifier{Name: prefix.Name, Scope: prefix.Scope},
+			Name:   nameSQN,
+		}, nil
 	}
 
 	prefix, name, ok := strings.Cut(s, "/")
 	if !ok {
-		return "", "", trace.BadParameter("expected id %q to have a %q separator", s, "/")
+		return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("expected id %q to have a %q separator", s, "/")
 	}
-
 	if strings.Contains(name, "/") && !strings.HasPrefix(name, "/") {
-		return "", "", trace.BadParameter("expected unscoped member name in id %q not to contain %q", s, "/")
+		return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("expected unscoped member name in id %q not to contain %q", s, "/")
 	}
-
-	return prefix, name, nil
-}
-
-func newScopeQualifiedCompositeIdentifier(prefix, name string) (ScopeQualifiedCompositeIdentifier, error) {
 	if prefix == "" {
 		return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("prefix must be non-empty")
 	}
@@ -399,18 +408,18 @@ func ScopeQualifiedCompositeIdentifierFromPath(p CompositeIdentifierPath) Terraf
 	}
 }
 
+// scopeQualifiedNameIdentifierFromPossiblyQualifiedString parses an identifier
+// that may be either a scope-qualified name or an unscoped bare name.
+// Scope-qualified names are weakly validated.
 func scopeQualifiedNameIdentifierFromPossiblyQualifiedString(s string) (ScopeQualifiedNameIdentifier, error) {
-	if !strings.Contains(s, scopes.QualifiedNameSeparator) {
-		return ScopeQualifiedNameIdentifier{Name: s}, nil
-	}
-
-	sqn, err := scopes.ParseQualifiedName(s)
+	sqn, err := scopes.ParseOptionallyQualifiedName(s)
 	if err != nil {
 		return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
 	}
-
-	if err := sqn.WeakValidate(); err != nil {
-		return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
+			return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+		}
 	}
 
 	return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}, nil
