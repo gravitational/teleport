@@ -72,7 +72,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 		return trace.Wrap(controlErr)
 	}
 	if innerErr != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(innerErr)
 	}
 
 	return nil
