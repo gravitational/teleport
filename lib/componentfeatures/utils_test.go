@@ -417,7 +417,7 @@ func TestGetEffectiveServerFeatures(t *testing.T) {
 		// No heartbeat ever sets ComponentFeatures on an agentless node.
 		require.Nil(t, node.GetComponentFeatures())
 		result := GetEffectiveServerFeatures(node)
-		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+		require.ElementsMatch(t, New(rcv1, FeatureResourceConstraintsSSHV1).GetFeatures(), result.GetFeatures())
 	})
 	t.Run("agent-backed SSH node uses features from presence heartbeat", func(t *testing.T) {
 		node, err := types.NewServer("ssh-node", types.KindNode, types.ServerSpecV2{Version: "18.7.6"})
@@ -490,4 +490,60 @@ func mustServerWithFeatures(t *testing.T, name string, feats *componentfeaturesv
 		srv.SetComponentFeatures(feats)
 	}
 	return srv
+}
+
+// TestAdvertisedFeatureSets details the exact feature sets each component
+// is expected to advertise.
+func TestAdvertisedFeatureSets(t *testing.T) {
+	t.Parallel()
+
+	awsApp, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-1")
+	require.NoError(t, err)
+	internalApp, err := types.NewAppV3(types.Metadata{Name: "internal-app"}, types.AppSpecV3{URI: "https://internal.example.com"})
+	require.NoError(t, err)
+	internalAppServer, err := types.NewAppServerV3FromApp(internalApp, "localhost", "host-1")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name string
+		got  *componentfeaturesv1.ComponentFeatures
+		want []FeatureID
+	}{
+		{
+			name: "auth",
+			got:  ForAuthServer(),
+			want: []FeatureID{
+				FeatureResourceConstraintsV1,
+				FeatureResourceConstraintsSSHV1,
+			},
+		},
+		{
+			name: "ssh server",
+			got:  ForSSHServer(),
+			want: []FeatureID{
+				FeatureResourceConstraintsV1,
+				FeatureResourceConstraintsSSHV1,
+			},
+		},
+		{
+			name: "aws console app server",
+			got:  ForAppServer(awsAppServer),
+			want: []FeatureID{FeatureResourceConstraintsV1},
+		},
+		{
+			name: "internal app server",
+			got:  ForAppServer(internalAppServer),
+			want: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var want []componentfeaturesv1.ComponentFeatureID
+			for _, f := range tc.want {
+				want = append(want, f.ToProto())
+			}
+			require.ElementsMatch(t, want, tc.got.GetFeatures())
+		})
+	}
 }

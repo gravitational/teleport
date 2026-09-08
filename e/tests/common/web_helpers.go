@@ -89,8 +89,9 @@ type unifiedResourceItem struct {
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 	// SSHLogins is populated for SSH node resources.
 	SSHLogins []string `json:"sshLogins,omitempty"`
-	// SSHLoginDetails provides per-login metadata for SSH node resources.
-	SSHLoginDetails []ossui.SSHLogin `json:"sshLoginDetails,omitempty"`
+	// Principals holds the resource's principal dimensions, each split into
+	// granted and requestable values.
+	Principals []ossui.ResourcePrincipalSet `json:"principals,omitempty"`
 	// SupportedFeatureIDs contains ComponentFeatureIDs supported end-to-end for this resource.
 	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }

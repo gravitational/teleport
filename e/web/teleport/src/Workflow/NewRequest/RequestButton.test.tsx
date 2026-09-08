@@ -8,13 +8,20 @@ import { getResourceIDString } from 'shared/services/accessRequests';
 import { AwsRole } from 'shared/services/apps';
 import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
+import { ResourcePrincipalSet } from 'teleport/services/agents';
 import { App } from 'teleport/services/apps';
-import { Node, SshLogin } from 'teleport/services/nodes';
+import { Node } from 'teleport/services/nodes';
 
 import { AppAwsRoleMenu, NodeSshLoginMenu } from './RequestButton';
 
 type AwsConsoleApp = App & { awsConsole: true; awsRoles?: AwsRole[] };
-type NodeWithLoginDetails = Node & { sshLoginDetails: SshLogin[] };
+
+const loginPrincipals = (
+  granted: string[],
+  requestable: string[] = []
+): ResourcePrincipalSet[] => [
+  { principalType: 'logins', granted, requestable },
+];
 
 const makeAwsApp = (overrides: Partial<App> = {}): AwsConsoleApp =>
   ({
@@ -36,7 +43,7 @@ const makeAwsApp = (overrides: Partial<App> = {}): AwsConsoleApp =>
     supportedFeatureIds: [ComponentFeatureID.ResourceConstraintsV1],
   }) satisfies AwsConsoleApp;
 
-const makeSshNode = (overrides: Partial<Node> = {}): NodeWithLoginDetails =>
+const makeSshNode = (overrides: Partial<Node> = {}): Node =>
   ({
     id: 'node-1',
     clusterId: 'cluster-1',
@@ -46,11 +53,11 @@ const makeSshNode = (overrides: Partial<Node> = {}): NodeWithLoginDetails =>
     tunnel: false,
     subKind: 'teleport',
     sshLogins: [],
-    sshLoginDetails: [],
+    principals: [],
     ...overrides,
     kind: 'node',
-    supportedFeatureIds: [ComponentFeatureID.ResourceConstraintsV1],
-  }) satisfies NodeWithLoginDetails;
+    supportedFeatureIds: [ComponentFeatureID.ResourceConstraintsSshV1],
+  }) satisfies Node;
 
 const emptyResources = getEmptyResourceState();
 
@@ -364,7 +371,7 @@ describe('NodeSshLoginMenu', () => {
   });
 
   it('renders disabled button when no logins exist', () => {
-    const agent = makeSshNode({ sshLoginDetails: [] });
+    const agent = makeSshNode({ principals: [] });
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
 
     expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled();
@@ -373,7 +380,7 @@ describe('NodeSshLoginMenu', () => {
   it('renders a dropdown when a single granted login exists', async () => {
     const user = userEvent.setup();
     const agent = makeSshNode({
-      sshLoginDetails: [{ login: 'ubuntu' }],
+      principals: loginPrincipals(['ubuntu']),
     });
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
 
@@ -384,11 +391,7 @@ describe('NodeSshLoginMenu', () => {
   it('renders menu with Connect and Request sections', async () => {
     const user = userEvent.setup();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'ubuntu' },
-        { login: 'ec2-user', requiresRequest: true },
-        { login: 'admin', requiresRequest: true },
-      ],
+      principals: loginPrincipals(['ubuntu'], ['ec2-user', 'admin']),
     });
 
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
@@ -404,11 +407,7 @@ describe('NodeSshLoginMenu', () => {
   it('sorts logins alphabetically with root first', async () => {
     const user = userEvent.setup();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'zulu', requiresRequest: true },
-        { login: 'root', requiresRequest: true },
-        { login: 'alpha', requiresRequest: true },
-      ],
+      principals: loginPrincipals([], ['zulu', 'root', 'alpha']),
     });
 
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
@@ -430,10 +429,7 @@ describe('NodeSshLoginMenu', () => {
     const setResourceConstraints = jest.fn();
     const addOrRemoveResources = jest.fn();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'ubuntu', requiresRequest: true },
-        { login: 'ec2-user', requiresRequest: true },
-      ],
+      principals: loginPrincipals([], ['ubuntu', 'ec2-user']),
     });
 
     render(
@@ -459,11 +455,7 @@ describe('NodeSshLoginMenu', () => {
   it('shows no logins message when search matches nothing', async () => {
     const user = userEvent.setup();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'ubuntu', requiresRequest: true },
-        { login: 'ec2-user', requiresRequest: true },
-        { login: 'admin', requiresRequest: true },
-      ],
+      principals: loginPrincipals([], ['ubuntu', 'ec2-user', 'admin']),
     });
 
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
@@ -479,11 +471,7 @@ describe('NodeSshLoginMenu', () => {
   it('hides Select All when only 1 visible requestable item remains', async () => {
     const user = userEvent.setup();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'ubuntu', requiresRequest: true },
-        { login: 'ec2-user', requiresRequest: true },
-        { login: 'admin', requiresRequest: true },
-      ],
+      principals: loginPrincipals([], ['ubuntu', 'ec2-user', 'admin']),
     });
 
     render(<NodeSshLoginMenu {...baseProps} agent={agent} />);
@@ -501,10 +489,7 @@ describe('NodeSshLoginMenu', () => {
     const setResourceConstraints = jest.fn();
     const addOrRemoveResources = jest.fn();
     const agent = makeSshNode({
-      sshLoginDetails: [
-        { login: 'ubuntu', requiresRequest: true },
-        { login: 'ec2-user', requiresRequest: true },
-      ],
+      principals: loginPrincipals([], ['ubuntu', 'ec2-user']),
     });
 
     const key = getResourceIDString({

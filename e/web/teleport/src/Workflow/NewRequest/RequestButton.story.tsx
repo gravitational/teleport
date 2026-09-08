@@ -11,7 +11,7 @@ import TeleportEContext from 'e-teleport/teleportContextE';
 import { useNewRequest } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import { ContextProvider } from 'teleport';
 import { App } from 'teleport/services/apps';
-import { Node, SshLogin } from 'teleport/services/nodes';
+import { Node } from 'teleport/services/nodes';
 
 import {
   AppAwsRoleMenu,
@@ -68,14 +68,12 @@ const AWSConsoleInner = ({
   );
 };
 
-type NodeWithLoginDetails = Node & { sshLoginDetails: SshLogin[] };
-
 const SSHNodeInner = ({
   ctx,
   agent,
 }: {
   ctx: TeleportEContext;
-  agent: NodeWithLoginDetails;
+  agent: Node;
 }) => {
   const {
     addOrRemoveResources,
@@ -262,8 +260,17 @@ const baseSSHNode: Node = {
   sshLogins: [],
 };
 
-function sshNodeWith(logins: SshLogin[]) {
-  return { ...baseSSHNode, sshLoginDetails: logins };
+function sshNodeWith(logins: { login: string; requiresRequest?: boolean }[]) {
+  return {
+    ...baseSSHNode,
+    principals: [
+      {
+        principalType: 'logins' as const,
+        granted: logins.filter(l => !l.requiresRequest).map(l => l.login),
+        requestable: logins.filter(l => l.requiresRequest).map(l => l.login),
+      },
+    ],
+  };
 }
 
 const account1: App = {

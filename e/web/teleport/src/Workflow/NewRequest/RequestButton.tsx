@@ -36,9 +36,14 @@ import {
   requestItems,
 } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 import cfg from 'teleport/config';
-import { UnifiedResource } from 'teleport/services/agents';
+import {
+  principalsOfType,
+  PrincipalValue,
+  ResourcePrincipalSet,
+  UnifiedResource,
+} from 'teleport/services/agents';
 import { App, AppSubKind, PermissionSet } from 'teleport/services/apps';
-import { Node, SshLogin } from 'teleport/services/nodes';
+import { Node } from 'teleport/services/nodes';
 
 function getButtonText(addText: string, requestStarted: boolean): string {
   if (addText) {
@@ -731,15 +736,20 @@ export const AppAwsRoleMenu = ({
   );
 };
 
-type NodeWithLoginDetails = Node & { sshLoginDetails: SshLogin[] };
+/**
+ * NodeWithLogins is an SSH node with a Logins principal set. Used for
+ * type-narrowing while keeping any Nodes this predicate returns false
+ * for in the union, for any later callers checking kind.
+ */
+type NodeWithLogins = Node & { principals: ResourcePrincipalSet[] };
 
 const isNode = (resource: UnifiedResource): resource is Node =>
   resource.kind === 'node';
-const isNodeWithLoginDetails = (node: Node): node is NodeWithLoginDetails =>
-  !!node.sshLoginDetails?.length;
-const nodeSupportsResourceConstraints = (node: NodeWithLoginDetails) =>
+const nodeHasLogins = (node: Node): node is NodeWithLogins =>
+  principalsOfType(node, 'logins').length > 0;
+const nodeSupportsResourceConstraints = (node: Node) =>
   node.supportedFeatureIds?.includes(
-    ComponentFeatureID.ResourceConstraintsV1
+    ComponentFeatureID.ResourceConstraintsSshV1
   ) || false;
 
 /**
@@ -748,13 +758,13 @@ const nodeSupportsResourceConstraints = (node: NodeWithLoginDetails) =>
  */
 export const resourceIsNodeAndSupportsConstraints = (
   resource: UnifiedResource
-): resource is NodeWithLoginDetails =>
+): resource is NodeWithLogins =>
   isNode(resource) &&
-  isNodeWithLoginDetails(resource) &&
+  nodeHasLogins(resource) &&
   nodeSupportsResourceConstraints(resource);
 
 type NodeSshLoginMenuProps = {
-  agent: NodeWithLoginDetails;
+  agent: Node;
   addedResources: ResourceMap;
   requestStarted?: boolean;
   isNewRequestFlow?: boolean;
@@ -785,16 +795,16 @@ export const NodeSshLoginMenu = ({
   clusterId,
   width = '133px',
 }: NodeSshLoginMenuProps) => {
-  const choices: MenuChoice[] = sortSshLoginDetails(
-    agent.sshLoginDetails || []
-  ).map(sshLogin => ({
-    id: sshLogin.login,
-    label: sshLogin.login,
-    requiresRequest: !!sshLogin.requiresRequest,
+  const choices: MenuChoice[] = sortLoginPrincipals(
+    principalsOfType(agent, 'logins')
+  ).map(login => ({
+    id: login.name,
+    label: login.name,
+    requiresRequest: !!login.requiresRequest,
     connectUrl: cfg.getSshConnectRoute({
       clusterId,
       serverId: agent.id,
-      login: sshLogin.login,
+      login: login.name,
     }),
   }));
 
@@ -843,15 +853,15 @@ const sortAwsRoles = (roles: AwsRole[]): AwsRole[] =>
   );
 
 // Sorts logins alphabetically, with 'root' taking precedence if present
-const sortSshLoginDetails = (logins: SshLogin[]): SshLogin[] =>
+const sortLoginPrincipals = (logins: PrincipalValue[]): PrincipalValue[] =>
   logins.toSorted((a, b) => {
-    if (b.login === 'root') {
+    if (b.name === 'root') {
       return 1;
     }
-    if (a.login === 'root') {
+    if (a.name === 'root') {
       return -1;
     }
-    return a.login.localeCompare(b.login);
+    return a.name.localeCompare(b.name);
   });
 
 const StyledMenuSearchWrapper = styled.div`

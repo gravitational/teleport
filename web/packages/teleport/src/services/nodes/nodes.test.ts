@@ -37,7 +37,7 @@ test('correct formatting of nodes fetch response', async () => {
         sshLogins: ['root'],
         subKind: 'teleport',
         requiresRequest: true,
-        sshLoginDetails: [],
+        principals: [],
       },
     ],
     startKey: mockResponse.startKey,

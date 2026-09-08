@@ -756,9 +756,8 @@ const nodesResponse = [
     tunnel: false,
     subKind: 'teleport',
     sshLogins: ['ubuntu', 'root'],
-    sshLoginDetails: [
-      { login: 'ubuntu', requiresRequest: false },
-      { login: 'root', requiresRequest: true },
+    principals: [
+      { principalType: 'logins', granted: ['ubuntu'], requestable: ['root'] },
     ],
     id: '3',
     kind: 'node',
@@ -766,7 +765,7 @@ const nodesResponse = [
     hostname: 'hostname-constrained-node',
     addr: 'constrained-node-addr',
     tags: [{ name: 'env', value: 'staging' }],
-    supportedFeatureIds: [1],
+    supportedFeatureIds: [1, 2],
   },
   {
     kind: 'app',

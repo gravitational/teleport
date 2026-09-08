@@ -30,4 +30,9 @@ export enum ComponentFeatureID {
    * Access Requests, identity certificates, and AWS Console App resources.
    */
   ResourceConstraintsV1 = 1,
+  /**
+   * ResourceConstraintsSshV1 indicates support for enforcing SSH login
+   * constraints on nodes.
+   */
+  ResourceConstraintsSshV1 = 2,
 }

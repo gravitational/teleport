@@ -746,18 +746,13 @@ func TestMakeServer_SSHLoginsGrantedVsRequestable(t *testing.T) {
 	// SSHLogins should still contain all logins for backwards compatibility.
 	require.ElementsMatch(t, []string{"root", "ubuntu", "admin"}, server.SSHLogins)
 
-	// SSHLoginDetails should contain per-login metadata.
-	require.Len(t, server.SSHLoginDetails, 3)
-
-	loginMap := make(map[string]SSHLogin)
-	for _, l := range server.SSHLoginDetails {
-		loginMap[l.Login] = l
-	}
-	// ubuntu is granted, so RequiresRequest should be false.
-	assert.False(t, loginMap["ubuntu"].RequiresRequest)
-	// root and admin are not granted, so RequiresRequest should be true.
-	assert.True(t, loginMap["root"].RequiresRequest)
-	assert.True(t, loginMap["admin"].RequiresRequest)
+	// Principals should contain the logins dimension split into granted and
+	// requestable values.
+	require.Equal(t, []ResourcePrincipalSet{{
+		PrincipalType: types.PrincipalTypeLogins,
+		Granted:       []string{"ubuntu"},
+		Requestable:   []string{"admin", "root"},
+	}}, server.Principals)
 }
 
 func TestMakeServer_SupportedFeatureIDs(t *testing.T) {
@@ -801,10 +796,10 @@ func TestMakeServer_AllLoginsRequireRequest(t *testing.T) {
 	})
 
 	require.ElementsMatch(t, []string{"root", "ubuntu"}, server.SSHLogins)
-	require.Len(t, server.SSHLoginDetails, 2)
-	for _, detail := range server.SSHLoginDetails {
-		assert.True(t, detail.RequiresRequest, "login %q should require request", detail.Login)
-	}
+	require.Equal(t, []ResourcePrincipalSet{{
+		PrincipalType: types.PrincipalTypeLogins,
+		Requestable:   []string{"root", "ubuntu"},
+	}}, server.Principals)
 }
 
 func TestMakeDatabaseSupportsInteractive(t *testing.T) {
