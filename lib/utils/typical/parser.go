@@ -41,12 +41,19 @@ package typical
 import (
 	"fmt"
 	"go/ast"
+	goparser "go/parser"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 )
+
+// MaxSelectorComponents is the maximum number of dot-separated components
+// allowed in a single identifier. For example: "resource.metadata.name"
+// has three.
+const MaxSelectorComponents = 32
 
 // Expression is a generic interface representing a parsed predicate expression
 // which can be evaluated with environment type TEnv to produce a result of type
@@ -169,20 +176,19 @@ func (p *Parser[TEnv, TResult]) Parse(expression string) (Expression[TEnv, TResu
 	if expression == "" {
 		return nil, trace.BadParameter("empty expression")
 	}
-	result, err := p.pred.Parse(expression)
+	ast, err := goparser.ParseExpr(expression)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing expression")
 	}
-	expr, err := coerce[TEnv, TResult](result)
-	if err != nil {
-		return nil, trace.Wrap(err, "expression evaluated to unexpected type")
-	}
-	return expr, nil
+	return p.ParseAST(ast)
 }
 
 func (p *Parser[TEnv, TResult]) ParseAST(expression ast.Expr) (Expression[TEnv, TResult], error) {
 	if expression == nil {
 		return nil, trace.BadParameter("nil expression")
+	}
+	if err := checkSelectorComponents(expression); err != nil {
+		return nil, trace.Wrap(err, "parsing expression")
 	}
 	result, err := p.pred.ParseAST(expression)
 	if err != nil {
@@ -195,19 +201,58 @@ func (p *Parser[TEnv, TResult]) ParseAST(expression ast.Expr) (Expression[TEnv, 
 	return expr, nil
 }
 
-func (p *Parser[TEnv, TResult]) getIdentifier(selector []string) (any, error) {
-	remaining := selector[:]
-	var joined string
-	for len(remaining) > 0 {
-		if len(joined) > 0 {
-			joined += "."
+// checkSelectorComponents returns an error if [expression] contains an
+// identifier built from more than [MaxSelectorComponents] dot-separated
+// components.
+func checkSelectorComponents(expression ast.Expr) error {
+	var err error
+	ast.Inspect(expression, func(n ast.Node) bool {
+		if err != nil {
+			return false
 		}
-		joined += remaining[0]
-		remaining = remaining[1:]
-		v, ok := p.spec.Variables[joined]
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		components, base := 1, sel.X
+		for {
+			inner, ok := base.(*ast.SelectorExpr)
+			if !ok {
+				break
+			}
+			components++
+			base = inner.X
+		}
+		if _, ok := base.(*ast.Ident); ok {
+			components++
+		}
+		if components > MaxSelectorComponents {
+			err = trace.BadParameter("identifier has too many components (%d), the maximum is %d",
+				components, MaxSelectorComponents)
+			return false
+		}
+		return true
+	})
+	return err
+}
+
+func (p *Parser[TEnv, TResult]) getIdentifier(selector []string) (any, error) {
+	// Try each prefix of the selector, shortest first.
+	// Note: we intentionally join the string once and slice into the string
+	// on each iteration rather than doing a join on each iteration.
+	joined := strings.Join(selector, ".")
+	end := 0
+	for i, component := range selector {
+		if i > 0 {
+			end++ // the separating "."
+		}
+		end += len(component)
+		v, ok := p.spec.Variables[joined[:end]]
 		if !ok {
 			continue
 		}
+		remaining := selector[i+1:]
 		if len(remaining) == 0 {
 			// Exact match
 			return v, nil

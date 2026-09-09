@@ -20,6 +20,7 @@ package parse
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -661,6 +662,23 @@ func TestMatchers(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestDeeplyNestedSelector(t *testing.T) {
+	t.Parallel()
+
+	// Just under go/parser's own nesting limit of 100,000.
+	expr := "{{" + strings.Repeat("a.", 99_000) + "a}}"
+
+	t.Run("NewMatcher", func(t *testing.T) {
+		_, err := NewMatcher(expr)
+		require.ErrorContains(t, err, "too many components")
+	})
+
+	t.Run("NewTraitsTemplateExpression", func(t *testing.T) {
+		_, err := NewTraitsTemplateExpression(expr)
+		require.ErrorContains(t, err, "too many components")
+	})
 }
 
 func regexpMatcher(match string) Matcher {

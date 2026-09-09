@@ -790,3 +790,81 @@ func TestGetUnknownIdentifierVariable(t *testing.T) {
 	_, err = parser.Parse(`vars.a && vars.b`)
 	require.ErrorContains(t, err, "expected type bool, got expression returning type (string)", "a deferred identifier is string-typed at parse")
 }
+
+func TestIdentifierPrefixResolution(t *testing.T) {
+	t.Parallel()
+
+	type env struct{}
+
+	parser, err := typical.NewParser[env, string](typical.ParserSpec[env]{
+		Variables: map[string]typical.Variable{
+			// 'a' is not a map, so 'a.b' doesn't resolve
+			"a": "plain-a",
+			// 'a.b' is a map, so 'a.b.c' is equivalent to 'a.b["c"]'
+			"a.b": typical.DynamicMapFunction(func(e env, key string) (string, error) {
+				return "a.b[" + key + "]", nil
+			}),
+			"a.b.c":   "exact-a.b.c",
+			"x.y.z.w": "exact-x.y.z.w",
+		},
+	})
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		expression string
+		want       string
+		wantErr    string
+	}{
+		{expression: "a", want: "plain-a"},
+
+		// The "a.b" map shorthand wins over the exact "a.b.c"
+		{expression: "a.b.c", want: "a.b[c]"},
+		{expression: "a.b.d", want: "a.b[d]"},
+
+		// No shorter prefix matches, so the exact four-component name is used.
+		{expression: "x.y.z.w", want: "exact-x.y.z.w"},
+		// The "a" prefix matches but leaves behind > 1 components.
+		// Also "a.b" matches but is a map whose key would itself be a selector ("c.d"),
+		// so neither resolves.
+		{expression: "a.b.c.d", wantErr: `unknown identifier: "a.b.c.d"`},
+
+		{expression: "x.y", wantErr: `unknown identifier: "x.y"`},
+		{expression: "q.r.s", wantErr: `unknown identifier: "q.r.s"`},
+	} {
+		t.Run(test.expression, func(t *testing.T) {
+			expr, err := parser.Parse(test.expression)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			got, err := expr.Evaluate(env{})
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestSelectorDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	parser, err := typical.NewParser[struct{}, string](
+		typical.ParserSpec[struct{}]{
+			Variables: map[string]typical.Variable{"foo": "bar"},
+		})
+	require.NoError(t, err)
+
+	selector := func(components int) string {
+		return strings.Repeat("a.", components-1) + "a"
+	}
+
+	// A selector at the limit is still valid, but fails for the normal reason
+	// (there is no such variable).
+	_, err = parser.Parse(selector(typical.MaxSelectorComponents))
+	var unknown typical.UnknownIdentifierError
+	require.ErrorAs(t, err, &unknown, "expected an unknown identifier error")
+
+	// Selectors exceeding the limit are rejected.
+	_, err = parser.Parse(selector(typical.MaxSelectorComponents + 1))
+	require.ErrorContains(t, err, "too many components")
+}
