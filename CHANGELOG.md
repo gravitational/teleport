@@ -15,10 +15,10 @@ Access to the Kubernetes API server proxy subresources
 the `get` verb. Roles that use the Kubernetes API server proxy must
 add `"proxy"` to the relevant `verbs` list.
 
-#### macOS 12
+#### macOS 13
 
 The minimum version of macOS required to run Teleport or associated client tools
-is now macOS 12 (Monterey).
+is now macOS 13 (Ventura).
 
 #### Application Access connection limits
 

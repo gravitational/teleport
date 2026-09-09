@@ -17,7 +17,7 @@ For an overview of Teleport installation methods and supported platforms, see
 
 ## Operating system support
 
-Teleport supports macOS 12 (Monterey) and later for both Intel and Apple Silicon Macs.
+Teleport supports macOS 13 (Ventura) and later for both Intel and Apple Silicon Macs.
 
 ### Install client tools
 
@@ -41,7 +41,7 @@ Download Teleport Connect from the [Downloads page](https://goteleport.com/downl
 
 Open the `.dmg` file and drag Teleport Connect to your Applications folder.
 
-To install `tsh` from Teleport Connect, click the three-dot menu in the upper-right corner of the Teleport Connect window 
+To install `tsh` from Teleport Connect, click the three-dot menu in the upper-right corner of the Teleport Connect window
 and select **Install tsh in PATH**.
 
 <Checkpoint
@@ -117,10 +117,10 @@ For more information on Teleport Connect, see [Using Teleport Connect](../../con
 
 ## Running Teleport services on macOS
 
-The client tools above (`tsh`, `tctl`, Teleport Connect) are used to *connect to* a Teleport cluster on demand—you run them when you want to access a resource, 
+The client tools above (`tsh`, `tctl`, Teleport Connect) are used to *connect to* a Teleport cluster on demand—you run them when you want to access a resource,
 then they exit when you're done.
 
-Teleport *services* are different: they run continuously as background daemons. The `teleport` daemon can run cluster components (Auth Service, Proxy Service) 
+Teleport *services* are different: they run continuously as background daemons. The `teleport` daemon can run cluster components (Auth Service, Proxy Service)
 or agent services that enroll resources like servers, databases, or applications into your cluster. The `tbot` daemon provides machine identity for automated workloads.
 Most macOS users only need the client tools. You would install Teleport services on macOS primarily for:
 
@@ -156,7 +156,7 @@ $ teleport version
 
 <Admonition type="note">
 
-Running Teleport services in production is typically done on Linux servers. 
+Running Teleport services in production is typically done on Linux servers.
 macOS is primarily used for client access and local development. For production deployments, see [Installing Teleport on Linux](./linux.mdx).
 
 </Admonition>
