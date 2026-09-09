@@ -254,12 +254,6 @@ func (ca *CertAuthorityV2) SetRoleMap(m RoleMap) {
 	ca.Spec.RoleMap = []RoleMapping(m)
 }
 
-// ID returns id (consisting of domain name and type) that
-// identifies the authority this key belongs to
-func (ca *CertAuthorityV2) ID() *CertAuthID {
-	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
-}
-
 func (ca *CertAuthorityV2) GetActiveKeys() CAKeySet {
 	return ca.Spec.ActiveKeys
 }
@@ -340,7 +334,7 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		ca.SubKind = string(ca.Spec.Type)
 	}
 
-	if err := ca.ID().Check(); err != nil {
+	if err := ca.GetID().Check(); err != nil {
 		return trace.Wrap(err)
 	}
 

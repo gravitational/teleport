@@ -170,7 +170,7 @@ func (c CertAuthID) String() string {
 }
 
 // Check returns error if any of the id parameters are bad, nil otherwise
-func (c *CertAuthID) Check() error {
+func (c CertAuthID) Check() error {
 	if err := c.Type.Check(); err != nil {
 		return trace.Wrap(err)
 	}
