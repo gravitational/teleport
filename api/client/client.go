@@ -6535,6 +6535,18 @@ func (c *Client) AuthenticateWebUser(
 	return resp, nil
 }
 
+// AuthenticateSSHUser is called by the proxy to authenticate a local user
+// with their credentials and issue SSH and TLS certificates.
+func (c *Client) AuthenticateSSHUser(
+	ctx context.Context, req *proto.AuthenticateSSHUserRequest,
+) (*proto.AuthenticateSSHUserResponse, error) {
+	resp, err := c.grpc.AuthenticateSSHUser(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ExtendWebSession creates a new web session for a user based on a valid
 // existing web session, e.g. to apply an approved access request, switch
 // back to default roles, or pick up recent user changes.

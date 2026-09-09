@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"time"
 
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -1547,6 +1548,16 @@ type AuthenticateUserRequest struct {
 	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
 	// HeadlessAuthenticationID is the ID for a headless authentication resource.
 	HeadlessAuthenticationID string `json:"headless_authentication_id"`
+	// ExtendHeadlessLoginWriteDeadline extends the write deadline of the
+	// transport the request arrived on. When set, the underlying logic for
+	// headlessLogins invokes this to extend the write deadline beyond the normal
+	// value. This is only necessary for the HTTP transport, as for gRPC, the default
+	// deadline is already long enough.
+	//
+	// This should only be set by the legacy HTTP handler for AUthenticateSSHUser.
+	//
+	// TODO(strideynet): DELETE IN v20.0.0 - only the legacy HTTP handler needs this.
+	ExtendHeadlessLoginWriteDeadline func(time.Time) error `json:"-"`
 }
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
@@ -1702,6 +1713,41 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
+// ToProto converts the request to its protobuf representation.
+func (a *AuthenticateSSHRequest) ToProto() *proto.AuthenticateSSHUserRequest {
+	return &proto.AuthenticateSSHUserRequest{
+		Request:                 a.AuthenticateUserRequest.ToProto(),
+		Ttl:                     gogotypes.DurationProto(a.TTL),
+		CompatibilityMode:       a.CompatibilityMode,
+		RouteToCluster:          a.RouteToCluster,
+		KubernetesCluster:       a.KubernetesCluster,
+		SshAttestationStatement: a.SSHAttestationStatement.ToProto(),
+		TlsAttestationStatement: a.TLSAttestationStatement.ToProto(),
+	}
+}
+
+// AuthenticateSSHRequestFromProto converts the request from its protobuf
+// representation.
+func AuthenticateSSHRequestFromProto(req *proto.AuthenticateSSHUserRequest) (AuthenticateSSHRequest, error) {
+	var ttl time.Duration
+	if req.Ttl != nil {
+		var err error
+		ttl, err = gogotypes.DurationFromProto(req.Ttl)
+		if err != nil {
+			return AuthenticateSSHRequest{}, trace.Wrap(err, "invalid ttl")
+		}
+	}
+	return AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequestFromProto(req.Request),
+		TTL:                     ttl,
+		CompatibilityMode:       req.CompatibilityMode,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+		TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
+	}, nil
+}
+
 // CLILoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type CLILoginResponse struct {
@@ -1776,6 +1822,57 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 		}
 	}
 	return out
+}
+
+// ToProto converts the response to its protobuf representation.
+func (r *CLILoginResponse) ToProto() *proto.AuthenticateSSHUserResponse {
+	resp := &proto.AuthenticateSSHUserResponse{
+		Username:                r.Username,
+		Cert:                    r.Cert,
+		TlsCert:                 r.TLSCert,
+		SamlSingleLogoutEnabled: r.SAMLSingleLogoutEnabled,
+		MfaToken:                r.MFAToken,
+		ClientOptions: &proto.LoginClientOptions{
+			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
+		},
+		BrowserMfaWebauthnResponse: wantypes.CredentialAssertionResponseToProto(r.BrowserMFAWebauthnResponse),
+	}
+	resp.HostSigners = make([]*proto.AuthenticateSSHUserResponse_TrustedCerts, 0, len(r.HostSigners))
+	for _, signer := range r.HostSigners {
+		resp.HostSigners = append(resp.HostSigners, &proto.AuthenticateSSHUserResponse_TrustedCerts{
+			ClusterName:     signer.ClusterName,
+			AuthorizedKeys:  signer.AuthorizedKeys,
+			TlsCertificates: signer.TLSCertificates,
+		})
+	}
+	return resp
+}
+
+// CLILoginResponseFromProto converts the proto representation of
+// CLILoginResponse to its native representation.
+func CLILoginResponseFromProto(resp *proto.AuthenticateSSHUserResponse) *CLILoginResponse {
+	r := &CLILoginResponse{
+		Username:                   resp.Username,
+		Cert:                       resp.Cert,
+		TLSCert:                    resp.TlsCert,
+		SAMLSingleLogoutEnabled:    resp.SamlSingleLogoutEnabled,
+		MFAToken:                   resp.MfaToken,
+		BrowserMFAWebauthnResponse: wantypes.CredentialAssertionResponseFromProto(resp.BrowserMfaWebauthnResponse),
+	}
+	if resp.ClientOptions != nil {
+		r.ClientOptions = ClientOptions{
+			DefaultRelayAddr: resp.ClientOptions.DefaultRelayAddr,
+		}
+	}
+	r.HostSigners = make([]TrustedCerts, 0, len(resp.HostSigners))
+	for _, signer := range resp.HostSigners {
+		r.HostSigners = append(r.HostSigners, TrustedCerts{
+			ClusterName:     signer.ClusterName,
+			AuthorizedKeys:  signer.AuthorizedKeys,
+			TLSCertificates: signer.TlsCertificates,
+		})
+	}
+	return r
 }
 
 // ClientI is a client to Auth service

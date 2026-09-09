@@ -2080,6 +2080,27 @@ func (g *GRPCServer) AuthenticateWebUser(ctx context.Context, req *authpb.Authen
 	}, nil
 }
 
+// AuthenticateSSHUser is called by the proxy to authenticate a local user
+// with their credentials and issue SSH and TLS certificates.
+func (g *GRPCServer) AuthenticateSSHUser(ctx context.Context, req *authpb.AuthenticateSSHUserRequest) (*authpb.AuthenticateSSHUserResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Request == nil {
+		return nil, trace.BadParameter("missing parameter Request")
+	}
+	authReq, err := authclient.AuthenticateSSHRequestFromProto(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := auth.AuthenticateSSHUser(ctx, authReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.ToProto(), nil
+}
+
 // GetWebSession gets a web session.
 func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*authpb.GetWebSessionResponse, error) {
 	auth, err := g.authenticate(ctx)

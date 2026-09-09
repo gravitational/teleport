@@ -320,24 +320,6 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-// short lived certificates as a result
-func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
-	out, err := c.PostJSON(
-		ctx,
-		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
-		req,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re CLILoginResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &re, nil
-}
-
 // ValidateOIDCAuthCallbackReq is the request made by the proxy to validate
 // and activate a login via OIDC.
 type ValidateOIDCAuthCallbackReq struct {

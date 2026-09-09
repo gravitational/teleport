@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -599,6 +598,10 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.Au
 }
 
 func (a *Server) authenticateHeadless(ctx context.Context, req authclient.AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+	if req.ClientMetadata == nil {
+		return nil, trace.BadParameter("missing ClientMetadata for headless authentication")
+	}
+
 	// Delete the headless authentication upon failure.
 	defer func() {
 		if err != nil {
@@ -632,9 +635,12 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 
 	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, nil)
 
-	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
-	if conn, err := authz.ConnFromContext(ctx); err == nil {
-		if err := conn.SetWriteDeadline(a.GetClock().Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+	// The legacy HTTP server has a shorter WriteTimeout than is needed so we invoke
+	// a helper passed down from the API handler to extend the connection. This will
+	// only be set by the HTTP handler.
+	// TODO(strideynet): DELETE IN v20.0.0 - only the legacy HTTP handler needs this.
+	if req.ExtendHeadlessLoginWriteDeadline != nil {
+		if err := req.ExtendHeadlessLoginWriteDeadline(a.GetClock().Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

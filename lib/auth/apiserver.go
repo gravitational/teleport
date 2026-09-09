@@ -130,6 +130,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	// TODO(strideynet): DELETE IN v20.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
+	// TODO(strideynet): DELETE IN v20.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 
 	// Servers and presence heartbeat
@@ -407,6 +408,7 @@ func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWr
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
+	req.ExtendHeadlessLoginWriteDeadline = http.NewResponseController(w).SetWriteDeadline
 	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 

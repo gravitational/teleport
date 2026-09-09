@@ -17,6 +17,7 @@ syntax = "proto3";
 package proto;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
@@ -2748,7 +2749,7 @@ message LoginClientOptions {
 }
 
 // AuthenticateUserRequest carries local user credentials for the
-// AuthenticateWebUser RPC.
+// AuthenticateWebUser and AuthenticateSSHUser RPCs.
 message AuthenticateUserRequest {
   // PassCreds is a password credential.
   message PassCreds {
@@ -2822,6 +2823,61 @@ message AuthenticateWebUserRequest {
 message AuthenticateWebUserResponse {
   // Session is the web session created for the user.
   types.WebSessionV2 Session = 1;
+}
+
+// AuthenticateSSHUserRequest is the request for the AuthenticateSSHUser RPC.
+message AuthenticateSSHUserRequest {
+  // The user's credentials.
+  AuthenticateUserRequest request = 1;
+  // The requested time to live of the issued certificates.
+  google.protobuf.Duration ttl = 2;
+  // Certificate compatibility mode with old SSH clients.
+  string compatibility_mode = 3;
+  // The name of the Teleport cluster to encode in the TLS certificate for
+  // routing.
+  string route_to_cluster = 4;
+  // The target kubernetes cluster for the TLS certificate. This can be empty
+  // on older clients.
+  string kubernetes_cluster = 5;
+  // An attestation statement associated with the SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 6;
+  // An attestation statement associated with the TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 7;
+}
+
+// AuthenticateSSHUserResponse is the response for the AuthenticateSSHUser
+// RPC.
+message AuthenticateSSHUserResponse {
+  // TrustedCerts holds the public keys and certificates of a certificate
+  // authority.
+  message TrustedCerts {
+    // The name of the Teleport cluster the authority serves.
+    string cluster_name = 1;
+    // SSH public keys in authorized_keys format that can be used to check
+    // host key signatures.
+    repeated bytes authorized_keys = 2;
+    // TLS certificates of the certificate authority.
+    repeated bytes tls_certificates = 3;
+  }
+
+  // The name of the authenticated user.
+  string username = 1;
+  // The issued SSH certificate.
+  bytes cert = 2;
+  // The issued PEM-encoded TLS certificate.
+  bytes tls_cert = 3;
+  // Host certificate authorities trusted by the cluster.
+  repeated TrustedCerts host_signers = 4;
+  // Whether SAML SLO (single logout) is enabled for the SAML auth connector
+  // being used, if applicable.
+  bool saml_single_logout_enabled = 5;
+  // An SSO MFA token.
+  string mfa_token = 6;
+  // Options the cluster wants the client to use.
+  LoginClientOptions client_options = 7;
+  // A webauthn response for the browser MFA flow, used by the SSO
+  // redirector.
+  webauthn.CredentialAssertionResponse browser_mfa_webauthn_response = 8;
 }
 
 message ListOIDCConnectorsRequest {
@@ -3561,6 +3617,9 @@ service AuthService {
   // AuthenticateWebUser is called by the proxy to authenticate a local user
   // with their credentials and issue a web session.
   rpc AuthenticateWebUser(AuthenticateWebUserRequest) returns (AuthenticateWebUserResponse);
+  // AuthenticateSSHUser is called by the proxy to authenticate a local user
+  // with their credentials and issue SSH and TLS certificates.
+  rpc AuthenticateSSHUser(AuthenticateSSHUserRequest) returns (AuthenticateSSHUserResponse);
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
   // ExtendWebSession creates a new web session for a user based on a valid
