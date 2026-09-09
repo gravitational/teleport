@@ -1619,7 +1619,7 @@ tag-build:
 		-f "cloud-only=$(CLOUD_ONLY)" \
 		-f "environment=$(ENVIRONMENT)" \
 		-f "managed-updates-signing-key=$(MANAGED_UPDATES_SIGNING_KEY)"
-	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+	@echo See runs at: https://github.com/gravitational/core/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
@@ -1639,7 +1639,7 @@ tag-publish:
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
 		-f "environment=$(ENVIRONMENT)"
-	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
+	@echo See runs at: https://github.com/gravitational/core/actions/workflows/tag-publish.yaml
 
 .PHONY: profile
 profile:
