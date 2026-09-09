@@ -72,3 +72,8 @@ format as the `exporter_url` of the `tracing_service`.
 $ tsh --trace --trace-exporter=grpc://collector.example.com:4317 ssh root@myserver
 $ tsh --trace --trace-exporter=file:///var/lib/teleport/traces ls
 ```
+
+## tbot
+
+`tbot` can export OpenTelemetry traces directly to a collector. See the [Tracing section of the Diagnostics Service reference](../../../reference/machine-workload-identity/diagnostics-service.mdx#tracing)
+for configuration details.

@@ -114,6 +114,9 @@ type BotConfig struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
 
+	// Tracing controls the export of distributed traces.
+	Tracing TracingConfig `yaml:"tracing,omitempty"`
+
 	// DiagSocketForUpdater specifies the path to the diagnostics http service socket that
 	// should be exposed to the updater.
 	DiagSocketForUpdater string `yaml:"-"`
@@ -209,6 +212,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	if err := conf.Storage.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := conf.Tracing.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating tracing")
 	}
 
 	// We've migrated Outputs to Services, so move all Outputs to Services.
