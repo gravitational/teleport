@@ -96,16 +96,6 @@ func newDenyResponse(decision minimalV9Decision) denyResponse {
 	}
 }
 
-// roleVersionPredatesV9 reports whether the role version predates v9
-// default-deny.
-func roleVersionPredatesV9(version string) bool {
-	switch version {
-	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
-		return true
-	}
-	return false
-}
-
 // decideMinimalV9 applies the minimal v9 policy to the caller's roles that
 // grant app. If only pre-v9 roles grant it, the request keeps full v8
 // behavior. Otherwise pre-v9 roles granting the app are dropped and the
@@ -131,7 +121,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		if !services.RoleGrantsResource(role, app, username, traits) {
 			continue
 		}
-		if roleVersionPredatesV9(role.GetVersion()) {
+		if appresource.RoleVersionPredatesV9(role.GetVersion()) {
 			decision.droppedRoles = append(decision.droppedRoles, role.GetName())
 			continue
 		}
@@ -179,7 +169,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Request, authCtx *authz.Context, app types.Application) (bool, error) {
 	identity := authCtx.Identity.GetIdentity()
 	log := c.log.With("app", app.GetName(), "user", identity.Username)
-	if !isGovernedByAppResources(app) {
+	if !appresource.GovernsApp(app) {
 		// Skip rather than deny, because v9 does not restrict these app types
 		// and denying would break a working app on a routing bug.
 		if c.v9WarnOnce("apptype", identity.Username, app.GetName()) {
@@ -215,13 +205,6 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 	c.emitRequestDenied(r, &identity, app, deny.kind)
 	http.Error(w, deny.body, deny.status)
 	return true, nil
-}
-
-// isGovernedByAppResources reports whether v9 app_resources rules govern this
-// app type.
-func isGovernedByAppResources(app types.Application) bool {
-	return !app.IsAWSConsole() && !app.IsAzureCloud() && !app.IsGCP() && !app.IsLLM() &&
-		app.GetSubKind() != types.KindIdentityCenterAccount
 }
 
 // emitRequestDenied emits one audit event for a request denied under

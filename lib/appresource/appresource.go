@@ -36,6 +36,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // maxRulesPerRequest is the maximum number of rules across a caller's roles.
@@ -47,14 +49,14 @@ type Role struct {
 	// Name is the role name, returned in Decision.Roles.
 	Name string
 	// Resources are the role's app_resources entries.
-	Resources []Rule
+	Resources []types.AppResource
 	// Expressions are the role's app_resources_expressions entries.
 	Expressions []string
 }
 
 // hasAllowAll returns true when any app_resources entry sets allow_all.
 func (r Role) hasAllowAll() bool {
-	return slices.ContainsFunc(r.Resources, func(rule Rule) bool { return rule.AllowAll })
+	return slices.ContainsFunc(r.Resources, func(rule types.AppResource) bool { return rule.AllowAll })
 }
 
 // RoleSet is the compiled rules of a caller's roles, in evaluation order.
