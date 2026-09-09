@@ -25,7 +25,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/user"
 	"path"
 	"strings"
 	"sync"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 type compositeCh struct {
@@ -93,7 +93,7 @@ func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan
 			return nil, trace.Wrap(err)
 		}
 		if !path.IsAbs(allowedPath) {
-			currentUser, err := user.Current()
+			currentUser, err := hostuser.Current()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -285,7 +285,7 @@ func onSFTP() error {
 	l := utils.NewLogger()
 	logger := l.WithField(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
 
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}

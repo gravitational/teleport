@@ -36,19 +36,20 @@ static int mygetpwnam_r(const char *name, struct passwd *pwd,
 import "C"
 
 import (
-	"os/user"
 	"strings"
 	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // getLoginShell determines the login shell for a given username
 func getLoginShell(username string) (string, error) {
 	// See if the username is valid.
-	_, err := user.Lookup(username)
+	_, err := hostuser.Lookup(username)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

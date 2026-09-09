@@ -24,12 +24,13 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"os/user"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // man GROUPADD(8), exit codes section
@@ -168,7 +169,7 @@ func UserDel(username string) (exitCode int, err error) {
 	if err != nil {
 		return -1, trace.NotFound("cant find userdel binary: %s", err)
 	}
-	u, err := user.Lookup(username)
+	u, err := hostuser.Lookup(username)
 	if err != nil {
 		return -1, trace.Wrap(err)
 	}

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -473,7 +474,7 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
-	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, user.Lookup, user.LookupGroup)
+	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, hostuser.Lookup, hostuser.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}

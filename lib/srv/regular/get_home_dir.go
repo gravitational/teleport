@@ -22,13 +22,13 @@ import (
 	"context"
 	"io"
 	"os"
-	"os/user"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/srv"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 type homeDirSubsys struct {
@@ -45,7 +45,7 @@ func (h *homeDirSubsys) Start(_ context.Context, serverConn *ssh.ServerConn, ch 
 	defer close(h.done)
 
 	connUser := serverConn.User()
-	localUser, err := user.Lookup(connUser)
+	localUser, err := hostuser.Lookup(connUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // RootUID is the UID of the root user
@@ -207,7 +208,7 @@ func ensurePermissions(
 		return trace.BadParameter("File %s is expected to be a file but is a directory", path)
 	}
 
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -319,12 +320,12 @@ func parseOwnerString(owner string) (*user.User, *user.Group, error) {
 		return nil, nil, trace.BadParameter("invalid owner string: %q", owner)
 	}
 
-	ownerUser, err := user.Lookup(ownerParts[0])
+	ownerUser, err := hostuser.Lookup(ownerParts[0])
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	ownerGroup, err := user.LookupGroup(ownerParts[1])
+	ownerGroup, err := hostuser.LookupGroup(ownerParts[1])
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -358,12 +359,12 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 
 	log.DebugContext(context.TODO(), "Will use current user as owner")
 	// Otherwise, return the current user and group
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	currentGroup, err := user.LookupGroupId(currentUser.Gid)
+	currentGroup, err := hostuser.LookupGroupId(currentUser.Gid)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -383,17 +384,17 @@ func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User,
 		return nil, nil, nil, trace.BadParameter("--reader-user must be set")
 	}
 
-	botUser, err := user.Lookup(initCmd.BotUser)
+	botUser, err := hostuser.Lookup(initCmd.BotUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	botGroup, err := user.LookupGroupId(botUser.Gid)
+	botGroup, err := hostuser.LookupGroupId(botUser.Gid)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	readerUser, err := user.Lookup(initCmd.ReaderUser)
+	readerUser, err := hostuser.Lookup(initCmd.ReaderUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

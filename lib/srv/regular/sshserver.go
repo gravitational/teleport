@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -972,7 +973,7 @@ func (s *Server) startAuthorizedKeysManager(ctx context.Context, auth authclient
 			Clock:  s.clock,
 		},
 	)
-	if errors.Is(err, authorizedkeysreporter.ErrUnsupportedPlatform) {
+	if errors.Is(err, hostuser.ErrUnsupportedPlatform) {
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)

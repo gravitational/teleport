@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client/db/profile"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 func init() {
@@ -52,7 +52,7 @@ func defaultConfigPath() (string, error) {
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		usr, err := utils.CurrentUser()
+		usr, err := hostuser.Current()
 		if err != nil {
 			return "", trace.ConvertSystemError(err)
 		}

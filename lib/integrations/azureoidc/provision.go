@@ -23,13 +23,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/msgraph"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // createGraphClient creates a new graph client from ambient credentials (Azure CLI credentials cache).
@@ -60,7 +60,7 @@ func EnsureAZLogin(ctx context.Context) error {
 }
 
 func getAzureDir() (string, error) {
-	usr, err := user.Current()
+	usr, err := hostuser.Current()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

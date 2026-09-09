@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"slices"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // Options combines init/start teleport options
@@ -1047,7 +1047,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	// get user's home dir (it serves as a default destination)
-	user, err := user.Current()
+	user, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/uds"
+	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -337,7 +338,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 	readyfd = nil
 
-	localUser, err := user.Lookup(c.Login)
+	localUser, err := hostuser.Lookup(c.Login)
 	if err != nil {
 		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
 			log.WithError(uaccErr).Debug("uacc unsupported.")
@@ -456,8 +457,8 @@ type osWrapper struct {
 
 func newOsWrapper() *osWrapper {
 	return &osWrapper{
-		LookupGroup:    user.LookupGroup,
-		LookupUser:     user.Lookup,
+		LookupGroup:    hostuser.LookupGroup,
+		LookupUser:     hostuser.Lookup,
 		CommandContext: exec.CommandContext,
 	}
 }
@@ -483,7 +484,7 @@ func (s *systemUser) UID() string {
 }
 
 func (s *systemUser) GroupIds() ([]string, error) {
-	return s.u.GroupIds()
+	return hostuser.GroupIds(s.u)
 }
 
 // startNewParker starts a new parker process only if the requested user has been created
@@ -597,7 +598,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// Once the PAM stack is called with parent process permissions, set the process uid
 	// and gid to the requested user. This way, the user's networking requests will be
 	// done with the user's permissions.
-	localUser, err := user.Lookup(c.Login)
+	localUser, err := hostuser.Lookup(c.Login)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
@@ -1292,7 +1293,7 @@ func coerceHomeDirError(usr *user.User, err error) error {
 // hasAccessibleHomeDir checks if the current user has access to an existing home directory.
 func hasAccessibleHomeDir() error {
 	// this should usually be fetching a cached value
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1326,7 +1327,7 @@ func hasAccessibleHomeDir() error {
 // errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
 // in a return of (false, nil)
 func CheckHomeDir(localUser *user.User) (bool, error) {
-	currentUser, err := user.Current()
+	currentUser, err := hostuser.Current()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1430,7 +1431,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 
 	// Lookup supplementary groups for the user.
-	userGroups, err := localUser.GroupIds()
+	userGroups, err := hostuser.GroupIds(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
