@@ -4556,6 +4556,67 @@ teleport:
 				},
 			},
 		},
+		{
+			desc: "generic_oidc with HTTP request defaults",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      http_request:
+        request:
+          url: https://example.com/token
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					HTTPRequest: servicecfg.GenericOIDCHTTPRequestParams{
+						Request: servicecfg.GenericOIDCHTTPRequest{
+							URL: "https://example.com/token",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with HTTP request options and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      timeout: 30s
+      http_request:
+        request:
+          url: http://169.254.169.254/token
+          method: POST
+          query_params:
+            audience: teleport.example.com
+          headers:
+            Metadata: true
+        result:
+          json_path: $.id_token
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Timeout: 30 * time.Second,
+					HTTPRequest: servicecfg.GenericOIDCHTTPRequestParams{
+						Request: servicecfg.GenericOIDCHTTPRequest{
+							URL:         "http://169.254.169.254/token",
+							Method:      "POST",
+							QueryParams: map[string]string{"audience": "teleport.example.com"},
+							Headers:     map[string]string{"Metadata": "true"},
+						},
+						Result: servicecfg.GenericOIDCHTTPResult{JSONPath: "$.id_token"},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))

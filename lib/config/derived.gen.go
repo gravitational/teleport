@@ -19,7 +19,8 @@ func deriveTeleportEqual(this, that *GenericOIDCParams) bool {
 		this != nil && that != nil &&
 			this.Env == that.Env &&
 			deriveTeleportEqual_(this.Command, that.Command) &&
-			this.Timeout == that.Timeout
+			this.Timeout == that.Timeout &&
+			deriveTeleportEqual_1(&this.HTTPRequest, &that.HTTPRequest)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.
@@ -32,6 +33,45 @@ func deriveTeleportEqual_(this, that []string) bool {
 	}
 	for i := 0; i < len(this); i++ {
 		if !(this[i] == that[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveTeleportEqual_1 returns whether this and that are equal.
+func deriveTeleportEqual_1(this, that *GenericOIDCHTTPRequestParams) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_2(&this.Request, &that.Request) &&
+			this.Result == that.Result
+}
+
+// deriveTeleportEqual_2 returns whether this and that are equal.
+func deriveTeleportEqual_2(this, that *GenericOIDCHTTPRequest) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Method == that.Method &&
+			this.URL == that.URL &&
+			deriveTeleportEqual_3(this.QueryParams, that.QueryParams) &&
+			deriveTeleportEqual_3(this.Headers, that.Headers) &&
+			this.InsecureAllowHTTP == that.InsecureAllowHTTP
+}
+
+// deriveTeleportEqual_3 returns whether this and that are equal.
+func deriveTeleportEqual_3(this, that map[string]string) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for k, v := range this {
+		thatv, ok := that[k]
+		if !ok {
+			return false
+		}
+		if !(v == thatv) {
 			return false
 		}
 	}

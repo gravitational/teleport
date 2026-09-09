@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -402,4 +403,29 @@ func TestRegisterWithAuthClient(t *testing.T) {
 	require.NoError(t, gotErr)
 	assert.True(t, called)
 	assert.Equal(t, expectedCerts, gotResult.Certs)
+}
+
+func TestGenericOIDCParamsValidate(t *testing.T) {
+	t.Parallel()
+
+	httpRequest := genericoidc.JWTFromHTTPEndpointParams{
+		Request: genericoidc.HTTPRequestParams{URL: "https://example.com/token"},
+	}
+	for _, tt := range []struct {
+		name     string
+		params   GenericOIDCParams
+		errCheck require.ErrorAssertionFunc
+	}{
+		{name: "no source", errCheck: require.Error},
+		{name: "environment", params: GenericOIDCParams{EnvVarName: "TOKEN"}, errCheck: require.NoError},
+		{name: "command", params: GenericOIDCParams{Command: []string{"get-token"}}, errCheck: require.NoError},
+		{name: "HTTP request", params: GenericOIDCParams{HTTPRequest: httpRequest}, errCheck: require.NoError},
+		{name: "environment and HTTP request", params: GenericOIDCParams{EnvVarName: "TOKEN", HTTPRequest: httpRequest}, errCheck: require.Error},
+		{name: "command and HTTP request", params: GenericOIDCParams{Command: []string{"get-token"}, HTTPRequest: httpRequest}, errCheck: require.Error},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.params.Validate()
+			tt.errCheck(t, err)
+		})
+	}
 }

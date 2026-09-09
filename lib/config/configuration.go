@@ -3355,11 +3355,24 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if fc.JoinParams.GenericOIDC.IsSet() {
+			httpRequest := fc.JoinParams.GenericOIDC.HTTPRequest
 			cfg.JoinParams = servicecfg.JoinParams{
 				GenericOIDC: servicecfg.GenericOIDCParams{
 					Env:     fc.JoinParams.GenericOIDC.Env,
 					Command: fc.JoinParams.GenericOIDC.Command,
 					Timeout: fc.JoinParams.GenericOIDC.Timeout,
+					HTTPRequest: servicecfg.GenericOIDCHTTPRequestParams{
+						Request: servicecfg.GenericOIDCHTTPRequest{
+							Method:            httpRequest.Request.Method,
+							URL:               httpRequest.Request.URL,
+							QueryParams:       httpRequest.Request.QueryParams,
+							Headers:           httpRequest.Request.Headers,
+							InsecureAllowHTTP: httpRequest.Request.InsecureAllowHTTP,
+						},
+						Result: servicecfg.GenericOIDCHTTPResult{
+							JSONPath: httpRequest.Result.JSONPath,
+						},
+					},
 				},
 			}
 		}

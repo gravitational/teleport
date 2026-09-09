@@ -554,23 +554,69 @@ type BoundKeypairParams struct {
 // GenericOIDCParams contains configuration relevant to the
 // `generic_oidc` join method.
 type GenericOIDCParams struct {
-	// Env is the name of the environment variable containing a JWT. Cannot be
-	// set if `command` is set.
+	// Env is the name of the environment variable containing a JWT.
+	// Exacly only one of `Env`, `Command`, or `HTTPRequest` must be set.
 	Env string `yaml:"env,omitempty"`
 
 	// Command is the command to run and its arguments. The executable is the
-	// first element, followed by optional arguments. Cannot be set if `env` is
-	// set.
+	// first element, followed by optional arguments.
+	// Exacly only one of `Env`, `Command`, or `HTTPRequest` must be set.
 	Command []string `yaml:"command,omitempty"`
 
-	// Timeout is the maximum amount of time to wait for this command to
+	// Timeout is the maximum amount of time to wait for this command or HTTP request to
 	// complete before giving up, after which the join attempt fails.
 	Timeout time.Duration `yaml:"timeout,omitempty"`
+
+	// HTTPRequest contains the params to obtain the JWT from an HTTP endpoint.
+	// Exacly only one of `Env`, `Command`, or `HTTPRequest` must be set.
+	HTTPRequest GenericOIDCHTTPRequestParams `yaml:"http_request,omitempty"`
 }
 
 // IsSet returns true if `generic_oidc` contains usable configuration.
 func (p GenericOIDCParams) IsSet() bool {
-	return p.Env != "" || len(p.Command) > 0
+	return p.Env != "" || len(p.Command) > 0 || p.HTTPRequest.IsSet()
+}
+
+// GenericOIDCHTTPRequestParams contains the params to obtain the JWT from an HTTP endpoint for the `generic_oidc` join method.
+type GenericOIDCHTTPRequestParams struct {
+	// Request describes the HTTP request to make.
+	Request GenericOIDCHTTPRequest `yaml:"request,omitempty"`
+
+	// Result describes how the JWT is extracted from the response.
+	Result GenericOIDCHTTPResult `yaml:"result,omitempty"`
+}
+
+// IsSet returns true if `http_request` contains usable configuration.
+func (p GenericOIDCHTTPRequestParams) IsSet() bool {
+	// Everything else has defaults, so the URL is enough to determine whether this is configured.
+	return p.Request.URL != ""
+}
+
+// GenericOIDCHTTPRequest describes the HTTP request made to obtain a JWT.
+type GenericOIDCHTTPRequest struct {
+	// Method is the HTTP method to use.
+	// Defaults to GET.
+	Method string `yaml:"method,omitempty"`
+
+	// URL to be requested.
+	URL string `yaml:"url,omitempty"`
+
+	// QueryParams are the query parameters to include in the request.
+	// If specified, they are added to the URL's query string, possibly overriding any existing query parameters.
+	QueryParams map[string]string `yaml:"query_params,omitempty"`
+
+	// Headers are the HTTP headers to include in the request.
+	Headers map[string]string `yaml:"headers,omitempty"`
+
+	// InsecureAllowHTTP indicates whether HTTP (non-HTTPS) requests are allowed.
+	InsecureAllowHTTP bool `yaml:"insecure_allow_http"`
+}
+
+// GenericOIDCHTTPResult describes how the JWT is extracted from the HTTP response.
+type GenericOIDCHTTPResult struct {
+	// JSONPath is a JSONPath expression used to extract the JWT from the response body, for example `$.access_token`.
+	// If unset, the whole body is used as the JWT.
+	JSONPath string `yaml:"json_path,omitempty"`
 }
 
 // ConnectionRate configures rate limiter

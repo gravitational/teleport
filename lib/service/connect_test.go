@@ -33,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -321,6 +323,44 @@ func TestProxyVersionInfo(t *testing.T) {
 		}
 		require.Equal(t, joinclient.VersionInfo{}, process.proxyVersionInfo())
 	})
+}
+
+func TestMakeJoinParams_GenericOIDC(t *testing.T) {
+	t.Parallel()
+
+	process := &TeleportProcess{Config: servicecfg.MakeDefaultConfig()}
+	process.Config.SetToken("example")
+	process.Config.JoinMethod = types.JoinMethodGenericOIDC
+	process.Config.JoinParams.GenericOIDC = servicecfg.GenericOIDCParams{
+		Timeout: 30 * time.Second,
+		HTTPRequest: servicecfg.GenericOIDCHTTPRequestParams{
+			Request: servicecfg.GenericOIDCHTTPRequest{
+				URL:               "http://example.com/token",
+				Method:            http.MethodPost,
+				QueryParams:       map[string]string{"audience": "teleport.example.com"},
+				Headers:           map[string]string{"Metadata": "true"},
+				InsecureAllowHTTP: true,
+			},
+			Result: servicecfg.GenericOIDCHTTPResult{JSONPath: "$.id_token"},
+		},
+	}
+
+	params, err := process.makeJoinParams(state.IdentityID{}, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodGenericOIDC, params.JoinMethod)
+	require.Equal(t, joinclient.GenericOIDCParams{
+		Timeout: 30 * time.Second,
+		HTTPRequest: genericoidc.JWTFromHTTPEndpointParams{
+			Request: genericoidc.HTTPRequestParams{
+				URL:               "http://example.com/token",
+				Method:            http.MethodPost,
+				QueryParams:       map[string]string{"audience": "teleport.example.com"},
+				Headers:           map[string]string{"Metadata": "true"},
+				InsecureAllowHTTP: true,
+			},
+			Result: genericoidc.ResponseExtractParams{JSONPath: "$.id_token"},
+		},
+	}, params.GenericOIDCParams)
 }
 
 func TestMakeJoinParams_BoundKeypair(t *testing.T) {
