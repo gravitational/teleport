@@ -407,18 +407,28 @@ func joinWithMethod(
 				timeout = time.Minute
 			}
 
-			source := genericoidc.NewIDTokenSource(os.Getenv, genericoidc.DefaultCommandRunner)
-			if params.EnvVarName != "" {
+			source := genericoidc.NewIDTokenSource(os.Getenv, genericoidc.DefaultCommandRunner, genericoidc.DefaultHTTPRequester)
+			switch {
+			case params.EnvVarName != "":
 				joinParams.IDToken, err = source.GetIDTokenFromEnvironment(params.EnvVarName)
 				if err != nil {
 					return nil, trace.Wrap(err, "fetching generic_oidc token from the environment")
 				}
-			} else {
-				// Per Validate(), either EnvVarName ^ Command must be set.
+
+			case len(params.Command) > 0:
 				joinParams.IDToken, err = source.GetIDTokenFromCommand(ctx, timeout, params.Command...)
 				if err != nil {
 					return nil, trace.Wrap(err, "fetching generic_oidc token from a command")
 				}
+
+			case params.HTTPRequest.IsSet():
+				joinParams.IDToken, err = source.GetIDTokenFromHTTPEndpoint(ctx, timeout, params.HTTPRequest)
+				if err != nil {
+					return nil, trace.Wrap(err, "fetching generic_oidc token from an HTTP endpoint")
+				}
+
+			default:
+				return nil, trace.BadParameter("generic_oidc: at least one of env_var_name, command or http_request must be set")
 			}
 		}
 

@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
@@ -807,10 +808,23 @@ func (process *TeleportProcess) makeJoinParams(
 		joinParams.BoundKeypairRegistrationSecret = regSecret
 	}
 	if joinParams.JoinMethod == types.JoinMethodGenericOIDC {
+		httpRequest := process.Config.JoinParams.GenericOIDC.HTTPRequest
 		joinParams.GenericOIDCParams = join.GenericOIDCParams{
 			EnvVarName: process.Config.JoinParams.GenericOIDC.Env,
 			Command:    process.Config.JoinParams.GenericOIDC.Command,
 			Timeout:    process.Config.JoinParams.GenericOIDC.Timeout,
+			HTTPRequest: genericoidc.JWTFromHTTPEndpointParams{
+				Request: genericoidc.HTTPRequestParams{
+					Method:            httpRequest.Request.Method,
+					URL:               httpRequest.Request.URL,
+					QueryParams:       httpRequest.Request.QueryParams,
+					Headers:           httpRequest.Request.Headers,
+					InsecureAllowHTTP: httpRequest.Request.InsecureAllowHTTP,
+				},
+				Result: genericoidc.ResponseExtractParams{
+					JSONPath: httpRequest.Result.JSONPath,
+				},
+			},
 		}
 	}
 	return joinParams, nil

@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/spacelift"
@@ -106,27 +107,39 @@ type GitlabParams struct {
 // GenericOIDCParams has parameters specific to the `generic_oidc` join method.
 type GenericOIDCParams struct {
 	// EnvVarName is the name of an environment variable to extract a JWT.
-	// Mutually exclusive with `Command`.
+	// Exactly only one of `EnvVarName`, `Command`, or `HTTPRequest` must be set.
 	EnvVarName string
 
 	// Command is the command (and arguments) to run to fetch the JWT. The
 	// stdout must consist exclusively of a valid JWT and it must return with a
-	// 0 exit code. Mutually exclusive with `EnvVarName`.
+	// 0 exit code.
+	// Exactly only one of `EnvVarName`, `Command`, or `HTTPRequest` must be set.
 	Command []string
 
-	// Timeout is the timeout for a command token fetch. If unset, a timeout of
-	// 1 minute is used.
+	// Timeout is the timeout to fetch the token when using the command or http request.
+	// If unset, a timeout of 1 minute is used.
 	Timeout time.Duration
+
+	// HTTPRequest contains the params to obtain the JWT from an HTTP endpoint.
+	// Exactly only one of `EnvVarName`, `Command`, or `HTTPRequest` must be set.
+	HTTPRequest genericoidc.JWTFromHTTPEndpointParams
 }
 
 // Validate does basic sanity checks against a GenericOIDCParams.
 func (p *GenericOIDCParams) Validate() error {
-	if p.EnvVarName == "" && len(p.Command) == 0 {
-		return trace.BadParameter("generic_oidc: must set one of `env` or `command`")
+	configuredSources := 0
+	if p.EnvVarName != "" {
+		configuredSources++
+	}
+	if len(p.Command) > 0 {
+		configuredSources++
+	}
+	if p.HTTPRequest.IsSet() {
+		configuredSources++
 	}
 
-	if p.EnvVarName != "" && len(p.Command) > 0 {
-		return trace.BadParameter("generic_oidc: cannot set both `env` and `command`")
+	if configuredSources != 1 {
+		return trace.BadParameter("generic_oidc: must set exactly one of `env`, `command` or `http_request`")
 	}
 
 	return nil
