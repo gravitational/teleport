@@ -87,6 +87,17 @@ describe('copy blocking', () => {
   });
 });
 
+// The resulting widths are asserted in teleterm's ctrl.test.ts, which can await
+// a write to the terminal. This test cannot: WebglAddon throws "WebGL2 not
+// supported" from a jsdom timer, failing whichever test is still running when it
+// fires.
+it('measures emoji with Unicode 15 width tables', () => {
+  const { terminal } = createTerminal();
+
+  expect(terminal.term.unicode.activeVersion).toBe('15-graphemes');
+  terminal.destroy();
+});
+
 function createTerminal(options: { disableCopy?: boolean } = {}) {
   const el = document.createElement('div');
   document.body.appendChild(el);

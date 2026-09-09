@@ -36,6 +36,7 @@
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-image": "^0.9.0",
+    "@xterm/addon-unicode-graphemes": "^0.4.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
