@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestRoleSetEvaluateOrder(t *testing.T) {
@@ -93,8 +95,8 @@ func TestRoleSetAggregatesHints(t *testing.T) {
 func TestRoleSetAllowAll(t *testing.T) {
 	roles := []Role{
 		{Name: "a", Expressions: []string{`allow_code("from_a", "Allowed.", true)`}},
-		{Name: "c", Resources: []Rule{{AllowAll: true}}},
-		{Name: "b", Resources: []Rule{{AllowAll: true}}},
+		{Name: "c", Resources: []types.AppResource{{AllowAll: true}}},
+		{Name: "b", Resources: []types.AppResource{{AllowAll: true}}},
 	}
 	set, err := CompileRoles(roles)
 	require.NoError(t, err)
@@ -195,7 +197,7 @@ func TestRoleSetHintCap(t *testing.T) {
 func TestCompileRolesValidatesRules(t *testing.T) {
 	_, err := CompileRoles([]Role{{
 		Name:      "dev",
-		Resources: []Rule{{AllowAll: true, Methods: []string{"GET"}}},
+		Resources: []types.AppResource{{AllowAll: true, Methods: []string{"GET"}}},
 	}})
 	require.ErrorContains(t, err, `role "dev" app_resources 0`)
 
@@ -206,7 +208,7 @@ func TestCompileRolesValidatesRules(t *testing.T) {
 }
 
 func TestRoleSetEvaluatePathRule(t *testing.T) {
-	roles := []Role{{Name: "dev", Resources: []Rule{{
+	roles := []Role{{Name: "dev", Resources: []types.AppResource{{
 		Paths:       []string{"/api/{version}/**"},
 		Methods:     []string{"GET"},
 		Where:       `vars.version == "v4"`,

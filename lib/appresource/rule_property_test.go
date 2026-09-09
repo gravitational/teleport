@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // The segment kinds drawPattern draws from.
@@ -43,9 +45,9 @@ const (
 
 // drawRule draws a valid sugared rule. Every path binds the same capture
 // names, so a where clause may read them.
-func drawRule(t *rapid.T) Rule {
+func drawRule(t *rapid.T) types.AppResource {
 	captures := rapid.SliceOfNDistinct(rapid.SampledFrom([]string{"p", "q"}), 0, 2, rapid.ID[string]).Draw(t, "captures")
-	var rule Rule
+	var rule types.AppResource
 	for range rapid.IntRange(1, 3).Draw(t, "pathCount") {
 		pattern, _ := drawPattern(t, captures)
 		rule.Paths = append(rule.Paths, pattern)
@@ -209,8 +211,8 @@ func TestRuleEvaluateProperty(t *testing.T) {
 // app_resources_expressions entry, which compileExpression rejects.
 // desugar returns an error for an invalid rule, such as a vars.<name> read
 // that some path does not bind.
-func desugar(r Rule) (string, error) {
-	if err := r.validate(); err != nil {
+func desugar(r types.AppResource) (string, error) {
+	if err := validateRule(r); err != nil {
 		return "", trace.Wrap(err)
 	}
 	if r.AllowAll {

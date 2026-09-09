@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // maxWhereBytes is the maximum length in bytes of one where clause, the sugared
@@ -53,46 +55,6 @@ const maxPathBytes = 1 << 10 // 1 KiB
 // maxPaths is the maximum number of path patterns in one rule.
 const maxPaths = 64
 
-// Rule is one app_resources entry, the sugared form. A request matches when its
-// path matches Paths, its method matches Methods, and its Where clause evaluates to
-// true.
-type Rule struct {
-	// Paths are the path patterns the rule matches. The {project} segment in
-	// "/api/projects/{project}/**" is captured, and Where reads it as
-	// vars.project. A rule sets either Paths or AllowAll.
-	Paths []string `yaml:"paths,omitempty"`
-	// Methods is a list of GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, or
-	// TRACE, matched case-insensitively. A request method is not folded, so
-	// it must be upper case. Unset, Methods allows all eight.
-	Methods []string `yaml:"methods,omitempty"`
-	// Where is a predicate over the caller identity and the rule's path
-	// captures, such as contains(user.traits["projects"], vars.project). If
-	// set, it must evaluate to true for the rule to match.
-	Where string `yaml:"where,omitempty"`
-	// AllowEncoded lists the characters a request path may carry in
-	// percent-encoded form for the rule to match. The only supported value is
-	// "/", which allows the encoded slash, %2F or %2f.
-	AllowEncoded []string `yaml:"allow_encoded,omitempty"`
-	// AllowCode is the code recorded on the allow audit event when the rule
-	// matches. If it is not set, no allow audit event is recorded. A code may
-	// not start with the reserved "teleport_" prefix.
-	AllowCode string `yaml:"allow_code,omitempty"`
-	// AllowReason is the explanation recorded alongside AllowCode. A rule sets
-	// it only together with AllowCode.
-	AllowReason string `yaml:"allow_reason,omitempty"`
-	// DenyCodeHint is the code added to the deny decision when the rule's path
-	// and method match but the Where predicate does not. A denied request
-	// collects a code from every such rule, so one decision can record several
-	// codes. A code may not start with the reserved "teleport_" prefix.
-	DenyCodeHint string `yaml:"deny_code_hint,omitempty"`
-	// DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule
-	// sets it only together with DenyCodeHint.
-	DenyReasonHint string `yaml:"deny_reason_hint,omitempty"`
-	// AllowAll grants unrestricted access to every path and method. It cannot
-	// be combined with any other field.
-	AllowAll bool `yaml:"allow_all,omitempty"`
-}
-
 // validateAuditCode checks an allow or deny code. A valid code is 1 to 256 bytes of
 // [a-z0-9_] and does not start with the reserved teleport_ prefix.
 func validateAuditCode(code string) error {
@@ -119,11 +81,14 @@ func validateReason(reason string) error {
 	return nil
 }
 
-// validate checks a rule's structural constraints, e.g. that AllowAll cannot be
+// validateRule checks a rule's structural constraints, e.g. that AllowAll cannot be
 // combined with another field. Path pattern checks are left to compile time.
-func (r Rule) validate() error {
+func validateRule(r types.AppResource) error {
 	if r.AllowAll {
-		return r.validateAllowAllStandsAlone()
+		if !r.IsAllowAllOnly() {
+			return trace.BadParameter("allow_all cannot be combined with any other field")
+		}
+		return nil
 	}
 	if len(r.Paths) == 0 {
 		return trace.BadParameter("a rule must set paths or allow_all")
@@ -166,17 +131,6 @@ func (r Rule) validate() error {
 	}
 	if err := validateReason(r.DenyReasonHint); err != nil {
 		return trace.Wrap(err, "invalid deny_reason_hint")
-	}
-	return nil
-}
-
-// validateAllowAllStandsAlone rejects an allow_all rule that also sets another
-// field.
-func (r Rule) validateAllowAllStandsAlone() error {
-	if len(r.Paths) > 0 || len(r.Methods) > 0 || strings.TrimSpace(r.Where) != "" ||
-		len(r.AllowEncoded) > 0 || r.AllowCode != "" || r.AllowReason != "" ||
-		r.DenyCodeHint != "" || r.DenyReasonHint != "" {
-		return trace.BadParameter("allow_all cannot be combined with any other field")
 	}
 	return nil
 }
@@ -243,8 +197,8 @@ type compiledRule struct {
 // newCompiledRule checks the rule and returns it ready to evaluate. It returns
 // an error for an invalid rule, such as a vars.<name> read that some path does
 // not bind.
-func newCompiledRule(r Rule) (*compiledRule, error) {
-	if err := r.validate(); err != nil {
+func newCompiledRule(r types.AppResource) (*compiledRule, error) {
+	if err := validateRule(r); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if r.AllowAll {
