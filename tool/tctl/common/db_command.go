@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // DBCommand implements "tctl db" group of commands.
@@ -110,14 +111,14 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 		return trace.Wrap(err)
 	}
 
-	coll := &databaseServerCollection{servers: servers}
+	coll := resources.NewDatabaseServerCollection(servers)
 	switch c.format {
 	case teleport.Text:
 		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(coll.WriteJSON(os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(coll.WriteYAML(os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

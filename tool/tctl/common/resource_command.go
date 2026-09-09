@@ -26,7 +26,6 @@ import (
 	"os"
 	"reflect"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -35,23 +34,12 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -111,20 +99,8 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
-		types.KindDevice:              rc.createDevice,
-		types.KindOktaImportRule:      rc.createOktaImportRule,
-		types.KindSecurityReport:      rc.createSecurityReport,
-		types.KindCrownJewel:          rc.createCrownJewel,
-		types.KindPlugin:              rc.createPlugin,
-		types.KindHealthCheckConfig:   rc.createHealthCheckConfig,
-	}
-	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindCrownJewel:        rc.updateCrownJewel,
-		types.KindPlugin:            rc.updatePlugin,
-		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
-	}
+	rc.CreateHandlers = map[string]ResourceCreateHandler{}
+	rc.UpdateHandlers = map[string]ResourceCreateHandler{}
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file.")
@@ -449,115 +425,6 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 	}
 }
 
-// createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
-func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := client.SetNetworkRestrictions(ctx, newNetRestricts); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("network restrictions have been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.CrownJewelsClient()
-	if rc.force {
-		if _, err := c.UpsertCrownJewel(ctx, crownJewel); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetMetadata().GetName())
-	} else {
-		if _, err := c.CreateCrownJewel(ctx, crownJewel); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
-	}
-
-	return nil
-}
-
-func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.CrownJewelsClient().UpdateCrownJewel(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	res, err := services.UnmarshalDevice(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dev, err := types.DeviceFromResource(res)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		_, err = client.DevicesClient().UpsertDevice(ctx, devicepb.UpsertDeviceRequest_builder{
-			Device:           dev,
-			CreateAsResource: true,
-		}.Build())
-		// err checked below
-	} else {
-		_, err = client.DevicesClient().CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
-			Device:           dev,
-			CreateAsResource: true,
-		}.Build())
-		// err checked below
-	}
-	if err != nil {
-		return trail.FromGRPC(err)
-	}
-
-	verb := "created"
-	if rc.IsForced() {
-		verb = "updated"
-	}
-
-	fmt.Printf("Device %v/%v %v\n",
-		dev.GetAssetTag(),
-		devicetrust.FriendlyOSType(dev.GetOsType()),
-		verb,
-	)
-	return nil
-}
-
-func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	importRule, err := services.UnmarshalOktaImportRule(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exists := false
-	if _, err = client.OktaClient().CreateOktaImportRule(ctx, importRule); err != nil {
-		if trace.IsAlreadyExists(err) {
-			exists = true
-			_, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule)
-		}
-
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	fmt.Printf("Okta import rule %q has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
-	return nil
-}
-
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	sr, err := ParseScopedRef(rc.ref, rc.id)
@@ -622,110 +489,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
-		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, ref.Kind) && (ref.Kind == "" || ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
-	switch ref.Kind {
-	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("reverse tunnel %v has been deleted\n", ref.Name)
-	case types.KindRemoteCluster:
-		if err = client.DeleteRemoteCluster(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("remote cluster %q has been deleted\n", ref.Name)
-	case types.KindSemaphore:
-		if ref.SubKind == "" || ref.Name == "" {
-			return trace.BadParameter(
-				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
-				types.KindSemaphore, types.SemaphoreKindConnection,
-			)
-		}
-		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
-			SemaphoreKind: ref.SubKind,
-			SemaphoreName: ref.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("semaphore '%s/%s' has been deleted\n", ref.SubKind, ref.Name)
-	case types.KindDatabaseServer:
-		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "database server"
-		servers = resources.FilterByNameOrDiscoveredName(servers, ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(servers, ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteDatabaseServer(ctx, apidefaults.Namespace, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindNetworkRestrictions:
-		if err = resetNetworkRestrictions(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindCrownJewel:
-		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("crown_jewel %q has been deleted\n", ref.Name)
-	case types.KindDevice:
-		remote := client.DevicesClient()
-		device, err := findDeviceByIDOrTag(ctx, remote, ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := remote.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
-			DeviceId: device[0].GetId(),
-		}.Build()); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Device %q removed\n", ref.Name)
-
-	case types.KindOktaAssignment:
-		if err := client.OktaClient().DeleteOktaAssignment(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta assignment %q has been deleted\n", ref.Name)
-	case types.KindOktaImportRule:
-		if err := client.OktaClient().DeleteOktaImportRule(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta import rule %q has been deleted\n", ref.Name)
-	case types.KindUserGroup:
-		if err := client.DeleteUserGroup(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("User group %q has been deleted\n", ref.Name)
-	case types.KindSecurityReport:
-		if err := client.SecReportsClient().DeleteSecurityReport(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Security report %q has been deleted\n", ref.Name)
-	case types.KindHealthCheckConfig:
-		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client, ref.Name))
-	default:
-		return trace.BadParameter("deleting resources of type %q is not supported", ref.Kind)
-	}
-	return nil
-}
-
-func resetNetworkRestrictions(ctx context.Context, client *authclient.Client) error {
-	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
+	return trace.BadParameter("deleting resources of type %q is not supported", ref.Kind)
 }
 
 // UpdateFields updates select resource fields: expiry and labels
@@ -883,251 +652,8 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 	// The resource hasn't been migrated yet, falling back to the old logic.
 
 	switch ref.Kind {
-	case types.KindReverseTunnel:
-		if ref.Name != "" {
-			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
-		}
-
-		tunnels, err := stream.Collect(clientutils.Resources(ctx, client.ListReverseTunnels))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case types.KindRemoteCluster:
-		if ref.Name == "" {
-			remoteClusters, err := client.GetRemoteClusters(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
-		}
-		remoteCluster, err := client.GetRemoteCluster(ctx, ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
-	case types.KindSemaphore:
-		filter := types.SemaphoreFilter{
-			SemaphoreKind: ref.SubKind,
-			SemaphoreName: ref.Name,
-		}
-		sems, err := clientutils.CollectWithFallback(ctx,
-			func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
-				return client.ListSemaphores(ctx, pageSize, pageToken, &filter)
-			},
-			func(ctx context.Context) ([]types.Semaphore, error) {
-				return client.GetSemaphores(ctx, filter)
-			},
-		)
-
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &semaphoreCollection{sems: sems}, nil
 	case types.KindSessionRecordingConfig:
-	case types.KindDatabaseServer:
-		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &databaseServerCollection{servers: servers}, nil
-		}
-
-		servers = resources.FilterByNameOrDiscoveredName(servers, ref.Name)
-		if len(servers) == 0 {
-			return nil, trace.NotFound("database server %q not found", ref.Name)
-		}
-		return &databaseServerCollection{servers: servers}, nil
-	case types.KindNetworkRestrictions:
-		nr, err := client.GetNetworkRestrictions(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &netRestrictionsCollection{nr}, nil
-	case types.KindCrownJewel:
-		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
-			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &crownJewelCollection{items: jewels}, nil
 	case types.KindToken:
-	case types.KindDatabaseService:
-		resourceName := ref.Name
-		listReq := proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseService,
-		}
-		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
-		}
-
-		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databaseServices, err := types.ResourcesWithLabels(getResp).AsDatabaseServices()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if len(databaseServices) == 0 && resourceName != "" {
-			return nil, trace.NotFound("Database Service %q not found", resourceName)
-		}
-
-		return &databaseServiceCollection{databaseServices: databaseServices}, nil
-	case types.KindDevice:
-		remote := client.DevicesClient()
-		if ref.Name != "" {
-			resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
-				IdOrTag: ref.Name,
-			}.Build())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &deviceCollection{resp.GetDevices()}, nil
-		}
-
-		req := devicepb.ListDevicesRequest_builder{
-			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		}.Build()
-		var devs []*devicepb.Device
-		for {
-			resp, err := remote.ListDevices(ctx, req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			devs = append(devs, resp.GetDevices()...)
-
-			if resp.GetNextPageToken() == "" {
-				break
-			}
-			req.SetPageToken(resp.GetNextPageToken())
-		}
-
-		sort.Slice(devs, func(i, j int) bool {
-			d1 := devs[i]
-			d2 := devs[j]
-
-			if d1.GetAssetTag() == d2.GetAssetTag() {
-				return d1.GetOsType() < d2.GetOsType()
-			}
-
-			return d1.GetAssetTag() < d2.GetAssetTag()
-		})
-
-		return &deviceCollection{devices: devs}, nil
-	case types.KindOktaImportRule:
-		if ref.Name != "" {
-			importRule, err := client.OktaClient().GetOktaImportRule(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &oktaImportRuleCollection{importRules: []types.OktaImportRule{importRule}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.OktaClient().ListOktaImportRules))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &oktaImportRuleCollection{importRules: resources}, nil
-	case types.KindOktaAssignment:
-		if ref.Name != "" {
-			assignment, err := client.OktaClient().GetOktaAssignment(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &oktaAssignmentCollection{assignments: []types.OktaAssignment{assignment}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.OktaClient().ListOktaAssignments))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &oktaAssignmentCollection{assignments: resources}, nil
-	case types.KindUserGroup:
-		if ref.Name != "" {
-			userGroup, err := client.GetUserGroup(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userGroupCollection{userGroups: []types.UserGroup{userGroup}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.ListUserGroups))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindSecurityReport:
-		if ref.Name != "" {
-
-			resource, err := client.SecReportsClient().GetSecurityReport(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &securityReportCollection{items: []*secreports.Report{resource}}, nil
-		}
-		resources, err := client.SecReportsClient().GetSecurityReports(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &securityReportCollection{items: resources}, nil
-	case types.KindPlugin:
-		if ref.Name != "" {
-			plugin, err := client.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: ref.Name}.Build())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &pluginCollection{plugins: []types.Plugin{plugin}}, nil
-		}
-		var plugins []types.Plugin
-		startKey := ""
-		for {
-			resp, err := client.PluginsClient().ListPlugins(ctx, pluginsv1.ListPluginsRequest_builder{
-				PageSize:    100,
-				StartKey:    startKey,
-				WithSecrets: rc.withSecrets,
-			}.Build())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, v := range resp.GetPlugins() {
-				plugins = append(plugins, v)
-			}
-			if resp.GetNextKey() == "" {
-				break
-			}
-			startKey = resp.GetNextKey()
-		}
-		return &pluginCollection{plugins: plugins}, nil
-
-	case types.KindHealthCheckConfig:
-		if ref.Name != "" {
-			cfg, err := client.GetHealthCheckConfig(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &healthCheckConfigCollection{
-				items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
-			}, nil
-		}
-
-		items, err := stream.Collect(clientutils.Resources(ctx, client.ListHealthCheckConfigs))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &healthCheckConfigCollection{items: items}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", ref.String())
 }
@@ -1144,82 +670,6 @@ func (e *errNotSupported) Error() string {
 
 func (e *errNotSupported) Unwrap() error {
 	return e.cause
-}
-
-// UpsertVerb generates the correct string form of a verb based on the action taken
-func UpsertVerb(exists bool, force bool) string {
-	if !force && exists {
-		return "updated"
-	}
-	return "created"
-}
-
-func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
-	resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
-		IdOrTag: idOrTag,
-	}.Build())
-	switch {
-	case err != nil:
-		return nil, trace.Wrap(err)
-	case len(resp.GetDevices()) == 0:
-		return nil, trace.NotFound("device %q not found", idOrTag)
-	case len(resp.GetDevices()) == 1:
-		return resp.GetDevices(), nil
-	}
-
-	// Do we have an ID match?
-	for _, dev := range resp.GetDevices() {
-		if dev.GetId() == idOrTag {
-			return []*devicepb.Device{dev}, nil
-		}
-	}
-
-	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
-}
-
-func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalSecurityReport(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := in.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
-	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	item := pluginResourceWrapper{
-		PluginV1: types.PluginV1{},
-	}
-	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
-		return trace.Wrap(err)
-	}
-	if !rc.IsForced() {
-		// Plugin needs to be installed before it can be updated.
-		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
-	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("plugin %q has been updated\n", item.GetName())
-	return nil
 }
 
 // UpdateFields updates select resource fields: expiry and labels

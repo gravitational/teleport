@@ -69,7 +69,7 @@ func trustedClusterHandler() Handler {
 		deleteHandler: deleteTrustedCluster,
 		singleton:     false,
 		mfaRequired:   true,
-		description:   "Configures the current cluster (Leaf) to trust certificates emitted by another cluster (Root).",
+		description:   "Configures the current cluster (leaf) to trust certificates emitted by another cluster (root).",
 	}
 }
 
