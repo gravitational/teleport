@@ -53,7 +53,8 @@ jobs:
               MATRIX=$(jq -cn '
                 {
                   include: [
-                    { "sut": "core", "teleport-ref": "master" }
+                    { "sut": "core", "teleport-ref": "master" },
+                    { "sut": "core", "teleport-ref": "branch/v18" }
                   ]
                 }
               ')
