@@ -7,17 +7,6 @@ function afterAllResolved(lockfile, context) {
     context.log(`Workspace 'e/web/teleport' is not present, patching lockfile.`);
     lockfile.importers['e/web/teleport'] = {};
   }
-  if (!lockfile.importers['e/e2e']) {
-    context.log(`Workspace 'e/e2e' is not present, patching lockfile.`);
-    lockfile.importers['e/e2e'] = {
-      dependencies: {
-        '@gravitational/e2e': 'link:../../e2e',
-      },
-      specifiers: {
-        '@gravitational/e2e': 'workspace:*',
-      },
-    };
-  }
   return lockfile;
 }
 
