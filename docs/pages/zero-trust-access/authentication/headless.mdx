@@ -203,17 +203,31 @@ Complete headless authentication in your local web browser:
 # # User approves through link and the local proxy is created:
 
 Preparing the following Teleport Kubernetes clusters:
-Teleport Cluster Name Kube Cluster Name
---------------------- -----------------
-teleport-cluster             example-cluster
+Teleport Cluster Name Kube Cluster Name Context Name
+--------------------- ----------------- --------------------------------
+teleport-cluster      example-cluster   teleport-cluster-example-cluster
 
-Started local proxy for Kubernetes on 127.0.0.1:1234 in the background
-and kubectl is set up to work with it. Try issuing a command, for example "kubectl get namespaces"
+Started local proxy for Kubernetes Access in the background.
 
-$ kubectl get pods
+Warning! Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
+the local proxy will be closed, and future access through this headless session won't be possible.
+
+Try issuing a command, for example "kubectl version".
+
+$ kubectl get pods -A
 NAMESPACE        NAME                                READY   STATUS    RESTARTS      AGE
 teleport-agent   teleport-agent-0                    1/1     Running   0             2d12h
 ```
+
+When per-session MFA is required, each Kubernetes cluster needs its own MFA check
+under headless authentication. A `tsh proxy kube --headless` run across several
+clusters performs one check per cluster. A run without `--headless` performs a
+single check that covers all of them, as long as both `tsh` and the Teleport
+cluster are running Teleport (=kubernetes.multi_cluster_mfa_min_version=) or
+later. See
+[Per-session MFA](./per-session-mfa.mdx#per-session-mfa-for-kubernetes-access)
+for a full explanation of per-session MFA for Kubernetes sessions.
 
 ## Optional: Teleport Connect
 

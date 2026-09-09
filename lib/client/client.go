@@ -168,6 +168,13 @@ type ReissueParams struct {
 	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
 	// is required.
 	ReusableMFAResponse *proto.MFAAuthenticateResponse
+
+	// FailOnExpiredReusableMFAResponse makes IssueUserCertsWithMFA return
+	// [mfa.ErrExpiredReusableMFAResponse] when ReusableMFAResponse has
+	// expired, instead of falling back to a new MFA ceremony. Callers
+	// coordinating concurrent issuances use it to refresh the response once
+	// for all of them.
+	FailOnExpiredReusableMFAResponse bool
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -176,9 +183,11 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// SSH means a request for an SSH certificate for access to a specific
 		// SSH node, as specified by NodeName.
 		return proto.UserCertsRequest_SSH
-	case p.KubernetesCluster != "":
+	case p.KubernetesCluster != "" || p.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI:
 		// Kubernetes means a request for a TLS certificate for access to a
-		// specific Kubernetes cluster, as specified by KubernetesCluster.
+		// specific Kubernetes cluster, as specified by KubernetesCluster, or
+		// to any of them via path routing when the kube local proxy asks for
+		// one shared certificate with no cluster route.
 		return proto.UserCertsRequest_Kubernetes
 	case p.RouteToDatabase.ServiceName != "":
 		// Database means a request for a TLS certificate for access to a

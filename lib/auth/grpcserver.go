@@ -737,6 +737,18 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		}
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		if req.Usage != authpb.UserCertsRequest_Kubernetes {
+			return trace.BadParameter("requester %s can only request Kubernetes certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+		if req.KubernetesCluster == "" && req.MFAResponse != nil {
+			return trace.BadParameter("requester %q cannot request MFA-verified certificates without a Kubernetes cluster", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -770,7 +782,7 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
+		if req.KubernetesCluster == "" && req.RequesterName != authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Database:
@@ -2912,7 +2924,9 @@ func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }

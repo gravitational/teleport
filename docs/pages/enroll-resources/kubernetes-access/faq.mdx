@@ -42,3 +42,16 @@ documentation and examples.
 Yes, Teleport generates a kubeconfig file (default `~/.kube/config`) when a user
 logs in to a Kubernetes cluster. GUI tools such as Lens can 
 interact with the Kubernetes cluster through Teleport as with any other standard kubeconfig.
+
+## How many MFA checks are required to connect to multiple Kubernetes clusters?
+
+One. When per-session MFA is required, a single `tsh proxy kube` run performs one MFA check
+and reuses it for every cluster the local proxy connects to, whether that is three clusters or five hundred.
+This requires Teleport (=kubernetes.multi_cluster_mfa_min_version=) or later
+on both `tsh` and the Teleport cluster.
+
+Headless authentication is the exception.
+Under `tsh proxy kube --headless`, each cluster requires its own MFA check.
+
+Check out [Per-session MFA](../../zero-trust-access/authentication/per-session-mfa.mdx)
+for the full flow and its limitations.
