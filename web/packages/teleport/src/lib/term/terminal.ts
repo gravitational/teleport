@@ -18,6 +18,7 @@
 
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITheme, Terminal } from '@xterm/xterm';
@@ -117,12 +118,13 @@ export default class TtyTerminal implements TerminalSearcher {
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       screenReaderMode: true,
       theme: this.options.theme,
-      allowProposedApi: true, // required for customizing SearchAddon properties
+      allowProposedApi: true, // required for customizing SearchAddon properties and for the Unicode API
     });
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
     this.term.loadAddon(this._searchAddon);
+    this.term.loadAddon(new UnicodeGraphemesAddon());
 
     // @xterm/addon-image relies on WebAssembly internally. The vite plugin guard-wasm
     // rewrites bare WebAssembly references so the module can be statically imported
