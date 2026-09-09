@@ -22,9 +22,12 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -33,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"pgregory.net/rapid"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -114,34 +118,39 @@ func (t testOS) OpenExe(ctx context.Context, proc *process.Process) (io.ReadClos
 }
 
 func Test_copyAtMost(t *testing.T) {
-	t.Run("n > len(src)", func(t *testing.T) {
+	// bytes.Reader never exhibits some behaviors io.Reader permits, such as
+	// returning data and io.EOF from the same call, so vary the reader too.
+	readers := map[string]func(io.Reader) io.Reader{
+		"bytes.Reader":  func(r io.Reader) io.Reader { return r },
+		"OneByteReader": iotest.OneByteReader,
+		"HalfReader":    iotest.HalfReader,
+		"DataErrReader": iotest.DataErrReader,
+	}
+	readerNames := slices.Sorted(maps.Keys(readers))
+
+	rapid.Check(t, func(t *rapid.T) {
+		src := rapid.SliceOf(rapid.Byte()).Draw(t, "src")
+		n := rapid.Int64Range(-1, int64(len(src))+8).Draw(t, "n")
+		reader := readers[rapid.SampledFrom(readerNames).Draw(t, "reader")]
+
 		var dst bytes.Buffer
-		src := bytes.NewReader([]byte{1, 2, 3})
+		copied, err := copyAtMost(&dst, reader(bytes.NewReader(src)), n)
 
-		copied, err := copyAtMost(&dst, src, 5)
-		require.NoError(t, err)
+		// As per Go convention, we expect copied to always equal the amount
+		// of bytes written to dst, regardless of whether an error was returned.
+		assert.EqualValues(t, dst.Len(), copied)
 
-		assert.Equal(t, int64(3), copied)
-		assert.Equal(t, []byte{1, 2, 3}, dst.Bytes())
-	})
-
-	t.Run("n == len(src)", func(t *testing.T) {
-		var dst bytes.Buffer
-		src := bytes.NewReader([]byte{1, 2, 3})
-
-		copied, err := copyAtMost(&dst, src, 3)
-		require.NoError(t, err)
-
-		assert.Equal(t, int64(3), copied)
-		assert.Equal(t, []byte{1, 2, 3}, dst.Bytes())
-	})
-
-	t.Run("n < len(src)", func(t *testing.T) {
-		var dst bytes.Buffer
-		src := bytes.NewReader([]byte{1, 2, 3})
-
-		_, err := copyAtMost(&dst, src, 1)
-		require.Error(t, err)
-		assert.True(t, trace.IsLimitExceeded(err))
+		if n == -1 || n >= int64(len(src)) {
+			// If in unlimited mode, or n is greater or equal to len of src, we
+			// expect all to be copied and no error.
+			assert.NoError(t, err)
+			assert.True(t, bytes.Equal(src, dst.Bytes()))
+		} else {
+			// If n is less than len of src, we expect an error, and n bytes to
+			// be copied.
+			assert.True(t, trace.IsLimitExceeded(err))
+			assert.EqualValues(t, n, copied)
+			assert.True(t, bytes.Equal(src[:n], dst.Bytes()))
+		}
 	})
 }
