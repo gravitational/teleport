@@ -249,7 +249,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteCertAuthority(ctx, *ca.ID())
+	err = s.TrustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
 
 	// test compare and swap
@@ -2079,10 +2079,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
-				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), true)
+				out, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
 				require.NoError(t, err)
 
-				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, ca.GetID()))
 				return out
 			},
 		},
@@ -2101,10 +2101,10 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
-				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), false)
+				out, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), false)
 				require.NoError(t, err)
 
-				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, s.TrustS.DeleteCertAuthority(ctx, ca.GetID()))
 				return out
 			},
 		},

@@ -4939,10 +4939,10 @@ func TestEvents(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
-				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
+				out, err := testSrv.Auth().GetCertAuthority(ctx, ca.GetID(), true)
 				require.NoError(t, err)
 
-				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, ca.GetID()))
 				return out
 			},
 		},
@@ -4961,10 +4961,10 @@ func TestEvents(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
-				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
+				out, err := testSrv.Auth().GetCertAuthority(ctx, ca.GetID(), false)
 				require.NoError(t, err)
 
-				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, *ca.ID()))
+				require.NoError(t, testSrv.Auth().DeleteCertAuthority(ctx, ca.GetID()))
 				return out
 			},
 		},
