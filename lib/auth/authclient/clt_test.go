@@ -41,7 +41,9 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
@@ -195,6 +197,83 @@ func TestAuthenticateUserRequestProto(t *testing.T) {
 	// An empty request must round-trip without spuriously populating fields.
 	empty := AuthenticateUserRequest{}
 	require.Empty(t, cmp.Diff(empty, AuthenticateUserRequestFromProto(empty.ToProto())))
+}
+
+func TestAuthenticateSSHRequestProto(t *testing.T) {
+	native := AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username:     "alice",
+			Pass:         &PassCreds{Password: []byte("hunter2")},
+			SSHPublicKey: []byte("ssh-pub"),
+			TLSPublicKey: []byte("tls-pub"),
+		},
+		TTL:               time.Hour,
+		CompatibilityMode: "standard",
+		RouteToCluster:    "leaf",
+		KubernetesCluster: "kube",
+		SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(&attestationv1.AttestationStatement{
+			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
+				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
+					SlotCert: []byte("ssh-slot-cert"),
+				},
+			},
+		}),
+		TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(&attestationv1.AttestationStatement{
+			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
+				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
+					SlotCert: []byte("tls-slot-cert"),
+				},
+			},
+		}),
+	}
+	backToNative, err := AuthenticateSSHRequestFromProto(native.ToProto())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(native, backToNative))
+
+	// An empty request must round-trip without spuriously populating fields.
+	empty := AuthenticateSSHRequest{}
+	backToEmpty, err := AuthenticateSSHRequestFromProto(empty.ToProto())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(empty, backToEmpty))
+}
+
+func TestCLILoginResponseProto(t *testing.T) {
+	native := &CLILoginResponse{
+		Username: "alice",
+		Cert:     []byte("ssh-cert"),
+		TLSCert:  []byte("tls-cert"),
+		HostSigners: []TrustedCerts{
+			{
+				ClusterName:     "fizz-buzz",
+				AuthorizedKeys:  [][]byte{[]byte("authorized-key")},
+				TLSCertificates: [][]byte{[]byte("tls-certificate")},
+			},
+		},
+		SAMLSingleLogoutEnabled: true,
+		MFAToken:                "mfa-token",
+		ClientOptions: ClientOptions{
+			DefaultRelayAddr: "relay.example.com:443",
+		},
+		BrowserMFAWebauthnResponse: &wantypes.CredentialAssertionResponse{
+			PublicKeyCredential: wantypes.PublicKeyCredential{
+				Credential: wantypes.Credential{
+					ID:   base64.RawURLEncoding.EncodeToString([]byte("credential-id")),
+					Type: "public-key",
+				},
+				RawID: []byte("credential-id"),
+			},
+			AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+				AuthenticatorResponse: wantypes.AuthenticatorResponse{
+					ClientDataJSON: []byte("client-data-json"),
+				},
+				AuthenticatorData: []byte("authenticator-data"),
+				Signature:         []byte("signature"),
+				UserHandle:        []byte("user-handle"),
+			},
+		},
+	}
+	backToNative := CLILoginResponseFromProto(native.ToProto())
+	require.Empty(t, cmp.Diff(native, backToNative))
 }
 
 func TestHTTPCircuitBreaker(t *testing.T) {

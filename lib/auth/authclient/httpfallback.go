@@ -30,6 +30,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -169,6 +170,58 @@ func (c *HTTPClient) authenticateWebUser(ctx context.Context, req AuthenticateUs
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalWebSession(out.Bytes())
+}
+
+// AuthenticateSSHUser authenticates a local user with their credentials and
+// issues SSH and TLS certificates on success.
+func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
+	resp, err := c.APIClient.AuthenticateSSHUser(ctx, req.ToProto())
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.authenticateSSHUserHTTP(ctx, req)
+		}
+		// gRPC surfaces an expired caller context as a status error with a
+		// timing-dependent message. Return the context error itself to keep
+		// the HTTP client's errors.Is behavior for callers.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, trace.Wrap(ctxErr)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return CLILoginResponseFromProto(resp), nil
+}
+
+// authenticateSSHUserHTTP authenticates a local user via the legacy HTTP
+// endpoint.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *Client) authenticateSSHUserHTTP(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
+	httpClient := c.HTTPClient
+	if req.HeadlessAuthenticationID != "" {
+		// Headless authentication blocks until approval, so apply the longer
+		// timeout to a clone of the shared HTTP client.
+		var err error
+		httpClient, err = c.CloneHTTPClient(
+			ClientParamTimeout(defaults.HeadlessLoginTimeout),
+			ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	out, err := httpClient.PostJSON(
+		ctx,
+		httpClient.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
+		req,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var re CLILoginResponse
+	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &re, nil
 }
 
 // TODO(noah): DELETE IN 21.0.0

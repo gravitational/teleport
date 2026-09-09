@@ -122,6 +122,7 @@ const (
 	AuthService_DeleteAllSAMLIdPSessions_FullMethodName            = "/proto.AuthService/DeleteAllSAMLIdPSessions"
 	AuthService_DeleteUserSAMLIdPSessions_FullMethodName           = "/proto.AuthService/DeleteUserSAMLIdPSessions"
 	AuthService_AuthenticateWebUser_FullMethodName                 = "/proto.AuthService/AuthenticateWebUser"
+	AuthService_AuthenticateSSHUser_FullMethodName                 = "/proto.AuthService/AuthenticateSSHUser"
 	AuthService_GetWebSession_FullMethodName                       = "/proto.AuthService/GetWebSession"
 	AuthService_ExtendWebSession_FullMethodName                    = "/proto.AuthService/ExtendWebSession"
 	AuthService_StreamWebSessions_FullMethodName                   = "/proto.AuthService/StreamWebSessions"
@@ -538,6 +539,9 @@ type AuthServiceClient interface {
 	// AuthenticateWebUser is called by the proxy to authenticate a local user
 	// with their credentials and issue a web session.
 	AuthenticateWebUser(ctx context.Context, in *AuthenticateWebUserRequest, opts ...grpc.CallOption) (*AuthenticateWebUserResponse, error)
+	// AuthenticateSSHUser is called by the proxy to authenticate a local user
+	// with their credentials and issue SSH and TLS certificates.
+	AuthenticateSSHUser(ctx context.Context, in *AuthenticateSSHUserRequest, opts ...grpc.CallOption) (*AuthenticateSSHUserResponse, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
 	// ExtendWebSession creates a new web session for a user based on a valid
@@ -2037,6 +2041,16 @@ func (c *authServiceClient) AuthenticateWebUser(ctx context.Context, in *Authent
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthenticateWebUserResponse)
 	err := c.cc.Invoke(ctx, AuthService_AuthenticateWebUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) AuthenticateSSHUser(ctx context.Context, in *AuthenticateSSHUserRequest, opts ...grpc.CallOption) (*AuthenticateSSHUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthenticateSSHUserResponse)
+	err := c.cc.Invoke(ctx, AuthService_AuthenticateSSHUser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4251,6 +4265,9 @@ type AuthServiceServer interface {
 	// AuthenticateWebUser is called by the proxy to authenticate a local user
 	// with their credentials and issue a web session.
 	AuthenticateWebUser(context.Context, *AuthenticateWebUserRequest) (*AuthenticateWebUserResponse, error)
+	// AuthenticateSSHUser is called by the proxy to authenticate a local user
+	// with their credentials and issue SSH and TLS certificates.
+	AuthenticateSSHUser(context.Context, *AuthenticateSSHUserRequest) (*AuthenticateSSHUserResponse, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
 	// ExtendWebSession creates a new web session for a user based on a valid
@@ -5059,6 +5076,9 @@ func (UnimplementedAuthServiceServer) DeleteUserSAMLIdPSessions(context.Context,
 }
 func (UnimplementedAuthServiceServer) AuthenticateWebUser(context.Context, *AuthenticateWebUserRequest) (*AuthenticateWebUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AuthenticateWebUser not implemented")
+}
+func (UnimplementedAuthServiceServer) AuthenticateSSHUser(context.Context, *AuthenticateSSHUserRequest) (*AuthenticateSSHUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AuthenticateSSHUser not implemented")
 }
 func (UnimplementedAuthServiceServer) GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetWebSession not implemented")
@@ -7096,6 +7116,24 @@ func _AuthService_AuthenticateWebUser_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).AuthenticateWebUser(ctx, req.(*AuthenticateWebUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_AuthenticateSSHUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateSSHUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).AuthenticateSSHUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_AuthenticateSSHUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).AuthenticateSSHUser(ctx, req.(*AuthenticateSSHUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10808,6 +10846,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuthenticateWebUser",
 			Handler:    _AuthService_AuthenticateWebUser_Handler,
+		},
+		{
+			MethodName: "AuthenticateSSHUser",
+			Handler:    _AuthService_AuthenticateSSHUser_Handler,
 		},
 		{
 			MethodName: "GetWebSession",

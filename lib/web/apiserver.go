@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/client"
@@ -5085,26 +5084,14 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 		TLSAttestationStatement: req.TLSAttestationStatement,
 	}
 
-	// We need to use the default callback timeout rather than the standard client timeout.
-	// However, authClient is shared across all Proxy->Auth requests, so we need to create
-	// a new client to avoid applying the callback timeout to other concurrent requests. To
-	// this end, we create a clone of the HTTP Client with the desired timeout instead.
-	httpClient, err := authClient.CloneHTTPClient(
-		authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
-		authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
-	)
-	if err != nil {
+	// A headless login blocks until the user approves it. The proxy web server
+	// currently sets no WriteTimeout, but extend the write deadline anyway so
+	// the response is not cut short if one is ever reintroduced.
+	if err := http.NewResponseController(w).SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
-	if conn, err := authz.ConnFromContext(r.Context()); err == nil {
-		if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
+	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

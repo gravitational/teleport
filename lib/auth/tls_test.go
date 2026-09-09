@@ -3799,6 +3799,65 @@ func TestAuthenticateWebUserCompat(t *testing.T) {
 	require.Equal(t, user, httpSess.GetUser())
 }
 
+// TestAuthenticateSSHUserCompat checks that SSH user authentication works
+// over both the gRPC RPC and the legacy HTTP endpoint.
+func TestAuthenticateSSHUserCompat(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	user := "ssh-compat-user"
+	pass := []byte("ssh-compat-password")
+	_, _, err = authtest.CreateUserAndRole(clt, user, []string{user}, nil)
+	require.NoError(t, err)
+	require.NoError(t, testSrv.Auth().UpsertPassword(user, pass))
+
+	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	req := authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
+		},
+		TTL: apidefaults.CertDuration,
+	}
+
+	// Authenticate through the fallback wrapper, which tries gRPC first.
+	resp, err := proxy.AuthenticateSSHUser(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, user, resp.Username)
+	require.NotEmpty(t, resp.Cert)
+	require.NotEmpty(t, resp.TLSCert)
+	require.NotEmpty(t, resp.HostSigners)
+
+	// Authenticating also works calling the gRPC RPC directly.
+	grpcResp, err := proxy.APIClient.AuthenticateSSHUser(ctx, req.ToProto())
+	require.NoError(t, err)
+	require.Equal(t, user, grpcResp.Username)
+	require.NotEmpty(t, grpcResp.Cert)
+	require.NotEmpty(t, grpcResp.HostSigners)
+
+	// Only proxies may call the RPC.
+	_, err = clt.APIClient.AuthenticateSSHUser(ctx, req.ToProto())
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Authenticating also works calling the legacy HTTP endpoint directly.
+	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP endpoint.
+	out, err := proxy.HTTPClient.PostJSON(ctx, proxy.HTTPClient.Endpoint("users", user, "ssh", "authenticate"), req)
+	require.NoError(t, err)
+	var httpResp authclient.CLILoginResponse
+	require.NoError(t, json.Unmarshal(out.Bytes(), &httpResp))
+	require.Equal(t, user, httpResp.Username)
+	require.NotEmpty(t, httpResp.Cert)
+	require.NotEmpty(t, httpResp.HostSigners)
+}
+
 // TestClusterConfigContext checks that the cluster configuration gets passed
 // along in the context and permissions get updated accordingly.
 func TestClusterConfigContext(t *testing.T) {
