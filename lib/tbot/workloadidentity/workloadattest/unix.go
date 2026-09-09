@@ -222,17 +222,19 @@ func copyAtMost(dst io.Writer, src io.Reader, n int64) (int64, error) {
 	case errors.Is(err, io.EOF):
 		return copied, nil
 	case err != nil:
-		return 0, err
+		return copied, err
 	}
 
-	// Try to read one more byte to see if we reached the end of src.
-	_, err = src.Read([]byte{0})
+	// Try to read one more byte to see if we reached the end of src. ReadFull
+	// is used because a bare Read may return (1, io.EOF), which must count as
+	// exceeding the limit.
+	_, err = io.ReadFull(src, []byte{0})
 	switch {
 	case errors.Is(err, io.EOF):
 		return copied, nil
 	case err != nil:
-		return 0, err
+		return copied, err
 	default:
-		return 0, trace.LimitExceeded("input is larger than limit (%d)", n)
+		return copied, trace.LimitExceeded("input is larger than limit (%d)", n)
 	}
 }
