@@ -113,12 +113,21 @@ export class WindowsManager {
   }
 
   createWindow(): void {
+    // Keep legacy window-state persistence during the migration:
+    // - app_state.json populates Electron's state on the first upgraded launch.
+    // - continuing to update it preserves window bounds for downgrades.
+    // Electron's persisted bounds take precedence over x, y, width, height when available.
+    //
+    // TODO(gzdunek): Remove the legacy read/write path once downgrades to releases
+    // without Electron window-state persistence are no longer supported.
     const windowState = this.getWindowState();
     const window = new BrowserWindow({
       x: windowState.x,
       y: windowState.y,
       width: windowState.width,
       height: windowState.height,
+      name: 'main-window',
+      windowStatePersistence: true,
       backgroundColor: resolveTeleportColor(
         'colors.levels.sunken',
         nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
