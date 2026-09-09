@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -33,8 +34,28 @@ const (
 	maxSCIMItemCount     = 200
 
 	queryFieldFilter = "filter"
-	maxSCIMBodyBytes = 1 * 1024 * 1024
+
+	defaultMaxSCIMBodyBytes = 3 * 1024 * 1024
+
+	// scimMaxBodyBytesEnvVar is the environment variable used to override
+	// defaultMaxSCIMBodyBytes.
+	scimMaxBodyBytesEnvVar = "TELEPORT_UNSTABLE_SCIM_MAX_BODY_BYTES"
 )
+
+// getMaxSCIMBodyBytes returns the maximum accepted size, in bytes, of a SCIM
+// request body, read from scimMaxBodyBytesEnvVar (falling back to
+// defaultMaxSCIMBodyBytes if unset or invalid).
+func getMaxSCIMBodyBytes() int64 {
+	v := os.Getenv(scimMaxBodyBytesEnvVar)
+	if v == "" {
+		return defaultMaxSCIMBodyBytes
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n <= 0 {
+		return defaultMaxSCIMBodyBytes
+	}
+	return n
+}
 
 func (p *Plugin) registerSCIMHandlers() {
 	p.Logger.InfoContext(context.Background(), "Registering SCIM endpoints")
@@ -83,16 +104,23 @@ func (p *Plugin) registerSCIMHandlers() {
 		p.h.WithUnauthenticatedHighLimiter(p.getToken))
 }
 
+// checkSCIMRequestAllowed returns an error if the request should be rejected
+// before reaching its handler, e.g. because SCIM isn't licensed for the
+// cluster or the request body is larger than we're willing to accept.
+func (p *Plugin) checkSCIMRequestAllowed(r *http.Request) error {
+	identity := modules.GetProtoEntitlement(new(p.h.GetClusterFeatures()), entitlements.OktaSCIM)
+	if !identity.Enabled {
+		return trace.AccessDenied("SCIM support requires Teleport Identity Governance")
+	}
+	return checkSCIMBodyLength(r)
+}
+
 func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, httprouter.Params) error) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 		p.Logger.Log(r.Context(), logutils.TraceLevel, "Handling SCIM request", "method", r.Method, "url", r.URL, teleport.ComponentKey, "scim")
 
-		var err error
-		features := p.h.GetClusterFeatures()
-		identity := modules.GetProtoEntitlement(&features, entitlements.OktaSCIM)
-		if !identity.Enabled {
-			err = trace.AccessDenied("SCIM support requires Teleport Identity Governance")
-		} else {
+		err := p.checkSCIMRequestAllowed(r)
+		if err == nil {
 			err = fn(w, r, params)
 		}
 
@@ -304,6 +332,18 @@ func extractDisplayName(r *scimpb.Resource) string {
 	return displayName.GetStringValue()
 }
 
+// checkSCIMBodyLength returns an error if the request's declared content
+// length exceeds getMaxSCIMBodyBytes.
+func checkSCIMBodyLength(r *http.Request) error {
+	if r.ContentLength <= getMaxSCIMBodyBytes() {
+		return nil
+	}
+	return trace.LimitExceeded("detected an unusually large SCIM request payload (%d bytes, limit %d bytes). "+
+		"If you are self-hosting Teleport, you can raise this limit by setting the %s environment variable; "+
+		"otherwise, please contact Teleport support and report this error along with the scale of your SCIM environment (e.g. number of users/groups)",
+		r.ContentLength, getMaxSCIMBodyBytes(), scimMaxBodyBytesEnvVar)
+}
+
 func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
 	ctx := r.Context()
 	integration := params.ByName("integration")
@@ -314,11 +354,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		"resource_type", resourceType,
 	)
 
-	if r.ContentLength > maxSCIMBodyBytes {
-		return trace.LimitExceeded("content length")
-	}
-
-	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: getMaxSCIMBodyBytes()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -392,11 +428,7 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		"resource_id", resourceID,
 	)
 
-	if r.ContentLength > maxSCIMBodyBytes {
-		return trace.LimitExceeded("content length")
-	}
-
-	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: getMaxSCIMBodyBytes()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -507,11 +539,7 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 		"resource_id", resourceID,
 	)
 
-	if r.ContentLength > maxSCIMBodyBytes {
-		return trace.LimitExceeded("content length")
-	}
-
-	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: getMaxSCIMBodyBytes()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
