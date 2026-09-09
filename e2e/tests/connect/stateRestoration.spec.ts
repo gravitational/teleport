@@ -222,6 +222,10 @@ test.describe('state restoration from disk', () => {
       // Verify the window actually moved. On environments where setBounds() is a no-op (e.g.
       // Wayland, tiling WMs), the relaunch assertion would pass trivially without this guard.
       expect(targetBounds).not.toEqual(initialBounds);
+
+      // Native window-state updates are scheduled asynchronously after bounds changes. Allow the
+      // update to be stored before disposing the first Electron process.
+      await page.waitForTimeout(500);
     }
 
     // Relaunch – the window should restore to the same size & position.
