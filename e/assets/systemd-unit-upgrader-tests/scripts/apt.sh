@@ -28,8 +28,19 @@ function log_pre_install_info() {
 # source.list is correct for older versions of debian.
 function install_dependencies() {
     source /etc/os-release
-    if (( VERSION_ID <= 10 )); then
-        sed -i 's|deb\.debian\.org|archive.debian.org/debian-archive|' /etc/apt/sources.list
+    if [[ "${ID}" == "debian" ]]; then
+        if (( VERSION_ID <= 10 )); then
+            sed -i 's|deb\.debian\.org|archive.debian.org/debian-archive|' /etc/apt/sources.list
+        elif (( VERSION_ID == 11 )); then
+            # Debian 11 LTS ended on 2026-08-31, so use the archived base
+            # repository for bullseye. The default image also configures
+            # bullseye-security, which is still needed to satisfy dependencies
+            # but has expired metadata while it awaits archival.
+            sed -i \
+                -e 's|deb\.debian\.org/debian |archive.debian.org/debian |' \
+                /etc/apt/sources.list
+            echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99bullseye-eol
+        fi
     fi
     apt-get "${APT_FLAGS[@]}" update
     apt-get "${APT_FLAGS[@]}" install curl apt-file apt-utils
