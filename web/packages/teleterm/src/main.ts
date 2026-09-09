@@ -226,6 +226,12 @@ async function initializeApp(): Promise<void> {
  * (https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Linux seems like a reasonable thing to do.
  */
 function updateSessionDataPath() {
+  const dataDir = process.env.CONNECT_DATA_DIR;
+  if (dataDir) {
+    app.setPath('sessionData', path.resolve(dataDir, 'sessionData'));
+    return;
+  }
+
   switch (process.platform) {
     case 'linux': {
       const xdgCacheHome = process.env.XDG_CACHE_HOME;
