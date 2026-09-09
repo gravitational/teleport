@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -117,9 +118,9 @@ func (c *scopedAssignmentsListCommand) list(ctx context.Context, client services
 	case teleport.Text:
 		return collection.WriteText(c.stdout, true)
 	case teleport.YAML:
-		return writeYAML(collection, c.stdout)
+		return utils.WriteYAML(c.stdout, collection.Resources())
 	case teleport.JSON:
-		return writeJSON(collection, c.stdout)
+		return utils.WriteJSONArray(c.stdout, collection.Resources())
 	}
 	return trace.BadParameter("unsupported format")
 }
