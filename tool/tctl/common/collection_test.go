@@ -46,21 +46,6 @@ var (
 	}
 )
 
-func TestDatabaseResourceMatchersToString(t *testing.T) {
-	resMatch := []*types.DatabaseResourceMatcher{
-		nil,
-		{
-			Labels: nil,
-		},
-		{
-			Labels: &types.Labels{
-				"x": []string{"y"},
-			},
-		},
-	}
-	require.Equal(t, "(Labels: x=[y])", databaseResourceMatchersToString(resMatch))
-}
-
 type writeTextTest struct {
 	collection          resources.Collection
 	wantVerboseTable    func() string
@@ -225,7 +210,7 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 			rdsDiscoveredNameLabel),
 	}
 	test := writeTextTest{
-		collection: &databaseServerCollection{servers: dbServers},
+		collection: resources.NewDatabaseServerCollection(dbServers),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Host", "Name", "Protocol", "URI", "Labels", "Version"},

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 func testCreateHealthCheckConfig(t *testing.T, clt *authclient.Client) {
@@ -126,9 +127,7 @@ func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
-		collection := &healthCheckConfigCollection{
-			items: []*healthcheckconfigv1.HealthCheckConfig{expected},
-		}
+		collection := resources.NewHealthCheckConfigCollection([]*healthcheckconfigv1.HealthCheckConfig{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 

@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package resources
 
 import (
-	"io"
+	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
-func writeJSON(c resources.Collection, w io.Writer) error {
-	return utils.WriteJSONArray(w, c.Resources())
-}
-
-func writeYAML(c resources.Collection, w io.Writer) error {
-	return utils.WriteYAML(w, c.Resources())
+func TestDatabaseResourceMatchersToString(t *testing.T) {
+	resMatch := []*types.DatabaseResourceMatcher{
+		nil,
+		{
+			Labels: nil,
+		},
+		{
+			Labels: &types.Labels{
+				"x": []string{"y"},
+			},
+		},
+	}
+	require.Equal(t, "(Labels: x=[y])", databaseResourceMatchersToString(resMatch))
 }
