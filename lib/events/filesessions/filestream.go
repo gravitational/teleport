@@ -165,6 +165,32 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
 }
 
+// AbortUpload aborts a multipart upload, cleaning up any parts that
+// were uploaded. This prevents the periodic completer from finalizing
+// a truncated recording after part failures.
+func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Move the upload out of the UUID-named uploads tree before deleting it.
+	// ListUploads skips the tombstone name, so even a subsequent removal
+	// failure cannot expose a partial upload to the periodic completer.
+	uploadRoot := h.uploadRootPath(upload)
+	tombstone := uploadRoot + ".aborted-" + uuid.NewString()
+	if err := os.Rename(uploadRoot, tombstone); err != nil {
+		err = trace.ConvertSystemError(err)
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err, "hiding failed upload")
+	}
+	if err := os.RemoveAll(tombstone); err != nil {
+		return trace.Wrap(trace.ConvertSystemError(err), "removing failed upload")
+	}
+	return nil
+}
+
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	if err := checkUpload(upload); err != nil {
@@ -253,11 +279,15 @@ Loop:
 	err = os.RemoveAll(h.uploadRootPath(upload))
 	if err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+		return trace.Wrap(trace.ConvertSystemError(err))
 	}
 	return nil
 }
 
 func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
 	uploadKey := h.recordingPath(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
@@ -267,6 +297,7 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 	log.DebugContext(ctx, "Aborting upload")
 	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+		return trace.Wrap(trace.ConvertSystemError(err))
 	}
 
 	log.InfoContext(ctx, "Aborted upload")
@@ -278,6 +309,9 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	var parts []events.StreamPart
 	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if _, err := os.Stat(h.uploadPath(upload)); err != nil {
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading upload marker")
 	}
 	err := filepath.Walk(h.uploadPath(upload), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
