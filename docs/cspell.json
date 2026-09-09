@@ -418,6 +418,7 @@
     "cloudflared",
     "cloudhsmv2",
     "cloudkms",
+    "cloudresourcemanager",
     "cloudspanner",
     "cloudsql",
     "cluster-6uysmebmutd",
