@@ -50,9 +50,6 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
-// ResourceCreateHandler is the generic implementation of a resource creation handler
-type ResourceCreateHandler func(context.Context, *authclient.Client, services.UnknownResource) error
-
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
@@ -79,9 +76,6 @@ type ResourceCommand struct {
 
 	verbose bool
 
-	CreateHandlers map[string]ResourceCreateHandler
-	UpdateHandlers map[string]ResourceCreateHandler
-
 	// Stdout allows to switch standard output source for resource command. Used in tests.
 	Stdout io.Writer
 }
@@ -99,8 +93,6 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	rc.CreateHandlers = map[string]ResourceCreateHandler{}
-	rc.UpdateHandlers = map[string]ResourceCreateHandler{}
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file.")
@@ -228,9 +220,9 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 		case teleport.Text:
 			return coll.WriteText(rc.Stdout, rc.verbose)
 		case teleport.YAML:
-			return writeYAML(coll, rc.Stdout)
+			return utils.WriteYAML(rc.Stdout, coll.Resources())
 		case teleport.JSON:
-			return writeJSON(coll, rc.Stdout)
+			return utils.WriteJSONArray(rc.Stdout, coll.Resources())
 		}
 		return trace.BadParameter("unsupported format")
 	}
@@ -407,21 +399,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 			continue
 		}
 
-		// Else fallback to the legacy logic
-
-		// locate the creator function for a given resource kind:
-		creator, found := rc.CreateHandlers[raw.Kind]
-		if !found {
-			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
-		}
-		// only return in case of error, to create multiple resources
-		// in case if yaml spec is a list
-		if err := creator(ctx, client, raw); err != nil {
-			if trace.IsAlreadyExists(err) {
-				return trace.Wrap(err, "use -f or --force flag to overwrite")
-			}
-			return trace.Wrap(err)
-		}
+		return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 	}
 }
 
@@ -649,12 +627,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		return handler.Get(ctx, client, "", nil, opts)
 	}
 
-	// The resource hasn't been migrated yet, falling back to the old logic.
-
-	switch ref.Kind {
-	case types.KindSessionRecordingConfig:
-	case types.KindToken:
-	}
 	return nil, trace.BadParameter("getting %q is not supported", ref.String())
 }
 

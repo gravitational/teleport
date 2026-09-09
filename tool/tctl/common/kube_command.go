@@ -115,9 +115,9 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 	case teleport.Text:
 		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(writeJSON(coll, os.Stdout))
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, coll.Resources()))
 	case teleport.YAML:
-		return trace.Wrap(writeYAML(coll, os.Stdout))
+		return trace.Wrap(utils.WriteYAML(os.Stdout, coll.Resources()))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

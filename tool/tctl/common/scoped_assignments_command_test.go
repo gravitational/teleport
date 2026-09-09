@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -212,14 +213,20 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 				output, err := runScopedCommand(t, clt, append(tc.args, "-f", "json"))
 				require.NoError(t, err)
 				var expectedJSON strings.Builder
-				require.NoError(t, writeJSON(collectExpectedAssignments(tc.expectedAssignmentNames), &expectedJSON))
+				require.NoError(t, utils.WriteJSONArray(
+					&expectedJSON,
+					collectExpectedAssignments(tc.expectedAssignmentNames).Resources(),
+				))
 				require.Equal(t, expectedJSON.String(), output.String())
 			})
 			t.Run("yaml", func(t *testing.T) {
 				output, err := runScopedCommand(t, clt, append(tc.args, "-f", "yaml"))
 				require.NoError(t, err)
 				var expectedYAML strings.Builder
-				require.NoError(t, writeYAML(collectExpectedAssignments(tc.expectedAssignmentNames), &expectedYAML))
+				require.NoError(t, utils.WriteYAML(
+					&expectedYAML,
+					collectExpectedAssignments(tc.expectedAssignmentNames).Resources(),
+				))
 				require.Equal(t, expectedYAML.String(), output.String())
 			})
 		})

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -128,7 +129,7 @@ func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
 		}
 		expected.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
 		collection := resources.NewHealthCheckConfigCollection([]*healthcheckconfigv1.HealthCheckConfig{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the AutoUpdateConfig resource.

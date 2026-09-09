@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -171,7 +172,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetClientID("abcdef")
 
 		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -208,7 +209,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
 		collection := resources.NewRoleCollection([]types.Role{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the role and validate that the expected field is updated.
@@ -247,7 +248,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
 		collection := resources.NewUserCollection([]types.User{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the user and validate that the expected field is updated.
@@ -284,7 +285,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetCaseInsensitiveRouting(true)
 
 		collection := &fakeCollection{[]types.Resource{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the cnc and validate that the expected field is updated.
@@ -322,7 +323,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
 		collection := &fakeCollection{[]types.Resource{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the cap and validate that the expected field is updated.
@@ -359,7 +360,7 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetMode(types.RecordAtProxy)
 
 		collection := &fakeCollection{[]types.Resource{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the src and validate that the expected field is updated.
@@ -458,7 +459,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetClientID("abcdef")
 
 		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -526,7 +527,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetAssertionConsumerService("updated-acs")
 
 		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -577,7 +578,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetSpec().GetMatchers()[0].SetGroups([]string{"baz", "quux"})
 
 		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
@@ -623,7 +624,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 		}
 		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
 		collection := resources.NewAutoUpdateConfigCollection(expected)
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the AutoUpdateConfig resource.
@@ -665,7 +666,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 		}
 		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
 		collection := resources.NewAutoUpdateVersionCollection(expected)
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the AutoUpdateVersion resource.
@@ -695,7 +696,7 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 		expected.Spec.Addr = "test2"
 
 		collection := resources.NewDynamicDesktopCollection([]types.DynamicWindowsDesktop{expected})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
@@ -744,7 +745,7 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 		created.GetMetadata().GetLabels()["env"] = "test"
 
 		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, scopes.QualifiedName{
@@ -1018,7 +1019,7 @@ func TestMultipleRoles(t *testing.T) {
 		}
 
 		collection := resources.NewRoleCollection(roles)
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+		return trace.NewAggregate(utils.WriteYAML(f, collection.Resources()), f.Close())
 	}
 
 	// Edit the role and validate that the expected field is updated.
