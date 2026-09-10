@@ -280,10 +280,31 @@ sections:
               | `total`                   | End-to-end duration of the reconciliation run, covering all sections above. Emitted on full and delta sync. |
 
               Reconciliation is also measured for each individual resource:
-            filters:
-              - teleport_plugin_entra_id_directory_user_
-              - teleport_plugin_entra_id_directory_accesslist_
-              - teleport_plugin_entra_id_directory_reconciled_
+            metrics:
+              - name: teleport_plugin_entra_id_directory_user_reconciliation_total
+                type: counter
+                component: Teleport Auth
+                description: Total number of individual user reconciliations. Labeled with operation and result.
+              - name: teleport_plugin_entra_id_directory_user_reconciliation_duration_seconds
+                type: histogram
+                component: Teleport Auth
+                description: Duration of individual user reconciliations. Labeled with operation and result.
+              - name: teleport_plugin_entra_id_directory_accesslist_reconciliation_total
+                type: counter
+                component: Teleport Auth
+                description: Total number of individual Access List reconciliations. Labeled with operation and result.
+              - name: teleport_plugin_entra_id_directory_accesslist_reconciliation_duration_seconds
+                type: histogram
+                component: Teleport Auth
+                description: Duration of individual Access List reconciliations, in seconds. Labeled with operation.
+              - name: teleport_plugin_entra_id_directory_reconciled_nested_member_total
+                type: counter
+                component: Teleport Auth
+                description: Number of Teleport nested Access Lists reconciled. Labeled with result.
+              - name: teleport_plugin_entra_id_directory_reconciled_nested_member_duration_seconds
+                type: histogram
+                component: Teleport Auth
+                description: Duration of each nested Access List reconciliation.
           - description: |
               The `operation` and `result` labels break down into the following values:
 
