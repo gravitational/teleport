@@ -2297,7 +2297,7 @@ gen-resource-docs:
 
 .PHONY: gen-metrics-docs
 gen-metrics-docs:
-	cd build.assets/tooling/cmd/metrics-ref-generator && go run . -config config.yaml
+	cd build.assets/tooling/cmd/metrics-ref-generator && go run .
 
 .PHONY: resource-docs-up-to-date
 resource-docs-up-to-date: must-start-clean/host gen-resource-docs

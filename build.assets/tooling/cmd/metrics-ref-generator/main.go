@@ -37,7 +37,7 @@ const (
 )
 
 func main() {
-	conf := flag.String("config", "conf.yaml", configHelp)
+	conf := flag.String("config", "config.yaml", configHelp)
 	flag.Parse()
 
 	conffile, err := os.Open(*conf)
@@ -59,7 +59,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = reference.Generate(teleportPackagePrefix, genconf, tmpl)
+	err = reference.Generate(teleportPackagePrefix, genconf, tmpl, *conf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)

@@ -33,7 +33,7 @@ The generator uses a YAML configuration file with the following fields.
 
 - `components` (array of component configuration objects): optional ordered mappings from metric name prefixes to component names. The first matching mapping is used. Used to populate the "Component" column for the field tables.
 
-- `sections` (array of section configuration objects): optional groupings for the generated page. Metrics that do not match any section's filters are placed in an implicit "Other" section.
+- `sections` (array of section configuration objects): metric categorization for the generated page. Required.
 
 ### Component configuration
 

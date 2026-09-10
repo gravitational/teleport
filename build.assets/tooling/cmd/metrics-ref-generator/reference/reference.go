@@ -37,8 +37,7 @@ type GeneratorConfig struct {
 	Introduction string `yaml:"introduction"`
 	// Components maps metric name prefixes to component names.
 	Components []ComponentConfig `yaml:"components"`
-	// Sections describes how the metrics are organized into categorical sections. Metrics that do not
-	// match any section are placed in an implicit "Other" section.
+	// Sections describes how the metrics are organized into categorical sections.
 	Sections []SectionConfig `yaml:"sections"`
 }
 
@@ -98,13 +97,13 @@ type metricRow struct {
 // Generate uses the provided configuration to write the metrics reference page to the destination
 // path. prefix, e.g. "github.com/gravitational/teleport", is used to construct Go package paths
 // while scanning the source tree.
-func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) error {
+func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template, configPath string) error {
 	collectedMetrics, err := metrics.CollectMetrics(prefix, conf.SourcePath)
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	pc, err := buildPageContent(conf, collectedMetrics)
+	pc, err := buildPageContent(conf, collectedMetrics, configPath)
 	if err != nil {
 		return fmt.Errorf("failed to build page content. %w", err)
 	}
@@ -122,11 +121,11 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 	return nil
 }
 
-// buildPageContent organises metrics into sections as configured and returns
-// the template data. Within each section metrics are sorted by full name.
-func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo) (pageContent, error) {
+// buildPageContent organises metrics into sections as configured and returns the template data and an error,
+// if sections are missing or any metrics are not covered by section filters. Within each section metrics are sorted by full name.
+func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo, configPath string) (pageContent, error) {
 	if len(conf.Sections) == 0 {
-		return pageContent{Sections: []sectionData{buildSection(SectionConfig{}, "", allMetrics, conf.Components)}}, nil
+		return pageContent{}, fmt.Errorf("\nNo sections defined in the configuration file (%v).", configPath)
 	}
 
 	matched := make([]bool, len(allMetrics))
@@ -144,7 +143,7 @@ func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo) (pa
 		for _, metric := range unmatched {
 			unmatchedNames = append(unmatchedNames, metric.FullName)
 		}
-		return pageContent{}, fmt.Errorf("\nThe following metrics are not covered by section filters: \n%v.\n\n Consider adding a matching section for these metrics in build.assets/tooling/cmd/metrics-ref-generator/config.yaml.", strings.Join(unmatchedNames, "\n"))
+		return pageContent{}, fmt.Errorf("\nThe following metrics are not covered by section filters: \n%v.\n\nPlease add matching section filters in %v.", strings.Join(unmatchedNames, "\n"), configPath)
 	}
 
 	return pageContent{Sections: sections}, nil
