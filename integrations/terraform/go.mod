@@ -21,7 +21,7 @@ require (
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.83.2
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc
 	gopkg.in/mail.v2 v2.3.1
 )
