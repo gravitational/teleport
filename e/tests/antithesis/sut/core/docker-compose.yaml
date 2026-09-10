@@ -38,6 +38,7 @@ services:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
     hostname: auth1
     container_name: auth1
+    init: true
     depends_on:
       pg:
         condition: service_healthy
@@ -62,6 +63,7 @@ services:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
     hostname: auth2
     container_name: auth2
+    init: true
     depends_on:
       pg:
         condition: service_healthy
@@ -86,6 +88,7 @@ services:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
     hostname: proxy1
     container_name: proxy1
+    init: true
     depends_on:
       auth1:
         condition: service_healthy
@@ -105,6 +108,7 @@ services:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
     hostname: proxy2
     container_name: proxy2
+    init: true
     depends_on:
       auth1:
         condition: service_healthy
@@ -245,6 +249,7 @@ services:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
     hostname: agent
     container_name: agent
+    init: true
     depends_on:
       proxy-lb:
         condition: service_started
