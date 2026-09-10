@@ -37,7 +37,9 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -74,21 +76,17 @@ func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.
 		return nil, trace.Wrap(err)
 	}
 
-	var items []*machineidv1.Bot
-	for pageToken := ""; ; {
-		bots, err := clt.BotServiceClient().ListBots(r.Context(), machineidv1.ListBotsRequest_builder{
-			PageSize:  int32(1000),
+	// todo (michellescripts) consider returning partial results
+	items, err := stream.Collect(clientutils.Resources(r.Context(), func(ctx context.Context, limit int, pageToken string) ([]*machineidv1.Bot, string, error) {
+		resp, err := clt.BotServiceClient().ListBots(r.Context(), machineidv1.ListBotsRequest_builder{
+			PageSize:  int32(limit),
 			PageToken: pageToken,
 		}.Build())
-		// todo (michellescripts) consider returning partial results
-		if err != nil {
-			return nil, trace.Wrap(err, "error getting bots")
-		}
-		items = append(items, bots.GetBots()...)
-		pageToken = bots.GetNextPageToken()
-		if pageToken == "" {
-			break
-		}
+
+		return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return ListBotsResponse{
