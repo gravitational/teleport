@@ -354,10 +354,11 @@ the public certificate with Entra ID and the private key with Teleport.
 $ openssl req -nodes -new -x509 -keyout server.key -out server.cer
 ```
 
-If you are modifying the existing connector, open it in your editor:
+If you are modifying the existing connector, open it in your editor, using the
+connector name you assigned earlier (`ad` in this guide):
 
 ```code
-$ tctl edit saml
+$ tctl edit saml/ad
 ```
 
 You will notice that Teleport has generated a `signing_key_pair`. This key pair

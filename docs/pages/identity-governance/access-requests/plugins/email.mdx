@@ -225,11 +225,11 @@ password.
 
 If you are deploying the email plugin on Kubernetes:
 
-1. Write your SMTP service's password a local file called `smtp-password.txt`.
+1. Write your SMTP service's password to a local file called `smtp-password`.
 1. Create a Kubernetes secret from the file:
 
   ```code
-  $ kubectl -n teleport create secret generic smtp-password --from-file=smtp-password
+  $ kubectl -n teleport create secret generic smtp-password --from-file=smtpPassword=smtp-password
   ```
 
 1. Assign `smtp.passwordFromSecret` to `smtp-password`.

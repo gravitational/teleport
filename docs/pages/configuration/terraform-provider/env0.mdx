@@ -156,7 +156,7 @@ provider "teleport" {
 These parameters must be set:
 - `addr` should match the public hostname and port of your Teleport cluster
 - `join_method` should be `env0`
-- `join_token` should match the name of the `token` resource created in Step #2
+- `join_token` should match the name of the `token` resource created in Step 3/5
 
 Be sure to remove any preexisting `identity_file_path`; it is replaced by
 `join_method` and `join_token`.
@@ -195,7 +195,7 @@ resource "teleport_role" "test" {
 
 You should now be able to perform a Terraform `plan` or `apply`. All types of
 triggers should work, including CLI, API, and Git, so long as the run is
-coordinated by Terraform Cloud.
+coordinated by env zero.
 
 If your local `terraform` is authenticated to env zero and
 [Remote Plan][remote-plan] is configured, you can run:
