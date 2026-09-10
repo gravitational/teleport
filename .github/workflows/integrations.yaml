@@ -51,7 +51,9 @@ jobs:
           - {image: "ubuntu:20.04", package-manager: "apt"}
           # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
           #- {image: "ubuntu:18.04", package-manager: "apt"}
-          - {image: "debian:11", package-manager: "apt"}
+          # debian:11 disabled because bullseye LTS ended on 2026-08-31 and
+          # bullseye-security InRelease metadata is now expired.
+          #- {image: "debian:11", package-manager: "apt"}
           - {image: "debian:12", package-manager: "apt"}
           - {image: "debian:13", package-manager: "apt"}
     container:
