@@ -99,7 +99,9 @@ export function mainResourceName(searchResult: ResourceSearchResult): string {
 }
 
 export const mainResourceField: {
-  [Kind in ResourceSearchResult['kind']]: keyof resourcesServiceTypes.SearchResultResource<Kind>;
+  [
+    Kind in ResourceSearchResult['kind']
+  ]: keyof resourcesServiceTypes.SearchResultResource<Kind>;
 } = {
   server: 'hostname',
   database: 'name',

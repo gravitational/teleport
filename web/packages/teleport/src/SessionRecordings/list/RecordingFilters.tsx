@@ -41,10 +41,9 @@ interface RecordingFilterOption {
 }
 
 export type RecordingFilterOptions = {
-  [key in Exclude<
-    RecordingsListFilterKey,
-    'types' | 'hideNonInteractive'
-  >]: RecordingFilterOption[];
+  [
+    key in Exclude<RecordingsListFilterKey, 'types' | 'hideNonInteractive'>
+  ]: RecordingFilterOption[];
 };
 
 interface RecordingFiltersProps {
