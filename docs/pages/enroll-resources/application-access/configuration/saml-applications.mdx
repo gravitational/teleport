@@ -1,0 +1,206 @@
+---
+title: Enrolling SAML Applications
+sidebar_label: SAML Applications
+description: Explains the SAML configuration changes required after enrolling an application with Teleport.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+page_type: conceptual
+---
+
+This page explains the SAML configuration changes required in the SAML application
+(service provider) and the identity provider so that the SAML application
+continues to authenticate its users via SAML after it is enrolled to Teleport.
+
+## Understanding the SAML configuration
+
+A SAML SSO configuration has two sides: you register the service provider's 
+Assertion Consumer Service (ACS) URL and audience URI (Entity ID) in the 
+identity provider, and the identity provider's SSO URL and issuer in the 
+service provider.
+
+During SAML authentication, the browser carries the authentication request to the
+identity provider's SSO URL and the response to the service provider's ACS URL.
+
+When you enroll a web application behind the Teleport Application Service, it is
+served by the Teleport Proxy under a new endpoint, as a subdomain of the
+Teleport Proxy Service address. You also make network changes so that the
+application can only be reached via the Teleport Proxy Service. This change in 
+the application's public address breaks SAML SSO, because the identity provider 
+still sends the SAML response to the application's previous endpoint. 
+
+To correct this, update the ACS URL configured in both the identity provider
+and the service provider to use the application's new public address.
+If the application's audience URI is derived from its public endpoint, update
+it in both places too.
+
+## Migration plan
+
+### Before SAML application enrollment to Teleport
+
+At this stage, the application is reachable at its own public address, and the 
+identity provider sends the SAML assertion to that address.
+
+```text
+  +-----------+
+  |    IdP    |
+  +-----^-----+
+        |
+        |
+        v
+  +-----------+      +--------------------------+
+  |  Browser  |<---->|       Application        |
+  +-----------+      |     app.example.com      |
+                     +--------------------------+
+```
+
+A typical SAML configuration at this stage is as follows:
+
+In the identity provider:
+
+- Application's ACS URL: `https://app.example.com/saml/acs`
+- Application's Audience URI: `urn:example:application`
+
+In the application (service provider):
+
+- IdP's SSO URL: `https://idp.example.com/saml/sso`
+- IdP's Entity ID: `https://idp.example.com/metadata`
+
+### After SAML application enrollment to Teleport
+
+The application is added to the Application Service configuration.
+For example:
+```yaml
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://app.localhost:8080"
+      public_addr: "app.example.teleport.sh"
+```
+
+The Teleport Proxy Service proxies HTTPS requests to the application, including 
+requests carrying the SAML SSO assertion.
+
+The SAML configuration must therefore use the Teleport endpoint as the 
+service provider address. 
+
+```text
+  +-----------+
+  |    IdP    |
+  +-----^-----+
+        |
+        |
+        v
+  +-----------+      +------------------------------+      +---------------+
+  |  Browser  |<---->|          Teleport            |<---->|  Application  |
+  +-----------+      |   app.example.teleport.sh    |      +---------------+
+                     +------------------------------+
+```
+
+In the identity provider:
+
+- Application's ACS URL: `https://app.example.teleport.sh/saml/acs`
+- Application's Audience URI: `urn:example:application`
+
+Notice that the identity provider now points to the Teleport Proxy address.
+
+In the application (service provider):
+
+- IdP's SSO URL: `https://idp.example.com/saml/sso`
+- IdP's Entity ID: `https://idp.example.com/metadata`
+
+Notice the endpoint for the identity provider remains the same.
+
+However, depending on your application, you may also need to change the following 
+configurations in the application.
+
+#### Application's ACS URL 
+
+Many SAML applications require the ACS URL to be set explicitly in the application's
+SAML configuration. If your application requires that, you need to update the 
+application's configuration with the same Teleport domain you configured in the 
+identity provider: `https://app.example.teleport.sh/saml/acs`.
+
+#### Header rewrites
+
+Some SAML applications build their base URL from the `Host` header of the incoming 
+HTTP request, and derive the ACS URL they expect from the same value. 
+
+If your application behaves this way, configure a header rewrite in the
+Teleport Application Service so that the application receives its Teleport address
+in the `Host` header.
+
+Example:
+```yaml
+apps:
+  - name: app
+    uri: "http://app.localhost:8080"
+    public_addr: "app.example.teleport.sh"
+    rewrite:
+      headers:
+        - "Host: app.example.teleport.sh"
+```
+
+## FAQs
+
+### Will there be any changes to how a user initiates the login process?
+
+Yes. The Teleport Application Service maintains its own user session before proxying 
+to the application. Before the user even starts the SAML SSO, they must have a 
+valid Teleport session for the application.
+
+To log in to the application, the user clicks the **Launch** button on the 
+application tile in the Teleport Web UI. The Teleport Web UI then creates a new
+application session for the user and opens the application at its designated
+subdomain, where the user can continue with the SAML SSO from the application itself.
+
+Both service provider initiated and identity provider initiated logins work
+as long as the user has an active Teleport session for that specific application. 
+
+For a bookmarked login link, the user can copy the URL from the same **Launch** 
+button on the application tile in the Teleport Web UI.
+
+### Is the Teleport Application Service fully compatible with the SAML?
+
+The Teleport Application Service does not modify SAML messages.
+Requests carried by the HTTP Redirect or POST bindings, and responses carried 
+by the HTTP POST or Artifact bindings, all continue to work as long as the user 
+has an active Teleport session for that application. 
+
+HTTP-Artifact binding also requires the application to reach the identity provider
+directly, as explained [below](#does-the-application-need-egress-access-to-the-identity-provider).
+
+### Does the application need egress access to the identity provider?
+
+There are two cases where the application needs egress access to the identity provider: 
+
+- **Live entity descriptor validation**: To verify a SAML assertion, the service 
+  provider checks the identity provider's entity descriptor. Some applications 
+  configure this entity descriptor once during setup and validate incoming 
+  assertions against the saved copy. Others fetch the entity descriptor at each 
+  validation attempt. 
+- **HTTP-Artifact binding**: When an application is configured to use the HTTP-Artifact
+  binding method to complete the SSO, the assertion data is exchanged back-channel.
+  In this case, the service provider requests the SAML assertion by directly 
+  querying the identity provider's endpoint.
+
+### Does the identity provider need egress access to the service provider?
+
+Not during SSO. 
+
+It may need it while you configure the service provider.
+Some identity providers fetch the service provider's metadata to populate
+or validate SAML configuration. If the application is already served by Teleport, 
+that fetch requires the identity provider's HTTP client to complete the Teleport 
+login process, which it cannot do. 
+
+Most identity providers also support configuring the entity descriptor by uploading
+the entity descriptor file, which avoids the need to fetch it from the 
+service provider's metadata endpoint.
+
+## Next steps
+
+- [Enroll a web application](../protect-apps/connecting-apps.mdx) with the Teleport Application Service.
+- Check [Advanced options](../protect-apps/connecting-apps.mdx#advanced-options) available in the Application Service. 
