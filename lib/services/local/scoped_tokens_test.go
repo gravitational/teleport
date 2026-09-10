@@ -563,7 +563,7 @@ func newToken() *joiningv1.ScopedToken {
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
 		}.Build(),
 		Status: joiningv1.ScopedTokenStatus_builder{
-			Secret: "secret",
+			Secret: uuid.NewString(),
 		}.Build(),
 	}.Build()
 }
@@ -935,6 +935,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		for i := range numUsers {
 			wg.Go(func() error {
 				update := proto.CloneOf(token)
+				update.ClearStatus()
 				update.GetMetadata().SetLabels(map[string]string{
 					"user": fmt.Sprintf("user-%d", i),
 				})
