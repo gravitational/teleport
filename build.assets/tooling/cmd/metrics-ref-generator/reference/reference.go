@@ -104,7 +104,10 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	pc := buildPageContent(conf, collectedMetrics)
+	pc, err := buildPageContent(conf, collectedMetrics)
+	if err != nil {
+		return fmt.Errorf("failed to build page content. %w", err)
+	}
 	pc.Introduction = conf.Introduction
 
 	doc, err := os.Create(conf.Destination)
@@ -121,9 +124,9 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 
 // buildPageContent organises metrics into sections as configured and returns
 // the template data. Within each section metrics are sorted by full name.
-func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo) pageContent {
+func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo) (pageContent, error) {
 	if len(conf.Sections) == 0 {
-		return pageContent{Sections: []sectionData{buildSection(SectionConfig{}, "", allMetrics, conf.Components)}}
+		return pageContent{Sections: []sectionData{buildSection(SectionConfig{}, "", allMetrics, conf.Components)}}, nil
 	}
 
 	matched := make([]bool, len(allMetrics))
@@ -137,10 +140,14 @@ func buildPageContent(conf GeneratorConfig, allMetrics []metrics.MetricInfo) pag
 		}
 	}
 	if len(unmatched) > 0 {
-		sections = append(sections, buildSection(SectionConfig{Title: "Other"}, "##", unmatched, conf.Components))
+		unmatchedNames := make([]string, 0, len(unmatched))
+		for _, metric := range unmatched {
+			unmatchedNames = append(unmatchedNames, metric.FullName)
+		}
+		return pageContent{}, fmt.Errorf("\nThe following metrics are not covered by section filters: \n%v.\n\n Consider adding a matching section for these metrics in build.assets/tooling/cmd/metrics-ref-generator/config.yaml.", strings.Join(unmatchedNames, "\n"))
 	}
 
-	return pageContent{Sections: sections}
+	return pageContent{Sections: sections}, nil
 }
 
 // buildSections recursively constructs sectionData for each section configuration,
