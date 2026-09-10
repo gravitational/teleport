@@ -19,6 +19,8 @@
 package common
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -48,40 +51,31 @@ func (f mcpOAuthRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, 
 	return f(req)
 }
 
-func TestSaveMCPOAuthLoginCredentialsSerializesWithRefresh(t *testing.T) {
+func TestRunMCPOAuthLoginWaitsForRefresh(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "app.json")
-	mutationLockPath := filepath.Join(dir, "mcp_oauth.lock")
-	require.NoError(t, saveMCPOAuthCredentials(path, newTestCreds("old-token", time.Now().Add(-time.Hour))))
 	unlock, err := utils.FSTryWriteLockTimeout(t.Context(), path+".lock", time.Second)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = unlock() })
 
-	loggedIn := newTestCreds("login-token", time.Now().Add(time.Hour))
-	loggedIn.ClientID = "new-client"
-	saved := make(chan error, 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
 	go func() {
-		saved <- saveMCPOAuthLoginCredentials(t.Context(), path, mutationLockPath, false, loggedIn)
+		done <- runMCPOAuthLogin(ctx, mcpOAuthLoginConfig{
+			Dialer:          newTestMCPOAuthDialer(t),
+			App:             newTestMCPOAuthApp(t),
+			CredentialsPath: path,
+			LockPath:        filepath.Join(dir, "mcp_oauth.lock"),
+		})
 	}()
 	select {
-	case err := <-saved:
-		require.FailNow(t, "login write did not wait for refresh", "%v", err)
+	case err := <-done:
+		require.FailNow(t, "login did not wait for the refresh lock", "%v", err)
 	case <-time.After(100 * time.Millisecond):
 	}
-
-	store := &fileTokenStore{
-		path:             path,
-		mutationLockPath: mutationLockPath,
-		resourceURI:      testMCPOAuthResourceURI,
-		issuer:           testMCPOAuthIssuer,
-	}
-	require.NoError(t, store.SaveToken(t.Context(), &mcpclienttransport.Token{AccessToken: "refreshed-old-token"}))
-	require.NoError(t, unlock())
-	require.NoError(t, <-saved)
-
-	creds, err := loadMCPOAuthCredentials(path)
-	require.NoError(t, err)
-	require.Equal(t, "new-client", creds.ClientID)
-	require.Equal(t, "login-token", creds.Token.AccessToken)
+	cancel()
+	require.ErrorContains(t, <-done, "waiting for another tsh process")
 }
 
 func TestCheckMCPOAuthCallbackIssuer(t *testing.T) {
@@ -1068,4 +1062,74 @@ func TestMCPOAuthCallbackHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, get("/callback?state=expected&code=second"))
 	require.Equal(t, "first", (<-callbackCh).Get("code"))
 	require.Empty(t, callbackCh)
+}
+
+func TestMCPLoginOAuthClientCredentials(t *testing.T) {
+	newCommand := func() *mcpLoginCommand {
+		return &mcpLoginCommand{
+			cf: &CLIConf{
+				Context:        t.Context(),
+				overrideStderr: &bytes.Buffer{},
+			},
+		}
+	}
+
+	t.Run("dynamic registration", func(t *testing.T) {
+		clientID, clientSecret, err := newCommand().getOAuthClientCredentials()
+		require.NoError(t, err)
+		require.Empty(t, clientID)
+		require.Empty(t, clientSecret)
+	})
+
+	t.Run("public pre-registered client", func(t *testing.T) {
+		cmd := newCommand()
+		cmd.clientID = "client-id"
+
+		clientID, clientSecret, err := cmd.getOAuthClientCredentials()
+		require.NoError(t, err)
+		require.Equal(t, "client-id", clientID)
+		require.Empty(t, clientSecret)
+	})
+
+	t.Run("prompt for confidential client secret", func(t *testing.T) {
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString("client-secret"))
+
+		cmd := newCommand()
+		cmd.clientID = "client-id"
+		cmd.promptSecret = true
+
+		clientID, clientSecret, err := cmd.getOAuthClientCredentials()
+		require.NoError(t, err)
+		require.Equal(t, "client-id", clientID)
+		require.Equal(t, "client-secret", clientSecret)
+	})
+
+	t.Run("secret requires client ID", func(t *testing.T) {
+		cmd := newCommand()
+		cmd.promptSecret = true
+
+		_, _, err := cmd.getOAuthClientCredentials()
+		require.True(t, trace.IsBadParameter(err))
+		require.ErrorContains(t, err, "requires --client-id")
+	})
+
+	t.Run("empty client secret", func(t *testing.T) {
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString(""))
+
+		cmd := newCommand()
+		cmd.clientID = "client-id"
+		cmd.promptSecret = true
+
+		_, _, err := cmd.getOAuthClientCredentials()
+		require.True(t, trace.IsBadParameter(err))
+		require.ErrorContains(t, err, "client secret is empty")
+	})
 }

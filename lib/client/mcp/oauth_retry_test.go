@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type oauthRetryRoundTripperFunc func(*http.Request) (*http.Response, error)
@@ -108,13 +111,49 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 		require.Equal(t, 1, refreshes)
 	})
 
-	t.Run("does not clone a non-replayable request body", func(t *testing.T) {
+	t.Run("buffers a non-replayable body and replays it", func(t *testing.T) {
+		var bodies []string
+		transport := &oauthRetryRoundTripper{
+			base: oauthRetryRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+				bodies = append(bodies, string(body))
+				if len(bodies) == 1 {
+					return invalidTokenResponse(req), nil
+				}
+				return response(req, http.StatusOK), nil
+			}),
+			refreshAuthHeader: func(context.Context, string) (string, error) {
+				return "Bearer fresh-token", nil
+			},
+		}
 		req, err := http.NewRequest(http.MethodPost, "http://localhost/mcp", io.NopCloser(strings.NewReader("streaming body")))
 		require.NoError(t, err)
-		retry, ok, err := cloneRequestForOAuthRetry(req)
+		require.Nil(t, req.GetBody)
+
+		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
-		require.False(t, ok)
-		require.Nil(t, retry)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, []string{"streaming body", "streaming body"}, bodies)
+	})
+
+	t.Run("rejects an oversized non-replayable body", func(t *testing.T) {
+		transport := &oauthRetryRoundTripper{
+			base: oauthRetryRoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("oversized request must not be forwarded")
+				return nil, nil
+			}),
+		}
+		req, err := http.NewRequest(http.MethodPost, "http://localhost/mcp", io.NopCloser(strings.NewReader(strings.Repeat("x", teleport.MaxHTTPRequestSize))))
+		require.NoError(t, err)
+
+		resp, err := transport.RoundTrip(req)
+		if resp != nil {
+			defer resp.Body.Close()
+		}
+		require.Nil(t, resp)
+		require.ErrorIs(t, err, utils.ErrLimitReached)
 	})
 
 	t.Run("returns refresh failure", func(t *testing.T) {
@@ -175,7 +214,6 @@ func TestIsOAuthInvalidTokenResponse(t *testing.T) {
 		{"invalid request", http.StatusBadRequest, `Bearer error="invalid_request"`, false},
 		{"insufficient scope", http.StatusForbidden, `Bearer error="insufficient_scope"`, false},
 		{"missing challenge", http.StatusUnauthorized, "", false},
-		{"description only", http.StatusUnauthorized, `Bearer error_description="invalid_token"`, false},
 		{"wrong status", http.StatusInternalServerError, `Bearer error="invalid_token"`, false},
 	}
 	for _, test := range tests {

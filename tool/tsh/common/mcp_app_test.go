@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -40,6 +41,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMakeMCPReconnectUserMessageWithAuthDetail(t *testing.T) {
+	t.Parallel()
+
+	message := makeMCPReconnectUserMessageWithAuthDetail(
+		"sentry",
+		"Stored credentials were sent but rejected. Run `tsh mcp login sentry` in a terminal, then retry.",
+		mcpclienttransport.ErrUnauthorized,
+	)
+	require.Contains(t, message, `MCP server "sentry" rejected the request with HTTP 401.`)
+	require.Contains(t, message, "tsh mcp login sentry")
+}
 
 func Test_fetchMCPServers(t *testing.T) {
 	devLabels := map[string]string{"env": "dev"}
@@ -434,12 +447,12 @@ func Test_parseHTTPHeaders(t *testing.T) {
 			name: "multiple headers",
 			inputArgs: []string{
 				"a:b",
-				"c: d",
+				"authorization: d",
 			},
 			checkError: require.NoError,
 			expected: map[string]string{
-				"a": "b",
-				"c": "d",
+				"A":             "b",
+				"Authorization": "d",
 			},
 		},
 		{

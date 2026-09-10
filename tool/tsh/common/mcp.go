@@ -36,6 +36,8 @@ type mcpCommands struct {
 	config  *mcpConfigCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
+	login   *mcpLoginCommand
+	logout  *mcpLogoutCommand
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
@@ -48,6 +50,8 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 		list:    newMCPListCommand(mcp, cf),
 		config:  newMCPConfigCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
+		login:   newMCPLoginCommand(mcp, cf),
+		logout:  newMCPLogoutCommand(mcp, cf),
 	}
 }
 

@@ -21,14 +21,17 @@ package common
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -55,6 +58,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 	cmd.Arg("name", "Name of the MCP server.").Required().SetValue(&cf.AppSQN)
 	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).Default("true").BoolVar(&cmd.autoReconnect)
 	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
+	cmd.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	return cmd
 }
 
@@ -503,15 +507,38 @@ func (c *mcpConnectCommand) run() error {
 	}
 
 	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN)
+
+	appName := c.cf.AppSQN.String()
+	authDetail := fmt.Sprintf("If the server uses OAuth, run `tsh mcp login %s` in a terminal, then retry.", appName)
+	var getAuthHeader func(context.Context) (string, error)
+	var refreshAuthHeader func(context.Context, string) (string, error)
+	if _, ok := httpHeaders[authorizationHeader]; ok {
+		logger.InfoContext(c.cf.Context, "Using the explicit Authorization header from -H; stored MCP OAuth credentials are ignored", "app", appName)
+		authDetail = "The explicit Authorization header from -H was sent, so check its value; credentials from `tsh mcp login` are ignored while it is set."
+	} else {
+		credsPath, err := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.Username, tc.SiteName, c.cf.AppSQN)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		mutationLockPath := mcpOAuthMutationLockPath(c.cf.HomePath)
+		reauthorize := newMCPOAuthReauthorizeFunc(dialer, appName, credsPath, mutationLockPath, c.cf.Browser, c.cf.Stderr())
+		source := newMCPOAuthHeaderSource(dialer, credsPath, mutationLockPath, appName, reauthorize)
+		getAuthHeader, refreshAuthHeader = source.GetAuthHeader, source.RefreshAuthHeader
+	}
+
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{
-			ClientStdio:              utils.CombinedStdio{},
-			GetApp:                   dialer.GetApp,
-			DialServer:               dialer.DialALPN,
-			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
-			AutoReconnect:            c.autoReconnect,
-			HTTPHeaders:              httpHeaders,
+			ClientStdio: utils.CombinedStdio{},
+			GetApp:      dialer.GetApp,
+			DialServer:  dialer.DialALPN,
+			MakeReconnectUserMessage: func(err error) string {
+				return makeMCPReconnectUserMessageWithAuthDetail(appName, authDetail, err)
+			},
+			AutoReconnect:         c.autoReconnect,
+			HTTPHeaders:           httpHeaders,
+			GetHTTPAuthHeader:     getAuthHeader,
+			RefreshHTTPAuthHeader: refreshAuthHeader,
 		},
 	)
 }
@@ -526,14 +553,33 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 		if !ok {
 			return nil, trace.BadParameter("malformed header %q", header)
 		}
-		httpHeaders[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		httpHeaders[http.CanonicalHeaderKey(strings.TrimSpace(key))] = strings.TrimSpace(value)
 	}
 	return httpHeaders, nil
 }
 
 func makeMCPReconnectUserMessage(err error) string {
+	return makeMCPReconnectUserMessageWithAuthDetail("", "", err)
+}
+
+func makeMCPReconnectUserMessageWithAuthDetail(appName, authDetail string, err error) string {
+	var loginRequiredErr *mcpOAuthLoginRequiredError
 	var userMessage string
 	switch {
+	case errors.As(err, &loginRequiredErr):
+		return fmt.Sprintf("Authentication with MCP server %q is required or has expired."+
+			" Run `tsh mcp login %s` in a terminal, complete authorization in the browser, then retry the request.",
+			loginRequiredErr.appName, loginRequiredErr.appName)
+	case errors.Is(err, mcpclienttransport.ErrUnauthorized):
+		server := "The MCP server"
+		if appName != "" {
+			server = fmt.Sprintf("MCP server %q", appName)
+		}
+		message := server + " rejected the request with HTTP 401. Do not use the MCP client's built-in OAuth login for a Teleport endpoint."
+		if authDetail != "" {
+			message += " " + authDetail
+		}
+		return message
 	case clientmcp.IsLikelyTemporaryNetworkError(err):
 		userMessage = "A network error occurred while trying to connect to Teleport." +
 			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
@@ -550,6 +596,5 @@ func makeMCPReconnectUserMessage(err error) string {
 			" Please ensure your tsh session is valid and restart your MCP client to see if the problem is resolved."
 	}
 
-	userMessage += " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
-	return userMessage
+	return userMessage + " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
 }

@@ -19,16 +19,26 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Only invalid_token is retryable per https://www.rfc-editor.org/rfc/rfc6750.html#section-3.1.
-var oauthInvalidTokenErrorPattern = regexp.MustCompile(`(?i)(?:^|[,\t ])error[\t ]*=[\t ]*(?:"invalid_token"|invalid_token)(?:[,\t ]|$)`)
+// NewOAuthRetryRoundTripper returns a round tripper that, when the server
+// answers with a Bearer invalid_token challenge, asks refreshAuthHeader for a
+// new Authorization header and replays the request once. A body that cannot be
+// re-read is buffered before the first attempt, bounded by
+// teleport.MaxHTTPRequestSize.
+func NewOAuthRetryRoundTripper(base http.RoundTripper, refreshAuthHeader func(ctx context.Context, rejectedHeader string) (string, error)) http.RoundTripper {
+	return &oauthRetryRoundTripper{base: base, refreshAuthHeader: refreshAuthHeader}
+}
 
 type oauthRetryRoundTripper struct {
 	base              http.RoundTripper
@@ -45,20 +55,21 @@ func (t *oauthRetryRoundTripper) CloseIdleConnections() {
 }
 
 func (t *oauthRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req, err := withReplayableBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp, err := t.base.RoundTrip(req)
 	if err != nil || !isOAuthInvalidTokenResponse(resp) {
 		return resp, err
 	}
 
-	retry, ok, err := cloneRequestForOAuthRetry(req)
+	retry, err := cloneRequestForOAuthRetry(req)
 	if err != nil {
 		if resp.Body != nil {
 			resp.Body.Close()
 		}
 		return nil, trace.Wrap(err)
-	}
-	if !ok {
-		return resp, nil
 	}
 	if resp.Body != nil {
 		resp.Body.Close()
@@ -75,31 +86,50 @@ func (t *oauthRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return t.base.RoundTrip(retry)
 }
 
+// isOAuthInvalidTokenResponse reports whether a 401 carries a Bearer challenge
+// with error="invalid_token", the only error code a token refresh can fix:
+// https://www.rfc-editor.org/rfc/rfc6750.html#section-3.1
 func isOAuthInvalidTokenResponse(resp *http.Response) bool {
 	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
 		return false
 	}
 	for _, challenge := range resp.Header.Values("WWW-Authenticate") {
-		if strings.Contains(strings.ToLower(challenge), "bearer") &&
-			oauthInvalidTokenErrorPattern.MatchString(challenge) {
+		if strings.Contains(challenge, "invalid_token") {
 			return true
 		}
 	}
 	return false
 }
 
-func cloneRequestForOAuthRetry(req *http.Request) (*http.Request, bool, error) {
-	retry := req.Clone(req.Context())
-	if req.Body == nil || req.Body == http.NoBody {
-		return retry, true, nil
+// withReplayableBody buffers a body that has no GetBody so the request can be
+// replayed. Requests built by http.NewRequest from an in-memory reader already
+// carry GetBody; requests proxied from an http.Server do not.
+func withReplayableBody(req *http.Request) (*http.Request, error) {
+	if req.Body == nil || req.Body == http.NoBody || req.GetBody != nil {
+		return req, nil
 	}
+	body, err := utils.ReadAtMost(req.Body, teleport.MaxHTTPRequestSize)
+	_ = req.Body.Close()
+	if err != nil {
+		return nil, trace.Wrap(err, "buffering request body for OAuth retry")
+	}
+	req = req.Clone(req.Context())
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	return req, nil
+}
+
+func cloneRequestForOAuthRetry(req *http.Request) (*http.Request, error) {
+	retry := req.Clone(req.Context())
 	if req.GetBody == nil {
-		return nil, false, nil
+		return retry, nil
 	}
 	body, err := req.GetBody()
 	if err != nil {
-		return nil, false, trace.Wrap(err, "recreating request body for OAuth retry")
+		return nil, trace.Wrap(err, "recreating request body for OAuth retry")
 	}
 	retry.Body = body
-	return retry, true, nil
+	return retry, nil
 }
