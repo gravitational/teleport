@@ -14,9 +14,6 @@ page_type: reference
 
 This page lists the configuration fields in a usage example of the
 teleport-discovery-aws Terraform module: single-account.
-
-Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account)
-
 ## Teleport AWS Account Discovery Example
 
 Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover EC2 and EKS resources in a single AWS account.
@@ -55,3 +52,79 @@ No inputs.
 | ---- | ----------- |
 | aws\_discovery | n/a |
 {/* END_TF_DOCS */}
+## Source Code
+
+[View the single-account example source code for the teleport-discovery-aws module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account).
+
+```hcl
+################################################################################
+# teleport/discovery/aws/examples/single-account/main.tf
+################################################################################
+
+module "aws_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  # Discover EC2 instances and EKS clusters with separate matching rules.
+  # Both types accept "*" to discover across all enabled regions. The module
+  # adds account:ListRegions to the IAM policy automatically when "*" is used.
+  aws_matchers = [
+    {
+      types   = ["ec2"]
+      regions = ["*"]
+      tags = {
+        env = ["prod"]
+      }
+    },
+    {
+      types   = ["eks"]
+      regions = ["*"]
+      tags = {
+        team = ["platform"]
+      }
+      # Teleport's Kubernetes App Discovery will automatically identify and enroll HTTP applications running inside a Kubernetes cluster.
+      kube_app_discovery = true
+    }
+  ]
+
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+  # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
+  apply_aws_tags = { origin = "example" }
+}
+
+################################################################################
+# teleport/discovery/aws/examples/single-account/outputs.tf
+################################################################################
+
+output "aws_discovery" {
+  value = module.aws_discovery
+}
+
+################################################################################
+# teleport/discovery/aws/examples/single-account/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = ">= 18.5.1"
+    }
+  }
+}
+
+```

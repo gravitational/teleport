@@ -19,8 +19,6 @@ tags:
 This page lists the input fields and output values of the teleport-discovery-aws
 Terraform module.
 
-Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws)
-
 ## AWS Discovery Terraform module
 
 This Terraform module creates the AWS and Teleport cluster resources necessary for a Teleport cluster to discover AWS resources.
@@ -207,3 +205,7 @@ No modules.
 | teleport\_organization\_join\_validation\_iam\_role\_template | When not using OIDC, attach this policy to the AWS principal used by the Auth Service. |
 | teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials. Token details can be viewed with `tctl get token/<name>`. |
 {/* END_TF_DOCS */}
+
+## Source Code
+
+[View the teleport-discovery-aws module source code on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws).
