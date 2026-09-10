@@ -47,6 +47,7 @@ MODULES_DOC_INDEX="${TMPDIR}/terraform-modules.mdx"
 MODULES_ROOT_DIR="$(git rev-parse --show-prefix)" # the relative path from the git repo to the modules dir, e.g., "integrations/terraform-modules" at time of writing.
 MODULES_ROOT_DIR="${MODULES_ROOT_DIR%%/}" # trim trailing slash
 SOURCE_URI="github.com/gravitational/teleport/tree/master/${MODULES_ROOT_DIR}"
+MODULE_REGISTRY="terraform.releases.teleport.dev"
 
 info "Rendering modules reference index"
 cat <<EOF > "${MODULES_DOC_INDEX}"
@@ -74,6 +75,7 @@ EOF
 
 for module in "${PUBLISHED_TF_MODULES[@]}"; do
     module_name="${module//\//-}"
+    module_address="${MODULE_REGISTRY}/${module}"
 
     # inject a link to the module into the modules index page
     info "Adding ${module_name} to modules reference index"
@@ -115,12 +117,16 @@ tags:
 This page lists the input fields and output values of the ${module_name}
 Terraform module.
 
-Source Code: [${SOURCE_URI}/${module}](https://${SOURCE_URI}/${module})
-
 EOF
     module_readme="${module}/README.md"
     check_file "${module_readme}"
     convert_tf_docs_comment < "${module_readme}" >> "${module_index_doc}"
+    cat <<EOF >> "${module_index_doc}"
+
+## Source Code
+
+[View the ${module_name} module source code on GitHub](https://${SOURCE_URI}/${module}).
+EOF
 
     # handle examples
     module_examples_docs_dir="${module_docs_dir}/examples"
@@ -150,12 +156,6 @@ EOF
         example_name="$(basename "${example}")"
         info "Rendering module ${module_name} example ${example_name} reference doc"
         example_doc="${module_examples_docs_dir}/${example_name}.mdx"
-        if [[ ! -f "${example}/docs_title" ]]; then
-            error "${example}/docs_title is missing — run gen/example.sh to scaffold"
-        fi
-        if [[ ! -f "${example}/docs_description" ]]; then
-            error "${example}/docs_description is missing — run gen/example.sh to scaffold"
-        fi
         example_readme="${example}/README.md"
         check_file "${example_readme}"
         check_file "${example}/docs_title"
@@ -182,11 +182,27 @@ page_type: reference
 
 This page lists the configuration fields in a usage example of the
 ${module_name} Terraform module: ${example_name}.
-
-Source Code: [${SOURCE_URI}/${example}](https://${SOURCE_URI}/${example})
-
 EOF
         convert_tf_docs_comment < "${example_readme}" >> "${example_doc}"
+        cat <<EOF >> "${example_doc}"
+
+## Source Code
+
+[View the ${example_name} example source code for the ${module_name} module on GitHub](https://${SOURCE_URI}/${example}).
+
+\`\`\`hcl
+EOF
+        for file in "${example}"/*.tf; do
+            [[ ! -s "$file" ]] && continue # skip empty files
+            cat - "${file}" <<EOF | sed -E "s#^([[:space:]]*)source.*\"../..\"#\1source  = \"${module_address}\"\n\1version = \"~> (=teleport.major_version=).0\"#g" >> "${example_doc}"
+################################################################################
+# ${file}
+################################################################################
+
+EOF
+        echo >> "${example_doc}"
+        done
+        echo '```' >> "${example_doc}"
     done
 done
 

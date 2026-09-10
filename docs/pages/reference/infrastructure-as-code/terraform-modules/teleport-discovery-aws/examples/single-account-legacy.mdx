@@ -14,9 +14,6 @@ page_type: reference
 
 This page lists the configuration fields in a usage example of the
 teleport-discovery-aws Terraform module: single-account-legacy.
-
-Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account-legacy](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account-legacy)
-
 ## Teleport AWS Account Discovery Example
 
 Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover resources in a single AWS account.
@@ -61,3 +58,112 @@ No inputs.
 | ---- | ----------- |
 | aws\_discovery | n/a |
 {/* END_TF_DOCS */}
+
+## Source Code
+
+[View the single-account-legacy example source code for the teleport-discovery-aws module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/single-account-legacy).
+
+```hcl
+################################################################################
+# teleport/discovery/aws/examples/single-account-legacy/main.tf
+################################################################################
+
+module "aws_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  # Discover EC2 AWS resources 
+  match_aws_resource_types = ["ec2"]
+  # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
+  apply_aws_tags = { origin = "example" }
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+
+  # Examples of existing AWS resource reuse:
+  # AWS IAM OIDC provider for this Teleport cluster's public proxy address must already exist
+  create_aws_iam_openid_connect_provider = false
+
+  # Use a custom IAM policy with permission conditions
+  aws_iam_policy_document = data.aws_iam_policy_document.teleport_discovery_service_single_account.json
+}
+
+data "aws_iam_policy_document" "teleport_discovery_service_single_account" {
+  # read-only discovery
+  statement {
+    effect = "Allow"
+    actions = [
+      "account:ListRegions",
+      "ec2:DescribeInstances",
+      "ssm:DescribeInstanceInformation",
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+    ]
+    resources = ["*"]
+  }
+
+  # SSM command execution document access
+  # (Allows using any document, or restrict to specific documents here)
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:SendCommand",
+    ]
+    resources = [
+      "arn:aws:ssm:*:*:document/AWS-RunShellScript"
+    ]
+  }
+
+  # SSM command execution instance access
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:SendCommand",
+    ]
+    resources = [
+      "arn:aws:ec2:*:*:instance/*"
+    ]
+
+    # restrict command execution on instances based on resource tags
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/TeleportManaged"
+      values   = ["true"]
+    }
+  }
+}
+
+################################################################################
+# teleport/discovery/aws/examples/single-account-legacy/outputs.tf
+################################################################################
+
+output "aws_discovery" {
+  value = module.aws_discovery
+}
+
+################################################################################
+# teleport/discovery/aws/examples/single-account-legacy/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = ">= 18.5.1"
+    }
+  }
+}
+
+```
