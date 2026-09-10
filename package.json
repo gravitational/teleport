@@ -62,7 +62,7 @@
     "svgo": "^4.0.2",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
