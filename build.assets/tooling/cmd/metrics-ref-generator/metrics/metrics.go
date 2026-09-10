@@ -54,6 +54,7 @@ type MetricInfo struct {
 var prometheusConstructors = map[string]string{
 	"NewGauge":        "gauge",
 	"NewGaugeVec":     "gauge",
+	"NewGaugeFunc":    "gauge",
 	"NewCounter":      "counter",
 	"NewCounterVec":   "counter",
 	"NewHistogram":    "histogram",
