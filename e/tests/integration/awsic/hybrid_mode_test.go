@@ -143,7 +143,7 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 		expectedPrincipalAssignments[i] = principalAssignment(
 			append(
 				assignmentAssertions[icUser.UserName],
-				hasUserPrincipalID(icUser.UserName),
+				isAssignmentRecordForUsername(icUser.UserName),
 				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 				hasExternalID(icUser.ID),
 			)...)
@@ -219,7 +219,7 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 		hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 		hasSCIMExternalID("uid_zelda"))
 	waitForPrincipalAssignment(t, assignmentWatcher,
-		hasUserPrincipalID("zelda"),
+		isAssignmentRecordForUsername("zelda"),
 		hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 		hasExternalID("uid_zelda"),
 		hasAccountAssignment("arn:aws:sso:::permissionSet/DataScientist", "2222222222"))

@@ -12,8 +12,8 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
-	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -131,17 +131,6 @@ func assertSCIMGroupsByDisplayName(ctx context.Context, t assert.TestingT, clien
 	return assert.ElementsMatch(t, expectedDisplayNames, displayNames)
 }
 
-func assertAccessLists(ctx context.Context, t assert.TestingT, lister iciter.AccessListLister, expectedTitles ...string) bool {
-	var accessListTitles []string
-	for acl, err := range iciter.AllAccessLists(ctx, lister) {
-		if !assert.NoError(t, err) {
-			return false
-		}
-		accessListTitles = append(accessListTitles, acl.Spec.Title)
-	}
-	return assert.ElementsMatch(t, expectedTitles, accessListTitles)
-}
-
 // scimGroupAssertion is the signature for functions that assert the properties
 // of a [scimsdk.Group].
 type scimGroupAssertion func(assert.TestingT, *scimsdk.Group) bool
@@ -198,12 +187,25 @@ func requireSCIMGroup(ctx context.Context, t require.TestingT, client scimsdk.Cl
 // of an Identity Center Principal Assignment record
 type principalAssignmentAssertion func(assert.TestingT, *identitycenterv1.PrincipalAssignment) bool
 
-// hasUserPrincipalID asserts that a Principal Assignment Record has the appropriate name
+// isAssignmentRecordForUsername asserts that a Principal Assignment Record has the appropriate name
 // to be associated with a given user.
-func hasUserPrincipalID(username string) principalAssignmentAssertion {
-	id := principal.GetIDForUserName(username)
+func isAssignmentRecordForUsername(username string) principalAssignmentAssertion {
+	return isAssignmentRecord(principal.GetIDForUserName(username))
+}
+
+func isAssignmentRecordForAccessList(acl *accesslist.AccessList) principalAssignmentAssertion {
+	return isAssignmentRecord(principal.GetIDForAccessList(acl))
+}
+
+func isAssignmentRecord(id services.PrincipalAssignmentID) principalAssignmentAssertion {
 	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
 		return assert.Equal(t, string(id), pa.GetMetadata().GetName())
+	}
+}
+
+func hasPrincipalType(pt identitycenterv1.PrincipalType) principalAssignmentAssertion {
+	return func(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+		return assert.Equal(t, pt, pa.GetSpec().GetPrincipalType())
 	}
 }
 

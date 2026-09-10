@@ -24,6 +24,7 @@ type sutOptions struct {
 	appConfig     servicecfg.AppsConfig
 	insecureMode  bool
 	modules       *modulestest.Modules
+	disableCache  bool
 }
 
 type Option func(*sutOptions)
@@ -43,6 +44,11 @@ func WithClusterName(name string) func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.clusterName = name
 	}
+}
+
+// WithoutCache is an [Option] that disables the Teleport cache
+func WithoutCache(o *sutOptions) {
+	o.disableCache = true
 }
 
 // WithApp adds an apps service to the configuration allowing to run SUT with

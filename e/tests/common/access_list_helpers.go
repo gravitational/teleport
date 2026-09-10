@@ -2,13 +2,16 @@ package common
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -198,4 +201,80 @@ func GetAccessListMembers(t *testing.T, sut *SUT, aclName string) []*accesslist.
 
 func GetAccessListMemberName(m *accesslist.AccessListMember) string {
 	return m.GetName()
+}
+
+// AccessListAssertion describes the signature of a function to assert properties
+// of an Access List.
+type AccessListAssertion func(assert.TestingT, *accesslist.AccessList) bool
+
+// HasTitle is an [AccessListAssertion] that check the Title (a.k.a Display Name)
+// of an Access List.
+func HasTitle(title string) AccessListAssertion {
+	return func(t assert.TestingT, acl *accesslist.AccessList) bool {
+		return assert.Equal(t, title, acl.Spec.Title)
+	}
+}
+
+// AccessListSelector describes the signature of functions used with functions
+// like [WaitForAccessLists] and [AssertAccessLists] to accept or reject access
+// lists.
+type AccessListSelector func(*accesslist.AccessList) bool
+
+// AccessList constructs an [AccessListSelector] from a collection of
+// [AccessListAssertion]s.
+func AccessList(assertions ...AccessListAssertion) AccessListSelector {
+	return func(acl *accesslist.AccessList) bool {
+		var collector CollectT
+		for _, assertion := range assertions {
+			if !assertion(&collector, acl) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// WaitForAccessLists monitors the supplied [types.Watcher] for `put` events on
+// Access Lists, until all of the supplied selectors are satisfied.
+func WaitForAccessLists(t *testing.T, watcher types.Watcher, selectors ...func(*accesslist.AccessList) bool) []*accesslist.AccessList {
+	return waitForEvents[*accesslist.AccessList](t, watcher, types.OpPut, selectors...)
+}
+
+// AccessListLister allows paged listing of Access List resources
+type AccessListLister interface {
+	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
+}
+
+// AssertAccessLists iterates over the supplied selectors, making sure that
+// each one is satisfied by an Access List returned by `lister`, and that all
+// Access Lists are match. Each selector is only matched once; use multiple
+// selectors to handle duplicate access lists.
+func AssertAccessLists(t *testing.T, lister AccessListLister, selectors ...func(*accesslist.AccessList) bool) bool {
+	t.Helper()
+
+	acls, err := stream.Collect(clientutils.Resources(t.Context(), lister.ListAccessLists))
+	if !assert.NoError(t, err, "Listing Access Lists") {
+		return false
+	}
+
+	for sI, selector := range selectors {
+		idx := slices.IndexFunc(acls, selector)
+		if !assert.GreaterOrEqual(t, idx, 0, "No ACL matching selector %d", sI) {
+			return false
+		}
+		acls = slices.Delete(acls, idx, idx+1)
+	}
+
+	return assert.Empty(t, acls, "Extra Access Lists were not selected")
+}
+
+// RequireAccessLists behaves similarly to [AssertAccessLists], but will will
+// fail the test immediately if any of rge selectors are not satisfied, or not
+// all Access Lists returned by `lister` are selected.
+func RequireAccessLists(t *testing.T, lister AccessListLister, selectors ...func(*accesslist.AccessList) bool) {
+	t.Helper()
+	if AssertAccessLists(t, lister, selectors...) {
+		return
+	}
+	t.FailNow()
 }

@@ -169,3 +169,9 @@ func watcherCtx(t *testing.T) (context.Context, context.CancelFunc) {
 
 	return context.WithDeadline(t.Context(), waitUntil)
 }
+
+// IsResourceNamed is a predicate for use with [WaitForPutEvent] et al to select
+// resources with a specific name
+func IsResourceNamed(name string) func(types.Resource) bool {
+	return func(r types.Resource) bool { return r.GetName() == name }
+}

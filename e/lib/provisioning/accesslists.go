@@ -209,14 +209,30 @@ func (p *provisioner) filterValidMembers(
 	ctx context.Context,
 	acl *accesslist.AccessList,
 	aclMembers []*accesslist.AccessListMember,
-) ([]*scimsdk.GroupMember, error) {
+) (result []*scimsdk.GroupMember, err error) {
 	log := p.log.With(
 		slog.Group("access_list",
 			slog.String("name", acl.GetName()),
 			slog.String("title", acl.Spec.Title)))
 
+	// An expired context can result in a partially-complete member list,
+	// which will corrupt the downstream group. Ensure that that context
+	// is still valid on the way out.
+	defer func() {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			log.WarnContext(ctx, "Context canceled. Abandoning update.")
+			err = trace.Wrap(ctxErr)
+			result = nil
+		}
+	}()
+
 	groupMembers := make([]*scimsdk.GroupMember, 0, len(aclMembers))
 	for _, aclMember := range aclMembers {
+		// Bail out early if our context has been canceled.
+		if err := ctx.Err(); err != nil {
+			break
+		}
+
 		memberUserName := aclMember.Spec.Name
 		memberStateId := GetIDForUserName(memberUserName)
 

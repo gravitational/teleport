@@ -524,14 +524,13 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Logger = i.Log
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
-	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
-	tconf.DebugService.Enabled = false
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tconf.DebugService.Enabled = false
 	tconf.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
@@ -660,7 +659,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 // instances)
 //
 // Unlike Create() it allows for greater customization because it accepts
-// a full Teleport config structure
+// a full Teleport config structure and allows arbitrary overriding of the final,
+// merged Teleport configuration via `opts`.
 func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *servicecfg.Config) error {
 	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {

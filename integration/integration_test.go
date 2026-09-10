@@ -7173,6 +7173,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.DisableWebService = true
 	cfg.SSH.DisableCreateHostUser = true
+	cfg.CachePolicy.Enabled = true
 	return cfg
 }
 

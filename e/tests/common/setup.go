@@ -88,6 +88,8 @@ func InitSUT(t *testing.T, opts ...Option) *SUT {
 	serviceConfig.UserMonitor.LockTTL = time.Second
 	serviceConfig.UserMonitor.ReconcileInterval = time.Second
 
+	serviceConfig.CachePolicy.Enabled = !options.disableCache
+
 	err := teleport.CreateEx(t, nil, serviceConfig)
 	require.NoError(t, err)
 
