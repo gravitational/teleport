@@ -39,6 +39,9 @@ import (
 )
 
 const (
+	// OAuthProtectedResourceMetadataPath is the RFC 9728 discovery path prefix.
+	OAuthProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource"
+
 	TeleportErrorOriginHeader = "X-Teleport-Mcp-Error-Origin"
 
 	ErrorOriginAppService          = "app-service"
