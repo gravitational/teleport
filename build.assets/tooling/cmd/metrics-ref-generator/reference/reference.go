@@ -191,6 +191,11 @@ func configuredComponent(metricName string, components []ComponentConfig) string
 	return ""
 }
 
+// escapeMetricDescription escapes "|" characters in a metric description to prevent the tables from breaking.
+func escapeMetricDescription(s string) string {
+	return strings.ReplaceAll(s, "|", "\\|")
+}
+
 // buildSection constructs a sectionData from a section configuration, a heading, and a slice of metrics.
 // It determines the component for each metric, creates metric rows, and sorts them by full name.
 func buildSection(config SectionConfig, heading string, metrics []metrics.MetricInfo, components []ComponentConfig) sectionData {
@@ -217,7 +222,7 @@ func buildSection(config SectionConfig, heading string, metrics []metrics.Metric
 			Name:        fmt.Sprintf("`%s`", m.FullName),
 			Type:        m.Type,
 			Component:   component,
-			Description: m.Help,
+			Description: escapeMetricDescription(m.Help),
 		})
 		seen[m.FullName] = struct{}{}
 	}
@@ -237,7 +242,7 @@ func buildSection(config SectionConfig, heading string, metrics []metrics.Metric
 			Name:        fmt.Sprintf("`%s`", metric.Name),
 			Type:        metric.Type,
 			Component:   component,
-			Description: metric.Description,
+			Description: escapeMetricDescription(metric.Description),
 		})
 	}
 	// Sort the metric rows by their full name before returning the section data.
