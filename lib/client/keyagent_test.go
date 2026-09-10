@@ -282,6 +282,101 @@ func TestSystemAgentConnections(t *testing.T) {
 	}
 }
 
+func TestLocalKeyAgentMCPOAuthLogout(t *testing.T) {
+	home := t.TempDir()
+	idx := KeyRingIndex{"proxy", "alice", "root"}
+	keyAgent, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: NewFSClientStore(home),
+		ProxyHost:   idx.ProxyHost,
+		Username:    idx.Username,
+		KeysOption:  AddKeysToAgentNo,
+	})
+	require.NoError(t, err)
+	authority := newTestAuthority(t)
+	require.NoError(t, keyAgent.AddKeyRing(authority.makeSignedKeyRing(t, idx, true)))
+
+	var paths []string
+	for _, idx := range []KeyRingIndex{
+		idx,
+		{"proxy", "alice", "leaf"},
+		{"proxy", "bob", "root"},
+		{"other-proxy", "alice", "root"},
+	} {
+		path := keypaths.MCPOAuthCredentialsPath(home, idx.ProxyHost, idx.Username, idx.ClusterName, "app")
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.WriteFile(path, []byte("oauth-credentials"), 0o600))
+		paths = append(paths, path)
+	}
+
+	// Invalid identities must not remove a parent directory or another identity's credentials.
+	for _, component := range []string{"", ".", "..", "../bob", `..\bob`} {
+		require.Error(t, keyAgent.clientStore.DeleteMCPOAuthCredentials("proxy", component))
+		require.Error(t, keyAgent.clientStore.DeleteMCPOAuthCredentials(component, "alice"))
+	}
+
+	// Replacing expired Teleport keys must preserve the separate OAuth storage.
+	require.NoError(t, keyAgent.AddKeyRing(authority.makeSignedKeyRing(t, idx, false)))
+	// App and session certificate cleanup must also preserve OAuth credentials.
+	require.NoError(t, keyAgent.DeleteUserCerts(idx.ClusterName, WithAppCerts{"app"}))
+	require.NoError(t, keyAgent.DeleteUserCerts(idx.ClusterName, WithAppCerts{}))
+	require.NoError(t, keyAgent.DeleteUserCerts("", WithAllCerts...))
+	for _, path := range paths {
+		contents, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, "oauth-credentials", string(contents))
+	}
+
+	// Logging out this identity removes credentials for its root and leaf clusters only.
+	require.NoError(t, keyAgent.DeleteKey())
+	require.NoFileExists(t, paths[0])
+	require.NoFileExists(t, paths[1])
+	require.FileExists(t, paths[2])
+	require.FileExists(t, paths[3])
+
+	require.NoError(t, keyAgent.DeleteKeys())
+	require.NoFileExists(t, paths[2])
+	require.NoFileExists(t, paths[3])
+	require.FileExists(t, keypaths.MCPOAuthCredentialsLockPath(home))
+}
+
+type mcpOAuthCleanupErrorStore struct {
+	KeyStore
+	err error
+}
+
+func (s *mcpOAuthCleanupErrorStore) DeleteMCPOAuthCredentials(proxyHost, username string) error {
+	return s.err
+}
+
+func TestLocalKeyAgentDeleteKeyContinuesAfterErrors(t *testing.T) {
+	home := t.TempDir()
+	idx := KeyRingIndex{"proxy", "alice", "root"}
+	store := NewFSClientStore(home)
+	keyAgent, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: store,
+		ProxyHost:   idx.ProxyHost,
+		Username:    idx.Username,
+		KeysOption:  AddKeysToAgentNo,
+	})
+	require.NoError(t, err)
+	authority := newTestAuthority(t)
+	require.NoError(t, keyAgent.AddKeyRing(authority.makeSignedKeyRing(t, idx, false)))
+
+	// Simulate an OAuth deletion failure and a partially removed Teleport keyring.
+	store.KeyStore = &mcpOAuthCleanupErrorStore{KeyStore: store.KeyStore, err: os.ErrPermission}
+	require.NoError(t, os.Remove(keypaths.PublicKeyPath(home, idx.ProxyHost, idx.Username)))
+
+	err = keyAgent.DeleteKey()
+	require.ErrorIs(t, err, os.ErrPermission)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.NoFileExists(t, keypaths.UserSSHKeyPath(home, idx.ProxyHost, idx.Username))
+	require.NoFileExists(t, keypaths.UserTLSKeyPath(home, idx.ProxyHost, idx.Username))
+	require.NoFileExists(t, keypaths.TLSCertPath(home, idx.ProxyHost, idx.Username))
+	agentKeys, err := keyAgent.List()
+	require.NoError(t, err)
+	require.Empty(t, agentKeys)
+}
+
 // TestLoadKey ensures correct loading of a key into an agent. This test
 // checks the following:
 //   - Loading a key multiple times overwrites the same key.

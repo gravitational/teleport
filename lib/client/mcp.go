@@ -96,13 +96,10 @@ func (d *MCPServerDialer) GetApp(ctx context.Context) (types.Application, error)
 }
 
 // DialALPN dials Teleport Proxy to establish a TLS routing connection for the
-// MCP server. It refuses to connect when the app's URI differs from the copy
-// GetApp last returned: stored OAuth credentials are checked against that
-// copy before the dial, so a request already carrying a token was authorized
-// for the old upstream. A retry reads the replaced app.
+// MCP server. The app URI must match the first successful lookup; restart the
+// connection to use a changed URI.
 func (d *MCPServerDialer) DialALPN(ctx context.Context) (net.Conn, error) {
 	d.mu.Lock()
-	cached := d.app
 	// A new connection is where the app service may have re-resolved the
 	// upstream, such as after a restart or failover, so look the app up
 	// instead of trusting the cache.
@@ -110,10 +107,6 @@ func (d *MCPServerDialer) DialALPN(ctx context.Context) (net.Conn, error) {
 	if err != nil {
 		d.mu.Unlock()
 		return nil, trace.Wrap(err)
-	}
-	if cached != nil && cached.GetURI() != app.GetURI() {
-		d.mu.Unlock()
-		return nil, trace.CompareFailed("MCP server %q was updated while connecting, retry the request", d.appSQN)
 	}
 	cert, err := d.getCertLocked(ctx, app)
 	if err != nil {
@@ -170,6 +163,9 @@ func (d *MCPServerDialer) fetchAppLocked(ctx context.Context) (types.Application
 		}
 		if !app.IsMCP() {
 			return nil, trace.BadParameter("app %q is not a MCP server", d.appSQN)
+		}
+		if d.app != nil && d.app.GetURI() != app.GetURI() {
+			return nil, trace.CompareFailed("MCP server %q URI changed, restart the connection", d.appSQN)
 		}
 		d.app = app
 		d.appFetchedAt = d.clock.Now()

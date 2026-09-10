@@ -182,7 +182,7 @@ func TestMCPServerDialerSerializesCachedAppAndCertificate(t *testing.T) {
 	require.Equal(t, int32(1), mockClient.issueCertCalls.Load())
 }
 
-func TestMCPServerDialerRefreshesCachedApp(t *testing.T) {
+func TestMCPServerDialerRejectsChangedURI(t *testing.T) {
 	t.Parallel()
 
 	tlsCA, _, err := newSelfSignedCA(CAPriv, "localhost")
@@ -209,25 +209,21 @@ func TestMCPServerDialerRefreshesCachedApp(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mcp+http://old.example.com", app.GetURI(), "app should come from the cache before it expires")
 
-	clock.Advance(mcpAppCacheTTL)
-	app, err = dialer.GetApp(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, "mcp+http://new.example.com", app.GetURI())
-
-	// A new connection looks the app up again however fresh the cache is and
-	// refuses a changed URI, since the caller authorized the request against
-	// the cached copy. The lookup replaces that copy for the retry.
-	mockClient.appServers = types.AppServers{mustMakeAppServer(t, "http-mcp", "mcp+http://newer.example.com")}
-	_, err = dialer.DialALPN(t.Context())
-	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed, got %v", err)
+	for range 2 {
+		_, err = dialer.DialALPN(t.Context())
+		require.True(t, trace.IsCompareFailed(err), "expected CompareFailed, got %v", err)
+	}
 	require.Empty(t, mockClient.routeToApp.URI, "no certificate should be issued for a changed app")
-	app, err = dialer.GetApp(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, "mcp+http://newer.example.com", app.GetURI())
 
+	clock.Advance(mcpAppCacheTTL)
+	_, err = dialer.GetApp(t.Context())
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed, got %v", err)
+
+	dialer = NewMCPServerDialer(mockClient, scopes.QualifiedName{Name: "http-mcp"})
+	dialer.clock = clock
 	_, err = dialer.DialALPN(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "mcp+http://newer.example.com", mockClient.routeToApp.URI)
+	require.Equal(t, "mcp+http://new.example.com", mockClient.routeToApp.URI)
 }
 
 func (m *mockMCPServerDialerClient) ProfileStatus() (*ProfileStatus, error) {

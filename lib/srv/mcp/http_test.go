@@ -202,11 +202,15 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		httpClient := listener.MakeHTTPClient()
 		request, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, "http://localhost/", nil)
 		require.NoError(t, err)
+		request.Header.Set("Authorization", "Bearer oauth-access-token")
 		response, err := httpClient.Do(request)
 		require.NoError(t, err)
 		defer response.Body.Close()
 		require.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
 		require.Equal(t, libevents.MCPSessionInvalidHTTPRequest, emitter.LastEvent().GetType())
+		lastEvent, ok := emitter.LastEvent().(*apievents.MCPSessionInvalidHTTPRequest)
+		require.True(t, ok)
+		require.Equal(t, "<REDACTED>", http.Header(lastEvent.Headers).Get("Authorization"))
 	})
 
 	t.Run("passthrough well-known", func(t *testing.T) {

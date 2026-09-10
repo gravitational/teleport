@@ -1018,6 +1018,12 @@ func TestLoginForceReauth(t *testing.T) {
 	// Initial login: the certificate carries only "access".
 	require.NotContains(t, login(t), extra.GetName())
 
+	clusterName, err := authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+	credsPath := keypaths.MCPOAuthCredentialsPath(tmpHomePath, proxyAddr.Host(), alice.GetName(), clusterName.GetClusterName(), "app")
+	creds := newTestCreds("token", time.Now().UTC().Add(time.Hour))
+	require.NoError(t, saveMCPOAuthCredentials(credsPath, creds))
+
 	// Grant the extra role server-side.
 	alice.SetRoles([]string{"access", extra.GetName()})
 	_, err = authServer.UpsertUser(ctx, alice)
@@ -1030,6 +1036,9 @@ func TestLoginForceReauth(t *testing.T) {
 	// --force re-authenticates and reissues the certificate, picking up the new
 	// role without a separate logout.
 	require.Regexp(t, regexp.MustCompile(`Roles:\s.*\bextra\b`), login(t, "--force"))
+	storedCreds, err := loadMCPOAuthCredentials(credsPath)
+	require.NoError(t, err)
+	require.Equal(t, creds, storedCreds)
 }
 
 func TestRelogin(t *testing.T) {
@@ -6847,10 +6856,16 @@ func TestLogout(t *testing.T) {
 
 	for _, tt := range []struct {
 		name         string
+		flags        []string
 		modifyKeyDir func(t *testing.T, homePath string)
 	}{
 		{
 			name:         "normal home dir",
+			modifyKeyDir: func(t *testing.T, homePath string) {},
+		},
+		{
+			name:         "agent-only storage",
+			flags:        []string{"--add-keys-to-agent=only"},
 			modifyKeyDir: func(t *testing.T, homePath string) {},
 		},
 		{
@@ -6915,12 +6930,15 @@ func TestLogout(t *testing.T) {
 			require.NoError(t, err)
 			store.SaveProfile(profile, true)
 
+			credsPath := keypaths.MCPOAuthCredentialsPath(tmpHomePath, clientKeyRing.ProxyHost, clientKeyRing.Username, clientKeyRing.ClusterName, "app")
+			require.NoError(t, saveMCPOAuthCredentials(credsPath, newTestCreds("token", time.Now().Add(time.Hour))))
+
 			tt.modifyKeyDir(t, tmpHomePath)
 
 			_, err = os.Lstat(tmpHomePath)
 			require.NoError(t, err)
 
-			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
+			err = Run(context.Background(), append([]string{"logout"}, tt.flags...), setHomePath(tmpHomePath))
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// Logout keeps the MCP OAuth lock directory so a lock another
@@ -8754,7 +8772,7 @@ func TestDebugVersionOutput(t *testing.T) {
 }
 
 func TestLogoutOneIdentity(t *testing.T) {
-	tmpHomePath := t.TempDir()
+	createAgent(t)
 	connector := mockConnector(t)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -8772,17 +8790,36 @@ func TestLogoutOneIdentity(t *testing.T) {
 
 	authServer := rootServer.GetAuthServer()
 	require.NotNil(t, authServer)
+	clusterName, err := authServer.GetClusterName(t.Context())
+	require.NoError(t, err)
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
 	tests := []struct {
-		name    string
-		command []string
-		envMap  map[string]string
+		name       string
+		command    []string
+		loginFlags []string
+		envMap     map[string]string
 	}{
 		{
 			name:    "--proxy flag set",
 			command: []string{"logout", "--proxy", proxyAddr.String()},
+		},
+		{
+			name:       "agent-only storage",
+			command:    []string{"logout", "--proxy", proxyAddr.String(), "--user", alice.GetName(), "--add-keys-to-agent=only"},
+			loginFlags: []string{"--add-keys-to-agent=only"},
+		},
+		{
+			name:       "agent-only storage without user",
+			command:    []string{"logout", "--proxy", proxyAddr.String(), "--add-keys-to-agent=only"},
+			loginFlags: []string{"--add-keys-to-agent=only"},
+		},
+		{
+			name:       "agent-only storage from environment without user",
+			command:    []string{"logout", "--proxy", proxyAddr.String()},
+			loginFlags: []string{"--add-keys-to-agent=only"},
+			envMap:     map[string]string{addKeysToAgentEnvVar: client.AddKeysToAgentOnly},
 		},
 		{
 			name:    "TELEPORT_PROXY set",
@@ -8794,17 +8831,21 @@ func TestLogoutOneIdentity(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
 			for k, v := range tc.envMap {
 				t.Setenv(k, v)
 			}
 
-			err = Run(context.Background(), []string{
+			err = Run(context.Background(), append([]string{
 				"login",
 				"--insecure",
-				"--proxy", proxyAddr.String()},
+				"--proxy", proxyAddr.String()}, tc.loginFlags...),
 				setHomePath(tmpHomePath),
 				setMockSSOLogin(authServer, alice, connector.GetName()))
 			require.NoError(t, err)
+
+			credsPath := keypaths.MCPOAuthCredentialsPath(tmpHomePath, proxyAddr.Host(), alice.GetName(), clusterName.GetClusterName(), "app")
+			require.NoError(t, saveMCPOAuthCredentials(credsPath, newTestCreds("token", time.Now().Add(time.Hour))))
 
 			buf := bytes.NewBuffer([]byte{})
 			err := Run(context.Background(), tc.command,
@@ -8813,8 +8854,16 @@ func TestLogoutOneIdentity(t *testing.T) {
 					cf.OverrideStdout = buf
 					return nil
 				})
-			require.NoError(t, err)
-			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+			require.NoFileExists(t, credsPath)
+			if len(tc.loginFlags) > 0 {
+				var exitErr *common.ExitCodeError
+				require.ErrorAs(t, err, &exitErr)
+				require.Equal(t, 1, exitErr.Code)
+				require.Contains(t, buf.String(), "already logged out")
+			} else {
+				require.NoError(t, err)
+				require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+			}
 		})
 	}
 }

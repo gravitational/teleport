@@ -19,6 +19,7 @@
 package common
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,7 +27,45 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/scopes"
 )
+
+func TestMCPLogoutCommand(t *testing.T) {
+	cf := CLIConf{
+		Context:        t.Context(),
+		HomePath:       t.TempDir(),
+		Proxy:          "proxy.example.com:443",
+		Username:       "alice",
+		SiteName:       "root",
+		OverrideStdout: io.Discard,
+	}
+	mustCreateEmptyProfile(t, &cf)
+
+	var paths []string
+	for _, target := range []struct{ cluster, app string }{
+		{"root", "sentry"},
+		{"root", "linear"},
+		{"leaf", "sentry"},
+	} {
+		path, err := mcpOAuthTokenPath(cf.HomePath, "proxy.example.com", cf.Username, target.cluster, scopes.QualifiedName{Name: target.app})
+		require.NoError(t, err)
+		require.NoError(t, saveMCPOAuthCredentials(path, newTestCreds("token", time.Now().Add(time.Hour))))
+		paths = append(paths, path)
+	}
+
+	cmd := mcpLogoutCommand{cf: &cf}
+	cf.AppSQN = scopes.QualifiedName{Name: "sentry"}
+	require.NoError(t, cmd.run())
+	require.NoFileExists(t, paths[0])
+	require.FileExists(t, paths[1])
+	require.FileExists(t, paths[2])
+
+	cf.AppSQN = scopes.QualifiedName{}
+	require.NoError(t, cmd.run())
+	require.NoFileExists(t, paths[1])
+	require.FileExists(t, paths[2])
+}
 
 func TestRemoveMCPOAuthCredentials(t *testing.T) {
 	dir := t.TempDir()

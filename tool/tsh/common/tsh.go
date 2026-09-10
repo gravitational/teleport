@@ -2817,6 +2817,9 @@ func onLogout(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			if len(usernames) == 0 && active != nil && active.Username != "" {
+				usernames = []string{active.Username}
+			}
 
 			if len(usernames) == 0 {
 				fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
@@ -5355,7 +5358,7 @@ func (c *CLIConf) initClientStore() {
 		// FS formats (e.g. identity file) or used for a single client call in memory.
 		c.clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
 
-	case c.AddKeysToAgent == client.AddKeysToAgentOnly:
+	case c.AddKeysToAgent == client.AddKeysToAgentOnly && c.command != "logout":
 		// Store client keys in memory, but save trusted certs and profile to disk.
 		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
 		c.clientStore.KeyStore = client.NewMemKeyStore()

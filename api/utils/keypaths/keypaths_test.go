@@ -32,7 +32,7 @@ func TestAccessGraphTLSCertPath(t *testing.T) {
 
 func TestMCPOAuthCredentialsPath(t *testing.T) {
 	path := keypaths.MCPOAuthCredentialsPath("~/tsh", "proxy", "user", "root", "app")
-	require.Equal(t, "~/tsh/keys/proxy/user-app/root/app.oauth.json", path)
+	require.Equal(t, "~/tsh/mcp/proxy/user/root/app.oauth.json", path)
 	require.Equal(t, "~/tsh/locks/mcp_oauth.lock", keypaths.MCPOAuthCredentialsLockPath("~/tsh"))
 }
 

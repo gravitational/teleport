@@ -119,7 +119,8 @@ func TestMCPOAuthTokenPath(t *testing.T) {
 }
 
 func TestMCPOAuthCredentialsRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "cluster", "app.json")
+	path, err := mcpOAuthTokenPath(t.TempDir(), "proxy.example.com", "alice", "root", scopes.QualifiedName{Name: "app"})
+	require.NoError(t, err)
 	creds := newTestCreds("token-1", time.Now().Add(time.Hour))
 
 	require.NoError(t, saveMCPOAuthCredentials(path, creds))

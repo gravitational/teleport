@@ -135,13 +135,13 @@ func TestKeyStore(t *testing.T) {
 	}
 }
 
-func TestFSKeyStoreDeleteAppOAuthCredentials(t *testing.T) {
+func TestFSKeyStoreDeleteMCPOAuthCredentials(t *testing.T) {
 	tests := []struct {
 		name   string
 		delete func(*FSKeyStore, KeyRingIndex) error
 	}{
-		{"app", func(store *FSKeyStore, idx KeyRingIndex) error {
-			return store.DeleteUserCerts(idx, WithAppCerts{"app"})
+		{"user", func(store *FSKeyStore, idx KeyRingIndex) error {
+			return store.DeleteMCPOAuthCredentials(idx.ProxyHost, idx.Username)
 		}},
 		{"all", func(store *FSKeyStore, _ KeyRingIndex) error {
 			return store.DeleteKeys()
