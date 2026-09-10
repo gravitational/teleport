@@ -121,7 +121,7 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 	var addr interface{}
 	if p.Source.Port < 0 || p.Destination.Port < 0 ||
 		p.Source.Port > math.MaxUint16 || p.Destination.Port > math.MaxUint16 {
-		return nil, trace.BadParameter("source or destination port (%q,%q) is out of range 0-65535", p.Source.Port, p.Destination.Port)
+		return nil, trace.BadParameter("source or destination port (%d,%d) is out of range 0-65535", p.Source.Port, p.Destination.Port)
 	}
 	switch p.Protocol {
 	case TCP4:
@@ -222,7 +222,7 @@ func ReadProxyLine(reader *bufio.Reader) (*ProxyLine, error) {
 func parsePortNumber(portString string) (int, error) {
 	port, err := strconv.Atoi(portString)
 	if err != nil {
-		return -1, trace.BadParameter("bad port %q: %v", port, err)
+		return -1, trace.BadParameter("bad port %q: %v", portString, err)
 	}
 	if port < 0 || port > 65535 {
 		return -1, trace.BadParameter("port %q not in supported range [0...65535]", portString)

@@ -76,8 +76,13 @@ func (c *CertChecker) CheckCert(principal string, cert *ssh.Certificate) error {
 		return trace.Wrap(err)
 	}
 
-	err = c.CertChecker.CheckCert(principal, cert)
-	if err != nil {
+	// golang.org/x/crypto v0.56.0 stopped exempting source-address from the SupportedCriticalOptions check in
+	// CheckCert, so every direct CheckCert caller would otherwise reject IP-pinned certificates. Allow it once here,
+	// just to perform this check. Teleport sets source-address on IP-pinned certificates; IP pinning is enforced in
+	// lib/authz.CheckIPPinning rather than by the SSH library.
+	cc := c.CertChecker
+	cc.SupportedCriticalOptions = append([]string{constants.CertCriticalOptionSourceAddress}, cc.SupportedCriticalOptions...)
+	if err = cc.CheckCert(principal, cert); err != nil {
 		return trace.Wrap(err)
 	}
 
