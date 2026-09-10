@@ -93,6 +93,9 @@ sections:
       - user_login_total
       - watcher_event_sizes
       - watcher_events
+      - teleport_ca_
+      - teleport_keystore_
+      - teleport_inventory_cache_
     # Manually add metrics not found in the source.
     metrics:
       - name: grpc_server_started_total
@@ -215,7 +218,7 @@ sections:
       - user_max_
   - title: Teleport Kubernetes Service
     component: Teleport Kubernetes Service
-    description:
+    description: |
       These metrics are available when the Teleport process is configured with [kubernetes_service](../../config#kubernetes-service) and apply to traffic between the agent and Kubernetes API.
 
       The same metrics are also reported by the Proxy service, but apply to the proxy leg of Kubernetes connections.
@@ -231,6 +234,7 @@ sections:
         filters:
           - teleport_kubernetes_server_
   - title: Integrations
+    description: The following metrics are emitted by Teleport hosted plugins and integrations.
     sections:
       - title: Microsoft Entra ID integration
         description: The following metrics are emmited by the [Teleport Microsoft Entra ID integration service](../../../../identity-governance/integrations/entra-id/).
@@ -298,6 +302,7 @@ sections:
       - teleport_build_
       - teleport_breaker_
       - teleport_cache_
+      - teleport_usage_
   - title: Teleport Health Checks
     component: Teleport Health Check
     filters:
@@ -455,3 +460,15 @@ sections:
         type: counter
         component: prometheus
         description: Total number of scrapes by HTTP status code.
+  - title: Machine & Workload Identity
+    filters:
+      - tbot
+  - title: Teleport Agent Managed Updates
+    filters:
+      - teleport_agent_autoupdates_
+  - title: LLM access
+    filters:
+      - teleport_llm_
+  - title: MCP servers
+    filters:
+      - teleport_mcp_
