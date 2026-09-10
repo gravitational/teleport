@@ -1,0 +1,94 @@
+# Signs the proof-of-possession file that the Microsoft signing portal issues
+# during code signing certificate enrollment, and hands the result back as a
+# workflow artifact for an operator to upload to the portal.
+name: "Windows Signing Certificate Enrollment"
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-signing-cert-enrollment
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    # Pinned to 22.04 rather than ubuntu-latest for the same reason as the
+    # windowsauth cab workflow: aws-kms-pkcs11 needs libssl1.1, which later
+    # Ubuntu releases do not package.
+    runs-on: ubuntu-22.04
+    environment: prod/cert-enrollment
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      FILE_NAME: SignableFile.bin
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+
+      - name: Load environment values
+        uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2
+        with:
+          tool-version: v0.0.5
+          environment-name: prod/cert-enrollment
+          value-sets: windows-signing
+          environments-directory: e/.environments
+
+      - name: Assume AWS file retrieval role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.WINDOWS_SIGNING_ENROLLMENT_S3_ROLE_ARN }}
+          role-session-name: "cert-enrollment-fetch-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Download the signable file
+        run: |
+          FILE_URI="s3://$WINDOWS_SIGNING_ENROLLMENT_BUCKET/$WINDOWS_SIGNING_ENROLLMENT_PREFIX/$FILE_NAME"
+          echo "FILE_URI=$FILE_URI" >> "$GITHUB_ENV"
+          mkdir -p unsigned
+          aws s3 cp "$FILE_URI" "unsigned/$FILE_NAME" --no-progress
+
+      - name: Assume AWS code signing role
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.WINDOWS_SIGNING_ROLE_ARN }}
+          role-session-name: "cert-enrollment-${{ github.run_number }}"
+          role-duration-seconds: 1800
+
+      - name: Set up Windows code signing
+        uses: ./.github/actions/setup-windows-signing
+        with:
+          cert-ssm-parameter-path: ${{ env.WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH }}
+          kms-key-arn: ${{ env.WINDOWS_SIGNING_KEY_ARN }}
+
+      - name: Sign
+        run: sign-binary "unsigned/$FILE_NAME" "signed/$FILE_NAME"
+
+      - name: Verify
+        run: osslsigncode verify -in "signed/$FILE_NAME"
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-enrollment-file
+          path: signed/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Summarize
+        run: |
+          {
+            echo "## Signed enrollment file ready for submission"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| File | \`$FILE_NAME\` |"
+            echo "| Source | \`$FILE_URI\` |"
+            echo
+            echo "Download the \`signed-enrollment-file\` artifact and upload it to the"
+            echo "portal."
+          } >> "$GITHUB_STEP_SUMMARY"

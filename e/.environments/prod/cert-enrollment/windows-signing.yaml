@@ -1,0 +1,7 @@
+---
+WINDOWS_SIGNING_CERT_SSM_PARAMETER_PATH: /prod/windows/signing/build-prod/certificate
+WINDOWS_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:146628656107:alias/teleport-windows-signing-key
+WINDOWS_SIGNING_ROLE_ARN: arn:aws:iam::146628656107:role/windows-signing-build-prod-role
+WINDOWS_SIGNING_ENROLLMENT_S3_ROLE_ARN: arn:aws:iam::146628656107:role/windows-signing-enrollment-fetch-prod-role
+WINDOWS_SIGNING_ENROLLMENT_BUCKET: tp-146628656107-us-west-2-windows-signing-enrollment-prod
+WINDOWS_SIGNING_ENROLLMENT_PREFIX: enrollment
