@@ -612,18 +612,14 @@ func (a *LocalKeyAgent) DeleteKey() error {
 
 	// remove key from key store
 	err := a.clientStore.DeleteKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
+	// Clear MCP OAuth credentials on logout
+	oauthErr := a.clientStore.DeleteMCPOAuthCredentials(a.proxyHost, a.username)
 
 	// remove any keys that are loaded for this user from the teleport and
 	// system agents
-	err = a.UnloadKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	agentErr := a.UnloadKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
+	return trace.NewAggregate(err, oauthErr, agentErr)
 }
 
 // DeleteUserCerts deletes only the specified certs of the user's key,

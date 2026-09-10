@@ -83,6 +83,9 @@ type KeyStore interface {
 	// DeleteKeyRing deletes the user's key with all its certs.
 	DeleteKeyRing(idx KeyRingIndex) error
 
+	// DeleteMCPOAuthCredentials removes the user's MCP OAuth credentials for all clusters.
+	DeleteMCPOAuthCredentials(proxyHost, username string) error
+
 	// DeleteUserCerts deletes only the specified parts of the user's keyring,
 	// keeping the rest intact.
 	DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error
@@ -528,6 +531,23 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	return trace.NewAggregate(deleteErrs...)
 }
 
+// DeleteMCPOAuthCredentials removes the user's MCP OAuth credentials for all clusters.
+func (fs *FSKeyStore) DeleteMCPOAuthCredentials(proxyHost, username string) error {
+	if !isValidPathComponent(proxyHost) || !isValidPathComponent(username) {
+		return trace.BadParameter("proxy host and username must be non-empty path components to remove MCP OAuth credentials")
+	}
+	unlock, err := fs.lockMCPOAuthCredentials()
+	if err != nil {
+		return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
+	}
+	defer unlock()
+	return trace.Wrap(utils.RemoveAllSecure(keypaths.MCPDir(fs.KeyDir, proxyHost, username)))
+}
+
+func isValidPathComponent(component string) bool {
+	return component != "" && component != "." && component != ".." && !strings.ContainsAny(component, `/\`)
+}
+
 // DeleteUserCerts deletes only the specified parts of the user's keyring,
 // keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
@@ -535,17 +555,6 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
 func (fs *FSKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error {
-	if slices.ContainsFunc(opts, func(opt CertOption) bool {
-		_, ok := opt.(WithAppCerts)
-		return ok
-	}) {
-		unlock, err := fs.lockMCPOAuthCredentials()
-		if err != nil {
-			return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
-		}
-		defer unlock()
-	}
-
 	var pathsToDelete []string
 	for _, o := range opts {
 		pathsToDelete = append(pathsToDelete, o.pathsToDelete(fs.KeyDir, idx)...)
@@ -899,7 +908,6 @@ func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	return []string{
 		keypaths.AppCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
 		keypaths.AppKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
-		keypaths.MCPOAuthCredentialsPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.appName),
 	}
 }
 
@@ -1032,6 +1040,11 @@ func (ms *MemKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		return trace.NotFound("key ring for %+v not found", idx)
 	}
 	delete(ms.keyRings[idx.ProxyHost], idx.Username)
+	return nil
+}
+
+// DeleteMCPOAuthCredentials is a no-op because MemKeyStore does not store MCP OAuth credentials.
+func (ms *MemKeyStore) DeleteMCPOAuthCredentials(proxyHost, username string) error {
 	return nil
 }
 

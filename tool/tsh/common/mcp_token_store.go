@@ -88,7 +88,7 @@ func mcpOAuthTokenPath(homePath, proxyHost, username, cluster string, appSQN sco
 	appName := client.ScopedAppName(appSQN)
 	path := keypaths.MCPOAuthCredentialsPath(baseDir, proxyHost, username, cluster, appName)
 	// The app name is user input; reject path separators and directory escapes.
-	if strings.ContainsAny(appName, `/\`) || filepath.Dir(path) != keypaths.AppCredentialDir(baseDir, proxyHost, username, cluster) {
+	if strings.ContainsAny(appName, `/\`) || filepath.Dir(path) != keypaths.MCPOAuthCredentialDir(baseDir, proxyHost, username, cluster) {
 		return "", trace.BadParameter("invalid MCP server name %q", appSQN.String())
 	}
 	return path, nil

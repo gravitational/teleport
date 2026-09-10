@@ -55,7 +55,7 @@ func (c *mcpLogoutCommand) run() error {
 	lockPath := mcpOAuthMutationLockPath(c.cf.HomePath)
 
 	if c.cf.AppSQN.Name == "" {
-		dir := keypaths.AppCredentialDir(profile.FullProfilePath(c.cf.HomePath), tc.WebProxyHost(), tc.Username, tc.SiteName)
+		dir := keypaths.MCPOAuthCredentialDir(profile.FullProfilePath(c.cf.HomePath), tc.WebProxyHost(), tc.Username, tc.SiteName)
 		removed, err := removeAllMCPOAuthCredentials(c.cf.Context, dir, lockPath)
 		if err != nil {
 			return trace.Wrap(err)
