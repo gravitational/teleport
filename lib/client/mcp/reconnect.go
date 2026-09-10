@@ -486,6 +486,9 @@ func (t *authHeaderRoundTripper) RoundTrip(r *http.Request) (*http.Response, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if header == "" {
+		return t.base.RoundTrip(r)
+	}
 	r = r.Clone(r.Context())
 	r.Header.Set("Authorization", header)
 	return t.base.RoundTrip(r)

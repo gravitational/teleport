@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"code.dny.dev/ssrf"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -85,6 +87,73 @@ type mcpOAuthLoginConfig struct {
 	Stderr            io.Writer
 	// Automatic is set when expired stored credentials triggered this login.
 	Automatic bool
+}
+
+type mcpLoginCommand struct {
+	*kingpin.CmdClause
+	cf           *CLIConf
+	clientID     string
+	promptSecret bool
+	callbackPort uint16
+	scopes       []string
+}
+
+func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand {
+	cmd := &mcpLoginCommand{
+		CmdClause: parent.Command("login", "Log in to an OAuth-protected MCP server."),
+		cf:        cf,
+	}
+	cmd.Arg("name", "Name of the MCP server.").Required().SetValue(&cf.AppSQN)
+	cmd.Flag("client-id", "OAuth client ID for a pre-registered client. When set, dynamic client registration is skipped.").
+		StringVar(&cmd.clientID)
+	cmd.Flag("client-secret", "Prompt for the OAuth client secret of a pre-registered confidential client.").
+		BoolVar(&cmd.promptSecret)
+	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
+		Uint16Var(&cmd.callbackPort)
+	cmd.Flag("oauth-scope", "OAuth scopes to request, separated by commas or spaces. This flag can be specified multiple times.").
+		StringsVar(&cmd.scopes)
+	cmd.Flag("browser", browserHelp).StringVar(&cf.Browser)
+	return cmd
+}
+
+func (c *mcpLoginCommand) run() error {
+	ctx := c.cf.Context
+	tc, err := makeClient(c.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN)
+	var app types.Application
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		app, err = dialer.GetApp(ctx)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	credsPath, err := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.Username, tc.SiteName, c.cf.AppSQN)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientID, clientSecret, err := c.getOAuthClientCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(runMCPOAuthLogin(ctx, mcpOAuthLoginConfig{
+		Dialer:          dialer,
+		App:             app,
+		CredentialsPath: credsPath,
+		LockPath:        mcpOAuthMutationLockPath(c.cf.HomePath),
+		ClientID:        clientID,
+		ClientSecret:    clientSecret,
+		CallbackPort:    c.callbackPort,
+		OAuthScopes:     utils.SplitIdentifiers(strings.Join(c.scopes, " ")),
+		Browser:         c.cf.Browser,
+		Stdout:          c.cf.Stdout(),
+		Stderr:          c.cf.Stderr(),
+	}))
 }
 
 func newMCPOAuthReauthorizeFunc(dialer *client.MCPServerDialer, appName, credentialsPath, mutationLockPath, browser string, output io.Writer) mcpOAuthReauthorizeFunc {
@@ -150,6 +219,18 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		if err := cfg.StoredCredentials.checkResource(resourceURI); err != nil {
 			return trace.Wrap(err)
 		}
+	} else {
+		// An automatic login runs while refresh already holds this lock.
+		// Holding it for the whole flow keeps a manual login from racing an
+		// automatic one in another process and stalling after its browser step.
+		if err := os.MkdirAll(filepath.Dir(cfg.CredentialsPath), 0o700); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		unlock, err := utils.FSTryWriteLockTimeout(ctx, cfg.CredentialsPath+".lock", mcpOAuthAuthorizationTimeout+mcpOAuthRefreshLockTimeout)
+		if err != nil {
+			return trace.Wrap(err, "waiting for another tsh process to finish refreshing or logging in")
+		}
+		defer unlock()
 	}
 
 	httpClient, err := newMCPOAuthHTTPClient(cfg.Dialer, resourceURI)
@@ -232,12 +313,11 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 			return trace.Wrap(err)
 		}
 	}
-	issuer := metadata.Issuer
 	if cfg.Automatic {
 		// Automatic login reuses stored client credentials, which must stay
 		// bound to the same resource and issuer. An explicit login establishes
 		// a new binding.
-		if err := cfg.StoredCredentials.checkBinding(resourceURI, issuer); err != nil {
+		if err := cfg.StoredCredentials.checkBinding(resourceURI, metadata.Issuer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -287,7 +367,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	if errCode := query.Get("error"); errCode != "" {
 		return trace.AccessDenied("authorization failed: %v: %v", errCode, query.Get("error_description"))
 	}
-	if err := checkMCPOAuthCallbackIssuer(query, issuer); err != nil {
+	if err := checkMCPOAuthCallbackIssuer(query, metadata.Issuer); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -301,7 +381,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	}
 	if err := saveMCPOAuthLoginCredentials(ctx, cfg.CredentialsPath, cfg.LockPath, cfg.Automatic, &mcpOAuthCredentials{
 		ResourceURI:  resourceURI,
-		Issuer:       issuer,
+		Issuer:       metadata.Issuer,
 		ClientID:     oauthHandler.GetClientID(),
 		ClientSecret: oauthHandler.GetClientSecret(),
 		RedirectURI:  redirectURI,
@@ -352,19 +432,8 @@ func checkMCPOAuthCallbackIssuer(query url.Values, issuer string) error {
 }
 
 func saveMCPOAuthLoginCredentials(ctx context.Context, path, mutationLockPath string, automatic bool, creds *mcpOAuthCredentials) error {
-	// Automatic reauthorization is called by mcpOAuthHeaderSource.refreshAuthHeader
-	// while it holds path+".lock"; acquiring it again here would deadlock.
-	if !automatic {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		unlock, err := utils.FSTryWriteLockTimeout(ctx, path+".lock", mcpOAuthAuthorizationTimeout+mcpOAuthRefreshLockTimeout)
-		if err != nil {
-			return trace.Wrap(err, "waiting to store MCP OAuth credentials")
-		}
-		defer unlock()
-	}
 	return withMCPOAuthMutationLock(ctx, mutationLockPath, func() error {
+		// An automatic login must not recreate credentials that logout removed meanwhile.
 		if automatic {
 			if _, err := loadMCPOAuthCredentials(path); err != nil {
 				return trace.Wrap(err)
@@ -617,6 +686,25 @@ func isMCPClientRegistrationRejected(err error) bool {
 	return trace.IsAccessDenied(err)
 }
 
+func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
+	clientID := strings.TrimSpace(c.clientID)
+	if !c.promptSecret {
+		return clientID, "", nil
+	}
+	if clientID == "" {
+		return "", "", trace.BadParameter("--client-secret requires --client-id")
+	}
+
+	clientSecret, err := prompt.Password(c.cf.Context, c.cf.Stderr(), prompt.Stdin(), "Enter OAuth client secret")
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	if clientSecret == "" {
+		return "", "", trace.BadParameter("OAuth client secret is empty")
+	}
+	return clientID, clientSecret, nil
+}
+
 func mcpOAuthDiscoveryBaseURL(appURI string) (string, error) {
 	uri, err := url.Parse(appURI)
 	if err != nil {
@@ -727,7 +815,6 @@ func validateMCPOAuthDirectURL(ctx context.Context, rawURL, name string) error {
 	}
 	return nil
 }
-
 func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI string) (*http.Client, error) {
 	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(appURI)
 	if err != nil {

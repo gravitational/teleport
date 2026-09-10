@@ -665,7 +665,27 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+	proxyOpts := []alpnproxy.LocalProxyConfigOpt{alpnproxy.WithALPNProtocol(alpnProtocol)}
+
+	if app.IsMCP() {
+		appSQN := scopes.QualifiedName{Name: app.GetName(), Scope: app.GetScope()}
+		dialer := libclient.NewMCPServerDialer(tc, appSQN)
+		credsPath, err := mcpOAuthTokenPath(cf.HomePath, tc.WebProxyHost(), tc.Username, tc.SiteName, appSQN)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Without stored credentials the proxy stays a plain tunnel; a proxy
+		// started before `tsh mcp login` needs a restart to pick them up.
+		if _, err := os.Stat(credsPath); err == nil {
+			appName := appSQN.String()
+			mutationLockPath := mcpOAuthMutationLockPath(cf.HomePath)
+			reauthorize := newMCPOAuthReauthorizeFunc(dialer, appName, credsPath, mutationLockPath, cf.Browser, cf.Stderr())
+			source := newMCPOAuthHeaderSource(dialer, credsPath, mutationLockPath, appName, reauthorize)
+			proxyOpts = append(proxyOpts, alpnproxy.WithHTTPMiddleware(newMCPOAuthProxyMiddleware(source)))
+		}
+	}
+
+	if err := proxyApp.StartLocalProxy(cf.Context, proxyOpts...); err != nil {
 		return trace.Wrap(err)
 	}
 

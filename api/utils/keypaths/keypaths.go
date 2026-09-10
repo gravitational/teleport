@@ -337,6 +337,12 @@ func MCPOAuthCredentialsPath(baseDir, proxy, username, cluster, appname string) 
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+mcpOAuthCredentialsSuffix)
 }
 
+// IsMCPOAuthCredentialsFile reports whether a file name in an app credential
+// directory holds an MCP app's OAuth credentials.
+func IsMCPOAuthCredentialsFile(name string) bool {
+	return strings.HasSuffix(name, mcpOAuthCredentialsSuffix)
+}
+
 // MCPOAuthCredentialsLockPath stays outside session keys so logout cannot
 // replace a lock that another process still holds.
 func MCPOAuthCredentialsLockPath(baseDir string) string {

@@ -1197,6 +1197,48 @@ Arguments:
 |---|---|---|
 |name|*no default* (optional)|Database service name.|
 
+## tsh mcp login
+
+Log in to an OAuth-protected MCP server.
+
+Usage:
+
+```code
+$ tsh mcp login [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--browser`|*no default*|Set to 'none' to suppress browser opening on login.|
+|`--callback-port`|*no default*|Local OAuth callback port. Set this to the exact port registered with the OAuth provider.|
+|`--client-id`|*no default*|OAuth client ID for a pre-registered client. When set, dynamic client registration is skipped.|
+|`--[no-]client-secret`|`false`|Prompt for the OAuth client secret of a pre-registered confidential client.|
+|`--oauth-scope`|*no default*|OAuth scopes to request, separated by commas or spaces. This flag can be specified multiple times.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (required)|Name of the MCP server.|
+
+## tsh mcp logout
+
+Remove stored OAuth credentials for an MCP server.
+
+Usage:
+
+```code
+$ tsh mcp logout [<name>]
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (optional)|Name of the MCP server. Removes credentials for all MCP servers when omitted.|
+
 ## tsh mcp ls
 
 List available MCP server applications.
@@ -1328,6 +1370,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--browser`|*no default*|Set to 'none' to suppress browser opening on login.|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
@@ -1514,6 +1557,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--browser`|*no default*|Set to 'none' to suppress browser opening on login.|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
