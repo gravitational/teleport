@@ -308,6 +308,7 @@ unsafe fn lsa_ap_logon_user(
         || token_information_type.is_null()
         || account_name.is_null()
         || authenticating_authority.is_null()
+        || primary_credential.is_null()
     {
         return Err(Error::from(STATUS_INVALID_PARAMETER)).context("Pointer is invalid");
     }
@@ -358,11 +359,36 @@ unsafe fn lsa_ap_logon_user(
     let (groups, managed_by) = sync_groups(&name, should_create_user, &user)?;
     copy_groups_to_token(token, groups).context("Can't copy groups to token")?;
 
+    // LSA passes the primary credentials on to the other security packages.
+    // The built-in MSV1_0 security package expects the account name, the NetBIOS domain,
+    // and the SID.
+    // https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/ns-ntsecpkg-secpkg_primary_cred
+    debug!(
+        "Setting primary credentials for {}\\{} (managed by {:?})",
+        user.domain, name, managed_by
+    );
+    (*primary_credential).LogonId = *logon_id;
+    (*primary_credential).Flags = 0;
+    (*primary_credential).DownlevelName = to_lsa_unicode_string(&name)?;
+    (*primary_credential).DomainName = to_lsa_unicode_string(&user.domain)?;
+    (*primary_credential).UserSid = PSID(allocate_lsa_heap_size(user.sid_length()?)?);
+    CopySid(
+        user.sid.len() as _,
+        (*primary_credential).UserSid,
+        user.psid(),
+    )
+    .context("Can't copy user SID")?;
+
     if managed_by == ManagedBy::Teleport {
         // We have to have password equivalent that is unique and secret for each user and is consistent
         // between logins. We retrieve it from LSA secrets and if it's missing we generate new random one
         // and store it there.
+        //
         // Consistent password is required for Credential Manager to work.
+        //
+        // Note that this is not the account's SAM password, so it only satisfies packages that
+        // key off the logon session (DPAPI). NTLM challenge/response against the SAM still fail.
+        //
         // https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaretrieveprivatedata
         // https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsastoreprivatedata
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-lsad/483f1b6e-7b14-4341-9ab2-9b99c01f896e
@@ -378,17 +404,8 @@ unsafe fn lsa_ap_logon_user(
             new_key
         };
 
-        (*primary_credential).LogonId = *logon_id;
         (*primary_credential).Flags = PRIMARY_CRED_CLEAR_PASSWORD;
-        (*primary_credential).DownlevelName = to_lsa_unicode_string(&name)?;
         (*primary_credential).Password = to_lsa_unicode_string(&key)?;
-        (*primary_credential).UserSid = PSID(allocate_lsa_heap_size(user.sid_length()?)?);
-        CopySid(
-            user.sid.len() as _,
-            (*primary_credential).UserSid,
-            user.psid(),
-        )
-        .context("Can't copy user SID")?;
     }
 
     info!("User {} logged in successfully", name);
