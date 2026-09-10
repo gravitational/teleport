@@ -190,13 +190,13 @@ In the following queries, replace the placeholder values with your own:
 #### Show all Okta resources
 
 ```sql
-SELECT * FROM nodes WHERE labels @> '{"teleport.dev/origin": "okta"}';
+SELECT * FROM access_path WHERE resource_labels @> '{"teleport.dev/origin": "okta"}';
 ```
 
 #### Show all Okta resources for a specific org
 
 ```sql
-SELECT * FROM nodes WHERE labels @> '{"okta/org": "https://<Var name="your-org" />.okta.com"}';
+SELECT * FROM access_path WHERE resource_labels @> '{"okta/org": "https://<Var name="your-org" />.okta.com"}';
 ```
 
 #### Fetch all access paths for an Okta user

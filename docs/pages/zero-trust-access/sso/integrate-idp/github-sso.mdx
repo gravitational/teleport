@@ -217,12 +217,12 @@ You can add multiple instances of the `--teams-to-roles` flag or edit the connec
 file to define multiple mappings. For example:
 
 ```code
-$  tctl sso configure github \
+$ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
 --teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
---teams-to-roles="org-name,administrators,admins \
---teams-to-roles="different-org,developers,dev \
+--teams-to-roles="org-name,administrators,admins" \
+--teams-to-roles="different-org,developers,dev" \
 > github.yaml
 ```
 
@@ -259,7 +259,7 @@ $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
 --teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
---endpoint-url=https://<Var name="github-enterprise-server-address"/>
+--endpoint-url=https://<Var name="github-enterprise-server-address"/> \
 --api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
 > github.yaml
 ```

@@ -232,8 +232,8 @@ $ tctl sso configure oidc --name "entra-id" \
   --issuer-url https://login.microsoftonline.com/<Var name="Entra ID tenant ID" />/v2.0 \
   --id <Var name="Enterprise application client ID" /> \
   --secret $(cat /tmp/client-secret) \
-  --claims-to-roles groups,<Var name="mapping_1" /> \
-  --claims-to-roles groups,<Var name="mapping_2" /> \
+  --claims-to-roles <Var name="mapping_1" /> \
+  --claims-to-roles <Var name="mapping_2" /> \
   --scope openid \
   --scope email \
   --scope profile > entraid-oidc-connector.yaml
