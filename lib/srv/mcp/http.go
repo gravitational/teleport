@@ -239,7 +239,65 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 		return nil, trace.Wrap(err)
 	}
 
+	if r.Method == http.MethodGet && (r.URL.Path == mcputils.OAuthProtectedResourceMetadataPath ||
+		strings.HasPrefix(r.URL.Path, mcputils.OAuthProtectedResourceMetadataPath+"/")) {
+		return t.fetchProtectedResourceMetadata(r)
+	}
+
 	return t.targetTransport.RoundTrip(r)
+}
+
+// fetchProtectedResourceMetadata follows redirects within the registered app so
+// private metadata endpoints remain reachable and their responses retain the
+// well-known request's exemption from MCP message processing.
+func (t *streamableHTTPTransport) fetchProtectedResourceMetadata(r *http.Request) (*http.Response, error) {
+	var redirectErr error
+	client := &http.Client{
+		Transport: t.targetTransport,
+		Timeout:   30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if !utils.SameHTTPOrigin(req.URL, r.URL) {
+				// Leave other origins to the client. Resolve scheme-relative
+				// locations against the upstream URL before returning them.
+				req.Response.Header.Set("Location", req.URL.String())
+				return http.ErrUseLastResponse
+			}
+			if req.URL.User != nil {
+				redirectErr = trace.BadParameter("OAuth metadata redirects must not contain user information")
+				return redirectErr
+			}
+			if len(via) >= 10 {
+				redirectErr = trace.LimitExceeded("stopped after 10 OAuth metadata redirects")
+				return redirectErr
+			}
+			// Preserve the application's Host rewrite for absolute redirects too.
+			req.Host = r.Host
+			return nil
+		},
+	}
+	resp, err := client.Do(r)
+	if err != nil {
+		// HTTP client errors can include credentials from redirect URLs, even
+		// in nested parse errors. Return only errors with known-safe messages.
+		var netErr net.Error
+		switch {
+		case redirectErr != nil:
+			return nil, trace.Wrap(redirectErr)
+		case errors.Is(err, context.Canceled):
+			return nil, trace.Wrap(context.Canceled)
+		case errors.As(err, &netErr) && netErr.Timeout():
+			return nil, trace.Wrap(context.DeadlineExceeded)
+		default:
+			return nil, trace.Wrap(&net.OpError{
+				Op:  "fetch OAuth metadata",
+				Err: errors.New("request failed"),
+			})
+		}
+	}
+	// Response processing must use the original discovery request, even when
+	// the final upstream URL has no well-known prefix.
+	resp.Request = r
+	return resp, nil
 }
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
