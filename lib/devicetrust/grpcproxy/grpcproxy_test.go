@@ -30,20 +30,111 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	grpcinterceptors "github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/devicetrust/grpcproxy/clientaddr"
 )
+
+// proxyClientAddr is the address the proxy sees the test client at and forwards
+// to the Auth Service.
+var proxyClientAddr = &net.TCPAddr{IP: net.ParseIP("203.0.113.7"), Port: 51234}
+
+// TestService_forwardsClientAddr checks that every RPC reaches the Auth Service
+// with the address of the connection in the client address header and ignores
+// any address the client puts in the header itself.
+func TestService_forwardsClientAddr(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rpc  func(t *testing.T, ctx context.Context, client publicdevicepb.DeviceTrustServiceClient)
+	}{
+		{
+			name: "CreatePairedDeviceEnrollToken",
+			rpc: func(t *testing.T, ctx context.Context, client publicdevicepb.DeviceTrustServiceClient) {
+				_, err := client.CreatePairedDeviceEnrollToken(ctx,
+					publicdevicepb.CreatePairedDeviceEnrollTokenRequest_builder{
+						EnrollPairingToken: "pairing-token",
+					}.Build())
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "EnrollDevice",
+			rpc: func(t *testing.T, ctx context.Context, client publicdevicepb.DeviceTrustServiceClient) {
+				stream, err := client.EnrollDevice(ctx)
+				require.NoError(t, err)
+				// The proxy opens the Auth Service stream only once the first message
+				// arrives, so the reply is what proves the hop happened.
+				require.NoError(t, stream.Send(
+					publicdevicepb.EnrollDeviceRequest_builder{
+						Init: publicdevicepb.EnrollDeviceInit_builder{}.Build(),
+					}.Build()))
+				_, err = stream.Recv()
+				require.NoError(t, err)
+
+				// Finish the ceremony so that the stream ends with fake's return rather
+				// than with the test context.
+				require.NoError(t, stream.Send(
+					publicdevicepb.EnrollDeviceRequest_builder{
+						IosChallengeResponse: publicdevicepb.IOSEnrollChallengeResponse_builder{}.Build(),
+					}.Build()))
+				_, err = stream.Recv()
+				require.NoError(t, err)
+				_, err = stream.Recv()
+				require.ErrorIs(t, err, io.EOF)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fake := &fakeAuthService{
+				createTokenResp: publicdevicepb.CreatePairedDeviceEnrollTokenResponse_builder{}.Build(),
+			}
+			client := newProxyClient(t, fake)
+
+			// The header value set by the client must not survive the hop.
+			const spoofedAddr = "198.51.100.1:1"
+			ctx := metadata.AppendToOutgoingContext(t.Context(), clientaddr.Header, spoofedAddr)
+			test.rpc(t, ctx, client)
+			assert.Equal(t, []string{proxyClientAddr.String()}, fake.getLastClientAddrHeader(),
+				"expected clientaddr.Header on the Auth Service side to be the peer address that the Proxy Service saw")
+		})
+	}
+}
+
+// TestService_rejectsANonTCPPeer checks that a proxy whose connections carry no
+// TCP address fails the RPC itself instead of forwarding an address the Auth
+// Service cannot parse.
+func TestService_rejectsANonTCPPeer(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeAuthService{}
+	authClient := fakeAuthClient{client: newGRPCClient(t, fake, nil /* remote */)}
+	proxy, err := New(ServiceConfig{AuthClient: authClient})
+	require.NoError(t, err)
+	// When called with nil remote, newGRPCClient returns a client that reports
+	// "bufconn" as its address.
+	client := newGRPCClient(t, proxy, nil /* remote */)
+
+	_, err = client.CreatePairedDeviceEnrollToken(t.Context(),
+		publicdevicepb.CreatePairedDeviceEnrollTokenRequest_builder{}.Build())
+	assert.ErrorContains(t, err, "is not a TCP address")
+	assert.Nil(t, fake.getLastReq(), "the Auth Service must not be called")
+}
 
 func TestService_CreatePairedDeviceEnrollToken(t *testing.T) {
 	t.Parallel()
 
 	t.Run("forwards the request and returns the response", func(t *testing.T) {
 		fake := &fakeAuthService{
-			resp: publicdevicepb.CreatePairedDeviceEnrollTokenResponse_builder{
+			createTokenResp: publicdevicepb.CreatePairedDeviceEnrollTokenResponse_builder{
 				DeviceEnrollToken: devicepb.DeviceEnrollToken_builder{Token: "enroll-token"}.Build(),
 			}.Build(),
 		}
@@ -142,26 +233,30 @@ func TestService_EnrollDevice(t *testing.T) {
 type fakeAuthService struct {
 	publicdevicepb.UnimplementedDeviceTrustServiceServer
 
-	resp           *publicdevicepb.CreatePairedDeviceEnrollTokenResponse
-	createTokenErr error
+	createTokenResp *publicdevicepb.CreatePairedDeviceEnrollTokenResponse
+	createTokenErr  error
 	// enrollErr fails EnrollDevice before any message is read.
 	enrollErr error
 
-	mu         sync.Mutex
-	lastReq    *publicdevicepb.CreatePairedDeviceEnrollTokenRequest
-	enrollReqs []*publicdevicepb.EnrollDeviceRequest
+	mu                   sync.Mutex
+	lastReq              *publicdevicepb.CreatePairedDeviceEnrollTokenRequest
+	enrollReqs           []*publicdevicepb.EnrollDeviceRequest
+	lastClientAddrHeader []string
 }
 
-func (f *fakeAuthService) CreatePairedDeviceEnrollToken(_ context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
+func (f *fakeAuthService) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
+	f.recordClientAddr(ctx)
 	f.mu.Lock()
 	f.lastReq = req
 	f.mu.Unlock()
-	return f.resp, f.createTokenErr
+	return f.createTokenResp, f.createTokenErr
 }
 
 // EnrollDevice runs a scripted happy-path ceremony: init in, challenge out,
 // challenge response in, success out.
 func (f *fakeAuthService) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
+	f.recordClientAddr(stream.Context())
+
 	if f.enrollErr != nil {
 		return f.enrollErr
 	}
@@ -217,6 +312,19 @@ func (f *fakeAuthService) getLastReq() *publicdevicepb.CreatePairedDeviceEnrollT
 	return f.lastReq
 }
 
+func (f *fakeAuthService) recordClientAddr(ctx context.Context) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastClientAddrHeader = md.Get(clientaddr.Header)
+}
+
+func (f *fakeAuthService) getLastClientAddrHeader() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.lastClientAddrHeader)
+}
+
 // fakeAuthClient adapts a public Device Trust client to the [AuthClient] interface.
 type fakeAuthClient struct {
 	client publicdevicepb.DeviceTrustServiceClient
@@ -231,21 +339,31 @@ func (c fakeAuthClient) PublicDevicesClient() publicdevicepb.DeviceTrustServiceC
 func newProxyClient(t *testing.T, authSvc publicdevicepb.DeviceTrustServiceServer) publicdevicepb.DeviceTrustServiceClient {
 	t.Helper()
 
-	authClient := fakeAuthClient{client: newGRPCClient(t, authSvc)}
+	authClient := fakeAuthClient{client: newGRPCClient(t, authSvc, nil /* remote */)}
 
 	proxy, err := New(ServiceConfig{AuthClient: authClient})
 	require.NoError(t, err)
 
-	return newGRPCClient(t, proxy)
+	return newGRPCClient(t, proxy,
+		// The proxy forwards the address it sees on the connection, so its listener
+		// reports the test client at proxyClientAddr.
+		proxyClientAddr)
 }
 
 // newGRPCClient serves svc on an in-memory bufconn listener and returns a client
 // dialed over it. bufconn keeps the transport off the real network so tests can
 // run inside a synctest bubble.
-func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer) publicdevicepb.DeviceTrustServiceClient {
+//
+// A non-nil remote makes the server see every connection as coming from that
+// address.
+func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer, remote net.Addr) publicdevicepb.DeviceTrustServiceClient {
 	t.Helper()
 
-	lis := bufconn.Listen(1024)
+	buf := bufconn.Listen(1024)
+	var lis net.Listener = buf
+	if remote != nil {
+		lis = &remoteAddrListener{Listener: buf, remote: remote}
+	}
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(grpcinterceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.ChainStreamInterceptor(grpcinterceptors.GRPCServerStreamErrorInterceptor),
@@ -262,7 +380,7 @@ func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer) pu
 	conn, err := grpc.NewClient(
 		"passthrough:///bufconn",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return lis.DialContext(ctx)
+			return buf.DialContext(ctx)
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithChainUnaryInterceptor(grpcinterceptors.GRPCClientUnaryErrorInterceptor),
@@ -273,3 +391,25 @@ func newGRPCClient(t *testing.T, svc publicdevicepb.DeviceTrustServiceServer) pu
 
 	return publicdevicepb.NewDeviceTrustServiceClient(conn)
 }
+
+// remoteAddrListener makes accepted connections report a fixed remote address,
+// which the gRPC server exposes as the peer of every RPC on them.
+type remoteAddrListener struct {
+	net.Listener
+	remote net.Addr
+}
+
+func (l *remoteAddrListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &remoteAddrConn{Conn: conn, remote: l.remote}, nil
+}
+
+type remoteAddrConn struct {
+	net.Conn
+	remote net.Addr
+}
+
+func (c *remoteAddrConn) RemoteAddr() net.Addr { return c.remote }
