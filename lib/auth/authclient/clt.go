@@ -986,6 +986,81 @@ type SAMLAuthRequest struct {
 	ClientRedirectURL string `json:"client_redirect_url"`
 }
 
+// ToProto converts SAMLAuthResponse to its proto representation.
+func (r *SAMLAuthResponse) ToProto() (*proto.ValidateSAMLResponseResponse, error) {
+	resp := &proto.ValidateSAMLResponseResponse{
+		Username: r.Username,
+		Identity: &r.Identity,
+		Cert:     r.Cert,
+		TlsCert:  r.TLSCert,
+		Req: &proto.ValidateSAMLResponseResponse_RequestInfo{
+			Id:                r.Req.ID,
+			SshPubKey:         r.Req.SSHPubKey,
+			TlsPubKey:         r.Req.TLSPubKey,
+			CsrfToken:         r.Req.CSRFToken,
+			CreateWebSession:  r.Req.CreateWebSession,
+			ClientRedirectUrl: r.Req.ClientRedirectURL,
+		},
+		ClientOptions: &proto.LoginClientOptions{
+			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
+		},
+		MfaToken: r.MFAToken,
+	}
+	if r.Session != nil {
+		session, ok := r.Session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("expected web session to be of type types.WebSessionV2, got %T", r.Session)
+		}
+		resp.Session = session
+	}
+	resp.HostSigners = make([]*types.CertAuthorityV2, 0, len(r.HostSigners))
+	for _, certAuthority := range r.HostSigners {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter("expected certificate authority to be of type types.CertAuthorityV2, got %T", certAuthority)
+		}
+		resp.HostSigners = append(resp.HostSigners, cast)
+	}
+	return resp, nil
+}
+
+// SAMLAuthResponseFromProto converts the proto representation of
+// SAMLAuthResponse to its native representation.
+func SAMLAuthResponseFromProto(resp *proto.ValidateSAMLResponseResponse) *SAMLAuthResponse {
+	r := &SAMLAuthResponse{
+		Username: resp.Username,
+		Cert:     resp.Cert,
+		TLSCert:  resp.TlsCert,
+		MFAToken: resp.MfaToken,
+	}
+	if resp.Identity != nil {
+		r.Identity = *resp.Identity
+	}
+	if resp.Session != nil {
+		r.Session = resp.Session
+	}
+	if resp.Req != nil {
+		r.Req = SAMLAuthRequest{
+			ID:                resp.Req.Id,
+			SSHPubKey:         resp.Req.SshPubKey,
+			TLSPubKey:         resp.Req.TlsPubKey,
+			CSRFToken:         resp.Req.CsrfToken,
+			CreateWebSession:  resp.Req.CreateWebSession,
+			ClientRedirectURL: resp.Req.ClientRedirectUrl,
+		}
+	}
+	if resp.ClientOptions != nil {
+		r.ClientOptions = ClientOptions{
+			DefaultRelayAddr: resp.ClientOptions.DefaultRelayAddr,
+		}
+	}
+	r.HostSigners = make([]types.CertAuthority, 0, len(resp.HostSigners))
+	for _, certAuthority := range resp.HostSigners {
+		r.HostSigners = append(r.HostSigners, certAuthority)
+	}
+	return r
+}
+
 // GithubAuthResponse represents Github auth callback validation response
 //
 // TODO(strideynet): once the legacy HTTP fallback is deleted in v20.0.0,

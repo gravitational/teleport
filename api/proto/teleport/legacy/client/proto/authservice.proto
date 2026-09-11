@@ -2683,6 +2683,61 @@ message GetSAMLAuthRequestRequest {
   string ID = 1 [(gogoproto.jsontag) = "id"];
 }
 
+// ValidateSAMLResponseRequest is the request for the ValidateSAMLResponse
+// RPC.
+message ValidateSAMLResponseRequest {
+  // The SAML response payload from the identity provider.
+  string response = 1;
+  // The name of the connector to use, set in the identity-provider-initiated
+  // login case where there is no original auth request to look it up from.
+  string connector_id = 2;
+  // The IP of the logging in client, set in the identity-provider-initiated
+  // login case where there is no original auth request holding it.
+  string client_ip = 3;
+}
+
+// ValidateSAMLResponseResponse is the response for the ValidateSAMLResponse
+// RPC.
+message ValidateSAMLResponseResponse {
+  // RequestInfo echoes fields of the original SAML auth request back to the
+  // Proxy.
+  message RequestInfo {
+    // The unique ID of the auth request.
+    string id = 1;
+    // The SSH public key requested as the subject of the user's SSH
+    // certificate, in SSH authorized_keys format.
+    bytes ssh_pub_key = 2;
+    // The TLS public key requested as the subject of the user's TLS
+    // certificate, in PEM-encoded PKCS#1 or PKIX format.
+    bytes tls_pub_key = 3;
+    // Used to protect against CSRF attacks.
+    string csrf_token = 4;
+    // Whether the user wants a web session after successful authentication.
+    bool create_web_session = 5;
+    // The URL the client will be redirected to after successful auth.
+    string client_redirect_url = 6;
+  }
+
+  // The name of the authenticated Teleport user.
+  string username = 1;
+  // The validated external identity.
+  types.ExternalIdentity identity = 2;
+  // The web session created for the user, if one was requested.
+  types.WebSessionV2 session = 3;
+  // The generated SSH client certificate.
+  bytes cert = 4;
+  // The PEM-encoded TLS client certificate.
+  bytes tls_cert = 5;
+  // Echoes the original auth request.
+  RequestInfo req = 6;
+  // Signing host public keys trusted by the proxy, used in console login.
+  repeated types.CertAuthorityV2 host_signers = 7;
+  // Options the cluster wants the client to use.
+  LoginClientOptions client_options = 8;
+  // An SSO MFA token.
+  string mfa_token = 9;
+}
+
 // GetGithubAuthRequestRequest is a request for GetGithubAuthRequest.
 message GetGithubAuthRequestRequest {
   // StateToken is a github auth request state token.
@@ -3815,6 +3870,9 @@ service AuthService {
   rpc CreateSAMLAuthRequest(types.SAMLAuthRequest) returns (types.SAMLAuthRequest);
   // GetSAMLAuthRequest returns SAML auth request if found.
   rpc GetSAMLAuthRequest(GetSAMLAuthRequestRequest) returns (types.SAMLAuthRequest);
+  // ValidateSAMLResponse is called by the Proxy to validate the SAML response
+  // from the identity provider and issue the user's session and certificates.
+  rpc ValidateSAMLResponse(ValidateSAMLResponseRequest) returns (ValidateSAMLResponseResponse);
 
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);

@@ -181,6 +181,7 @@ const (
 	AuthService_DeleteSAMLConnector_FullMethodName                 = "/proto.AuthService/DeleteSAMLConnector"
 	AuthService_CreateSAMLAuthRequest_FullMethodName               = "/proto.AuthService/CreateSAMLAuthRequest"
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
+	AuthService_ValidateSAMLResponse_FullMethodName                = "/proto.AuthService/ValidateSAMLResponse"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
 	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
@@ -719,6 +720,9 @@ type AuthServiceClient interface {
 	CreateSAMLAuthRequest(ctx context.Context, in *types.SAMLAuthRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetSAMLAuthRequest returns SAML auth request if found.
 	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
+	// ValidateSAMLResponse is called by the Proxy to validate the SAML response
+	// from the identity provider and issue the user's session and certificates.
+	ValidateSAMLResponse(ctx context.Context, in *ValidateSAMLResponseRequest, opts ...grpc.CallOption) (*ValidateSAMLResponseResponse, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// Deprecated: Do not use.
@@ -2660,6 +2664,16 @@ func (c *authServiceClient) GetSAMLAuthRequest(ctx context.Context, in *GetSAMLA
 	return out, nil
 }
 
+func (c *authServiceClient) ValidateSAMLResponse(ctx context.Context, in *ValidateSAMLResponseRequest, opts ...grpc.CallOption) (*ValidateSAMLResponseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateSAMLResponseResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateSAMLResponse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3)
@@ -4445,6 +4459,9 @@ type AuthServiceServer interface {
 	CreateSAMLAuthRequest(context.Context, *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// GetSAMLAuthRequest returns SAML auth request if found.
 	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
+	// ValidateSAMLResponse is called by the Proxy to validate the SAML response
+	// from the identity provider and issue the user's session and certificates.
+	ValidateSAMLResponse(context.Context, *ValidateSAMLResponseRequest) (*ValidateSAMLResponseResponse, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
 	// Deprecated: Do not use.
@@ -5253,6 +5270,9 @@ func (UnimplementedAuthServiceServer) CreateSAMLAuthRequest(context.Context, *ty
 }
 func (UnimplementedAuthServiceServer) GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSAMLAuthRequest not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateSAMLResponse(context.Context, *ValidateSAMLResponseRequest) (*ValidateSAMLResponseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateSAMLResponse not implemented")
 }
 func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGithubConnector not implemented")
@@ -8149,6 +8169,24 @@ func _AuthService_GetSAMLAuthRequest_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSAMLAuthRequest(ctx, req.(*GetSAMLAuthRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ValidateSAMLResponse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateSAMLResponseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateSAMLResponse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateSAMLResponse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateSAMLResponse(ctx, req.(*ValidateSAMLResponseRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -11070,6 +11108,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSAMLAuthRequest",
 			Handler:    _AuthService_GetSAMLAuthRequest_Handler,
+		},
+		{
+			MethodName: "ValidateSAMLResponse",
+			Handler:    _AuthService_ValidateSAMLResponse_Handler,
 		},
 		{
 			MethodName: "GetGithubConnector",
