@@ -382,6 +382,203 @@ function Invoke-SignBinary {
     }
 }
 
+function Get-SHA256Hex {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Assert-WindowsAuthDLLReady {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+
+        [Parameter(Mandatory)]
+        [string] $ExpectedSignerCN
+    )
+
+    $Bytes = [System.IO.File]::ReadAllBytes($Path)
+    if ($Bytes.Length -lt 0x100) {
+        throw "windowsauth DLL is too small to be a valid PE file: $Path"
+    }
+    if ($Bytes[0] -ne 0x4d -or $Bytes[1] -ne 0x5a) {
+        throw "windowsauth DLL does not have an MZ header: $Path"
+    }
+
+    $PEOffset = [System.BitConverter]::ToUInt32($Bytes, 0x3c)
+    if ($PEOffset + 24 + 72 -gt $Bytes.Length) {
+        throw "windowsauth DLL has an invalid PE header offset: $Path"
+    }
+    if ($Bytes[$PEOffset] -ne 0x50 -or $Bytes[$PEOffset + 1] -ne 0x45 -or
+        $Bytes[$PEOffset + 2] -ne 0 -or $Bytes[$PEOffset + 3] -ne 0) {
+        throw "windowsauth DLL does not have a PE header: $Path"
+    }
+
+    $COFFOffset = $PEOffset + 4
+    $Characteristics = [System.BitConverter]::ToUInt16($Bytes, $COFFOffset + 18)
+    if (($Characteristics -band 0x2000) -eq 0) {
+        throw "windowsauth file is not marked as a DLL: $Path"
+    }
+
+    $OptionalHeaderOffset = $COFFOffset + 20
+    $DLLCharacteristics = [System.BitConverter]::ToUInt16($Bytes, $OptionalHeaderOffset + 70)
+    if (($DLLCharacteristics -band 0x80) -eq 0) {
+        throw "windowsauth DLL does not have FORCE_INTEGRITY set: DllCharacteristics=0x$($DLLCharacteristics.ToString("x4"))"
+    }
+
+    $Signature = Get-AuthenticodeSignature -FilePath $Path
+    if ($Signature.Status -ne "Valid") {
+        throw "windowsauth DLL Authenticode signature is not valid: $($Signature.Status)"
+    }
+    $ActualSignerCN = $Signature.SignerCertificate.GetNameInfo(
+        [System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName,
+        $false
+    )
+    if ($ActualSignerCN -ne $ExpectedSignerCN) {
+        throw "unexpected windowsauth DLL signer CN: $ActualSignerCN"
+    }
+}
+
+function Get-PinnedWindowsAuthDLL {
+    <#
+    .SYNOPSIS
+    Downloads the Microsoft-signed windowsauth DLL pinned by
+    build.assets/windowsauth.version and build.assets/windowsauth.sha256,
+    verifies it against the release manifest, and places it at
+    e/windowsauth/installer/teleport.dll for the installer build to embed.
+    .OUTPUTS
+    string - the pinned windowsauth version that was fetched
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $Bucket,
+        [Parameter()]
+        [string] $ReleasePrefix = ""
+    )
+
+    $PinVersionPath = "$TeleportSourceDirectory\build.assets\windowsauth.version"
+    $PinChecksumPath = "$TeleportSourceDirectory\build.assets\windowsauth.sha256"
+    $DestinationDLLPath = "$TeleportSourceDirectory\e\windowsauth\installer\teleport.dll"
+    $ExpectedMicrosoftSignerCN = "Microsoft Windows Software Compatibility Publisher"
+    $ExpectedMicrosoftSignerSubject = "CN=$ExpectedMicrosoftSignerCN"
+
+    if ([string]::IsNullOrWhiteSpace($Bucket)) {
+        throw "windowsauth releases bucket must be set"
+    }
+    if (-not (Test-Path $PinVersionPath)) {
+        throw "windowsauth pin file not found: $PinVersionPath"
+    }
+    if (-not (Test-Path $PinChecksumPath)) {
+        throw "windowsauth checksum pin file not found: $PinChecksumPath"
+    }
+
+    $PinnedVersion = (Get-Content $PinVersionPath -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($PinnedVersion)) {
+        throw "windowsauth pin file $PinVersionPath is empty"
+    }
+    $PinnedVersionKeyPart = $PinnedVersion.TrimStart("v", "V")
+    if ([string]::IsNullOrWhiteSpace($PinnedVersionKeyPart)) {
+        throw "windowsauth pin version $PinnedVersion is not valid for use in an S3 key"
+    }
+
+    $PinnedChecksumFields = (Get-Content $PinChecksumPath -Raw).Trim() -split '\s+', 2
+    if ($PinnedChecksumFields.Count -ne 2) {
+        throw "windowsauth checksum pin file $PinChecksumPath must use '<sha256>  <filename>' format"
+    }
+    $PinnedSHA256 = $PinnedChecksumFields[0].ToLowerInvariant()
+    if ($PinnedSHA256 -notmatch '^[0-9a-f]{64}$') {
+        throw "windowsauth checksum pin file $PinChecksumPath must start with a SHA256 hex digest"
+    }
+    $PinnedDLLFileName = $PinnedChecksumFields[1].Trim()
+    if ([string]::IsNullOrWhiteSpace($PinnedDLLFileName)) {
+        throw "windowsauth checksum pin file $PinChecksumPath must include the pinned DLL filename"
+    }
+
+    $ManifestFileName = "manifest.json"
+    $ManifestKeyPrefix = $PinnedVersionKeyPart
+    if (-not [string]::IsNullOrWhiteSpace($ReleasePrefix)) {
+        $ManifestKeyPrefix = "$ReleasePrefix/$PinnedVersionKeyPart"
+    }
+    $ManifestKey = "$ManifestKeyPrefix/$ManifestFileName"
+    $ManifestPath = Join-Path (New-TempDirectory) $ManifestFileName
+    $WorkDirectory = Split-Path -Parent $ManifestPath
+
+    try {
+        $ManifestURI = "s3://$Bucket/$ManifestKey"
+        Write-Host "Downloading pinned windowsauth manifest from $ManifestURI"
+        aws s3 cp $ManifestURI $ManifestPath --no-progress
+        if ($LastExitCode -ne 0) {
+            throw "failed to download pinned windowsauth manifest from $ManifestURI"
+        }
+
+        $Manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+        if ($Manifest.schema_version -ne 1) {
+            throw "unsupported windowsauth manifest schema_version: $($Manifest.schema_version)"
+        }
+        if ($Manifest.windowsauth_version -ne $PinnedVersion) {
+            throw "windowsauth manifest version $($Manifest.windowsauth_version) does not match pinned version $PinnedVersion"
+        }
+        if ("$($Manifest.source_files_sha256)" -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "windowsauth manifest is missing a valid source_files_sha256"
+        }
+
+        $ManifestDLLSHA256 = "$($Manifest.microsoft_signed_dll.sha256)".ToLowerInvariant()
+        if ($ManifestDLLSHA256 -ne $PinnedSHA256) {
+            throw "windowsauth manifest DLL checksum $ManifestDLLSHA256 does not match repo pin $PinnedSHA256"
+        }
+        $ManifestDLLFileName = "$($Manifest.microsoft_signed_dll.filename)"
+        if ($ManifestDLLFileName -ne $PinnedDLLFileName) {
+            throw "windowsauth manifest DLL filename $ManifestDLLFileName does not match repo pin $PinnedDLLFileName"
+        }
+        if ($Manifest.microsoft_signed_dll.PSObject.Properties.Name -contains "expected_signer_subject") {
+            $ManifestSignerSubject = "$($Manifest.microsoft_signed_dll.expected_signer_subject)"
+            if (-not [string]::IsNullOrWhiteSpace($ManifestSignerSubject) -and
+                $ManifestSignerSubject -ne $ExpectedMicrosoftSignerSubject) {
+                throw "windowsauth manifest signer $ManifestSignerSubject does not match expected signer $ExpectedMicrosoftSignerSubject"
+            }
+        }
+
+        $DLLKey = "$ManifestKeyPrefix/$ManifestDLLFileName"
+        if ($Manifest.microsoft_signed_dll.PSObject.Properties.Name -contains "s3_key") {
+            $DLLKey = "$($Manifest.microsoft_signed_dll.s3_key)"
+        }
+        if ([string]::IsNullOrWhiteSpace($DLLKey) -or $DLLKey.StartsWith("s3://")) {
+            throw "windowsauth manifest has invalid microsoft_signed_dll.s3_key: $DLLKey"
+        }
+
+        $DownloadedDLLPath = Join-Path $WorkDirectory $ManifestDLLFileName
+        $DLLURI = "s3://$Bucket/$DLLKey"
+        Write-Host "Downloading pinned Microsoft-signed windowsauth DLL from $DLLURI"
+        aws s3 cp $DLLURI $DownloadedDLLPath --no-progress
+        if ($LastExitCode -ne 0) {
+            throw "failed to download pinned Microsoft-signed windowsauth DLL from $DLLURI"
+        }
+
+        $ActualDLLSHA256 = Get-SHA256Hex -Path $DownloadedDLLPath
+        if ($ActualDLLSHA256 -ne $PinnedSHA256) {
+            throw "checksum mismatch for pinned windowsauth DLL: expected $PinnedSHA256, got $ActualDLLSHA256"
+        }
+
+        Assert-WindowsAuthDLLReady -Path $DownloadedDLLPath -ExpectedSignerCN $ExpectedMicrosoftSignerCN
+
+        New-Item -ItemType Directory -Path (Split-Path -Parent $DestinationDLLPath) -Force | Out-Null
+        Copy-Item -Path $DownloadedDLLPath -Destination $DestinationDLLPath -Force
+    } finally {
+        Remove-Item -Path $WorkDirectory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Verified pinned Microsoft-signed windowsauth DLL $PinnedVersion (sha256 $PinnedSHA256)"
+    return $PinnedVersion
+}
+
 function Build-WindowsAuthenticationPackage {
     [CmdletBinding()]
     param(
@@ -390,15 +587,38 @@ function Build-WindowsAuthenticationPackage {
         [Parameter(Mandatory)]
         [string] $ArtifactDirectory,
         [Parameter(Mandatory)]
-        [string] $TeleportVersion
+        [string] $TeleportVersion,
+
+        [Parameter()]
+        [ValidateSet("source", "pinned")]
+        [string] $WindowsAuthBuildMode = "pinned",
+
+        [Parameter()]
+        [string] $Environment = ""
     )
 
+    if ($Environment.StartsWith("prod") -and $WindowsAuthBuildMode -eq "source") {
+        throw "windowsauth build mode 'source' is not allowed when Environment is '$Environment'; production builds must consume a pinned, Microsoft-signed windowsauth DLL"
+    }
+
     $CommandDuration = Measure-Block {
-        # Build Windows authentication package
-        Write-Host "::group::Building Windows auth setup..."
         $WindowsAuthDirectory = "$TeleportSourceDirectory\e\windowsauth"
-        make -C "$WindowsAuthDirectory" VERSION="v$TeleportVersion" all
-        Write-Host "::endgroup::"
+
+        if ($WindowsAuthBuildMode -eq "pinned") {
+            # The pinned DLL is expected to already be present at
+            # installer/teleport.dll, fetched by a dedicated workflow step
+            # that runs (and finishes) before the code signing role is
+            # assumed -- see build-windows.yaml. `installer-exe` fails
+            # clearly if it is missing.
+            Write-Host "::group::Building Windows auth installer from pinned DLL..."
+            make -C "$WindowsAuthDirectory" VERSION="v$TeleportVersion" installer-exe
+            Write-Host "::endgroup::"
+        } else {
+            Write-Host "::group::Building Windows auth setup from source..."
+            make -C "$WindowsAuthDirectory" VERSION="v$TeleportVersion" all
+            Write-Host "::endgroup::"
+        }
+
         Write-Host "::group::Signing Windows auth setup..."
         $BinaryName = "teleport-windows-auth-setup-v$TeleportVersion-amd64.exe"
         Invoke-SignBinary -UnsignedBinaryPath "$WindowsAuthDirectory\build\$BinaryName" -SignedBinaryPath "$ArtifactDirectory\$BinaryName"
@@ -685,8 +905,19 @@ function Build-Artifacts {
         [Parameter(Mandatory)]
         [string] $TeleportVersion,
         [Parameter(Mandatory)]
-        [string] $ArtifactDirectory
+        [string] $ArtifactDirectory,
+
+        [Parameter()]
+        [ValidateSet("source", "pinned")]
+        [string] $WindowsAuthBuildMode = "pinned",
+
+        [Parameter()]
+        [string] $Environment = ""
     )
+    if ($Environment.StartsWith("prod") -and $WindowsAuthBuildMode -eq "source") {
+        throw "windowsauth build mode 'source' is not allowed when Environment is '$Environment'; production builds must consume a pinned, Microsoft-signed windowsauth DLL"
+    }
+
     Write-Host "Starting build process for Teleport $TeleportVersion..."
 
     # Create the artifact output directory
@@ -730,7 +961,9 @@ function Build-Artifacts {
     Build-WindowsAuthenticationPackage `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
-        -TeleportVersion "$TeleportVersion"
+        -TeleportVersion "$TeleportVersion" `
+        -WindowsAuthBuildMode "$WindowsAuthBuildMode" `
+        -Environment "$Environment"
 
     Write-Host "Build complete"
 }
