@@ -3507,6 +3507,24 @@ func (g *GRPCServer) GetSAMLAuthRequest(ctx context.Context, req *authpb.GetSAML
 	return request, nil
 }
 
+// ValidateSAMLResponse is called by the Proxy to validate the SAML response
+// from the identity provider and issue the user's session and certificates.
+func (g *GRPCServer) ValidateSAMLResponse(ctx context.Context, req *authpb.ValidateSAMLResponseRequest) (*authpb.ValidateSAMLResponseResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.ValidateSAMLResponse(ctx, req.Response, req.ConnectorId, req.ClientIp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := response.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native SAMLAuthResponse to proto representation")
+	}
+	return protoResp, nil
+}
+
 // GetGithubConnector retrieves a Github connector by name.
 func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
 	auth, err := g.authenticate(ctx)

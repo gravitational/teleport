@@ -41,6 +41,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -1751,6 +1752,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 		desc                         string
 		connectorName                string
 		pubKey, sshPubKey, tlsPubKey []byte
+		createWebSession             bool
 		expectSSHSubjectKey          ssh.PublicKey
 		expectTLSSubjectKey          crypto.PublicKey
 		clientVersion                string
@@ -1786,6 +1788,12 @@ func TestSAMLAuthCompat(t *testing.T) {
 			assertErr:           require.NoError,
 		},
 		{
+			desc:             "web session",
+			connectorName:    connector.GetName(),
+			createWebSession: true,
+			assertErr:        require.NoError,
+		},
+		{
 			desc:                "empty ClientVersion succeeds on default or http-redirect binding request",
 			connectorName:       connector.GetName(),
 			tlsPubKey:           tlsPubBytes,
@@ -1805,50 +1813,149 @@ func TestSAMLAuthCompat(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			req, err := proxyClient.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
-				ConnectorID:  tc.connectorName,
-				SshPublicKey: tc.sshPubKey,
-				TlsPublicKey: tc.tlsPubKey,
-				CertTTL:      time.Hour,
-			})
-			tc.assertErr(t, err)
-			if tc.wantErr {
-				return
-			}
+			// Validation runs over both the gRPC RPC used by proxies on v19+
+			// and the legacy HTTP endpoint still used by older proxies.
+			// TODO(strideynet): DELETE IN v20.0.0 - remove the http transport
+			// along with the legacy endpoint.
+			for _, transport := range []struct {
+				name      string
+				roundtrip func(t *testing.T, samlResponse string) *authclient.SAMLAuthResponse
+			}{
+				{
+					name: "wrapper",
+					roundtrip: func(t *testing.T, samlResponse string) *authclient.SAMLAuthResponse {
+						// The authclient.Client wrapper used by production
+						// callers, which tries gRPC and falls back to HTTP.
+						resp, err := proxyClient.ValidateSAMLResponse(t.Context(), samlResponse, tc.connectorName, "")
+						require.NoError(t, err)
+						return resp
+					},
+				},
+				{
+					name: "grpc",
+					roundtrip: func(t *testing.T, samlResponse string) *authclient.SAMLAuthResponse {
+						// Call the gRPC client directly rather than via the
+						// authclient.Client wrapper, so a broken RPC can't be
+						// masked by the wrapper's HTTP fallback.
+						resp, err := proxyClient.APIClient.ValidateSAMLResponse(t.Context(), &proto.ValidateSAMLResponseRequest{
+							Response:    samlResponse,
+							ConnectorId: tc.connectorName,
+						})
+						require.NoError(t, err)
+						return authclient.SAMLAuthResponseFromProto(resp)
+					},
+				},
+				{
+					name: "http",
+					roundtrip: func(t *testing.T, samlResponse string) *authclient.SAMLAuthResponse {
+						// Raw request pinning the legacy wire format sent by
+						// older proxies.
+						out, err := proxyClient.HTTPClient.PostJSON(t.Context(),
+							proxyClient.HTTPClient.Endpoint("saml", "requests", "validate"),
+							struct {
+								Response    string `json:"response"`
+								ConnectorID string `json:"connector_id,omitempty"`
+								ClientIP    string `json:"client_ip,omitempty"`
+							}{Response: samlResponse, ConnectorID: tc.connectorName})
+						require.NoError(t, err)
+						var raw struct {
+							Username      string                     `json:"username"`
+							Identity      types.ExternalIdentity     `json:"identity"`
+							Session       json.RawMessage            `json:"session"`
+							Cert          []byte                     `json:"cert"`
+							TLSCert       []byte                     `json:"tls_cert"`
+							Req           authclient.SAMLAuthRequest `json:"req"`
+							HostSigners   []json.RawMessage          `json:"host_signers"`
+							MFAToken      string                     `json:"mfa_token"`
+							ClientOptions authclient.ClientOptions   `json:"client_options"`
+						}
+						require.NoError(t, json.Unmarshal(out.Bytes(), &raw))
+						resp := &authclient.SAMLAuthResponse{
+							Username:      raw.Username,
+							Identity:      raw.Identity,
+							Cert:          raw.Cert,
+							TLSCert:       raw.TLSCert,
+							Req:           raw.Req,
+							MFAToken:      raw.MFAToken,
+							ClientOptions: raw.ClientOptions,
+						}
+						if len(raw.Session) != 0 {
+							session, err := services.UnmarshalWebSession(raw.Session)
+							require.NoError(t, err)
+							resp.Session = session
+						}
+						for _, rawCA := range raw.HostSigners {
+							ca, err := services.UnmarshalCertAuthority(rawCA)
+							require.NoError(t, err)
+							resp.HostSigners = append(resp.HostSigners, ca)
+						}
+						return resp
+					},
+				},
+			} {
+				t.Run(transport.name, func(t *testing.T) {
+					req, err := proxyClient.CreateSAMLAuthRequest(t.Context(), types.SAMLAuthRequest{
+						ConnectorID:      tc.connectorName,
+						SshPublicKey:     tc.sshPubKey,
+						TlsPublicKey:     tc.tlsPubKey,
+						CreateWebSession: tc.createWebSession,
+						CertTTL:          time.Hour,
+					})
+					tc.assertErr(t, err)
+					if tc.wantErr {
+						return
+					}
 
-			// Simulate the proxy redirecting to the SAML IdP and getting a
-			// response back, so we can ask auth to validate it and check the
-			// result.
-			samlResponse, err := idp.ServeSSO(req.RedirectURL)
-			require.NoError(t, err)
+					// Simulate the proxy redirecting to the SAML IdP and getting a
+					// response back, so we can ask auth to validate it and check the
+					// result.
+					samlResponse, err := idp.ServeSSO(req.RedirectURL)
+					require.NoError(t, err)
 
-			resp, err := proxyClient.ValidateSAMLResponse(ctx, samlResponse, tc.connectorName, "")
-			require.NoError(t, err, "validating SAML auth callback")
+					resp := transport.roundtrip(t, samlResponse)
 
-			// The proxy should get back the keys exactly as it sent them.
-			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
-			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+					// The proxy should get back the keys exactly as it sent them.
+					require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+					require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 
-			// Make sure the subject key in the issued SSH cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectSSHSubjectKey != nil {
-				sshCert, err := sshutils.ParseCertificate(resp.Cert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
-			} else {
-				// No SSH cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.Cert)
-			}
+					// Make sure the subject key in the issued SSH cert matches the
+					// expected key and didn't get accidentally switched.
+					if tc.expectSSHSubjectKey != nil {
+						sshCert, err := sshutils.ParseCertificate(resp.Cert)
+						require.NoError(t, err)
+						require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+					} else {
+						// No SSH cert should be issued if we didn't ask for one.
+						require.Empty(t, resp.Cert)
+					}
 
-			// Make sure the subject key in the issued TLS cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectTLSSubjectKey != nil {
-				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
-			} else {
-				// No TLS cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.TLSCert)
+					// Make sure the subject key in the issued TLS cert matches the
+					// expected key and didn't get accidentally switched.
+					if tc.expectTLSSubjectKey != nil {
+						tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+						require.NoError(t, err)
+						require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+					} else {
+						// No TLS cert should be issued if we didn't ask for one.
+						require.Empty(t, resp.TLSCert)
+					}
+
+					// A web session, secrets included, is issued only when
+					// requested, and the host CA only alongside certs.
+					if tc.createWebSession {
+						require.NotNil(t, resp.Session)
+						require.NotEmpty(t, resp.Session.GetName())
+						require.NotEmpty(t, resp.Session.GetSSHPriv())
+						require.NotEmpty(t, resp.Session.GetBearerToken())
+					} else {
+						require.Nil(t, resp.Session)
+					}
+					if tc.expectSSHSubjectKey != nil || tc.expectTLSSubjectKey != nil {
+						require.NotEmpty(t, resp.HostSigners)
+					} else {
+						require.Empty(t, resp.HostSigners)
+					}
+				})
 			}
 		})
 	}

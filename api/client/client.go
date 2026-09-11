@@ -2363,6 +2363,18 @@ func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAML
 	return resp, nil
 }
 
+// ValidateSAMLResponse is called by the proxy to validate the SAML response
+// from the identity provider and issue the user's session and certificates.
+func (c *Client) ValidateSAMLResponse(
+	ctx context.Context, req *proto.ValidateSAMLResponseRequest,
+) (*proto.ValidateSAMLResponseResponse, error) {
+	resp, err := c.grpc.ValidateSAMLResponse(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetGithubConnector returns a Github connector by name.
 func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {

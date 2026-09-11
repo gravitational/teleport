@@ -1225,6 +1225,8 @@ func filterUserTraits(user types.User, allowList *traitAllowList) map[string][]s
 // validateSAMLResponseWeb provides a HTTP/JSON interface to
 // SAMLAuthService.ValidateSAMLResponse. It is called by a teleport proxy in
 // response to it receiving the SAML callback (ACS) from the identity provider.
+//
+// TODO(strideynet): DELETE IN v20.0.0 - this has been migrated to gRPC from v19.
 func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req *authclient.ValidateSAMLResponseReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

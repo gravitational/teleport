@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -36,6 +37,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -43,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -151,6 +155,47 @@ func TestGithubAuthResponseProto(t *testing.T) {
 	proto, err := native.ToProto()
 	require.NoError(t, err)
 	backToNative := GithubAuthResponseFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestSAMLAuthResponseProto(t *testing.T) {
+	session, err := types.NewWebSession("test-session", types.KindWebSession, types.WebSessionSpecV2{
+		User:        "alice",
+		Priv:        []byte("priv"),
+		Pub:         []byte("pub"),
+		TLSCert:     []byte("session-tls-cert"),
+		BearerToken: "bearer",
+	})
+	require.NoError(t, err)
+
+	native := &SAMLAuthResponse{
+		Username: "alice",
+		Identity: types.ExternalIdentity{
+			ConnectorID: "saml",
+			Username:    "alice",
+		},
+		Session: session,
+		Cert:    []byte("ssh-cert"),
+		TLSCert: []byte("tls-cert"),
+		Req: SAMLAuthRequest{
+			ID:                "request-id",
+			SSHPubKey:         []byte("ssh-pub"),
+			TLSPubKey:         []byte("tls-pub"),
+			CSRFToken:         "csrf-token",
+			CreateWebSession:  true,
+			ClientRedirectURL: "https://localhost:3080/callback",
+		},
+		HostSigners: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+		},
+		MFAToken: "mfa-token",
+		ClientOptions: ClientOptions{
+			DefaultRelayAddr: "relay.example.com:443",
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := SAMLAuthResponseFromProto(proto)
 	require.Empty(t, cmp.Diff(native, backToNative))
 }
 
@@ -341,4 +386,50 @@ func requireSnakeoilCert(t testing.TB) tls.Certificate {
 		Certificate: [][]byte{certDER},
 		PrivateKey:  key,
 	}
+}
+
+type rateLimitedAuthServer struct {
+	proto.UnimplementedAuthServiceServer
+}
+
+func (rateLimitedAuthServer) ValidateSAMLResponse(context.Context, *proto.ValidateSAMLResponseRequest) (*proto.ValidateSAMLResponseResponse, error) {
+	return nil, trace.LimitExceeded("rate limit exceeded")
+}
+
+// TestValidateSAMLResponseOversized pins the gRPC error text that
+// ValidateSAMLResponse matches on, so a grpc-go upgrade that changes it fails
+// here instead of silently reverting to the generic error.
+func TestValidateSAMLResponseOversized(t *testing.T) {
+	const maxRecvSize = 1024
+	lis := bufconn.Listen(maxRecvSize)
+	srv := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{requireSnakeoilCert(t)}})),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.MaxRecvMsgSize(maxRecvSize),
+	)
+	proto.RegisterAuthServiceServer(srv, rateLimitedAuthServer{})
+	go srv.Serve(lis)
+	defer srv.Stop()
+
+	clt, err := NewClient(client.Config{
+		Dialer: client.ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		Credentials: []client.Credentials{
+			client.LoadTLS(&tls.Config{InsecureSkipVerify: true}),
+		},
+		DialInBackground: true,
+	})
+	require.NoError(t, err)
+	defer clt.Close()
+
+	_, err = clt.ValidateSAMLResponse(t.Context(), strings.Repeat("a", 2*maxRecvSize), "", "")
+	require.True(t, trace.IsLimitExceeded(err), "unexpected error: %v", err)
+	require.ErrorContains(t, err, "SAML response is too large")
+
+	// Other limit errors from the handler pass through untouched.
+	_, err = clt.ValidateSAMLResponse(t.Context(), "small", "", "")
+	require.True(t, trace.IsLimitExceeded(err), "unexpected error: %v", err)
+	require.ErrorContains(t, err, "rate limit exceeded")
+	require.NotContains(t, err.Error(), "SAML response is too large")
 }

@@ -1265,6 +1265,7 @@ func (p *Plugin) RegisterAuthWebHandlers(handler any) error {
 		return trace.BadParameter("unsupported auth web handler type %T", handler)
 	}
 
+	// TODO(strideynet): DELETE IN v20.0.0 - the SAML route has been migrated to gRPC from v19.
 	apiServer.POST("/:version/saml/requests/validate", apiServer.WithAuth(validateSAMLResponseWeb))
 	apiServer.POST("/:version/oidc/requests/validate", apiServer.WithAuth(validateOIDCAuthCallbackWeb))
 
