@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/appresource"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -300,32 +301,24 @@ func ValidateRole(r types.Role) error {
 	return trace.NewAggregate(errs...)
 }
 
-// validateAppResources rejects an app_resources rule set that this version
-// cannot enforce, for example a rule with an unknown field. It also rejects
-// any app_resources_expressions. It runs on create and update only, not on
-// read.
+// validateAppResources rejects a role whose app_resources or
+// app_resources_expressions the appresource package cannot compile. A role
+// that sets neither field passes, whatever its version.
 func validateAppResources(r types.Role) error {
-	if len(r.GetAppResources(types.Deny)) > 0 {
-		return trace.BadParameter("app_resources is not allowed under deny")
+	ruleCount := len(r.GetAppResources(types.Allow)) + len(r.GetAppResourcesExpressions(types.Allow)) +
+		len(r.GetAppResources(types.Deny)) + len(r.GetAppResourcesExpressions(types.Deny))
+	if ruleCount == 0 {
+		return nil
 	}
-	if len(r.GetAppResourcesExpressions(types.Deny)) > 0 {
-		return trace.BadParameter("app_resources_expressions is not allowed under deny")
+	role, err := appresource.NewRole(r)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if len(r.GetAppResourcesExpressions(types.Allow)) > 0 {
-		return trace.BadParameter("app_resources_expressions is not supported in this version, only app_resources with allow_all is honored")
+	if n := len(role.Resources) + len(role.Expressions); n > appresource.MaxRulesPerRole {
+		return trace.BadParameter("role %q holds %d app_resources and app_resources_expressions entries, over the cap of %d", r.GetName(), n, appresource.MaxRulesPerRole)
 	}
-	allow := r.GetAppResources(types.Allow)
-	for i, rule := range allow {
-		// The backend JSON marshal drops unknown fields. Storing such a
-		// rule would silently widen it to unrestricted access.
-		if !rule.IsAllowAllOnly() {
-			return trace.BadParameter("app_resources[%d]: this version implements allow_all only, so a rule must set allow_all and nothing else", i)
-		}
-	}
-	// Every rule sets allow_all at this point, so more than one rule can
-	// only mean allow_all next to another rule.
-	if len(allow) > 1 {
-		return trace.BadParameter("app_resources: a rule setting allow_all must be the only rule")
+	if _, err := appresource.CompileRoles([]appresource.Role{role}); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

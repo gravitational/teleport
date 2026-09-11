@@ -40,8 +40,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// MaxRulesPerRole is the maximum number of rules and expressions in one role.
+const MaxRulesPerRole = 64
+
+// MaxPathSegmentsPerRole is the maximum number of path segments in one role.
+// It bounds what one role costs to compile, on write and on every read.
+const MaxPathSegmentsPerRole = MaxRulesPerRole * maxPaths * 4 // 16384
+
 // maxRulesPerRequest is the maximum number of rules across a caller's roles.
 const maxRulesPerRequest = 256
+
+// MaxPathSegmentsPerRoleSet is the maximum number of path segments across a
+// caller's roles. Nothing limits how many roles a caller can hold.
+const MaxPathSegmentsPerRoleSet = maxRulesPerRequest * maxPaths * 4 // 65536
 
 // Role is a role's name and its allow app_resources and
 // app_resources_expressions entries.
@@ -85,8 +96,14 @@ func CompileRoles(roles []Role) (RoleSet, error) {
 		}
 		return strings.Compare(a.Name, b.Name)
 	})
+	if err := checkRoleSet(sorted); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	set := make(RoleSet, 0, len(sorted))
 	for _, role := range sorted {
+		if err := checkPathSegments(role); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		compiled := compiledRole{name: role.Name, allowAll: role.hasAllowAll()}
 		for i, rule := range role.Resources {
 			c, err := newCompiledRule(rule)
@@ -194,4 +211,39 @@ func (s RoleSet) allowAllRole() string {
 		return ""
 	}
 	return s[0].name
+}
+
+// checkRoleSet rejects a set of roles holding more than
+// MaxPathSegmentsPerRoleSet path segments together. It runs before any role
+// compiles, so an oversized set costs nothing to reject.
+func checkRoleSet(roles []Role) error {
+	segments := 0
+	for _, role := range roles {
+		segments += pathSegments(role)
+	}
+	if segments > MaxPathSegmentsPerRoleSet {
+		return trace.BadParameter("the roles hold %d path segments, over the cap of %d", segments, MaxPathSegmentsPerRoleSet)
+	}
+	return nil
+}
+
+// pathSegments returns the number of path segments across every path pattern
+// of role.
+func pathSegments(role Role) int {
+	segments := 0
+	for _, rule := range role.Resources {
+		for _, path := range rule.Paths {
+			segments += strings.Count(path, "/")
+		}
+	}
+	return segments
+}
+
+// checkPathSegments rejects a role whose path patterns hold more than
+// MaxPathSegmentsPerRole segments together.
+func checkPathSegments(role Role) error {
+	if segments := pathSegments(role); segments > MaxPathSegmentsPerRole {
+		return trace.BadParameter("role %q holds %d path segments, over the cap of %d", role.Name, segments, MaxPathSegmentsPerRole)
+	}
+	return nil
 }

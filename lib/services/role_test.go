@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/appresource"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1716,13 +1717,14 @@ func TestMarshalRoleV9RoundTrip(t *testing.T) {
 	require.Equal(t, role.GetAppResources(types.Allow), got.GetAppResources(types.Allow))
 }
 
-// TestValidateRoleAppResources covers the write-path app_resources
-// rules. The field is allow-only and every rule must set allow_all
-// and nothing else.
+// TestValidateRoleAppResources covers the app_resources and
+// app_resources_expressions checks. The fields are allow-only, capped at
+// appresource.MaxRulesPerRole entries together, and every rule and
+// expression must compile.
 func TestValidateRoleAppResources(t *testing.T) {
 	t.Parallel()
 
-	newV9Role := func(allow, deny []types.AppResource) types.Role {
+	newV9Role := func(allow, deny []types.AppResource) *types.RoleV6 {
 		return &types.RoleV6{
 			Metadata: types.Metadata{Name: "v9-role"},
 			Version:  types.V9,
@@ -1742,41 +1744,106 @@ func TestValidateRoleAppResources(t *testing.T) {
 	err = ValidateRole(newV9Role(nil, nil))
 	require.NoError(t, err)
 
-	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {}}, nil))
-	require.ErrorContains(t, err, "app_resources[1]: this version implements allow_all only")
+	preV9Role := newV9Role(nil, nil)
+	preV9Role.Version = types.V8
+	err = ValidateRole(preV9Role)
+	require.NoError(t, err)
 
-	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {AllowAll: true}}, nil))
-	require.ErrorContains(t, err, "app_resources: a rule setting allow_all must be the only rule")
+	err = ValidateRole(newV9Role([]types.AppResource{{
+		Paths:          []string{"/api/v4/projects/{project}/**", "/api/v4/projects/{project}"},
+		Methods:        []string{"GET", "HEAD"},
+		Where:          `contains(user.traits["projects"], vars.project)`,
+		DenyCodeHint:   "not_in_projects",
+		DenyReasonHint: "Project not allowed.",
+	}}, nil))
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api/**"}, AllowCode: "api", AllowReason: "API access."}}, nil))
+	require.NoError(t, err)
+
+	exprRole := newV9Role(nil, nil)
+	exprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
+	err = ValidateRole(exprRole)
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {Paths: []string{"/health"}}}, nil))
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 0 sets allow_all with another rule`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/health"}}, {AllowAll: true}}, nil))
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 1 sets allow_all with another rule`)
+
+	allowAllExprRole := newV9Role([]types.AppResource{{AllowAll: true}}, nil)
+	allowAllExprRole.Spec.Allow.AppResourcesExpressions = []string{"true"}
+	err = ValidateRole(allowAllExprRole)
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 0 sets allow_all with an app_resources_expressions entry`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true, Paths: []string{"/api/**"}}}, nil))
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 0 combines allow_all with another field`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/health"}}, {}}, nil))
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 1 is blank`)
 
 	// Unknown proto bytes from a newer client must be rejected. The JSON
 	// marshal into the backend would drop them and widen the rule.
-	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
-	err = ValidateRole(newV9Role([]types.AppResource{combined}, nil))
-	require.ErrorContains(t, err, "a rule must set allow_all and nothing else")
+	unknownField := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
+	err = ValidateRole(newV9Role([]types.AppResource{unknownField}, nil))
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" app_resources 0 has an unrecognized field`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api"}, Methods: []string{"FOO"}}}, nil))
+	require.ErrorContains(t, err, `method "FOO" is not one of`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api"}, AllowEncoded: []string{"%2F"}}}, nil))
+	require.ErrorContains(t, err, `allow_encoded allows only the separator "/"`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api"}, AllowReason: "API access."}}, nil))
+	require.ErrorContains(t, err, "allow_reason set without allow_code")
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api"}, DenyReasonHint: "Project not allowed."}}, nil))
+	require.ErrorContains(t, err, "deny_reason_hint set without deny_code_hint")
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api/{version}/x", "/health"}, Where: `vars.version == "v4"`}}, nil))
+	require.ErrorContains(t, err, `where reads vars.version, but path "/health" has no {version} capture`)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api/**/x"}}}, nil))
+	require.ErrorContains(t, err, "** must be the last segment")
+
+	err = ValidateRole(newV9Role([]types.AppResource{{Paths: []string{"/api"}, Where: `user.name ==`}}, nil))
+	require.ErrorContains(t, err, `role "v9-role" app_resources 0`)
+	require.ErrorContains(t, err, `compiling where clause "user.name =="`)
+
+	badExprRole := newV9Role(nil, nil)
+	badExprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(`}
+	err = ValidateRole(badExprRole)
+	require.ErrorContains(t, err, `role "v9-role" app_resources_expressions 0`)
+	require.ErrorContains(t, err, `compiling expression "path.match("`)
+
+	rules := make([]types.AppResource, appresource.MaxRulesPerRole)
+	for i := range rules {
+		rules[i] = types.AppResource{Paths: []string{"/p" + strconv.Itoa(i)}}
+	}
+	err = ValidateRole(newV9Role(rules, nil))
+	require.NoError(t, err)
+
+	capRole := newV9Role(rules, nil)
+	capRole.Spec.Allow.AppResourcesExpressions = []string{"true"}
+	err = ValidateRole(capRole)
+	require.ErrorContains(t, err, `role "v9-role" holds 65 app_resources and app_resources_expressions entries, over the cap of 64`)
 
 	err = ValidateRole(newV9Role(nil, []types.AppResource{{AllowAll: true}}))
-	require.ErrorContains(t, err, "app_resources is not allowed under deny")
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" sets app_resources under deny`)
 
-	// A declared field is rejected at write, so a stored rule is never
-	// wider than the agent honors.
-	for name, rule := range map[string]types.AppResource{
-		"paths":   {AllowAll: true, Paths: []string{"/api/**"}},
-		"methods": {AllowAll: true, Methods: []string{"GET"}},
-		"where":   {AllowAll: true, Where: "true"},
-	} {
-		err := ValidateRole(newV9Role([]types.AppResource{rule}, nil))
-		require.ErrorContains(t, err, "a rule must set allow_all and nothing else", "field %s", name)
-	}
-
-	exprRole := newV9Role([]types.AppResource{{AllowAll: true}}, nil).(*types.RoleV6)
-	exprRole.Spec.Allow.AppResourcesExpressions = []string{`path.match(literal("api"))`}
-	err = ValidateRole(exprRole)
-	require.ErrorContains(t, err, "app_resources_expressions is not supported")
-
-	denyExprRole := newV9Role(nil, nil).(*types.RoleV6)
+	denyExprRole := newV9Role(nil, nil)
 	denyExprRole.Spec.Deny.AppResourcesExpressions = []string{"true"}
 	err = ValidateRole(denyExprRole)
-	require.ErrorContains(t, err, "app_resources_expressions is not allowed under deny")
+	require.ErrorIs(t, err, appresource.ErrRoleNotEvaluable)
+	require.ErrorContains(t, err, `role "v9-role" sets app_resources_expressions under deny`)
 }
 
 func TestValidateRoleName(t *testing.T) {

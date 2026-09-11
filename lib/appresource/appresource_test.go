@@ -228,3 +228,35 @@ func TestRoleSetEvaluatePathRule(t *testing.T) {
 	require.False(t, decision.Allowed)
 	require.Equal(t, DenyNotAllowed, decision.Deny.Kind)
 }
+
+func TestCompileRolesPathSegmentCap(t *testing.T) {
+	path := "/" + strings.Repeat("a/", 255) + "a"
+	rule := types.AppResource{Paths: []string{path}}
+	rules := make([]types.AppResource, MaxPathSegmentsPerRole/256)
+	for i := range rules {
+		rules[i] = rule
+	}
+	_, err := CompileRoles([]Role{{Name: "big", Resources: rules}})
+	require.NoError(t, err)
+
+	_, err = CompileRoles([]Role{{Name: "big", Resources: append(rules, rule)}})
+	require.ErrorContains(t, err, `role "big" holds 16640 path segments, over the cap of 16384`)
+}
+
+func TestCompileRolesPathSegmentCapPerRoleSet(t *testing.T) {
+	path := "/" + strings.Repeat("a/", 255) + "a"
+	rules := make([]types.AppResource, MaxPathSegmentsPerRole/256)
+	for i := range rules {
+		rules[i] = types.AppResource{Paths: []string{path}}
+	}
+	roles := make([]Role, MaxPathSegmentsPerRoleSet/MaxPathSegmentsPerRole)
+	for i := range roles {
+		roles[i] = Role{Name: "role-" + strconv.Itoa(i), Resources: rules}
+	}
+	_, err := CompileRoles(roles)
+	require.NoError(t, err)
+
+	roles = append(roles, Role{Name: "one-more", Resources: rules})
+	_, err = CompileRoles(roles)
+	require.ErrorContains(t, err, "the roles hold 81920 path segments, over the cap of 65536")
+}
