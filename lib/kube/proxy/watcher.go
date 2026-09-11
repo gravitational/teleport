@@ -21,11 +21,12 @@ package proxy
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -240,7 +241,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string, isSh
 
 	// close active sessions before returning.
 	s.fwd.mu.Lock()
-	sessions := maps.Values(s.fwd.sessions)
+	// collect all sessions to avoid holding the lock while closing them
+	sessions := slices.Collect(maps.Values(s.fwd.sessions))
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {

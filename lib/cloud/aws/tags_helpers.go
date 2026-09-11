@@ -19,6 +19,7 @@
 package aws
 
 import (
+	"maps"
 	"slices"
 
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -33,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -110,8 +110,7 @@ type SettableTag[T any] interface {
 
 // LabelsToTags converts a label map to a list of AWS resource tags.
 func LabelsToTags[T any, PT SettableTag[T]](labels map[string]string) (tags []*T) {
-	keys := maps.Keys(labels)
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(labels))
 
 	for _, key := range keys {
 		tag := PT(new(T))
@@ -125,8 +124,7 @@ func LabelsToTags[T any, PT SettableTag[T]](labels map[string]string) (tags []*T
 
 // LabelsToRDSV2Tags converts labels into [rdsTypesV2.Tag] list.
 func LabelsToRDSV2Tags(labels map[string]string) []rdsTypesV2.Tag {
-	keys := maps.Keys(labels)
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(labels))
 
 	ret := make([]rdsTypesV2.Tag, 0, len(keys))
 	for _, key := range keys {

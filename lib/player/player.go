@@ -24,13 +24,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"math"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -502,7 +503,7 @@ var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
 
 // SupportedDatabaseProtocols a list of database protocols supported by the
 // player.
-var SupportedDatabaseProtocols = maps.Keys(databaseTranslators)
+var SupportedDatabaseProtocols = slices.Collect(maps.Keys(databaseTranslators))
 
 func getDelay(e events.AuditEvent) time.Duration {
 	switch x := e.(type) {

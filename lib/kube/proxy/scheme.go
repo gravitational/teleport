@@ -20,11 +20,12 @@ package proxy
 
 import (
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -135,7 +136,7 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		// reachable.
 		// In this case, we still want to register the other resources that are
 		// available in the cluster.
-		log.WithError(err).Debugf("Failed to discover some API groups: %v", maps.Keys(discoveryErr.Groups))
+		log.WithError(err).Debugf("Failed to discover some API groups: %v", slices.Collect(maps.Keys(discoveryErr.Groups)))
 	case err != nil:
 		return nil, nil, nil, trace.Wrap(err)
 	}

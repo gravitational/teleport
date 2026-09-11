@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -44,7 +45,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -751,7 +751,7 @@ func (c *checkpointData) checkpointValues() []string {
 	if c == nil {
 		return nil
 	}
-	return maps.Values(c.Checkpoints)
+	return slices.Collect(maps.Values(c.Checkpoints))
 }
 
 func (t *task) storeEmitterCheckpoint(in checkpointData) error {

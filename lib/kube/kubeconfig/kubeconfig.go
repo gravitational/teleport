@@ -22,13 +22,13 @@ package kubeconfig
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"

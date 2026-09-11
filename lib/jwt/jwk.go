@@ -130,14 +130,22 @@ func marshalECDSAJWK(pub *ecdsa.PublicKey) (JWK, error) {
 	if err != nil {
 		return JWK{}, trace.Wrap(err)
 	}
+	pubKeyBytes, err := pub.Bytes()
+	if err != nil {
+		return JWK{}, trace.Wrap(err)
+	}
+
+	// First byte is the 0x04 prefix, which can be skipped. The rest are the x and y coordinates.
+	x, y := pubKeyBytes[1:33], pubKeyBytes[33:]
+
 	return JWK{
 		KeyType:   keyTypeEC,
 		Use:       defaults.JWTUse,
 		KeyID:     keyID,
 		Algorithm: string(jose.ES256),
 		Curve:     pub.Curve.Params().Name,
-		X:         base64.RawURLEncoding.EncodeToString(pub.X.Bytes()),
-		Y:         base64.RawURLEncoding.EncodeToString(pub.Y.Bytes()),
+		X:         base64.RawURLEncoding.EncodeToString(x),
+		Y:         base64.RawURLEncoding.EncodeToString(y),
 	}, nil
 }
 

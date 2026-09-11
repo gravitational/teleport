@@ -20,10 +20,11 @@ package db
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -74,7 +75,9 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAWSFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
@@ -105,7 +108,9 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAzureFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {

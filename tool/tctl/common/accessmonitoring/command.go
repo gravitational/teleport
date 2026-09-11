@@ -21,11 +21,11 @@ package accessmonitoring
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/trail"

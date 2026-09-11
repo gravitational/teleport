@@ -612,7 +612,7 @@ func (s *APIServer) searchEvents(auth *ServerWithRoles, w http.ResponseWriter, r
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
+			return nil, trace.BadParameter("failed to parse limit: %v", limit)
 		}
 	}
 
@@ -659,7 +659,7 @@ func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWr
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
+			return nil, trace.BadParameter("failed to parse limit: %d", limit)
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
