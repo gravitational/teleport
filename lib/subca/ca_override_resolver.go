@@ -278,3 +278,10 @@ func (c *CAOverrideResolver) calculateOverride(
 
 	return res, nil
 }
+
+// HasCAOverride reports whether a CA override resource exists for the resolver's target.
+// Most callers should not check this, instead use the result of ApplyOverrides or CalculateOverride directly.
+func (c *CAOverrideResolver) HasCAOverride() bool {
+	// TODO(cthach): DELETE IN v20. The method won't be needed once the legacy SPIFFE workload override logic is removed.
+	return c.parsed != nil
+}
