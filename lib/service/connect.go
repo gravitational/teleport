@@ -759,12 +759,11 @@ func (process *TeleportProcess) makeJoinParams(
 	}
 
 	tokenName, tokenSecret := token, ""
-	if scopes.MaybeSQN(token) {
-		qn, err := scopes.ParseQualifiedName(token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+	qn, err := scopes.ParseOptionallyQualifiedName(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if qn.Scope != "" {
 		if name, secret, ok := joining.DecodeScopedToken(qn.Name); ok {
 			qn.Name = name
 			tokenName = qn.String()

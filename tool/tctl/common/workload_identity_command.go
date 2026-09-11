@@ -253,11 +253,11 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	// Provided name may be unscoped or an SQN
 	name := c.workloadIdentityName
 	var scope string
-	if scopes.MaybeSQN(name) {
-		qn, err := scopes.ParseQualifiedName(name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	qn, err := scopes.ParseOptionallyQualifiedName(name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if qn.Scope != "" {
 		if err := qn.StrongValidate(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -265,7 +265,7 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	}
 
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
-	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
+	_, err = workloadIdentityClient.DeleteWorkloadIdentity(
 		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 			Name:  name,
 			Scope: scope,
