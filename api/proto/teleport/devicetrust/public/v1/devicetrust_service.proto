@@ -18,7 +18,9 @@ package teleport.devicetrust.public.v1;
 
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
+import "teleport/devicetrust/v1/device_web_token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1";
 
@@ -72,6 +74,33 @@ service DeviceTrustService {
   // -> IOSEnrollChallengeResponse
   // <- EnrollDeviceSuccess
   rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
+
+  // AuthenticateDevice performs the on-behalf-of device authentication
+  // ceremony for a Web UI session.
+  //
+  // The caller is identified by the device web token sent in the init message:
+  // the ceremony authenticates the device for the user the token was issued
+  // to, who must still pass authorization checks at ceremony time. On success
+  // a device confirmation token is returned instead of certificates. The Web UI
+  // spends it through ConfirmDeviceWebAuthentication to bless its session.
+  //
+  // Only iOS and iPadOS devices may authenticate through this RPC. The device
+  // must be registered and enrolled, and it must pass the expected device
+  // checks of the device web token, see DeviceWebToken.
+  //
+  // Transient backend failures before the web token is spent are returned as
+  // Unavailable errors and are safe to retry. FailedPrecondition means the
+  // ceremony failed after spending the token, so a retry cannot succeed and
+  // the user has to log in to the Web UI again.
+  // ResourceExhausted means the stream timed out, either before init arrived or
+  // before the ceremony completed.
+  //
+  // iOS/iPadOS authentication flow:
+  // -> AuthenticateDeviceInit (client)
+  // <- AuthenticateDeviceChallenge (server)
+  // -> AuthenticateDeviceChallengeResponse
+  // <- DeviceConfirmationToken
+  rpc AuthenticateDevice(stream AuthenticateDeviceRequest) returns (stream AuthenticateDeviceResponse);
 }
 
 // Request for CreatePairedDeviceEnrollToken.
@@ -144,6 +173,58 @@ message IOSEnrollChallenge {
 // IOSEnrollChallengeResponse is an iOS and iPadOS enrollment challenge
 // response.
 message IOSEnrollChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 1;
+}
+
+// Request for AuthenticateDevice.
+message AuthenticateDeviceRequest {
+  oneof payload {
+    AuthenticateDeviceInit init = 1;
+    AuthenticateDeviceChallengeResponse challenge_response = 2;
+  }
+}
+
+// Response for AuthenticateDevice.
+message AuthenticateDeviceResponse {
+  oneof payload {
+    AuthenticateDeviceChallenge challenge = 1;
+
+    // A confirmation token is returned as the result of a successful device web
+    // authentication.
+    //
+    // See AuthenticateDeviceInit.
+    teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 2;
+  }
+}
+
+// AuthenticateDeviceInit initiates the on-behalf-of device authentication
+// ceremony.
+// No certificate data is returned to the caller, instead a confirmation_token
+// is returned in the last step.
+message AuthenticateDeviceInit {
+  // ID of the enrolled device credential.
+  string credential_id = 1;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  teleport.devicetrust.v1.DeviceCollectedData device_data = 2;
+
+  // Device web token issued at Web UI login, which the Web UI hands to the app.
+  // The client fills out id and token only.
+  teleport.devicetrust.v1.DeviceWebToken device_web_token = 3;
+}
+
+// AuthenticateDeviceChallenge carries the authentication challenge.
+message AuthenticateDeviceChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// AuthenticateDeviceChallengeResponse carries the authentication challenge
+// response.
+message AuthenticateDeviceChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 1;
 }

@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	DeviceTrustService_CreatePairedDeviceEnrollToken_FullMethodName = "/teleport.devicetrust.public.v1.DeviceTrustService/CreatePairedDeviceEnrollToken"
 	DeviceTrustService_EnrollDevice_FullMethodName                  = "/teleport.devicetrust.public.v1.DeviceTrustService/EnrollDevice"
+	DeviceTrustService_AuthenticateDevice_FullMethodName            = "/teleport.devicetrust.public.v1.DeviceTrustService/AuthenticateDevice"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -90,6 +91,32 @@ type DeviceTrustServiceClient interface {
 	// -> IOSEnrollChallengeResponse
 	// <- EnrollDeviceSuccess
 	EnrollDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EnrollDeviceRequest, EnrollDeviceResponse], error)
+	// AuthenticateDevice performs the on-behalf-of device authentication
+	// ceremony for a Web UI session.
+	//
+	// The caller is identified by the device web token sent in the init message:
+	// the ceremony authenticates the device for the user the token was issued
+	// to, who must still pass authorization checks at ceremony time. On success
+	// a device confirmation token is returned instead of certificates. The Web UI
+	// spends it through ConfirmDeviceWebAuthentication to bless its session.
+	//
+	// Only iOS and iPadOS devices may authenticate through this RPC. The device
+	// must be registered and enrolled, and it must pass the expected device
+	// checks of the device web token, see DeviceWebToken.
+	//
+	// Transient backend failures before the web token is spent are returned as
+	// Unavailable errors and are safe to retry. FailedPrecondition means the
+	// ceremony failed after spending the token, so a retry cannot succeed and
+	// the user has to log in to the Web UI again.
+	// ResourceExhausted means the stream timed out, either before init arrived or
+	// before the ceremony completed.
+	//
+	// iOS/iPadOS authentication flow:
+	// -> AuthenticateDeviceInit (client)
+	// <- AuthenticateDeviceChallenge (server)
+	// -> AuthenticateDeviceChallengeResponse
+	// <- DeviceConfirmationToken
+	AuthenticateDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuthenticateDeviceRequest, AuthenticateDeviceResponse], error)
 }
 
 type deviceTrustServiceClient struct {
@@ -122,6 +149,19 @@ func (c *deviceTrustServiceClient) EnrollDevice(ctx context.Context, opts ...grp
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_EnrollDeviceClient = grpc.BidiStreamingClient[EnrollDeviceRequest, EnrollDeviceResponse]
+
+func (c *deviceTrustServiceClient) AuthenticateDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuthenticateDeviceRequest, AuthenticateDeviceResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &DeviceTrustService_ServiceDesc.Streams[1], DeviceTrustService_AuthenticateDevice_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AuthenticateDeviceRequest, AuthenticateDeviceResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DeviceTrustService_AuthenticateDeviceClient = grpc.BidiStreamingClient[AuthenticateDeviceRequest, AuthenticateDeviceResponse]
 
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
@@ -176,6 +216,32 @@ type DeviceTrustServiceServer interface {
 	// -> IOSEnrollChallengeResponse
 	// <- EnrollDeviceSuccess
 	EnrollDevice(grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]) error
+	// AuthenticateDevice performs the on-behalf-of device authentication
+	// ceremony for a Web UI session.
+	//
+	// The caller is identified by the device web token sent in the init message:
+	// the ceremony authenticates the device for the user the token was issued
+	// to, who must still pass authorization checks at ceremony time. On success
+	// a device confirmation token is returned instead of certificates. The Web UI
+	// spends it through ConfirmDeviceWebAuthentication to bless its session.
+	//
+	// Only iOS and iPadOS devices may authenticate through this RPC. The device
+	// must be registered and enrolled, and it must pass the expected device
+	// checks of the device web token, see DeviceWebToken.
+	//
+	// Transient backend failures before the web token is spent are returned as
+	// Unavailable errors and are safe to retry. FailedPrecondition means the
+	// ceremony failed after spending the token, so a retry cannot succeed and
+	// the user has to log in to the Web UI again.
+	// ResourceExhausted means the stream timed out, either before init arrived or
+	// before the ceremony completed.
+	//
+	// iOS/iPadOS authentication flow:
+	// -> AuthenticateDeviceInit (client)
+	// <- AuthenticateDeviceChallenge (server)
+	// -> AuthenticateDeviceChallengeResponse
+	// <- DeviceConfirmationToken
+	AuthenticateDevice(grpc.BidiStreamingServer[AuthenticateDeviceRequest, AuthenticateDeviceResponse]) error
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -191,6 +257,9 @@ func (UnimplementedDeviceTrustServiceServer) CreatePairedDeviceEnrollToken(conte
 }
 func (UnimplementedDeviceTrustServiceServer) EnrollDevice(grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]) error {
 	return status.Error(codes.Unimplemented, "method EnrollDevice not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) AuthenticateDevice(grpc.BidiStreamingServer[AuthenticateDeviceRequest, AuthenticateDeviceResponse]) error {
+	return status.Error(codes.Unimplemented, "method AuthenticateDevice not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -238,6 +307,13 @@ func _DeviceTrustService_EnrollDevice_Handler(srv interface{}, stream grpc.Serve
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_EnrollDeviceServer = grpc.BidiStreamingServer[EnrollDeviceRequest, EnrollDeviceResponse]
 
+func _DeviceTrustService_AuthenticateDevice_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DeviceTrustServiceServer).AuthenticateDevice(&grpc.GenericServerStream[AuthenticateDeviceRequest, AuthenticateDeviceResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DeviceTrustService_AuthenticateDeviceServer = grpc.BidiStreamingServer[AuthenticateDeviceRequest, AuthenticateDeviceResponse]
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -254,6 +330,12 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EnrollDevice",
 			Handler:       _DeviceTrustService_EnrollDevice_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AuthenticateDevice",
+			Handler:       _DeviceTrustService_AuthenticateDevice_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

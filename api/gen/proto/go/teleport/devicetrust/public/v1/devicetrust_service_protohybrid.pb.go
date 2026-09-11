@@ -958,11 +958,635 @@ func (b0 IOSEnrollChallengeResponse_builder) Build() *IOSEnrollChallengeResponse
 	return m0
 }
 
+// Request for AuthenticateDevice.
+type AuthenticateDeviceRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*AuthenticateDeviceRequest_Init
+	//	*AuthenticateDeviceRequest_ChallengeResponse
+	Payload       isAuthenticateDeviceRequest_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateDeviceRequest) Reset() {
+	*x = AuthenticateDeviceRequest{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateDeviceRequest) ProtoMessage() {}
+
+func (x *AuthenticateDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthenticateDeviceRequest) GetPayload() isAuthenticateDeviceRequest_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceRequest) GetInit() *AuthenticateDeviceInit {
+	if x != nil {
+		if x, ok := x.Payload.(*AuthenticateDeviceRequest_Init); ok {
+			return x.Init
+		}
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceRequest) GetChallengeResponse() *AuthenticateDeviceChallengeResponse {
+	if x != nil {
+		if x, ok := x.Payload.(*AuthenticateDeviceRequest_ChallengeResponse); ok {
+			return x.ChallengeResponse
+		}
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceRequest) SetInit(v *AuthenticateDeviceInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceRequest_Init{v}
+}
+
+func (x *AuthenticateDeviceRequest) SetChallengeResponse(v *AuthenticateDeviceChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceRequest_ChallengeResponse{v}
+}
+
+func (x *AuthenticateDeviceRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AuthenticateDeviceRequest) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceRequest_Init)
+	return ok
+}
+
+func (x *AuthenticateDeviceRequest) HasChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceRequest_ChallengeResponse)
+	return ok
+}
+
+func (x *AuthenticateDeviceRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AuthenticateDeviceRequest) ClearInit() {
+	if _, ok := x.Payload.(*AuthenticateDeviceRequest_Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceRequest) ClearChallengeResponse() {
+	if _, ok := x.Payload.(*AuthenticateDeviceRequest_ChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+const AuthenticateDeviceRequest_Payload_not_set_case case_AuthenticateDeviceRequest_Payload = 0
+const AuthenticateDeviceRequest_Init_case case_AuthenticateDeviceRequest_Payload = 1
+const AuthenticateDeviceRequest_ChallengeResponse_case case_AuthenticateDeviceRequest_Payload = 2
+
+func (x *AuthenticateDeviceRequest) WhichPayload() case_AuthenticateDeviceRequest_Payload {
+	if x == nil {
+		return AuthenticateDeviceRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AuthenticateDeviceRequest_Init:
+		return AuthenticateDeviceRequest_Init_case
+	case *AuthenticateDeviceRequest_ChallengeResponse:
+		return AuthenticateDeviceRequest_ChallengeResponse_case
+	default:
+		return AuthenticateDeviceRequest_Payload_not_set_case
+	}
+}
+
+type AuthenticateDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Init              *AuthenticateDeviceInit
+	ChallengeResponse *AuthenticateDeviceChallengeResponse
+	// -- end of Payload
+}
+
+func (b0 AuthenticateDeviceRequest_builder) Build() *AuthenticateDeviceRequest {
+	m0 := &AuthenticateDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.Payload = &AuthenticateDeviceRequest_Init{b.Init}
+	}
+	if b.ChallengeResponse != nil {
+		x.Payload = &AuthenticateDeviceRequest_ChallengeResponse{b.ChallengeResponse}
+	}
+	return m0
+}
+
+type case_AuthenticateDeviceRequest_Payload protoreflect.FieldNumber
+
+func (x case_AuthenticateDeviceRequest_Payload) String() string {
+	md := file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[9].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isAuthenticateDeviceRequest_Payload interface {
+	isAuthenticateDeviceRequest_Payload()
+}
+
+type AuthenticateDeviceRequest_Init struct {
+	Init *AuthenticateDeviceInit `protobuf:"bytes,1,opt,name=init,proto3,oneof"`
+}
+
+type AuthenticateDeviceRequest_ChallengeResponse struct {
+	ChallengeResponse *AuthenticateDeviceChallengeResponse `protobuf:"bytes,2,opt,name=challenge_response,json=challengeResponse,proto3,oneof"`
+}
+
+func (*AuthenticateDeviceRequest_Init) isAuthenticateDeviceRequest_Payload() {}
+
+func (*AuthenticateDeviceRequest_ChallengeResponse) isAuthenticateDeviceRequest_Payload() {}
+
+// Response for AuthenticateDevice.
+type AuthenticateDeviceResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*AuthenticateDeviceResponse_Challenge
+	//	*AuthenticateDeviceResponse_ConfirmationToken
+	Payload       isAuthenticateDeviceResponse_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateDeviceResponse) Reset() {
+	*x = AuthenticateDeviceResponse{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateDeviceResponse) ProtoMessage() {}
+
+func (x *AuthenticateDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthenticateDeviceResponse) GetPayload() isAuthenticateDeviceResponse_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceResponse) GetChallenge() *AuthenticateDeviceChallenge {
+	if x != nil {
+		if x, ok := x.Payload.(*AuthenticateDeviceResponse_Challenge); ok {
+			return x.Challenge
+		}
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceResponse) GetConfirmationToken() *v1.DeviceConfirmationToken {
+	if x != nil {
+		if x, ok := x.Payload.(*AuthenticateDeviceResponse_ConfirmationToken); ok {
+			return x.ConfirmationToken
+		}
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceResponse) SetChallenge(v *AuthenticateDeviceChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_Challenge{v}
+}
+
+func (x *AuthenticateDeviceResponse) SetConfirmationToken(v *v1.DeviceConfirmationToken) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_ConfirmationToken{v}
+}
+
+func (x *AuthenticateDeviceResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AuthenticateDeviceResponse) HasChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_Challenge)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) HasConfirmationToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_ConfirmationToken)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AuthenticateDeviceResponse) ClearChallenge() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_Challenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceResponse) ClearConfirmationToken() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_ConfirmationToken); ok {
+		x.Payload = nil
+	}
+}
+
+const AuthenticateDeviceResponse_Payload_not_set_case case_AuthenticateDeviceResponse_Payload = 0
+const AuthenticateDeviceResponse_Challenge_case case_AuthenticateDeviceResponse_Payload = 1
+const AuthenticateDeviceResponse_ConfirmationToken_case case_AuthenticateDeviceResponse_Payload = 2
+
+func (x *AuthenticateDeviceResponse) WhichPayload() case_AuthenticateDeviceResponse_Payload {
+	if x == nil {
+		return AuthenticateDeviceResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AuthenticateDeviceResponse_Challenge:
+		return AuthenticateDeviceResponse_Challenge_case
+	case *AuthenticateDeviceResponse_ConfirmationToken:
+		return AuthenticateDeviceResponse_ConfirmationToken_case
+	default:
+		return AuthenticateDeviceResponse_Payload_not_set_case
+	}
+}
+
+type AuthenticateDeviceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Challenge *AuthenticateDeviceChallenge
+	// A confirmation token is returned as the result of a successful device web
+	// authentication.
+	//
+	// See AuthenticateDeviceInit.
+	ConfirmationToken *v1.DeviceConfirmationToken
+	// -- end of Payload
+}
+
+func (b0 AuthenticateDeviceResponse_builder) Build() *AuthenticateDeviceResponse {
+	m0 := &AuthenticateDeviceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Challenge != nil {
+		x.Payload = &AuthenticateDeviceResponse_Challenge{b.Challenge}
+	}
+	if b.ConfirmationToken != nil {
+		x.Payload = &AuthenticateDeviceResponse_ConfirmationToken{b.ConfirmationToken}
+	}
+	return m0
+}
+
+type case_AuthenticateDeviceResponse_Payload protoreflect.FieldNumber
+
+func (x case_AuthenticateDeviceResponse_Payload) String() string {
+	md := file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[10].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isAuthenticateDeviceResponse_Payload interface {
+	isAuthenticateDeviceResponse_Payload()
+}
+
+type AuthenticateDeviceResponse_Challenge struct {
+	Challenge *AuthenticateDeviceChallenge `protobuf:"bytes,1,opt,name=challenge,proto3,oneof"`
+}
+
+type AuthenticateDeviceResponse_ConfirmationToken struct {
+	// A confirmation token is returned as the result of a successful device web
+	// authentication.
+	//
+	// See AuthenticateDeviceInit.
+	ConfirmationToken *v1.DeviceConfirmationToken `protobuf:"bytes,2,opt,name=confirmation_token,json=confirmationToken,proto3,oneof"`
+}
+
+func (*AuthenticateDeviceResponse_Challenge) isAuthenticateDeviceResponse_Payload() {}
+
+func (*AuthenticateDeviceResponse_ConfirmationToken) isAuthenticateDeviceResponse_Payload() {}
+
+// AuthenticateDeviceInit initiates the on-behalf-of device authentication
+// ceremony.
+// No certificate data is returned to the caller, instead a confirmation_token
+// is returned in the last step.
+type AuthenticateDeviceInit struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// ID of the enrolled device credential.
+	CredentialId string `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *v1.DeviceCollectedData `protobuf:"bytes,2,opt,name=device_data,json=deviceData,proto3" json:"device_data,omitempty"`
+	// Device web token issued at Web UI login, which the Web UI hands to the app.
+	// The client fills out id and token only.
+	DeviceWebToken *v1.DeviceWebToken `protobuf:"bytes,3,opt,name=device_web_token,json=deviceWebToken,proto3" json:"device_web_token,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AuthenticateDeviceInit) Reset() {
+	*x = AuthenticateDeviceInit{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateDeviceInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateDeviceInit) ProtoMessage() {}
+
+func (x *AuthenticateDeviceInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthenticateDeviceInit) GetCredentialId() string {
+	if x != nil {
+		return x.CredentialId
+	}
+	return ""
+}
+
+func (x *AuthenticateDeviceInit) GetDeviceData() *v1.DeviceCollectedData {
+	if x != nil {
+		return x.DeviceData
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceInit) GetDeviceWebToken() *v1.DeviceWebToken {
+	if x != nil {
+		return x.DeviceWebToken
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceInit) SetCredentialId(v string) {
+	x.CredentialId = v
+}
+
+func (x *AuthenticateDeviceInit) SetDeviceData(v *v1.DeviceCollectedData) {
+	x.DeviceData = v
+}
+
+func (x *AuthenticateDeviceInit) SetDeviceWebToken(v *v1.DeviceWebToken) {
+	x.DeviceWebToken = v
+}
+
+func (x *AuthenticateDeviceInit) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceData != nil
+}
+
+func (x *AuthenticateDeviceInit) HasDeviceWebToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceWebToken != nil
+}
+
+func (x *AuthenticateDeviceInit) ClearDeviceData() {
+	x.DeviceData = nil
+}
+
+func (x *AuthenticateDeviceInit) ClearDeviceWebToken() {
+	x.DeviceWebToken = nil
+}
+
+type AuthenticateDeviceInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the enrolled device credential.
+	CredentialId string
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *v1.DeviceCollectedData
+	// Device web token issued at Web UI login, which the Web UI hands to the app.
+	// The client fills out id and token only.
+	DeviceWebToken *v1.DeviceWebToken
+}
+
+func (b0 AuthenticateDeviceInit_builder) Build() *AuthenticateDeviceInit {
+	m0 := &AuthenticateDeviceInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CredentialId = b.CredentialId
+	x.DeviceData = b.DeviceData
+	x.DeviceWebToken = b.DeviceWebToken
+	return m0
+}
+
+// AuthenticateDeviceChallenge carries the authentication challenge.
+type AuthenticateDeviceChallenge struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Randomly-generated, opaque challenge to be signed using the device key.
+	Challenge     []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateDeviceChallenge) Reset() {
+	*x = AuthenticateDeviceChallenge{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateDeviceChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateDeviceChallenge) ProtoMessage() {}
+
+func (x *AuthenticateDeviceChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthenticateDeviceChallenge) GetChallenge() []byte {
+	if x != nil {
+		return x.Challenge
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceChallenge) SetChallenge(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Challenge = v
+}
+
+type AuthenticateDeviceChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Randomly-generated, opaque challenge to be signed using the device key.
+	Challenge []byte
+}
+
+func (b0 AuthenticateDeviceChallenge_builder) Build() *AuthenticateDeviceChallenge {
+	m0 := &AuthenticateDeviceChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
+// AuthenticateDeviceChallengeResponse carries the authentication challenge
+// response.
+type AuthenticateDeviceChallengeResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Signature over the challenge, using the device key.
+	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateDeviceChallengeResponse) Reset() {
+	*x = AuthenticateDeviceChallengeResponse{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateDeviceChallengeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateDeviceChallengeResponse) ProtoMessage() {}
+
+func (x *AuthenticateDeviceChallengeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuthenticateDeviceChallengeResponse) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+func (x *AuthenticateDeviceChallengeResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type AuthenticateDeviceChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature over the challenge, using the device key.
+	Signature []byte
+}
+
+func (b0 AuthenticateDeviceChallengeResponse_builder) Build() *AuthenticateDeviceChallengeResponse {
+	m0 := &AuthenticateDeviceChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 var File_teleport_devicetrust_public_v1_devicetrust_service_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc = "" +
 	"\n" +
-	"8teleport/devicetrust/public/v1/devicetrust_service.proto\x12\x1eteleport.devicetrust.public.v1\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\"\xa7\x01\n" +
+	"8teleport/devicetrust/public/v1/devicetrust_service.proto\x12\x1eteleport.devicetrust.public.v1\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\"\xa7\x01\n" +
 	"$CreatePairedDeviceEnrollTokenRequest\x120\n" +
 	"\x14enroll_pairing_token\x18\x01 \x01(\tR\x12enrollPairingToken\x12M\n" +
 	"\vdevice_data\x18\x02 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
@@ -990,12 +1614,30 @@ const file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc = ""
 	"\x12IOSEnrollChallenge\x12\x1c\n" +
 	"\tchallenge\x18\x01 \x01(\fR\tchallenge\":\n" +
 	"\x1aIOSEnrollChallengeResponse\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature2\xc2\x02\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xea\x01\n" +
+	"\x19AuthenticateDeviceRequest\x12L\n" +
+	"\x04init\x18\x01 \x01(\v26.teleport.devicetrust.public.v1.AuthenticateDeviceInitH\x00R\x04init\x12t\n" +
+	"\x12challenge_response\x18\x02 \x01(\v2C.teleport.devicetrust.public.v1.AuthenticateDeviceChallengeResponseH\x00R\x11challengeResponseB\t\n" +
+	"\apayload\"\xe7\x01\n" +
+	"\x1aAuthenticateDeviceResponse\x12[\n" +
+	"\tchallenge\x18\x01 \x01(\v2;.teleport.devicetrust.public.v1.AuthenticateDeviceChallengeH\x00R\tchallenge\x12a\n" +
+	"\x12confirmation_token\x18\x02 \x01(\v20.teleport.devicetrust.v1.DeviceConfirmationTokenH\x00R\x11confirmationTokenB\t\n" +
+	"\apayload\"\xdf\x01\n" +
+	"\x16AuthenticateDeviceInit\x12#\n" +
+	"\rcredential_id\x18\x01 \x01(\tR\fcredentialId\x12M\n" +
+	"\vdevice_data\x18\x02 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
+	"deviceData\x12Q\n" +
+	"\x10device_web_token\x18\x03 \x01(\v2'.teleport.devicetrust.v1.DeviceWebTokenR\x0edeviceWebToken\";\n" +
+	"\x1bAuthenticateDeviceChallenge\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\fR\tchallenge\"C\n" +
+	"#AuthenticateDeviceChallengeResponse\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature2\xd4\x03\n" +
 	"\x12DeviceTrustService\x12\xac\x01\n" +
 	"\x1dCreatePairedDeviceEnrollToken\x12D.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest\x1aE.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse\x12}\n" +
-	"\fEnrollDevice\x123.teleport.devicetrust.public.v1.EnrollDeviceRequest\x1a4.teleport.devicetrust.public.v1.EnrollDeviceResponse(\x010\x01BgZegithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1b\x06proto3"
+	"\fEnrollDevice\x123.teleport.devicetrust.public.v1.EnrollDeviceRequest\x1a4.teleport.devicetrust.public.v1.EnrollDeviceResponse(\x010\x01\x12\x8f\x01\n" +
+	"\x12AuthenticateDevice\x129.teleport.devicetrust.public.v1.AuthenticateDeviceRequest\x1a:.teleport.devicetrust.public.v1.AuthenticateDeviceResponse(\x010\x01BgZegithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1b\x06proto3"
 
-var file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_teleport_devicetrust_public_v1_devicetrust_service_proto_goTypes = []any{
 	(*CreatePairedDeviceEnrollTokenRequest)(nil),  // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
 	(*CreatePairedDeviceEnrollTokenResponse)(nil), // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
@@ -1006,29 +1648,44 @@ var file_teleport_devicetrust_public_v1_devicetrust_service_proto_goTypes = []an
 	(*IOSEnrollPayload)(nil),                      // 6: teleport.devicetrust.public.v1.IOSEnrollPayload
 	(*IOSEnrollChallenge)(nil),                    // 7: teleport.devicetrust.public.v1.IOSEnrollChallenge
 	(*IOSEnrollChallengeResponse)(nil),            // 8: teleport.devicetrust.public.v1.IOSEnrollChallengeResponse
-	(*v1.DeviceCollectedData)(nil),                // 9: teleport.devicetrust.v1.DeviceCollectedData
-	(*v1.DeviceEnrollToken)(nil),                  // 10: teleport.devicetrust.v1.DeviceEnrollToken
-	(*v1.Device)(nil),                             // 11: teleport.devicetrust.v1.Device
+	(*AuthenticateDeviceRequest)(nil),             // 9: teleport.devicetrust.public.v1.AuthenticateDeviceRequest
+	(*AuthenticateDeviceResponse)(nil),            // 10: teleport.devicetrust.public.v1.AuthenticateDeviceResponse
+	(*AuthenticateDeviceInit)(nil),                // 11: teleport.devicetrust.public.v1.AuthenticateDeviceInit
+	(*AuthenticateDeviceChallenge)(nil),           // 12: teleport.devicetrust.public.v1.AuthenticateDeviceChallenge
+	(*AuthenticateDeviceChallengeResponse)(nil),   // 13: teleport.devicetrust.public.v1.AuthenticateDeviceChallengeResponse
+	(*v1.DeviceCollectedData)(nil),                // 14: teleport.devicetrust.v1.DeviceCollectedData
+	(*v1.DeviceEnrollToken)(nil),                  // 15: teleport.devicetrust.v1.DeviceEnrollToken
+	(*v1.Device)(nil),                             // 16: teleport.devicetrust.v1.Device
+	(*v1.DeviceConfirmationToken)(nil),            // 17: teleport.devicetrust.v1.DeviceConfirmationToken
+	(*v1.DeviceWebToken)(nil),                     // 18: teleport.devicetrust.v1.DeviceWebToken
 }
 var file_teleport_devicetrust_public_v1_devicetrust_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
-	10, // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse.device_enroll_token:type_name -> teleport.devicetrust.v1.DeviceEnrollToken
+	14, // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	15, // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse.device_enroll_token:type_name -> teleport.devicetrust.v1.DeviceEnrollToken
 	4,  // 2: teleport.devicetrust.public.v1.EnrollDeviceRequest.init:type_name -> teleport.devicetrust.public.v1.EnrollDeviceInit
 	8,  // 3: teleport.devicetrust.public.v1.EnrollDeviceRequest.ios_challenge_response:type_name -> teleport.devicetrust.public.v1.IOSEnrollChallengeResponse
 	5,  // 4: teleport.devicetrust.public.v1.EnrollDeviceResponse.success:type_name -> teleport.devicetrust.public.v1.EnrollDeviceSuccess
 	7,  // 5: teleport.devicetrust.public.v1.EnrollDeviceResponse.ios_challenge:type_name -> teleport.devicetrust.public.v1.IOSEnrollChallenge
-	9,  // 6: teleport.devicetrust.public.v1.EnrollDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	14, // 6: teleport.devicetrust.public.v1.EnrollDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
 	6,  // 7: teleport.devicetrust.public.v1.EnrollDeviceInit.ios:type_name -> teleport.devicetrust.public.v1.IOSEnrollPayload
-	11, // 8: teleport.devicetrust.public.v1.EnrollDeviceSuccess.device:type_name -> teleport.devicetrust.v1.Device
-	0,  // 9: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:input_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
-	2,  // 10: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.public.v1.EnrollDeviceRequest
-	1,  // 11: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:output_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
-	3,  // 12: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:output_type -> teleport.devicetrust.public.v1.EnrollDeviceResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	16, // 8: teleport.devicetrust.public.v1.EnrollDeviceSuccess.device:type_name -> teleport.devicetrust.v1.Device
+	11, // 9: teleport.devicetrust.public.v1.AuthenticateDeviceRequest.init:type_name -> teleport.devicetrust.public.v1.AuthenticateDeviceInit
+	13, // 10: teleport.devicetrust.public.v1.AuthenticateDeviceRequest.challenge_response:type_name -> teleport.devicetrust.public.v1.AuthenticateDeviceChallengeResponse
+	12, // 11: teleport.devicetrust.public.v1.AuthenticateDeviceResponse.challenge:type_name -> teleport.devicetrust.public.v1.AuthenticateDeviceChallenge
+	17, // 12: teleport.devicetrust.public.v1.AuthenticateDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	14, // 13: teleport.devicetrust.public.v1.AuthenticateDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	18, // 14: teleport.devicetrust.public.v1.AuthenticateDeviceInit.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
+	0,  // 15: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:input_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
+	2,  // 16: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.public.v1.EnrollDeviceRequest
+	9,  // 17: teleport.devicetrust.public.v1.DeviceTrustService.AuthenticateDevice:input_type -> teleport.devicetrust.public.v1.AuthenticateDeviceRequest
+	1,  // 18: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:output_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
+	3,  // 19: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:output_type -> teleport.devicetrust.public.v1.EnrollDeviceResponse
+	10, // 20: teleport.devicetrust.public.v1.DeviceTrustService.AuthenticateDevice:output_type -> teleport.devicetrust.public.v1.AuthenticateDeviceResponse
+	18, // [18:21] is the sub-list for method output_type
+	15, // [15:18] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_teleport_devicetrust_public_v1_devicetrust_service_proto_init() }
@@ -1044,13 +1701,21 @@ func file_teleport_devicetrust_public_v1_devicetrust_service_proto_init() {
 		(*EnrollDeviceResponse_Success)(nil),
 		(*EnrollDeviceResponse_IosChallenge)(nil),
 	}
+	file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[9].OneofWrappers = []any{
+		(*AuthenticateDeviceRequest_Init)(nil),
+		(*AuthenticateDeviceRequest_ChallengeResponse)(nil),
+	}
+	file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[10].OneofWrappers = []any{
+		(*AuthenticateDeviceResponse_Challenge)(nil),
+		(*AuthenticateDeviceResponse_ConfirmationToken)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc), len(file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
