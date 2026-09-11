@@ -42,6 +42,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -349,12 +350,12 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 // AppServerScopesEqual reports whether an app server's scope and its embedded
 // app's scope are equivalent.
 func AppServerScopesEqual(serverScope, appScope string) bool {
-	// Empty string comparison is treated as orthogonal in scopes.Compare.
+	// Empty string comparison is treated as orthogonal in apiscopes.Compare.
 	// If server scope is empty (unscoped), we should make sure the app's scope is also empty, and vice versa.
 	if serverScope == "" || appScope == "" {
 		return serverScope == appScope
 	}
-	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
+	return apiscopes.Compare(serverScope, appScope) == apiscopes.Equivalent
 }
 
 // GetCursorForAppServer returns the resource cursor identifying an app server

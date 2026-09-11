@@ -19,8 +19,8 @@ package accesslists
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // NormalizedSQN is a scope-qualified name that has been normalized for

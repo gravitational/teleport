@@ -25,6 +25,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
@@ -86,7 +87,7 @@ func NewBotInstanceService(b backend.Backend, clock clockwork.Clock) (*BotInstan
 // bot identified by (botScope, botName): the bot's sub-range of the scoped key
 // range when botScope is non-empty, else its sub-range of the unscoped range.
 func (b *BotInstanceService) serviceForBot(botScope, botName string) (*generic.ServiceWrapper[*machineidv1.BotInstance], error) {
-	service, err := b.service.WithScopedResourcePrefix(scopes.QualifiedName{Scope: botScope, Name: botName})
+	service, err := b.service.WithScopedResourcePrefix(apiscopes.QualifiedName{Scope: botScope, Name: botName})
 	return service, trace.Wrap(err)
 }
 

@@ -40,6 +40,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1877,61 +1878,61 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func kubeNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+func kubeNameFromKey(key backend.Key) (apiscopes.QualifiedName, error) {
 	switch {
 	case key.HasPrefix(kubeScopedPrefix()):
 		components := key.TrimPrefix(kubeScopedPrefix()).Components()
 		if len(components) != 2 {
-			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+			return apiscopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 		}
 		encodedScope, name := components[0], components[1]
 		scope, err := scopes.DecodeFromKey(encodedScope)
 		if err != nil {
-			return scopes.QualifiedName{}, trace.Wrap(err)
+			return apiscopes.QualifiedName{}, trace.Wrap(err)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Scope: scope,
 			Name:  name,
 		}, nil
 	case key.HasPrefix(kubeUnscopedPrefix()):
 		components := key.TrimPrefix(kubeUnscopedPrefix()).Components()
 		if len(components) != 1 {
-			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+			return apiscopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Name: components[0],
 		}, nil
 	default:
-		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		return apiscopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 	}
 }
 
-func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+func kubeServerNameFromKey(key backend.Key) (apiscopes.QualifiedName, string, error) {
 	switch {
 	case key.HasPrefix(kubeServersScopedPrefix()):
 		components := key.TrimPrefix(kubeServersScopedPrefix()).Components()
 		if len(components) != 3 {
-			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+			return apiscopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 		}
 		encodedScope, hostID, name := components[0], components[1], components[2]
 		scope, err := scopes.DecodeFromKey(encodedScope)
 		if err != nil {
-			return scopes.QualifiedName{}, "", trace.Wrap(err)
+			return apiscopes.QualifiedName{}, "", trace.Wrap(err)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Scope: scope,
 			Name:  name,
 		}, hostID, nil
 	case key.HasPrefix(kubeServersUnscopedPrefix()):
 		components := key.TrimPrefix(kubeServersUnscopedPrefix()).Components()
 		if len(components) != 2 {
-			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+			return apiscopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Name: components[1],
 		}, components[0], nil
 	default:
-		return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		return apiscopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 	}
 }
 
@@ -3000,11 +3001,11 @@ func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, err
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			listSQN := scopes.QualifiedName{
+			listSQN := apiscopes.QualifiedName{
 				Scope: listScope,
 				Name:  listName,
 			}
-			memberSQN := scopes.QualifiedName{
+			memberSQN := apiscopes.QualifiedName{
 				Scope: memberScope,
 				Name:  memberName,
 			}
@@ -3080,7 +3081,7 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 			}
 			listName, reviewName := remaining[0], remaining[1]
-			listSQN := scopes.QualifiedName{
+			listSQN := apiscopes.QualifiedName{
 				Scope: listScope,
 				Name:  listName,
 			}
@@ -3355,12 +3356,12 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 // name of the owning bot and the instance ID. The scope must be carried on
 // delete events: consumers (e.g. the cache) key their stores by
 // (scope, bot name, instance id).
-func botInstanceNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+func botInstanceNameFromKey(key backend.Key) (apiscopes.QualifiedName, string, error) {
 	switch {
 	case key.HasPrefix(botInstanceScopedWatchPrefix()):
 		components := key.TrimPrefix(botInstanceScopedWatchPrefix()).Components()
 		if len(components) != 3 {
-			return scopes.QualifiedName{}, "", trace.BadParameter(
+			return apiscopes.QualifiedName{}, "", trace.BadParameter(
 				"expected 3 components, got %d parsing backend key %v",
 				len(components),
 				key.String(),
@@ -3369,26 +3370,26 @@ func botInstanceNameFromKey(key backend.Key) (scopes.QualifiedName, string, erro
 		encodedScope, botName, instanceID := components[0], components[1], components[2]
 		scope, err := scopes.DecodeFromKey(encodedScope)
 		if err != nil {
-			return scopes.QualifiedName{}, "", trace.Wrap(err)
+			return apiscopes.QualifiedName{}, "", trace.Wrap(err)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Scope: scope,
 			Name:  botName,
 		}, instanceID, nil
 	case key.HasPrefix(botInstanceUnscopedWatchPrefix()):
 		components := key.TrimPrefix(botInstanceUnscopedWatchPrefix()).Components()
 		if len(components) != 2 {
-			return scopes.QualifiedName{}, "", trace.BadParameter(
+			return apiscopes.QualifiedName{}, "", trace.BadParameter(
 				"expected 2 components, got %d parsing backend key %v",
 				len(components),
 				key.String(),
 			)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Name: components[0],
 		}, components[1], nil
 	default:
-		return scopes.QualifiedName{}, "", trace.BadParameter(
+		return apiscopes.QualifiedName{}, "", trace.BadParameter(
 			"unexpected prefix parsing backend key %v", key.String(),
 		)
 	}

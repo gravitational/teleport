@@ -29,6 +29,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -101,7 +102,7 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 
 // GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error) {
-	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	qn := apiscopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
 	if err := qn.WeakValidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -262,7 +263,7 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 
 // DeleteScopedToken deletes a scoped token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
-	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	qn := apiscopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
 	if err := qn.WeakValidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -271,7 +272,7 @@ func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joining
 
 // UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
 func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
-	qn := scopes.QualifiedName{Scope: req.GetToken().GetScope(), Name: req.GetToken().GetMetadata().GetName()}
+	qn := apiscopes.QualifiedName{Scope: req.GetToken().GetScope(), Name: req.GetToken().GetMetadata().GetName()}
 	if err := qn.StrongValidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -364,7 +365,7 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joiningv1.UpdateScopedTokenRequest) (*joiningv1.UpdateScopedTokenResponse, error) {
 	tokenUpdate := req.GetToken()
 
-	qn := scopes.QualifiedName{Scope: tokenUpdate.GetScope(), Name: tokenUpdate.GetMetadata().GetName()}
+	qn := apiscopes.QualifiedName{Scope: tokenUpdate.GetScope(), Name: tokenUpdate.GetMetadata().GetName()}
 	if err := qn.StrongValidate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,7 +401,7 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 // update fails due to a revision comparison failure.
 func (s *ScopedTokenService) PatchScopedToken(
 	ctx context.Context,
-	tokenName scopes.QualifiedName,
+	tokenName apiscopes.QualifiedName,
 	updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 ) (*joiningv1.ScopedToken, error) {
 	const iterLimit = 3

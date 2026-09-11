@@ -26,10 +26,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
-	"github.com/gravitational/teleport/lib/scopes"
 	appscopes "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/tlsca"
 )

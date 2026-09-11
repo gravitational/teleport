@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -125,7 +126,7 @@ func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, 
 }
 
 func (s *accessListAndMembersGetter) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
-	listName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	listName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -141,7 +142,7 @@ func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name str
 }
 
 func (s *accessListAndMembersGetter) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
-	return s.getAccessList(ctx, accesslists.NormalizedSQN(scopes.QualifiedName{
+	return s.getAccessList(ctx, accesslists.NormalizedSQN(apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}))
@@ -167,11 +168,11 @@ func (s *accessListAndMembersGetter) GetAccessListMember(ctx context.Context, ac
 // GetAccessListMemberV2 returns the specified access list member resource.
 // If a user is not directly a member of the access list the NotFound error is returned.
 func (s *accessListAndMembersGetter) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
-	memberName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	memberName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetMemberScope(),
 		Name:  req.GetMemberName(),
 	})
@@ -426,7 +427,7 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 // GetAccessListV2 returns the specified access list resource, supporting
 // scoped or unscoped access lists.
 func (a *AccessListService) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
-	return a.getAccessList(ctx, accesslists.NormalizeSQN(scopes.QualifiedName{
+	return a.getAccessList(ctx, accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}))
@@ -607,7 +608,7 @@ func (a *AccessListService) DeleteAccessList(ctx context.Context, name string) e
 // DeleteAccessListV2 removes the specified access list resource, supporting
 // scoped or unscoped access lists.
 func (a *AccessListService) DeleteAccessListV2(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) error {
-	name := accesslists.NormalizeSQN(scopes.QualifiedName{
+	name := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	})
@@ -711,7 +712,7 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 func (a *AccessListService) CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error) {
 	count := uint(0)
 	listCount := uint(0)
-	membersService, err := a.membersServiceForAccessList(accesslists.NormalizeSQN(scopes.QualifiedName{
+	membersService, err := a.membersServiceForAccessList(accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessListName(),
 	}))
@@ -744,7 +745,7 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 
 // ListAccessListMembersV2 returns a paginated list of all members of the given list.
 func (a *AccessListService) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -785,11 +786,11 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 
 // GetAccessListMemberV2 returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
-	memberName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	memberName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetMemberScope(),
 		Name:  req.GetMemberName(),
 	})
@@ -897,7 +898,7 @@ func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListN
 //
 // Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
 func (a *AccessListService) GetAccessListOwnersV2(ctx context.Context, req *accesslistv1.GetAccessListOwnersRequest) ([]*accesslist.Owner, error) {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -1045,11 +1046,11 @@ func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessLi
 
 // DeleteAccessListMemberV2 hard deletes the specified access list member resource.
 func (a *AccessListService) DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
-	memberName := accesslists.NormalizedSQN(scopes.QualifiedName{
+	memberName := accesslists.NormalizedSQN(apiscopes.QualifiedName{
 		Scope: req.GetMemberScope(),
 		Name:  req.GetMemberName(),
 	})
@@ -1104,7 +1105,7 @@ func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.
 // allowed on a list with implicit membership, as it provides a mechanism for
 // cleaning out the user list if a list is converted from explicit to implicit.
 func (a *AccessListService) DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -1449,7 +1450,7 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 }
 
 func (a *AccessListService) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
-	listName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	listName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -1657,7 +1658,7 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 
 // DeleteAccessListReviewV2 will delete an access list review from the backend.
 func (a *AccessListService) DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error {
-	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+	accessListName := accesslists.NormalizeSQN(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessListName(),
 	})

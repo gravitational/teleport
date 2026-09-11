@@ -36,9 +36,9 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 const (

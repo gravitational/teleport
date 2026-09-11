@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"rsc.io/ordered"
+
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 )
 
 // The scope key encoding produces a single opaque, order-preserving backend key
@@ -75,12 +77,12 @@ func EncodeForKey(scope string) (string, error) {
 		return hex.EncodeToString(ordered.Encode(scopeKeyUnscopedDisc)), nil
 	}
 
-	if err := WeakValidate(scope); err != nil {
+	if err := apiscopes.WeakValidate(scope); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	raw := ordered.Encode(scopeKeyScopedDisc)
-	for segment := range DescendingSegments(scope) {
+	for segment := range apiscopes.DescendingSegments(scope) {
 		raw = ordered.Append(raw, segment)
 	}
 
@@ -120,8 +122,8 @@ func DecodeFromKey(encoded string) (string, error) {
 			segments = append(segments, segment)
 		}
 
-		decoded := Join(segments...)
-		if err := WeakValidate(decoded); err != nil {
+		decoded := apiscopes.Join(segments...)
+		if err := apiscopes.WeakValidate(decoded); err != nil {
 			return "", trace.Wrap(err)
 		}
 		return decoded, nil

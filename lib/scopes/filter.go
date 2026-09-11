@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 )
 
 // IsMatchAll reports whether the given filter is a wildcard match that selects all resources.
@@ -59,16 +60,16 @@ func MatchScope(filter *scopesv1.Filter, resourceScope string) bool {
 	}
 
 	// all remaining modes select resources by the relationship of the resource scope to the filter scope.
-	rel := Compare(filter.GetScope(), resourceScope)
+	rel := apiscopes.Compare(filter.GetScope(), resourceScope)
 	switch mode {
 	case scopesv1.Mode_MODE_EXACT:
-		return rel == Equivalent
+		return rel == apiscopes.Equivalent
 	case scopesv1.Mode_MODE_DESCENDANTS:
-		return rel == Equivalent || rel == Descendant
+		return rel == apiscopes.Equivalent || rel == apiscopes.Descendant
 	case scopesv1.Mode_MODE_ANCESTORS, scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE: //nolint:staticcheck // SA1019. Deprecated mode retained as equivalent for backwards compatibility.
-		return rel == Equivalent || rel == Ancestor
+		return rel == apiscopes.Equivalent || rel == apiscopes.Ancestor
 	case scopesv1.Mode_MODE_RELATIVES:
-		return rel != Orthogonal
+		return rel != apiscopes.Orthogonal
 	default:
 		// unknown modes match nothing.
 		return false
@@ -94,7 +95,7 @@ func ValidateFilter(filter *scopesv1.Filter) error {
 		if filter.GetScope() == "" {
 			return trace.BadParameter("scope filter mode %v requires a non-empty scope", filter.GetMode())
 		}
-		if err := WeakValidate(filter.GetScope()); err != nil {
+		if err := apiscopes.WeakValidate(filter.GetScope()); err != nil {
 			return trace.Wrap(err, "invalid scope in scope filter")
 		}
 		return nil

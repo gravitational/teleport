@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -139,7 +140,7 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	// perform an early check for root scope delete permission to allow us to short-circuit
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting tokens that are so malformed that they cannot be read.
-	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+	if err := authzContext.CheckerContext.Decision(ctx, apiscopes.Root, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, scopedaccess.Delete)
 	}); err == nil {
 		res, err := s.backend.DeleteScopedToken(ctx, req)
@@ -365,7 +366,7 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 		return nil, trace.Wrap(err)
 	}
 
-	if scopes.Compare(req.GetToken().GetScope(), extant.GetToken().GetScope()) != scopes.Equivalent {
+	if apiscopes.Compare(req.GetToken().GetScope(), extant.GetToken().GetScope()) != apiscopes.Equivalent {
 		return nil, trace.BadParameter("cannot modify the resource scope of scoped token %q (%q -> %q)", req.GetToken().GetMetadata().GetName(), extant.GetToken().GetScope(), req.GetToken().GetScope())
 	}
 

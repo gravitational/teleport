@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -272,7 +273,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			)
 		}
 		if f.GetBotScope() != "" {
-			if err := scopes.StrongValidate(f.GetBotScope()); err != nil {
+			if err := apiscopes.StrongValidate(f.GetBotScope()); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -390,7 +391,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
 	_, err = b.backend.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Scope: botScope, Name: botName},
+		Bot:        apiscopes.QualifiedName{Scope: botScope, Name: botName},
 		InstanceID: botInstanceID,
 		UpdateFn: func(instance *pb.BotInstance) (*pb.BotInstance, error) {
 			if !instance.HasStatus() {

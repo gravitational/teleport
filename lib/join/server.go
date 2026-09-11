@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -175,7 +176,7 @@ func NewServer(cfg *ServerConfig) *Server {
 // for a match. If the name is _not_ a Scope Qualified Name, then a legacy [types.ProvisionTokenV2]
 // is returned.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
-	qn, err := scopes.ParseOptionallyQualifiedName(name)
+	qn, err := apiscopes.ParseOptionallyQualifiedName(name)
 	if err != nil && s.cfg.ScopesFeatures.Enabled {
 		return nil, trace.Wrap(err)
 	}
@@ -936,11 +937,11 @@ func makeAuditEvent(ctx context.Context, info diagnostic.Info, attributesStruct 
 		default:
 			code = events.BotJoinCode
 		}
-		botUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: info.BotScope, Name: info.BotName})
+		botUserName, err := services.BotResourceName(apiscopes.QualifiedName{Scope: info.BotScope, Name: info.BotName})
 		if err != nil {
 			// Best-effort: emit the event with the bare name rather than drop it.
 			log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
-			botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: info.BotName})
+			botUserName, _ = services.BotResourceName(apiscopes.QualifiedName{Name: info.BotName})
 		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{

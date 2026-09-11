@@ -77,6 +77,7 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1555,7 +1556,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		var assignedScopes []string
 		for _, assignment := range assignments {
 			for subAssignment := range scopedaccess.WeakValidatedSubAssignments(assignment) {
-				roleRef, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				roleRef, err := apiscopes.ParseQualifiedName(subAssignment.GetRole())
 				if err != nil {
 					continue
 				}
@@ -1576,7 +1577,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 					return nil, trace.Wrap(err)
 				}
 
-				if !scopedaccess.RoleIsEnforceableAt(res.GetRole(), scopes.EnforcementPoint{
+				if !scopedaccess.RoleIsEnforceableAt(res.GetRole(), apiscopes.EnforcementPoint{
 					ScopeOfOrigin: assignment.GetScope(),
 					ScopeOfEffect: subAssignment.GetScope(),
 				}) {
@@ -1588,9 +1589,9 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		}
 
 		// apply canonical sorting and deduplication
-		slices.SortFunc(assignedScopes, scopes.Sort)
+		slices.SortFunc(assignedScopes, apiscopes.Sort)
 		assignedScopes = slices.CompactFunc(assignedScopes, func(a, b string) bool {
-			return scopes.Compare(a, b) == scopes.Equivalent
+			return apiscopes.Compare(a, b) == apiscopes.Equivalent
 		})
 
 		userContext.AvailableScopes = assignedScopes

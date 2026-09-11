@@ -25,11 +25,11 @@ import (
 	"github.com/gravitational/trace"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -259,7 +259,7 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 		// iterate through the ordered enforcement points for this resource scope. policy evaluation by scope is ordered first by
 		// Scope of Origin (ancestral to descendant) and then by Scope of Effect (descendant to ancestral within each origin).
 		// We proceed through each permutation in order, evaluating any roles assigned at that specific point.
-		for point := range scopes.EnforcementPointsForResourceScope(scope) {
+		for point := range apiscopes.EnforcementPointsForResourceScope(scope) {
 			for ref := range pinning.GetRolesAtEnforcementPoint(c.pin, point) {
 				checker, err := c.resolveRef(ctx, ref)
 				if err != nil {
@@ -516,7 +516,7 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 	}
 
 	return c.decision(
-		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create)
 		},
@@ -537,7 +537,7 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
 	}
 
 	return c.decision(
-		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create, scopedaccess.Update)
 		},
@@ -570,7 +570,7 @@ func (a UnpinnedReadAuthorization) check() error {
 			return trace.BadParameter("invalid verb for unpinned read authorization: %q", verb)
 		}
 	}
-	if err := scopes.WeakValidate(a.resourceScope); err != nil {
+	if err := apiscopes.WeakValidate(a.resourceScope); err != nil {
 		return trace.Wrap(err, "invalid resourceScope")
 	}
 	return nil
@@ -580,119 +580,119 @@ var (
 	// UnpinnedReadCertAuthority is a special authorization to complete an
 	// unscoped access check to read a cert authority without secrets.
 	UnpinnedReadCertAuthority = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindCertAuthority,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadCertAuthorities is a special authorization to complete an
 	// unscoped access check to list and read a cert authorities without secrets.
 	UnpinnedReadCertAuthorities = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindCertAuthority,
 		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadAuthServers is a special authorization to complete an
 	// unscoped access check to list and read auth server resources.
 	UnpinnedReadAuthServers = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindAuthServer,
 		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadProxies is a special authorization to complete an
 	// unscoped access check to list and read proxy resources.
 	UnpinnedReadProxies = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindProxy,
 		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadAuthPreference is a special authorization to complete an
 	// unscoped access check to read a cluster auth preference.
 	UnpinnedReadAuthPreference = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindClusterAuthPreference,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadVnetConfig is a special authorization to complete an
 	// unscoped access check to read a cluster VNet config.
 	UnpinnedReadVnetConfig = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindVnetConfig,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSPIFFEFederation is a special authorization to complete an
 	// unscoped access check to read a SPIFFE federation.
 	UnpinnedReadSPIFFEFederation = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindSPIFFEFederation,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSPIFFEFederations is a special authorization to complete an
 	// unscoped access check to list and read SPIFFE federations.
 	UnpinnedReadSPIFFEFederations = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindSPIFFEFederation,
 		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadClusterNetworkingConfig is a special authorization to complete an
 	// unscoped access check to read a cluster networking config.
 	UnpinnedReadClusterNetworkingConfig = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindClusterNetworkingConfig,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadClusterName is a special authorization to complete an
 	// unscoped access check to read a cluster name.
 	UnpinnedReadClusterName = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindClusterName,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadSessionRecordingConfig is a special authorization to complete an
 	// unscoped access check to read a cluster session recording config.
 	UnpinnedReadSessionRecordingConfig = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindSessionRecordingConfig,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadScopedRole is a special authorization to complete an
 	// unscoped access check to read a scoped role.
 	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          scopedaccess.KindScopedRole,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadUser is a special authorization to complete a unscoped access check
 	// to read a user.
 	UnpinnedReadUser = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindUser,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadRole is a special authorization to complete an unscoped access check
 	// to read a role.
 	UnpinnedReadRole = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindRole,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadAndListLock is a special authorization to complete an unscoped access check
 	// to read a lock.
 	UnpinnedReadAndListLock = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindLock,
 		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
 	}
 	// UnpinnedReadLock is a special authorization to complete an unscoped access check
 	// to read a lock.
 	UnpinnedReadLock = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindLock,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
 	// UnpinnedReadClusterAuditConfig is a special authorization to complete an unscoped access check
 	// to read a cluster audit config.
 	UnpinnedReadClusterAuditConfig = UnpinnedReadAuthorization{
-		resourceScope: scopes.Root,
+		resourceScope: apiscopes.Root,
 		kind:          types.KindClusterAuditConfig,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}

@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
@@ -690,7 +691,7 @@ func (cfg *Config) ProxyWebAddr() utils.NetAddr {
 func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
-		if _, parseErr := scopes.ParseQualifiedName(cfg.token); parseErr != nil {
+		if _, parseErr := apiscopes.ParseQualifiedName(cfg.token); parseErr != nil {
 			return "", trace.Wrap(err)
 		}
 
