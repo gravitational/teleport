@@ -37,15 +37,15 @@ func SupportedCATypes() []string {
 	return slices.Clone(allowedCAOverrideSubKinds)
 }
 
-// SPIFFECAOverrideSubKind is the sub_kind for SPIFFE CA overrides.
+// SPIFFETLSCA is the sub_kind for SPIFFE CA overrides.
 // The SPIFFE CA has both X.509 (TLS) and JWT signing components, and this
 // sub_kind targets the TLS signing component.
-const SPIFFECAOverrideSubKind = "spiffe-tls"
+const SPIFFETLSCA = "spiffe-tls"
 
 var (
 	allowedCAOverrideSubKinds = []string{
 		string(types.DatabaseClientCA),
-		SPIFFECAOverrideSubKind,
+		SPIFFETLSCA,
 		string(types.WindowsCA),
 	}
 
@@ -57,20 +57,10 @@ var (
 // SubKindToCertAuthType maps a CA override sub_kind to its CertAuthType.
 func SubKindToCertAuthType(subKind string) types.CertAuthType {
 	switch subKind {
-	case SPIFFECAOverrideSubKind:
+	case SPIFFETLSCA:
 		return types.SPIFFECA
 	default:
 		return types.CertAuthType(subKind)
-	}
-}
-
-// CertAuthTypeToSubKind maps a CertAuthType to its CA override sub_kind.
-func CertAuthTypeToSubKind(caType types.CertAuthType) string {
-	switch caType {
-	case types.SPIFFECA:
-		return SPIFFECAOverrideSubKind
-	default:
-		return string(caType)
 	}
 }
 

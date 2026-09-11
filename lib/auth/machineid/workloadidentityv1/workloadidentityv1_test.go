@@ -61,6 +61,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -81,12 +82,15 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/subca"
+	"github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -103,10 +107,15 @@ func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*auth
 }
 
 func newTestTLSServerWithScopesFeatures(t testing.TB, scopesFeatures scopes.Features, opts ...authtest.TestTLSServerOption) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
+	return newTestTLSServerWithModules(t, scopesFeatures, nil, opts...)
+}
+
+func newTestTLSServerWithModules(t testing.TB, scopesFeatures scopes.Features, mods modules.Modules, opts ...authtest.TestTLSServerOption) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:            t.TempDir(),
 		Clock:          clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 		ScopesFeatures: scopesFeatures,
+		Modules:        mods,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -137,16 +146,17 @@ type issuanceTestPack struct {
 
 	issuer              string
 	spiffeX509CAPool    *x509.CertPool
+	spiffeX509CACert    *x509.Certificate
 	spiffeJWTSigner     crypto.Signer
 	spiffeJWTSignerKID  string
 	appClientX509CAPool *x509.CertPool
 }
 
-func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
+func newIssuanceTestPack(t *testing.T, mods modules.Modules) *issuanceTestPack {
 	// Scopes are enabled so the issuance RPCs (which authorize via the scoped
 	// authorizer) can serve both unscoped and scoped identities. Unscoped
 	// issuance is unaffected by enabling the feature.
-	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	srv, eventRecorder := newTestTLSServerWithModules(t, scopes.Features{Enabled: true}, mods)
 	clock := srv.Auth().GetClock()
 	fakeClock, ok := clock.(*clockwork.FakeClock)
 	require.True(t, ok, "expected to be a clockwork.FakeClock but got %T", clock)
@@ -157,30 +167,32 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 		PublicAddrs: []string{"teleport.example.com"},
 	})
 	require.NoError(t, err)
-	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	_, err = srv.Auth().UpsertProxyServer(t.Context(), proxy)
 	require.NoError(t, err)
 	wantIssuer := "https://teleport.example.com/workload-identity"
 
 	// Fetch X509 SPIFFE CA for validation of signature later
-	spiffeX509CA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+	spiffeX509CA, err := srv.Auth().GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: srv.ClusterName(),
 	}, false)
 	require.NoError(t, err)
 	spiffeX509CAPool, err := services.CertPool(spiffeX509CA)
 	require.NoError(t, err)
+	spiffeX509CACert, err := tlsutils.ParseCertificatePEM(spiffeX509CA.GetActiveKeys().TLS[0].Cert)
+	require.NoError(t, err)
 	// Fetch JWT CA to validate JWTs
-	jwtCA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+	jwtCA, err := srv.Auth().GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: "localhost",
 	}, true)
 	require.NoError(t, err)
-	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
+	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(t.Context(), jwtCA)
 	require.NoError(t, err)
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
 	// Fetch X509 AppClient CA for validation of signature later
-	appClientX509CA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+	appClientX509CA, err := srv.Auth().GetCertAuthority(t.Context(), types.CertAuthID{
 		Type:       types.AppClientCA,
 		DomainName: srv.ClusterName(),
 	}, false)
@@ -198,6 +210,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 		sigstorePolicyEvaluator: sigstorePolicyEvaluator,
 		issuer:                  wantIssuer,
 		spiffeX509CAPool:        spiffeX509CAPool,
+		spiffeX509CACert:        spiffeX509CACert,
 		spiffeJWTSigner:         jwtSigner,
 		spiffeJWTSignerKID:      kid,
 		appClientX509CAPool:     appClientX509CAPool,
@@ -229,8 +242,8 @@ func (m *mockSigstorePolicyEvaluator) Evaluate(ctx context.Context, policyNames 
 func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	tp := newIssuanceTestPack(t, ctx)
+	ctx := t.Context()
+	tp := newIssuanceTestPack(t, nil)
 
 	role, err := types.NewRole("my-role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -418,8 +431,8 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 func TestIssueWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	tp := newIssuanceTestPack(t, ctx)
+	ctx := t.Context()
+	tp := newIssuanceTestPack(t, nil)
 
 	wildcardAccess, _, err := authtest.CreateUserAndRole(
 		tp.srv.Auth(),
@@ -1478,11 +1491,140 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
+	t.Parallel()
+
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                   string
+		ossBuild               bool
+		disableIssuerOverrides bool
+
+		// configureOverrides sets up any CA overrides for the test cluster, returning the expected issuing CA. Nil
+		// means no overrides are configured.
+		configureOverrides func(t *testing.T, tp *issuanceTestPack) overrideResult
+	}{
+		{
+			name:                   "SVID chains to self-signed CA when opted out of sub-CA override",
+			disableIssuerOverrides: true,
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				createEnabledSPIFFECAOverride(t, tp) // Ignored, opted out.
+				return overrideResult{ca: tp.spiffeX509CACert}
+			},
+		},
+		{
+			name:                   "SVID chains to self-signed CA when opted out of legacy override",
+			disableIssuerOverrides: true,
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				installLegacyOverrideGetter(t, tp) // Ignored, opted out.
+				return overrideResult{ca: tp.spiffeX509CACert}
+			},
+		},
+		{
+			name:               "SVID chains to self-signed CA with no overrides configured",
+			configureOverrides: nil, // No overrides configured.
+		},
+		{
+			name:               "SVID chains to sub-CA override when active",
+			configureOverrides: createEnabledSPIFFECAOverride, // Active sub-CA override.
+		},
+		{
+			name: "SVID chains to sub-CA override when legacy override is also configured",
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				installLegacyOverrideGetter(t, tp) // Ignored, the sub-CA override takes precedence.
+				return createEnabledSPIFFECAOverride(t, tp)
+			},
+		},
+		{
+			name:               "SVID chains to legacy override when no sub-CA override exists",
+			configureOverrides: installLegacyOverrideGetter, // Active legacy workload override.
+		},
+		{
+			name: "SVID chains to self-signed CA when sub-CA override is disabled",
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				installLegacyOverrideGetter(t, tp) // Ignored, the sub-CA override resource takes precedence even when disabled.
+
+				const disabled = true
+				createSPIFFECAOverrideForKey(t, tp, tp.spiffeX509CACert.PublicKey, disabled)
+
+				return overrideResult{ca: tp.spiffeX509CACert}
+			},
+		},
+		{
+			name: "SVID chains to self-signed CA when key does not match sub-CA override",
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				wrongKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+				require.NoError(t, err)
+
+				const disabled = false
+				createSPIFFECAOverrideForKey(t, tp, wrongKey.Public(), disabled)
+
+				return overrideResult{ca: tp.spiffeX509CACert}
+			},
+		},
+		{
+			name:     "SVID chains to self-signed CA on OSS build",
+			ossBuild: true,
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				createEnabledSPIFFECAOverride(t, tp) // Ignored, CA overrides require an enterprise build.
+				return overrideResult{ca: tp.spiffeX509CACert}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mods := modulestest.EnterpriseModules()
+			if test.ossBuild {
+				mods = modulestest.OSSModules()
+			}
+
+			// Overrides are cluster-wide, so each case gets its own cluster.
+			tp := newIssuanceTestPack(t, mods)
+
+			want := overrideResult{ca: tp.spiffeX509CACert}
+			if test.configureOverrides != nil {
+				want = test.configureOverrides(t, tp)
+			}
+
+			client, widName := newIssuanceClient(t, tp)
+
+			resp, err := client.IssueWorkloadIdentity(
+				t.Context(),
+				workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+					Name: widName,
+					X509SvidParams: workloadidentityv1pb.X509SVIDParams_builder{
+						PublicKey:          workloadKeyPubBytes,
+						UseIssuerOverrides: !test.disableIssuerOverrides,
+					}.Build(),
+				}.Build(),
+			)
+			require.NoError(t, err)
+
+			x509Cred := resp.GetCredential().GetX509Svid()
+
+			svidCert, err := x509.ParseCertificate(x509Cred.GetCert())
+			require.NoError(t, err)
+
+			require.Equal(t, want.ca.RawSubject, svidCert.RawIssuer, "issued SVID issuer did not match the expected CA")
+			require.NoError(t, svidCert.CheckSignatureFrom(want.ca), "issued SVID was not signed by the expected CA")
+			require.Equal(t, want.chain, x509Cred.GetChain(), "issued SVID chain did not match the expected chain")
+		})
+	}
+}
+
 func TestIssueWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	tp := newIssuanceTestPack(t, ctx)
+	ctx := t.Context()
+	tp := newIssuanceTestPack(t, nil)
 
 	user, _, err := authtest.CreateUserAndRole(
 		tp.srv.Auth(),
@@ -1834,7 +1976,7 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 	const appServiceID = "test-server"
 	const appName = "panel"
 	ctx := t.Context()
-	tp := newIssuanceTestPack(t, ctx)
+	tp := newIssuanceTestPack(t, nil)
 	clusterName := tp.srv.ClusterName()
 
 	// Register an application.
@@ -2022,7 +2164,7 @@ func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
 	const appName = "panel"
 
 	ctx := t.Context()
-	tp := newIssuanceTestPack(t, ctx)
+	tp := newIssuanceTestPack(t, nil)
 	clusterName := tp.srv.ClusterName()
 
 	app, err := types.NewAppV3(types.Metadata{
@@ -2145,7 +2287,7 @@ func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2391,7 +2533,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2572,7 +2714,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3114,7 +3256,7 @@ func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3348,7 +3490,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3546,7 +3688,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 func TestResourceService_ScopedWritesRequireScopesFeature(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3595,7 +3737,7 @@ func TestResourceService_ScopedWritesRequireScopesFeature(t *testing.T) {
 func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3788,7 +3930,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -3925,7 +4067,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -4041,7 +4183,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -4152,7 +4294,7 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -4342,7 +4484,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -4982,4 +5124,141 @@ func newScopedWorkloadIdentityIssuer(
 		scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List), labels,
 	)
 	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
+}
+
+// newIssuanceClient creates a workload identity and a user with access to it, returning an issuance client
+// authenticated as that user along with the workload identity's name.
+func newIssuanceClient(t *testing.T, tp *issuanceTestPack) (workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient, string) {
+	t.Helper()
+
+	resource, err := tp.srv.Auth().CreateWorkloadIdentity(
+		t.Context(), workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "test-wid"}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/test"}.Build(),
+			}.Build(),
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	user, _, err := authtest.CreateUserAndRole(
+		tp.srv.Auth(),
+		"test-user",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(types.KindWorkloadIdentity, []string{types.VerbRead, types.VerbList}),
+		},
+		authtest.WithRoleMutator(func(role types.Role) {
+			role.SetWorkloadIdentityLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+		}),
+	)
+	require.NoError(t, err)
+
+	baseClient, err := tp.srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = baseClient.Close() })
+
+	client := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(baseClient.GetConnection())
+
+	return client, resource.GetMetadata().GetName()
+}
+
+// overrideResult is the expected CA to issue the SVID.
+type overrideResult struct {
+	// ca is the CA certificate expected to sign the SVID.
+	ca *x509.Certificate
+	// chain is the DER-encoded trust chain expected alongside the SVID, starting with ca. Nil when the self-signed
+	// CA issues the SVID.
+	chain [][]byte
+}
+
+// createEnabledSPIFFECAOverride creates an active cert_authority_override matching the cluster's self-signed SPIFFE CA.
+func createEnabledSPIFFECAOverride(t *testing.T, tp *issuanceTestPack) overrideResult {
+	t.Helper()
+
+	const disabled = false
+	return createSPIFFECAOverrideForKey(t, tp, tp.spiffeX509CACert.PublicKey, disabled)
+}
+
+// createSPIFFECAOverrideForKey creates a cert_authority_override whose override certificate is issued over pub.
+func createSPIFFECAOverrideForKey(
+	t *testing.T,
+	tp *issuanceTestPack,
+	pub crypto.PublicKey,
+	disabled bool,
+) overrideResult {
+	t.Helper()
+
+	overrideCA, externalRoot := newExternalIntermediateCA(t, tp, pub)
+
+	caOverride := subcav1.CertAuthorityOverride_builder{
+		Kind:    types.KindCertAuthorityOverride,
+		SubKind: subca.SPIFFETLSCA,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: tp.srv.ClusterName(),
+		}.Build(),
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
+			CertificateOverrides: []*subcav1.CertificateOverride{
+				subcav1.CertificateOverride_builder{
+					Certificate: string(overrideCA.CertPEM),
+					Chain:       []string{string(externalRoot.CertPEM)},
+					Disabled:    disabled,
+				}.Build(),
+			},
+		}.Build(),
+	}.Build()
+
+	_, err := tp.srv.Auth().CreateCertAuthorityOverride(t.Context(), caOverride)
+	require.NoError(t, err)
+
+	// The issued chain is leaf-to-root: the override CA first, then its issuer.
+	return overrideResult{ca: overrideCA.Cert, chain: [][]byte{overrideCA.Cert.Raw, externalRoot.Cert.Raw}}
+}
+
+// installLegacyOverrideGetter issues a new external intermediate CA and installs it as a workload override CA.
+func installLegacyOverrideGetter(t *testing.T, tp *issuanceTestPack) overrideResult {
+	t.Helper()
+
+	overrideCA, _ := newExternalIntermediateCA(t, tp, tp.spiffeX509CACert.PublicKey)
+
+	// The chain intentionally starts with the override CA itself, matching the sub-CA override path where
+	// CalculateOverrideResult.CAChain includes the override CA certificate.
+	tp.srv.Auth().SetWorkloadIdentityX509CAOverrideGetter(
+		&fakeX509CAOverrideGetter{
+			cert:  overrideCA.Cert,
+			chain: [][]byte{overrideCA.Cert.Raw},
+		},
+	)
+
+	return overrideResult{ca: overrideCA.Cert, chain: [][]byte{overrideCA.Cert.Raw}}
+}
+
+type fakeX509CAOverrideGetter struct {
+	cert  *x509.Certificate
+	chain [][]byte
+}
+
+func (f *fakeX509CAOverrideGetter) GetWorkloadIdentityX509CAOverride(_ context.Context, _ string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	return &tlsca.CertAuthority{Cert: f.cert, Signer: ca.Signer}, f.chain, nil
+}
+
+// newExternalIntermediateCA issues an intermediate CA with the given public key from a fresh external root CA, and
+// returns both.
+func newExternalIntermediateCA(t *testing.T, tp *issuanceTestPack, pub crypto.PublicKey) (intermediate, root *testenv.CA) {
+	t.Helper()
+
+	root, err := testenv.NewSelfSignedCA(nil)
+	require.NoError(t, err)
+
+	intermediate, err = root.NewIntermediateCA(&testenv.CAParams{
+		Clock:    tp.clock,
+		Pub:      pub,
+		Template: &x509.Certificate{Subject: pkix.Name{Organization: []string{tp.srv.ClusterName()}}},
+	})
+	require.NoError(t, err)
+
+	return intermediate, root
 }

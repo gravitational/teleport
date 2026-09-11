@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
@@ -89,6 +91,7 @@ func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []stri
 
 type issuerCache interface {
 	workloadIdentityReader
+	subca.CAOverrideGetter
 	// Deprecated: Prefer paginated variant [ListProxyServers].
 	//
 	// TODO(kiosion): DELETE IN 21.0.0
@@ -109,6 +112,7 @@ type IssuanceServiceConfig struct {
 	KeyStore                   KeyStorer
 	OverrideGetter             services.WorkloadIdentityX509CAOverrideGetter
 	GetSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	IsEnterpriseBuild          bool
 
 	ClusterName string
 }
@@ -127,6 +131,7 @@ type IssuanceService struct {
 	keyStore                   KeyStorer
 	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
 	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	isEnterpriseBuild          bool
 
 	clusterName string
 }
@@ -168,6 +173,7 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		keyStore:                   cfg.KeyStore,
 		overrideGetter:             cfg.OverrideGetter,
 		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
+		isEnterpriseBuild:          cfg.IsEnterpriseBuild,
 
 		clusterName: cfg.ClusterName,
 	}, nil
@@ -745,6 +751,19 @@ func x509Template(
 	return c
 }
 
+// getX509CA returns the X.509 CA and trust chain used to sign SVIDs.
+//
+// If useIssuerOverrides is false, the self-signed CA is returned with no chain. Otherwise, the CA is resolved in order
+// of precedence:
+//   - A cert_authority_override resource, if an enabled one exists for the CA. If no enabled override matches the CA's
+//     signing key, the self-signed CA is returned with no chain.
+//   - The legacy workload_identity_x509_issuer_override resource, if one exists.
+//   - The self-signed CA with no chain.
+//
+// Overrides change only the issuer and chain of the SVID. The SPIFFE trust bundle that Teleport distributes (the SPIFFE
+// CA resource, and tbot's Workload API bundle built from it) still contains only the self-signed Teleport SPIFFE CA.
+// This is deliberate (RFD 0194): a relying party that trusts an override hierarchy instead of Teleport's must obtain
+// that hierarchy's root out of band.
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
 	caType types.CertAuthType,
@@ -758,27 +777,61 @@ func (s *IssuanceService) getX509CA(
 		Type:       caType,
 		DomainName: s.clusterName,
 	}, loadKeysTrue)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA cert and key")
-	}
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	if !useIssuerOverrides {
-		return tlsCA, nil, nil
-	}
-	// TODO(espadolini): support alternate overrides depending on the trust
-	// domain, once that's fleshed out
-	newCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", tlsCA)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA override")
+		selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+		return selfSignedCA, nil, trace.Wrap(err)
 	}
 
-	return newCA, chain, nil
+	subCAResolver, err := subca.LoadCAOverrideResolver(
+		ctx,
+		s.cache,
+		s.isEnterpriseBuild,
+		types.CertAuthorityOverrideID{
+			ClusterName: s.clusterName,
+			CAType:      subca.SPIFFETLSCA,
+		},
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if !subCAResolver.HasCAOverride() {
+		// No CA override resource exists, fall back to the legacy workload override. If no legacy override is found,
+		// return the self-signed CA.
+		//
+		// TODO(cthach): DELETE IN v20 remove this entire block in favor of CalculateOverride below.
+		selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
+		return signingCA, chain, trace.Wrap(err)
+	}
+
+	// TODO(cthach): Include the CA override details in the SVID issuance audit event.
+	result, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	tlsCA, err := tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	chain, err := certificatesToDER(result.CAChain)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return tlsCA, chain, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
@@ -1254,3 +1307,18 @@ func serialString(serial *big.Int) string {
 // certVerifyClockSkewAllowance is the amount of leeway added to the
 // certificate's expiration status check to allow for clock drift.
 const certVerifyClockSkewAllowance = 1 * time.Minute
+
+func certificatesToDER(certs subca.Certificates) ([][]byte, error) {
+	certsDER := make([][]byte, len(certs))
+
+	for i, cert := range certs {
+		block, _ := pem.Decode(cert.PEM)
+		if block == nil {
+			return nil, trace.BadParameter("expected PEM-encoded certificate at index %d", i)
+		}
+
+		certsDER[i] = block.Bytes
+	}
+
+	return certsDER, nil
+}

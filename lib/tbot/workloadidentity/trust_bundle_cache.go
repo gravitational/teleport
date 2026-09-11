@@ -861,6 +861,11 @@ func listAllSPIFFEFederations(
 	return spiffeFeds, nil
 }
 
+// convertCAToBundle builds the local SPIFFE trust bundle from the cluster's SPIFFE CA.
+//
+// The bundle contains only the self-signed Teleport SPIFFE CA. It is not aware of cert_authority_override or
+// workload_identity_x509_issuer_override resources, so SVIDs issued under an override hierarchy cannot be validated
+// with this bundle alone. Relying parties that trust an override hierarchy must obtain its root out of band.
 func convertCAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, error) {
 	tdName := ca.GetClusterName()
 	if ca.GetType() == types.AppClientCA {

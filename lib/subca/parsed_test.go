@@ -530,7 +530,7 @@ func TestSubKindToCertAuthType(t *testing.T) {
 	t.Parallel()
 
 	specialsMap := map[string]types.CertAuthType{
-		subca.SPIFFECAOverrideSubKind: types.SPIFFECA,
+		subca.SPIFFETLSCA: types.SPIFFECA,
 	}
 
 	for _, subKind := range subca.SupportedCATypes() {
@@ -543,20 +543,4 @@ func TestSubKindToCertAuthType(t *testing.T) {
 
 	// Ensure types.SPIFFECA ("spiffe") passes through unmodified.
 	assert.Equal(t, types.SPIFFECA, subca.SubKindToCertAuthType(string(types.SPIFFECA)))
-}
-
-func TestCertAuthTypeToSubKind(t *testing.T) {
-	t.Parallel()
-
-	specialsMap := map[types.CertAuthType]string{
-		types.SPIFFECA: subca.SPIFFECAOverrideSubKind,
-	}
-
-	for _, certAuthType := range types.CertAuthTypes {
-		expected, ok := specialsMap[certAuthType]
-		if !ok {
-			expected = string(certAuthType)
-		}
-		assert.Equal(t, expected, subca.CertAuthTypeToSubKind(certAuthType))
-	}
 }
