@@ -21,11 +21,12 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,22 +54,33 @@ type MCPServerDialerClient interface {
 // MCPServerDialer is a wrapper of TeleportClient for handling MCP connections
 // to proxy.
 type MCPServerDialer struct {
-	client  MCPServerDialerClient
-	appName string
+	client MCPServerDialerClient
+	appSQN scopes.QualifiedName
 
-	mu     sync.Mutex
-	app    types.Application
-	cert   tls.Certificate
-	clock  clockwork.Clock
-	logger *slog.Logger
+	mu           sync.Mutex
+	app          types.Application
+	appFetchedAt time.Time
+	cert         tls.Certificate
+	clock        clockwork.Clock
+	logger       *slog.Logger
 }
 
+// mcpAppCacheTTL is how long a fetched app definition is reused between
+// dials. The app service resolves the upstream anew for every session chunk,
+// so re-fetching on the same horizon keeps the cached resource URI in step
+// with where the app service forwards requests on a long-lived connection.
+// Stored OAuth credentials are checked against that URI before every request
+// and must not outlive a replaced upstream. The check is best-effort: the app
+// service resolves the upstream on its own, so a URI replaced within this
+// window can still receive the old token.
+const mcpAppCacheTTL = appcommon.MaxSessionChunkDuration
+
 // NewMCPServerDialer creates a new MCPServerDialer.
-func NewMCPServerDialer(client MCPServerDialerClient, appName string) *MCPServerDialer {
+func NewMCPServerDialer(client MCPServerDialerClient, appSQN scopes.QualifiedName) *MCPServerDialer {
 	return &MCPServerDialer{
-		client:  client,
-		appName: appName,
-		clock:   clockwork.NewRealClock(),
+		client: client,
+		appSQN: appSQN,
+		clock:  clockwork.NewRealClock(),
 		logger: slog.With(
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentMCP, "dialer"),
@@ -83,22 +96,32 @@ func (d *MCPServerDialer) GetApp(ctx context.Context) (types.Application, error)
 }
 
 // DialALPN dials Teleport Proxy to establish a TLS routing connection for the
-// MCP server.
+// MCP server. The app URI must match the first successful lookup; restart the
+// connection to use a changed URI.
 func (d *MCPServerDialer) DialALPN(ctx context.Context) (net.Conn, error) {
-	app, err := d.getAppLocked(ctx)
+	d.mu.Lock()
+	// A new connection is where the app service may have re-resolved the
+	// upstream, such as after a restart or failover, so look the app up
+	// instead of trusting the cache.
+	app, err := d.fetchAppLocked(ctx)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
 	cert, err := d.getCertLocked(ctx, app)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
-	switch types.GetMCPServerTransportType(app.GetURI()) {
-	case types.MCPTransportHTTP:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolHTTP)
-	default:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
+	protocol := alpncommon.ProtocolMCP
+	if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
+		protocol = alpncommon.ProtocolHTTP
 	}
+	d.mu.Unlock()
+
+	// The app and certificate caches must be serialized, but independent
+	// network connections should still be allowed to dial concurrently.
+	return d.client.DialALPN(ctx, cert, protocol)
 }
 
 // DialContext is a simple wrapper of DialALPN. This function is defined to be
@@ -107,36 +130,53 @@ func (d *MCPServerDialer) DialContext(ctx context.Context, _, _ string) (net.Con
 	return d.DialALPN(ctx)
 }
 
+// getAppLocked returns the cached app, fetching it again once it is older
+// than mcpAppCacheTTL.
 func (d *MCPServerDialer) getAppLocked(ctx context.Context) (types.Application, error) {
-	if d.app != nil {
+	if d.app != nil && d.clock.Since(d.appFetchedAt) < mcpAppCacheTTL {
 		return d.app, nil
 	}
+	return d.fetchAppLocked(ctx)
+}
 
+// fetchAppLocked looks the app up and replaces the cached copy.
+func (d *MCPServerDialer) fetchAppLocked(ctx context.Context) (types.Application, error) {
+	appName := strings.TrimSpace(d.appSQN.Name)
+	var predicate strings.Builder
+	predicate.WriteString("name == ")
+	predicate.WriteString(strconv.Quote(appName))
+	if d.appSQN.Scope != "" {
+		predicate.WriteString(" && resource.scope == ")
+		predicate.WriteString(strconv.Quote(d.appSQN.Scope))
+	}
 	apps, err := d.client.ListApps(ctx, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		Namespace:           apidefaults.Namespace,
-		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(d.appName)),
+		PredicateExpression: predicate.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch len(apps) {
-	case 0:
-		return nil, trace.NotFound("no MCP servers found")
-	case 1:
-	default:
-		d.logger.WarnContext(ctx, "multiple appServers found, using the first one")
+	for _, app := range apps {
+		if app.GetScope() != d.appSQN.Scope {
+			continue
+		}
+		if !app.IsMCP() {
+			return nil, trace.BadParameter("app %q is not a MCP server", d.appSQN)
+		}
+		if d.app != nil && d.app.GetURI() != app.GetURI() {
+			return nil, trace.CompareFailed("MCP server %q URI changed, restart the connection", d.appSQN)
+		}
+		d.app = app
+		d.appFetchedAt = d.clock.Now()
+		d.logger.InfoContext(ctx, "Successfully fetched app",
+			"name", d.app.GetName(),
+			"scope", d.app.GetScope(),
+			"transport", types.GetMCPServerTransportType(d.app.GetURI()),
+		)
+		return d.app, nil
 	}
-	if !apps[0].IsMCP() {
-		return nil, trace.BadParameter("app %q is not a MCP server", d.appName)
-	}
-
-	d.app = apps[0]
-	d.logger.InfoContext(ctx, "Successfully fetched app",
-		"name", d.app.GetName(),
-		"transport", types.GetMCPServerTransportType(d.app.GetURI()),
-	)
-	return d.app, nil
+	return nil, trace.NotFound("MCP server %q not found", d.appSQN)
 }
 
 func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
@@ -154,11 +194,14 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 		RouteToCluster: d.client.GetSiteName(),
 		RouteToApp: proto.RouteToApp{
 			Name:        mcpServer.GetName(),
+			Scope:       mcpServer.GetScope(),
 			PublicAddr:  mcpServer.GetPublicAddr(),
 			ClusterName: d.client.GetSiteName(),
 			URI:         mcpServer.GetURI(),
 		},
 		AccessRequests: profile.ActiveRequests,
+		// The local proxy requester avoids the one-minute MFA certificate cap.
+		RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
 	// Do NOT write the keyring to avoid race condition when AI clients run

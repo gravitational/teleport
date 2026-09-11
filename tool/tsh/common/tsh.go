@@ -1185,11 +1185,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
+	proxyApp.Flag("browser", browserHelp).StringVar(&cf.Browser)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyMCP.Flag("browser", browserHelp).StringVar(&cf.Browser)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
@@ -2104,6 +2106,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.list.run()
 	case mcpCmd.config.FullCommand():
 		err = mcpCmd.config.run()
+	case mcpCmd.login.FullCommand():
+		err = mcpCmd.login.run()
+	case mcpCmd.logout.FullCommand():
+		err = mcpCmd.logout.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -5341,7 +5347,7 @@ func (c *CLIConf) initClientStore() {
 		// FS formats (e.g. identity file) or used for a single client call in memory.
 		c.clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
 
-	case c.AddKeysToAgent == client.AddKeysToAgentOnly:
+	case c.AddKeysToAgent == client.AddKeysToAgentOnly && c.command != "logout":
 		// Store client keys in memory, but save trusted certs and profile to disk.
 		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
 		c.clientStore.KeyStore = client.NewMemKeyStore()

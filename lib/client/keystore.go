@@ -66,6 +66,8 @@ const (
 	// tshBin is the name of the directory containing the
 	// updated binaries of client tools.
 	tshBin = "bin"
+
+	mcpOAuthCredentialsLockTimeout = 30 * time.Second
 )
 
 // KeyStore is a storage interface for client session keys and certificates.
@@ -80,6 +82,9 @@ type KeyStore interface {
 
 	// DeleteKeyRing deletes the user's key with all its certs.
 	DeleteKeyRing(idx KeyRingIndex) error
+
+	// DeleteMCPOAuthCredentials removes the user's MCP OAuth credentials for all clusters.
+	DeleteMCPOAuthCredentials(proxyHost, username string) error
 
 	// DeleteUserCerts deletes only the specified parts of the user's keyring,
 	// keeping the rest intact.
@@ -171,6 +176,14 @@ func (fs *FSKeyStore) ppkFilePath(idx KeyRingIndex) string {
 // KeyRingIndex.
 func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyRingIndex) string {
 	return keypaths.KubeCredLockfilePath(fs.KeyDir, idx.ProxyHost)
+}
+
+func (fs *FSKeyStore) lockMCPOAuthCredentials() (func() error, error) {
+	lockPath := keypaths.MCPOAuthCredentialsLockPath(fs.KeyDir)
+	if err := os.MkdirAll(filepath.Dir(lockPath), profileDirPerms); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return utils.FSTryWriteLockTimeout(context.Background(), lockPath, mcpOAuthCredentialsLockTimeout)
 }
 
 // publicKeyPath returns the public key path for the given KeyRingIndex.
@@ -518,6 +531,23 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	return trace.NewAggregate(deleteErrs...)
 }
 
+// DeleteMCPOAuthCredentials removes the user's MCP OAuth credentials for all clusters.
+func (fs *FSKeyStore) DeleteMCPOAuthCredentials(proxyHost, username string) error {
+	if !isValidPathComponent(proxyHost) || !isValidPathComponent(username) {
+		return trace.BadParameter("proxy host and username must be non-empty path components to remove MCP OAuth credentials")
+	}
+	unlock, err := fs.lockMCPOAuthCredentials()
+	if err != nil {
+		return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
+	}
+	defer unlock()
+	return trace.Wrap(utils.RemoveAllSecure(keypaths.MCPDir(fs.KeyDir, proxyHost, username)))
+}
+
+func isValidPathComponent(component string) bool {
+	return component != "" && component != "." && component != ".." && !strings.ContainsAny(component, `/\`)
+}
+
 // DeleteUserCerts deletes only the specified parts of the user's keyring,
 // keeping the rest intact.
 // Empty clusterName indicates to delete the certs for all clusters.
@@ -539,11 +569,24 @@ func (fs *FSKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) erro
 
 // DeleteKeys removes all session keys.
 func (fs *FSKeyStore) DeleteKeys() error {
+	lockPath := keypaths.MCPOAuthCredentialsLockPath(fs.KeyDir)
+	unlock, err := fs.lockMCPOAuthCredentials()
+	if err != nil {
+		return trace.Wrap(err, "waiting to remove MCP OAuth credentials")
+	}
+	defer unlock()
+
+	lockDir := filepath.Dir(lockPath)
 	files, err := os.ReadDir(fs.KeyDir)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	for _, file := range files {
+		path := filepath.Join(fs.KeyDir, file.Name())
+		// Removing a held lock would let another process lock its replacement.
+		if path == lockDir {
+			continue
+		}
 		if file.IsDir() {
 			switch file.Name() {
 			case tshConfigDirName, tshAzureDirName, tshBin:
@@ -559,7 +602,7 @@ func (fs *FSKeyStore) DeleteKeys() error {
 				continue
 			}
 		}
-		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
+		err := utils.RemoveAllSecure(path)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
@@ -997,6 +1040,11 @@ func (ms *MemKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		return trace.NotFound("key ring for %+v not found", idx)
 	}
 	delete(ms.keyRings[idx.ProxyHost], idx.Username)
+	return nil
+}
+
+// DeleteMCPOAuthCredentials is a no-op because MemKeyStore does not store MCP OAuth credentials.
+func (ms *MemKeyStore) DeleteMCPOAuthCredentials(proxyHost, username string) error {
 	return nil
 }
 

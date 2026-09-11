@@ -53,6 +53,12 @@ const (
 	fileExtLocalCA = "-localca.pem"
 	// appDirSuffix is the suffix of a sub-directory where app TLS certs are stored.
 	appDirSuffix = "-app"
+	// mcpDir stores MCP OAuth credentials separately from session keys.
+	mcpDir = "mcp"
+	// mcpOAuthCredentialsSuffix is the suffix of an MCP app's OAuth credentials file.
+	mcpOAuthCredentialsSuffix = ".oauth.json"
+	mcpOAuthCredentialsLock   = "mcp_oauth.lock"
+	locksDir                  = "locks"
 	// db DirSuffix is the suffix of a sub-directory where db TLS certs are stored.
 	dbDirSuffix = "-db"
 	// kubeDirSuffix is the suffix of a sub-directory where kube TLS certs are stored.
@@ -102,6 +108,13 @@ const (
 // ├── id_vnet.pub                     --> SSH Public Key for third-party clients of VNet SSH
 // ├── vnet_known_hosts                --> trusted certificate authorities (their keys) for third-party clients of VNet SSH
 // ├── vnet_ssh_config                 --> OpenSSH-compatible config file for third-party clients of VNet SSH
+// ├── locks
+// │   └── mcp_oauth.lock                --> serializes MCP OAuth credential updates and logout
+// ├── mcp                             --> MCP OAuth credentials, independent of session keys
+// │   └── one.example.com
+// │       └── foo
+// │           └── root
+// │               └── appA.oauth.json
 // └── keys							   --> session keys directory
 //    ├── one.example.com              --> Proxy hostname
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
@@ -321,6 +334,40 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.key
 func AppKeyPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtTLSKey)
+}
+
+// MCPDir returns the path to the user's MCP directory for the given proxy.
+//
+// <baseDir>/mcp/<proxy>/<username>
+func MCPDir(baseDir, proxy, username string) string {
+	return filepath.Join(baseDir, mcpDir, proxy, username)
+}
+
+// MCPOAuthCredentialDir returns the path to the user's MCP OAuth credential
+// directory for the given proxy and cluster.
+//
+// <baseDir>/mcp/<proxy>/<username>/<cluster>
+func MCPOAuthCredentialDir(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(MCPDir(baseDir, proxy, username), cluster)
+}
+
+// MCPOAuthCredentialsPath returns the path to an MCP app's OAuth credentials.
+//
+// <baseDir>/mcp/<proxy>/<username>/<cluster>/<appname>.oauth.json
+func MCPOAuthCredentialsPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(MCPOAuthCredentialDir(baseDir, proxy, username, cluster), appname+mcpOAuthCredentialsSuffix)
+}
+
+// IsMCPOAuthCredentialsFile reports whether a file name in an app credential
+// directory holds an MCP app's OAuth credentials.
+func IsMCPOAuthCredentialsFile(name string) bool {
+	return strings.HasSuffix(name, mcpOAuthCredentialsSuffix)
+}
+
+// MCPOAuthCredentialsLockPath stays outside session keys so logout cannot
+// replace a lock that another process still holds.
+func MCPOAuthCredentialsLockPath(baseDir string) string {
+	return filepath.Join(baseDir, locksDir, mcpOAuthCredentialsLock)
 }
 
 // AppLocalCAPath returns the path to a self-signed localhost CA for the given

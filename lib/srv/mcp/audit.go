@@ -299,7 +299,7 @@ func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Req
 		Method:          r.Method,
 		Body:            body,
 		RawQuery:        r.URL.RawQuery,
-		Headers:         wrappers.Traits(r.Header),
+		Headers:         wrappers.Traits(headersForAudit(r.Header)),
 	}
 	a.flushAndEmitEvent(ctx, event)
 }

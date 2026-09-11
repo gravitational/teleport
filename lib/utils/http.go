@@ -23,9 +23,35 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
+
+// SameHTTPOrigin compares URL schemes, hostnames, and effective ports. Default
+// HTTP and HTTPS ports are equivalent to explicitly specified ports.
+func SameHTTPOrigin(a, b *url.URL) bool {
+	if a == nil || b == nil ||
+		!strings.EqualFold(a.Scheme, b.Scheme) ||
+		!strings.EqualFold(a.Hostname(), b.Hostname()) {
+		return false
+	}
+	port := func(uri *url.URL) string {
+		if port := uri.Port(); port != "" {
+			return port
+		}
+		switch strings.ToLower(uri.Scheme) {
+		case "http":
+			return "80"
+		case "https":
+			return "443"
+		default:
+			return ""
+		}
+	}
+	return port(a) == port(b)
+}
 
 // GetAndReplaceRequestBody returns the request body and replaces the drained
 // body reader with an [io.NopCloser] allowing for further body processing by

@@ -38,6 +38,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// OAuthProtectedResourceMetadataPath is the RFC 9728 discovery path prefix.
+	OAuthProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource"
+
+	TeleportErrorOriginHeader = "X-Teleport-Mcp-Error-Origin"
+
+	ErrorOriginAppService          = "app-service"
+	ErrorOriginUpstream            = "upstream"
+	ErrorOriginUpstreamUnreachable = "upstream-unreachable"
+)
+
 // ServerMessageProcessor defines an interface that process JSON RPC responses
 // and notifications.
 type ServerMessageProcessor interface {
@@ -230,12 +241,17 @@ func (h *HTTPReaderWriter) sendMessageToRead(msg any) error {
 func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
 	switch v := msg.(type) {
 	case *JSONRPCRequest:
-		resp, err := h.targetClient.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		req := mcpclienttransport.JSONRPCRequest{
 			JSONRPC: v.JSONRPC,
 			ID:      v.ID,
 			Method:  v.Method,
-			Params:  v.Params,
-		})
+		}
+		// A typed nil in the "any" field defeats omitempty and gets
+		// marshaled as "params":null, which spec-strict servers reject.
+		if v.Params != nil {
+			req.Params = v.Params
+		}
+		resp, err := h.targetClient.SendRequest(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
