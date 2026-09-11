@@ -393,14 +393,29 @@ func (s *Service) authorizeProxy(ctx context.Context) error {
 // is bound to, and runs the centralized authz on it before checking access to
 // verb on kind.
 func (s *Service) authorizeUser(ctx context.Context, user, kind, verb string) error {
+	authCtx, err := s.authorizeUserIdentity(ctx, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(authCtx.Checker.CheckAccessToRule(
+		&services.Context{User: authCtx.User},
+		defaults.Namespace, kind, verb,
+	), "check rule access")
+}
+
+// authorizeUserIdentity reconstructs the identity of user, the one the caller's
+// token is bound to, and runs the centralized authz on it. Rule checks are left
+// to the caller as some RPCs, like AuthenticateDevice, don't need to run them.
+func (s *Service) authorizeUserIdentity(ctx context.Context, user string) (*authz.Context, error) {
 	u, err := s.cachedUsers.GetUser(ctx, user, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// The pairing outlived its user record, likely an SSO user whose
 			// ephemeral record expired within the pairing TTL.
-			return trace.NotFound("user not found")
+			return nil, trace.NotFound("user not found")
 		}
-		return trace.Wrap(err, "get user")
+		return nil, trace.Wrap(err, "get user")
 	}
 
 	reconstructedCtx := authz.ContextWithUser(ctx, authz.LocalUser{
@@ -414,13 +429,9 @@ func (s *Service) authorizeUser(ctx context.Context, user, kind, verb string) er
 
 	authCtx, err := s.authorizer.Authorize(reconstructedCtx)
 	if err != nil {
-		return trace.Wrap(err, "authorize from reconstructed context")
+		return nil, trace.Wrap(err, "authorize from reconstructed context")
 	}
-
-	return trace.Wrap(authCtx.Checker.CheckAccessToRule(
-		&services.Context{User: authCtx.User},
-		defaults.Namespace, kind, verb,
-	), "check rule access")
+	return authCtx, nil
 }
 
 func deviceMetadataFromCollectedData(cd *devicepb.DeviceCollectedData) *apievents.DeviceMetadata {
@@ -440,10 +451,9 @@ func deviceMetadataFromDevice(d *devicepb.Device) *apievents.DeviceMetadata {
 	}
 }
 
-// enrollDeviceMetadata describes the device for an enroll audit event: the
-// inventory record when the handler has resolved one, the caller's collected
-// data otherwise.
-func enrollDeviceMetadata(dev *devicepb.Device, cd *devicepb.DeviceCollectedData) *apievents.DeviceMetadata {
+// deviceMetadata describes the device for an audit event: the inventory record
+// when the handler has resolved one, the caller's collected data otherwise.
+func deviceMetadata(dev *devicepb.Device, cd *devicepb.DeviceCollectedData) *apievents.DeviceMetadata {
 	if dev != nil {
 		return deviceMetadataFromDevice(dev)
 	}
@@ -635,9 +645,9 @@ const enrollDeviceTimeout = time.Minute
 // by the service.
 var errEnrollDeviceTimeout = &trace.LimitExceededError{Message: "device enrollment timed out"}
 
-// enrollAllowedOSTypes gates the public EnrollDevice to mobile devices.
-// Desktop OS types enroll through the private Device Trust service.
-var enrollAllowedOSTypes = []devicepb.OSType{
+// mobileOSTypes gates the public Device Trust RPCs to mobile devices. Desktop
+// devices enroll and authenticate through the private Device Trust service.
+var mobileOSTypes = []devicepb.OSType{
 	devicepb.OSType_OS_TYPE_IOS,
 	devicepb.OSType_OS_TYPE_IPADOS,
 }
@@ -673,7 +683,7 @@ func (s *Service) enrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_E
 			"EnrollDevice: enroll token resolution failed",
 			"error", err,
 		)
-		s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(dev, init.GetDeviceData()), err)
+		s.emitEnrollEvent(ctx, user, deviceMetadata(dev, init.GetDeviceData()), err)
 		return trace.Wrap(redactEnrollTokenError(ctx, err))
 	}
 	// mobile_device.create_enroll_token gates the ceremony as well as the token:
@@ -687,7 +697,7 @@ func (s *Service) enrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_E
 			"EnrollDevice: token user authorization failed",
 			"error", err,
 		)
-		s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(dev, init.GetDeviceData()), err)
+		s.emitEnrollEvent(ctx, user, deviceMetadata(dev, init.GetDeviceData()), err)
 		return trace.Wrap(redactUserAuthzError(ctx, err))
 	}
 
@@ -697,24 +707,24 @@ func (s *Service) enrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_E
 			Logger:  s.logger,
 			Storage: s.storage,
 			AuditCallback: func(d *devicepb.Device, err error) {
-				s.emitEnrollEvent(ctx, user, enrollDeviceMetadata(d, init.GetDeviceData()), err)
+				s.emitEnrollEvent(ctx, user, deviceMetadata(d, init.GetDeviceData()), err)
 			},
-			AllowedOSTypes: enrollAllowedOSTypes,
+			AllowedOSTypes: mobileOSTypes,
 			User:           user,
 		})
 	if err != nil {
-		s.logEnrollCeremonyError(ctx, dev, err)
+		s.logCeremonyError(ctx, "EnrollDevice: enrollment ceremony failed", dev, err)
 	}
 
 	return trace.Wrap(redactEnrollError(ctx, err, tokenSpent))
 }
 
-// logEnrollCeremonyError logs a failed ceremony. Collected data drift is logged
-// at Warn with the device it was detected on, as the private service does, so
-// that a mobile device failing drift checks is visible in the Auth Service log
-// at the default level like a desktop one. The audit event carries the same
-// error. Other failures stay at Debug.
-func (s *Service) logEnrollCeremonyError(ctx context.Context, dev *devicepb.Device, err error) {
+// logCeremonyError logs a failed ceremony, at Debug under msg. Collected data
+// drift is logged at Warn with the device it was detected on, as the private
+// service does, so that a mobile device failing drift checks is visible in the
+// Auth Service log at the default level like a desktop one. The audit event
+// carries the same error.
+func (s *Service) logCeremonyError(ctx context.Context, msg string, dev *devicepb.Device, err error) {
 	if errors.Is(err, &storage.CollectedDataDriftError{}) {
 		s.logger.WarnContext(ctx,
 			"Collected data drift detected",
@@ -724,10 +734,8 @@ func (s *Service) logEnrollCeremonyError(ctx context.Context, dev *devicepb.Devi
 		)
 		return
 	}
-	s.logger.DebugContext(ctx,
-		"EnrollDevice: enrollment ceremony failed",
-		"error", err,
-	)
+	//nolint:sloglint // message cannot be constant
+	s.logger.DebugContext(ctx, msg, "error", err)
 }
 
 // validateEnrollDeviceInit checks just enough of the init message for the
@@ -747,7 +755,7 @@ func validateEnrollDeviceInit(init *devicetrustpublicv1pb.EnrollDeviceInit) erro
 		return trace.BadParameter("device data required")
 	case init.GetDeviceData().GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
 		return trace.BadParameter("device OS type required")
-	case !slices.Contains(enrollAllowedOSTypes, init.GetDeviceData().GetOsType()):
+	case !slices.Contains(mobileOSTypes, init.GetDeviceData().GetOsType()):
 		return trace.BadParameter("unsupported OS type: %v",
 			dtoss.FriendlyOSType(init.GetDeviceData().GetOsType()))
 	case init.GetDeviceData().GetSerialNumber() == "":

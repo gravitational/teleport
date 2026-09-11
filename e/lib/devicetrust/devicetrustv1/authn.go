@@ -19,6 +19,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	dterrors "github.com/gravitational/teleport/e/lib/devicetrust/errors"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
@@ -30,8 +31,6 @@ const (
 	invalidInitMessage           = "invalid initial payload"
 	invalidDeviceWebTokenMessage = "invalid device web token"
 )
-
-var errInvalidDeviceWebToken = &trace.AccessDeniedError{Message: invalidDeviceWebTokenMessage}
 
 // deviceAuthnAuditData holds additional audit data used by
 // AuthnCeremony.AuditCallback.
@@ -280,7 +279,7 @@ func (c *authnCeremony) processDeviceWebToken(
 		)
 		// err swallowed on purpose.
 		return nil, auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
+			Err:         trace.Wrap(dterrors.ErrInvalidDeviceWebToken),
 			UserMessage: invalidDeviceWebTokenMessage,
 		}
 	}
@@ -303,15 +302,16 @@ func (c *authnCeremony) validateDeviceWebToken(
 	// User must match token.
 	case storedToken.GetUser() != user:
 		return auditStatusError{
-			// Use a nicer message than errInvalidDeviceWebToken here, this can happen
-			// in certain legitimate situations (like Connect using the wrong user).
+			// Use a nicer message than [dterrors.ErrInvalidDeviceWebToken] here, this
+			// can happen in certain legitimate situations (like Connect using the
+			// wrong user).
 			Err:         trace.AccessDenied("the user being confirmed does not match the logged in user"),
 			UserMessage: "device web token user mismatch",
 		}
 	// User must match device owner.
 	case dev.GetOwner() != user:
 		return auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
+			Err:         trace.Wrap(dterrors.ErrInvalidDeviceWebToken),
 			UserMessage: "device web authentication owner mismatch",
 		}
 	}
@@ -320,7 +320,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 	deviceFound := slices.Contains(storedToken.GetExpectedDeviceIds(), dev.GetId())
 	if !deviceFound {
 		return auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
+			Err:         trace.Wrap(dterrors.ErrInvalidDeviceWebToken),
 			UserMessage: "device web authentication expected device mismatch",
 		}
 	}
@@ -332,7 +332,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 			"AuthenticateDevice: failed to get source IP from context",
 			"error", err,
 		)
-		return trace.Wrap(errInvalidDeviceWebToken)
+		return trace.Wrap(dterrors.ErrInvalidDeviceWebToken)
 	}
 	if sourceIP != storedToken.GetBrowserIp() {
 		c.logger.DebugContext(ctx,
@@ -343,7 +343,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 
 		message := fmt.Sprintf("device web authentication IP mismatch (want %s, got %s)", storedToken.GetBrowserIp(), sourceIP)
 		return auditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
+			Err:         trace.Wrap(dterrors.ErrInvalidDeviceWebToken),
 			UserMessage: message,
 		}
 	}

@@ -14,3 +14,20 @@ import "github.com/gravitational/trace"
 var ErrInvalidDeviceEnrollToken = &trace.AccessDeniedError{
 	Message: "invalid device enrollment token",
 }
+
+// ErrInvalidDeviceWebToken is returned for every device web token failure that
+// must stay indistinguishable to the caller: a bad, expired or already-spent
+// token, a token issued for a different user or device, and a mismatched
+// client IP.
+//
+// Both services return the same message, so a probing caller cannot tell which
+// surface or stage rejected the token.
+var ErrInvalidDeviceWebToken = &trace.AccessDeniedError{
+	Message: "invalid device web token",
+}
+
+// ErrDeviceTrustDisabled is returned by device authentication when the cluster
+// has device trust turned off.
+var ErrDeviceTrustDisabled = &trace.BadParameterError{
+	Message: "device trust disabled by cluster settings",
+}

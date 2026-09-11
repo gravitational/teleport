@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	dterrors "github.com/gravitational/teleport/e/lib/devicetrust/errors"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -107,13 +108,18 @@ var (
 )
 
 var (
-	errDeviceTrustDisabled = &trace.BadParameterError{
-		Message: "device trust disabled by cluster settings",
-	}
 	errInvalidDeviceConfirmationToken = &trace.AccessDeniedError{
 		Message: "invalid device confirmation token",
 	}
 )
+
+// desktopOSTypes are the device OS types the private Device Trust service
+// serves. Mobile devices go through the public service instead. See RFD 32e.
+var desktopOSTypes = []devicepb.OSType{
+	devicepb.OSType_OS_TYPE_MACOS,
+	devicepb.OSType_OS_TYPE_LINUX,
+	devicepb.OSType_OS_TYPE_WINDOWS,
+}
 
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
@@ -817,11 +823,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		logger:           s.logger,
 		storage:          s.storage,
 		ekCertAllowedCAs: ekCertAllowedCAs,
-		allowedOSTypes: []devicepb.OSType{
-			devicepb.OSType_OS_TYPE_MACOS,
-			devicepb.OSType_OS_TYPE_LINUX,
-			devicepb.OSType_OS_TYPE_WINDOWS,
-		},
+		allowedOSTypes:   desktopOSTypes,
 		auditCallback: func(dev *devicepb.Device, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
@@ -960,7 +962,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 
 func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust) error {
 	if dtconfig.GetEffectiveMode(dt, s.modules) == constants.DeviceTrustModeOff {
-		return trace.Wrap(errDeviceTrustDisabled)
+		return trace.Wrap(dterrors.ErrDeviceTrustDisabled)
 	}
 	return nil
 }
