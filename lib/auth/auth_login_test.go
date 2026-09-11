@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
@@ -2158,7 +2161,14 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
-				assert.ErrorIs(t, err, context.DeadlineExceeded)
+				// The error returned when the context expires is nondetermistic,
+				// depending on which party detects the expiry first.
+				assert.True(t,
+					status.Code(err) == codes.DeadlineExceeded ||
+						status.Code(err) == codes.Canceled ||
+						strings.Contains(err.Error(), context.DeadlineExceeded.Error()) ||
+						strings.Contains(err.Error(), context.Canceled.Error()),
+					"expected an error caused by the expired context but got %v", err)
 			},
 			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
 				assert.Nil(t, resp)
