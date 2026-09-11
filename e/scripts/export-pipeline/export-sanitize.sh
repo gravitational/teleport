@@ -143,11 +143,51 @@ EOF
 )
   fi
 
-  gh pr create \
-    --base "$EXP_REF" \
-    --head "$STAGE_REF" \
-    --title "$pr_title" \
-    --body "$pr_body"
+  create_pr_if_missing "$EXP_REF" "$STAGE_REF" "$pr_title" "$pr_body"
+}
+
+# Small helper around the `gh pr create` command to handle the case where a PR already exists.
+# The `gh pr create` command will exit with status 1 if a PR already exists. To avoid failing the script 
+# in that case, we check for an existing PR and print its URL instead of failing.
+create_pr_if_missing() {
+  local base=$1
+  local head=$2
+  local title=$3
+  local body=$4
+  local pr_create_output
+  local pr_create_status
+  local existing_pr_url
+
+  pr_create_status=0
+  pr_create_output=$(gh pr create \
+    --base "$base" \
+    --head "$head" \
+    --title "$title" \
+    --body "$body" 2>&1) || pr_create_status=$?
+
+  if [[ $pr_create_status -eq 0 ]]; then
+    printf '%s\n' "$pr_create_output"
+    return
+  fi
+
+  if [[ $pr_create_status -ne 1 ]]; then
+    printf '%s\n' "$pr_create_output" >&2
+    return "$pr_create_status"
+  fi
+
+  existing_pr_url=$(gh pr list \
+    --base "$base" \
+    --head "$head" \
+    --state open \
+    --json url \
+    --jq '.[0].url // empty')
+  if [[ -n "$existing_pr_url" ]]; then
+    echo "Promotion PR already exists: $existing_pr_url"
+    return
+  fi
+
+  printf '%s\n' "$pr_create_output" >&2
+  return "$pr_create_status"
 }
 
 validate_prerequisites() {

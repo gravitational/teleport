@@ -44,6 +44,9 @@ This will:
 4. Force-push to `export-staging/master`
 5. Create a PR from `export-staging/master` -> `export/master` (base) with the appropriate template
 
+If an open promotion PR already exists for the staging branch, `--create-pr`
+reports the existing PR and exits successfully.
+
 ### Merge and Sync
 
 After the promotion PR is reviewed and merged in GitHub, sync the approved export branch to OSS and advance the checkpoint.
