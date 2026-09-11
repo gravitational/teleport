@@ -84,6 +84,8 @@ type DeviceTrustServiceClient interface {
 	// Unavailable errors and are safe to retry with the same token.
 	// FailedPrecondition means the ceremony failed after spending the token, so a
 	// retry cannot succeed and the client has to start over with a new token.
+	// ResourceExhausted means the stream timed out, either before init arrived or
+	// before the ceremony completed.
 	//
 	// iOS/iPadOS enrollment flow:
 	// -> EnrollDeviceInit (client)
@@ -209,6 +211,8 @@ type DeviceTrustServiceServer interface {
 	// Unavailable errors and are safe to retry with the same token.
 	// FailedPrecondition means the ceremony failed after spending the token, so a
 	// retry cannot succeed and the client has to start over with a new token.
+	// ResourceExhausted means the stream timed out, either before init arrived or
+	// before the ceremony completed.
 	//
 	// iOS/iPadOS enrollment flow:
 	// -> EnrollDeviceInit (client)
