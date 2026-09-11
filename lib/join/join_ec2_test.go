@@ -33,6 +33,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -570,7 +571,7 @@ func TestJoinEC2(t *testing.T) {
 					t.Skip()
 				}
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+					Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,

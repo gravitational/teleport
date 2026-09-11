@@ -47,6 +47,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -231,7 +232,7 @@ func TestJoinToken(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			scopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
 			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -291,7 +292,7 @@ func TestJoinToken(t *testing.T) {
 		// its original certificate and the new token.
 		newIdentity, err := rejoinViaAuthClientWithSecret(
 			t.Context(),
-			scopes.QualifiedName{Scope: scopedToken3.GetScope(), Name: scopedToken3.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: scopedToken3.GetScope(), Name: scopedToken3.GetMetadata().GetName()}.String(),
 			scopedToken3.GetStatus().GetSecret(),
 			authClient,
 		)
@@ -314,7 +315,7 @@ func TestJoinToken(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			scopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: scopedToken1.GetScope(), Name: scopedToken1.GetMetadata().GetName()}.String(),
 			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -338,7 +339,7 @@ func TestJoinToken(t *testing.T) {
 		// Node cannot rejoin with a different token assigning a different scope.
 		_, err = rejoinViaAuthClient(
 			t.Context(),
-			scopes.QualifiedName{Scope: scopedToken2.GetScope(), Name: scopedToken2.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: scopedToken2.GetScope(), Name: scopedToken2.GetMetadata().GetName()}.String(),
 			authClient,
 		)
 		require.Error(t, err)
@@ -403,7 +404,7 @@ func TestJoinToken(t *testing.T) {
 		ctx := t.Context()
 		identity, err := joinViaProxyWithSecret(
 			t.Context(),
-			scopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
 			singleUseToken.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -422,7 +423,7 @@ func TestJoinToken(t *testing.T) {
 		// ensure subsequent join attempts fail
 		_, err = joinViaProxyWithSecret(
 			t.Context(),
-			scopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
+			apiscopes.QualifiedName{Scope: singleUseToken.GetScope(), Name: singleUseToken.GetMetadata().GetName()}.String(),
 			singleUseToken.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
@@ -516,7 +517,7 @@ func TestJoinToken(t *testing.T) {
 			// Join with the original assigned scope.
 			identity, err := joinViaProxyWithSecret(
 				t.Context(),
-				scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
+				apiscopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 				token.GetStatus().GetSecret(),
 				proxyListener.Addr(),
 			)
@@ -546,7 +547,7 @@ func TestJoinToken(t *testing.T) {
 
 			newIdentity, err := rejoinViaAuthClientWithSecret(
 				t.Context(),
-				scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
+				apiscopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 				token.GetStatus().GetSecret(),
 				authClient,
 			)
@@ -1072,7 +1073,7 @@ func TestStaticScopedTokensAreValidated(t *testing.T) {
 					Name:    "static-token",
 					Expires: tt.expires,
 				}.Build(),
-				Scope: scopes.Root,
+				Scope: apiscopes.Root,
 				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test",
 					Roles:         []string{string(tt.role)},
@@ -1091,7 +1092,7 @@ func TestStaticScopedTokensAreValidated(t *testing.T) {
 				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameStaticScopedTokens,
 				}.Build(),
-				Scope: scopes.Root,
+				Scope: apiscopes.Root,
 				Spec: joiningv1.StaticScopedTokensSpec_builder{
 					Tokens: []*joiningv1.ScopedToken{token},
 				}.Build(),
@@ -1100,7 +1101,7 @@ func TestStaticScopedTokensAreValidated(t *testing.T) {
 			unauthenticatedAuthClt, err := authService.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
-			tokenName := scopes.QualifiedName{
+			tokenName := apiscopes.QualifiedName{
 				Scope: token.GetScope(),
 				Name:  token.GetMetadata().GetName(),
 			}.String()

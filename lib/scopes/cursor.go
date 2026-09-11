@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 )
 
 // ResourceCursorPrefix prefixes cursors for scoped resources in a
@@ -32,6 +34,8 @@ import (
 // name-only cursors for unscoped resources while ordering scoped resources
 // after unscoped resources.
 const ResourceCursorPrefix = "~scoped/"
+
+const separator = "/"
 
 // ResourceCursorScopedStart returns the first cursor in the scoped portion of
 // the logical resource stream.
@@ -70,7 +74,7 @@ func IsScopedResourceCursor(cursor string) bool {
 // degraded cursor that is deterministic, unique per scope and name, sorts after
 // all valid cursors, and fails [ParseResourceCursor].
 func MakeResourceCursor(scope, name string) string {
-	return MakeNestedResourceCursor(QualifiedName{
+	return MakeNestedResourceCursor(apiscopes.QualifiedName{
 		Scope: scope,
 		Name:  name,
 	})
@@ -104,8 +108,8 @@ func MakeResourceCursor(scope, name string) string {
 // cannot be encoded (which is only possible for invalid stored data) yields a
 // degraded cursor that is deterministic, unique per scope and name, sorts after
 // all valid cursors, and fails [ParseResourceCursor].
-func MakeNestedResourceCursor(root QualifiedName, descendents ...QualifiedName) string {
-	hasNonEmptyScope := root.Scope != "" || slices.ContainsFunc(descendents, func(descendent QualifiedName) bool {
+func MakeNestedResourceCursor(root apiscopes.QualifiedName, descendents ...apiscopes.QualifiedName) string {
+	hasNonEmptyScope := root.Scope != "" || slices.ContainsFunc(descendents, func(descendent apiscopes.QualifiedName) bool {
 		return descendent.Scope != ""
 	})
 	if !hasNonEmptyScope {
@@ -168,30 +172,30 @@ func MakeResourceCursorWithHost(scope, hostID, name string) string {
 // cursors must use the scoped cursor format:
 //
 //	~scoped/<encoded-scope>/<name>
-func ParseResourceCursor(cursor string) (QualifiedName, error) {
+func ParseResourceCursor(cursor string) (apiscopes.QualifiedName, error) {
 	encodedScopeAndName, ok := strings.CutPrefix(cursor, ResourceCursorPrefix)
 	if !ok {
-		return QualifiedName{Name: cursor}, nil
+		return apiscopes.QualifiedName{Name: cursor}, nil
 	}
 
 	encodedScope, name, ok := strings.Cut(encodedScopeAndName, separator)
 	if !ok {
-		return QualifiedName{}, trace.BadParameter("scoped resource cursor %q missing name separator", cursor)
+		return apiscopes.QualifiedName{}, trace.BadParameter("scoped resource cursor %q missing name separator", cursor)
 	}
 	if encodedScope == "" {
-		return QualifiedName{}, trace.BadParameter("scoped resource cursor %q has empty encoded scope", cursor)
+		return apiscopes.QualifiedName{}, trace.BadParameter("scoped resource cursor %q has empty encoded scope", cursor)
 	}
 	if name == "" {
-		return QualifiedName{}, trace.BadParameter("scoped resource cursor %q has empty name", cursor)
+		return apiscopes.QualifiedName{}, trace.BadParameter("scoped resource cursor %q has empty name", cursor)
 	}
 	if strings.Contains(name, separator) {
-		return QualifiedName{}, trace.BadParameter("scoped resource cursor %q has invalid name", cursor)
+		return apiscopes.QualifiedName{}, trace.BadParameter("scoped resource cursor %q has invalid name", cursor)
 	}
 
 	scope, err := DecodeFromKey(encodedScope)
 	if err != nil {
-		return QualifiedName{}, trace.Wrap(err)
+		return apiscopes.QualifiedName{}, trace.Wrap(err)
 	}
 
-	return QualifiedName{Scope: scope, Name: name}, nil
+	return apiscopes.QualifiedName{Scope: scope, Name: name}, nil
 }

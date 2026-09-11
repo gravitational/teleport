@@ -48,6 +48,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
@@ -791,7 +792,7 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 					User: username,
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
 						}.Build(),
 					},

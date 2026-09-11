@@ -45,6 +45,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -1135,7 +1136,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
 						}.Build(),
 					},

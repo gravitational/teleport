@@ -35,6 +35,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -342,14 +343,14 @@ func TestScopedBotJoinAuth(t *testing.T) {
 		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role: scopes.QualifiedName{
+					Role: apiscopes.QualifiedName{
 						Scope: testRootScope,
 						Name:  testBotRole,
 					}.String(),
 					Scope: testRootScope,
 				}.Build(),
 			},
-			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Bot: apiscopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
@@ -410,7 +411,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
 			}.Build(),
-			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Bot:   apiscopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 			Roles: []string{string(types.RoleBot)},
 		}.Build(),
 	}.Build()
@@ -427,7 +428,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	botConfig := &BotConfig{
 		AuthServer: authAddr.Addr,
 		Onboarding: onboarding.Config{
-			TokenValue: scopes.QualifiedName{
+			TokenValue: apiscopes.QualifiedName{
 				Name:  scopedToken.GetToken().GetMetadata().GetName(),
 				Scope: scopedToken.GetToken().GetScope(),
 			}.String(),

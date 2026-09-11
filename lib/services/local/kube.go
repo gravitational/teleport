@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -133,7 +134,7 @@ func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presence
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
 func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
-	sqn := scopes.QualifiedName{
+	sqn := apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}
@@ -173,7 +174,7 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 
 // DeleteKubeCluster removes the specified kubernetes cluster resource.
 func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
-	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
+	return s.svc.DeleteResource(ctx, apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	})
@@ -193,7 +194,7 @@ func validateKubeCluster(cluster types.KubeCluster) error {
 		return nil
 	}
 
-	if err := scopes.StrongValidate(cluster.GetScope()); err != nil {
+	if err := apiscopes.StrongValidate(cluster.GetScope()); err != nil {
 		return trace.Wrap(err)
 	}
 

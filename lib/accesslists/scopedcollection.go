@@ -24,8 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // ScopedCollection represents a complete batch of access list and members from

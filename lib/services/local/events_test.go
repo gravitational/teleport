@@ -31,6 +31,7 @@ import (
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -104,17 +105,17 @@ func TestAccessListMemberParserScopedDelete(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		member                 scopes.QualifiedName
+		member                 apiscopes.QualifiedName
 		expectedMembershipKind string
 	}{
 		{
 			name:                   "unscoped member",
-			member:                 scopes.QualifiedName{Name: "alice"},
+			member:                 apiscopes.QualifiedName{Name: "alice"},
 			expectedMembershipKind: accesslist.MembershipKindUnspecified,
 		},
 		{
 			name:                   "scoped list member",
-			member:                 scopes.QualifiedName{Scope: "/eng", Name: "team"},
+			member:                 apiscopes.QualifiedName{Scope: "/eng", Name: "team"},
 			expectedMembershipKind: accesslist.MembershipKindScopedList,
 		},
 	}
@@ -145,7 +146,7 @@ func TestAccessListMemberParserScopedDelete(t *testing.T) {
 			require.Equal(t, types.KindAccessListMember, member.GetKind())
 			require.Equal(t, test.member.String(), member.GetName())
 			require.Equal(t, listScope, member.Scope)
-			require.Equal(t, scopes.QualifiedName{Scope: listScope, Name: "reviewed"}.String(), member.Spec.AccessList)
+			require.Equal(t, apiscopes.QualifiedName{Scope: listScope, Name: "reviewed"}.String(), member.Spec.AccessList)
 			require.Equal(t, test.member.String(), member.Spec.Name)
 			require.Equal(t, test.expectedMembershipKind, member.Spec.MembershipKind)
 		})
@@ -171,7 +172,7 @@ func TestAccessListReviewParserScopedDelete(t *testing.T) {
 	require.Equal(t, types.KindAccessListReview, review.GetKind())
 	require.Equal(t, "review-1", review.GetName())
 	require.Equal(t, scope, review.Scope)
-	require.Equal(t, scopes.QualifiedName{Scope: scope, Name: "reviewed"}.String(), review.Spec.AccessList)
+	require.Equal(t, apiscopes.QualifiedName{Scope: scope, Name: "reviewed"}.String(), review.Spec.AccessList)
 }
 
 func TestAccessListScopedDeleteParserRejectsMalformedKeys(t *testing.T) {

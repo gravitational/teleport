@@ -30,6 +30,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -711,7 +712,7 @@ func TestJoinGHA(t *testing.T) {
 			t.Run("scoped joinclient", func(t *testing.T) {
 				scopedToken := CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
 				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+					Token:      apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 					JoinMethod: types.JoinMethodGitHub,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
@@ -858,7 +859,7 @@ func TestJoinGHABot(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:      apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodGitHub,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -916,7 +917,7 @@ func TestJoinGHABot(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-			Token:      scopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
+			Token:      apiscopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
 			JoinMethod: types.JoinMethodGitHub,
 			ID: state.IdentityID{
 				Role: types.RoleBot,

@@ -38,6 +38,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -880,7 +881,7 @@ func getAccessListMembers(t *testing.T, service *AccessListService, listName str
 
 // getScopedAccessListMembers fetches the current list of members for the given access
 // list, sorted by name
-func getScopedAccessListMembers(t *testing.T, service *AccessListService, listName scopes.QualifiedName) []*accesslist.AccessListMember {
+func getScopedAccessListMembers(t *testing.T, service *AccessListService, listName apiscopes.QualifiedName) []*accesslist.AccessListMember {
 	getPage := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 		return service.ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
 			AccessListScope: listName.Scope,
@@ -897,7 +898,7 @@ func getScopedAccessListMembers(t *testing.T, service *AccessListService, listNa
 type writeAccessListWithMembersFn func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
-	for _, listName := range []scopes.QualifiedName{
+	for _, listName := range []apiscopes.QualifiedName{
 		{Name: "test-add-member-list"},
 		{Scope: "/test", Name: "test-scoped-add-member-list"},
 	} {
@@ -906,7 +907,7 @@ func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService,
 			ctx := t.Context()
 
 			toAccessListMember := func(name string) *accesslist.AccessListMember {
-				return newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: name})
+				return newScopedAccessListMember(t, listName, apiscopes.QualifiedName{Name: name})
 			}
 
 			cmpOpts := []cmp.Option{
@@ -957,7 +958,7 @@ func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService,
 }
 
 func testSetEmptyAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
-	for _, listName := range []scopes.QualifiedName{
+	for _, listName := range []apiscopes.QualifiedName{
 		{Name: "test-add-member-list"},
 		{Scope: "/test", Name: "test-scoped-add-member-list"},
 	} {
@@ -986,10 +987,10 @@ func testSetEmptyAccessListMembers(t *testing.T, service *AccessListService, clo
 					acl, _, err := service.UpsertAccessListWithMembers(ctx,
 						newScopedAccessList(t, listName, clock),
 						[]*accesslist.AccessListMember{
-							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "alice"}),
-							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "bob"}),
-							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "carol"}),
-							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "dave"}),
+							newScopedAccessListMember(t, listName, apiscopes.QualifiedName{Name: "alice"}),
+							newScopedAccessListMember(t, listName, apiscopes.QualifiedName{Name: "bob"}),
+							newScopedAccessListMember(t, listName, apiscopes.QualifiedName{Name: "carol"}),
+							newScopedAccessListMember(t, listName, apiscopes.QualifiedName{Name: "dave"}),
 						})
 					require.NoError(t, err)
 					require.Len(t, getScopedAccessListMembers(t, service, listName), 4)
@@ -1404,7 +1405,7 @@ func TestAccessListMembersCRUDScoped(t *testing.T) {
 	t.Run("scoped parent separates unscoped and scoped members with the same name", func(t *testing.T) {
 		t.Cleanup(deleteAllAccessLists(t, service))
 
-		getAccessListMemberRequest := func(listName, memberName scopes.QualifiedName) *accesslistv1.GetAccessListMemberRequest {
+		getAccessListMemberRequest := func(listName, memberName apiscopes.QualifiedName) *accesslistv1.GetAccessListMemberRequest {
 			return accesslistv1.GetAccessListMemberRequest_builder{
 				AccessListScope: listName.Scope,
 				AccessList:      listName.Name,
@@ -1413,9 +1414,9 @@ func TestAccessListMembersCRUDScoped(t *testing.T) {
 			}.Build()
 		}
 
-		parentName := scopes.QualifiedName{Scope: "/eng/platform", Name: "parent"}
-		unscopedChildName := scopes.QualifiedName{Name: "team"}
-		scopedChildName := scopes.QualifiedName{Scope: "/eng", Name: "team"}
+		parentName := apiscopes.QualifiedName{Scope: "/eng/platform", Name: "parent"}
+		unscopedChildName := apiscopes.QualifiedName{Name: "team"}
+		scopedChildName := apiscopes.QualifiedName{Scope: "/eng", Name: "team"}
 
 		parent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, parentName, clock))
 		require.NoError(t, err)
@@ -1426,7 +1427,7 @@ func TestAccessListMembersCRUDScoped(t *testing.T) {
 
 		unscopedChildMember := newScopedAccessListMember(t, parentName, unscopedChildName, withMembershipKind(accesslist.MembershipKindList))
 		scopedChildMember := newScopedAccessListMember(t, parentName, scopedChildName, withMembershipKind(accesslist.MembershipKindScopedList))
-		userMember := newScopedAccessListMember(t, parentName, scopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
+		userMember := newScopedAccessListMember(t, parentName, apiscopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
 		expectedMembers := []*accesslist.AccessListMember{userMember, unscopedChildMember, scopedChildMember}
 
 		_, returnedMembers, err := service.UpsertAccessListWithMembers(ctx, parent, expectedMembers)
@@ -1494,16 +1495,16 @@ func TestAccessListMembersCRUDScoped(t *testing.T) {
 	t.Run("old member APIs only see unscoped lists and members", func(t *testing.T) {
 		t.Cleanup(deleteAllAccessLists(t, service))
 
-		unscopedParentName := scopes.QualifiedName{Name: "parent"}
-		scopedParentName := scopes.QualifiedName{Scope: "/eng", Name: "parent"}
+		unscopedParentName := apiscopes.QualifiedName{Name: "parent"}
+		scopedParentName := apiscopes.QualifiedName{Scope: "/eng", Name: "parent"}
 
 		unscopedParent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, unscopedParentName, clock))
 		require.NoError(t, err)
 		scopedParent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, scopedParentName, clock))
 		require.NoError(t, err)
 
-		unscopedMember := newScopedAccessListMember(t, unscopedParentName, scopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
-		scopedMember := newScopedAccessListMember(t, scopedParentName, scopes.QualifiedName{Name: "bob"}, withMembershipKind(accesslist.MembershipKindUser))
+		unscopedMember := newScopedAccessListMember(t, unscopedParentName, apiscopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
+		scopedMember := newScopedAccessListMember(t, scopedParentName, apiscopes.QualifiedName{Name: "bob"}, withMembershipKind(accesslist.MembershipKindUser))
 		_, _, err = service.UpsertAccessListWithMembers(ctx, unscopedParent, []*accesslist.AccessListMember{unscopedMember})
 		require.NoError(t, err)
 		_, _, err = service.UpsertAccessListWithMembers(ctx, scopedParent, []*accesslist.AccessListMember{scopedMember})
@@ -1958,9 +1959,9 @@ func TestAccessListReviewCRUDScoped(t *testing.T) {
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
 
 	// Create an access list with 2 members, the review will remove the members.
-	listName := scopes.QualifiedName{Scope: "/eng/platform", Name: "reviewed"}
-	unscopedMemberName := scopes.QualifiedName{Name: "alice"}
-	scopedMemberName := scopes.QualifiedName{Scope: "/eng", Name: "team"}
+	listName := apiscopes.QualifiedName{Scope: "/eng/platform", Name: "reviewed"}
+	unscopedMemberName := apiscopes.QualifiedName{Name: "alice"}
+	scopedMemberName := apiscopes.QualifiedName{Scope: "/eng", Name: "team"}
 
 	accessList, err := service.UpsertAccessList(ctx, newScopedAccessList(t, listName, clock))
 	require.NoError(t, err)
@@ -2063,7 +2064,7 @@ func TestCreateAccessListReviewScopedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
-	listName := scopes.QualifiedName{Scope: "/eng", Name: "reviewed"}
+	listName := apiscopes.QualifiedName{Scope: "/eng", Name: "reviewed"}
 	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, listName, clock))
 	require.NoError(t, err)
 
@@ -2325,10 +2326,10 @@ func withMemberRequires(requires accesslist.Requires) newAccessListOpt {
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
-	return newScopedAccessList(t, scopes.QualifiedName{Name: name}, clock, opts...)
+	return newScopedAccessList(t, apiscopes.QualifiedName{Name: name}, clock, opts...)
 }
 
-func newScopedAccessList(t *testing.T, name scopes.QualifiedName, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
+func newScopedAccessList(t *testing.T, name apiscopes.QualifiedName, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
 
 	options := newAccessListOptions{
@@ -2462,7 +2463,7 @@ func newAccessListMember(t *testing.T, accessList, name string, opts ...accessLi
 	return member
 }
 
-func newScopedAccessListMember(t *testing.T, accessList, memberName scopes.QualifiedName, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+func newScopedAccessListMember(t *testing.T, accessList, memberName apiscopes.QualifiedName, opts ...accessListMemberOpt) *accesslist.AccessListMember {
 	t.Helper()
 
 	options := accessListMemberOptions{
@@ -2585,12 +2586,12 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
 
 	// Add a scoped access list with some members.
-	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	scopedListName := apiscopes.QualifiedName{Scope: "/example", Name: "scoped"}
 	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
 	require.NoError(t, err)
 	expectedScopedMembers := make([]*accesslist.AccessListMember, numAccessListMembersPerAccessList)
 	for j := range numAccessListMembersPerAccessList {
-		memberName := scopes.QualifiedName{Name: fmt.Sprintf("%03d", j)}
+		memberName := apiscopes.QualifiedName{Name: fmt.Sprintf("%03d", j)}
 		member := newScopedAccessListMember(t, scopedListName, memberName)
 		expectedScopedMembers[j] = member
 		_, err := service.UpsertAccessListMember(ctx, member)
@@ -2704,7 +2705,7 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 	expectReviews(t, expectedReviews, allReviews)
 
 	// Add a scoped access list with some reviews.
-	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	scopedListName := apiscopes.QualifiedName{Scope: "/example", Name: "scoped"}
 	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
 	require.NoError(t, err)
 	expectedScopedReviews := make([]*accesslist.Review, numAccessListReviewsPerAccessList)
@@ -3101,15 +3102,15 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 	t.Run("status member_of and scoped_member_of fixed on kind change", func(t *testing.T) {
 		// Set up a child list with a scoped and unscoped parent list.
 		suffix := uuid.NewString()[:8]
-		scopedParentListName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
-		unscopedParentListName := scopes.QualifiedName{Name: "acl-" + suffix}
-		scopedChildName := scopes.QualifiedName{Scope: "/eng/platform", Name: "child-" + suffix}
-		unscopedChildName := scopes.QualifiedName{Name: "child-" + suffix}
+		scopedParentListName := apiscopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
+		unscopedParentListName := apiscopes.QualifiedName{Name: "acl-" + suffix}
+		scopedChildName := apiscopes.QualifiedName{Scope: "/eng/platform", Name: "child-" + suffix}
+		unscopedChildName := apiscopes.QualifiedName{Name: "child-" + suffix}
 
 		for _, tc := range []struct {
 			desc                   string
-			parentListName         scopes.QualifiedName
-			childListName          scopes.QualifiedName
+			parentListName         apiscopes.QualifiedName
+			childListName          apiscopes.QualifiedName
 			initialMembershipKind  string
 			targetMembershipKind   string
 			requireKindChangeError require.ErrorAssertionFunc
@@ -3271,9 +3272,9 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 
 	t.Run("scoped parent updates scoped_member_of for scoped and unscoped child lists", func(t *testing.T) {
 		suffix := uuid.NewString()[:8]
-		parentName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
-		unscopedChildName := scopes.QualifiedName{Name: "child-u-" + suffix}
-		scopedChildName := scopes.QualifiedName{Scope: "/eng", Name: "child-s-" + suffix}
+		parentName := apiscopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
+		unscopedChildName := apiscopes.QualifiedName{Name: "child-u-" + suffix}
+		scopedChildName := apiscopes.QualifiedName{Scope: "/eng", Name: "child-s-" + suffix}
 		parentRef := parentName.String()
 
 		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, parentName, clock))
@@ -3577,7 +3578,7 @@ func requireStatusMemberOf(t *testing.T, service testAccessListGetter, accessLis
 	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
 }
 
-func requireStatusMemberOfV2(t *testing.T, service testAccessListGetterV2, accessListName scopes.QualifiedName, memberOf []string) {
+func requireStatusMemberOfV2(t *testing.T, service testAccessListGetterV2, accessListName apiscopes.QualifiedName, memberOf []string) {
 	t.Helper()
 	ctx := context.Background()
 	accessList, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
@@ -3588,7 +3589,7 @@ func requireStatusMemberOfV2(t *testing.T, service testAccessListGetterV2, acces
 	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
 }
 
-func requireStatusScopedMemberOf(t *testing.T, service testAccessListGetterV2, accessListName scopes.QualifiedName, memberOf []string) {
+func requireStatusScopedMemberOf(t *testing.T, service testAccessListGetterV2, accessListName apiscopes.QualifiedName, memberOf []string) {
 	t.Helper()
 	ctx := context.Background()
 	accessList, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{

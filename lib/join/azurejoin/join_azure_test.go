@@ -46,6 +46,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -639,7 +640,7 @@ func TestJoinAzure(t *testing.T) {
 			})
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+					Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
 					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
@@ -1118,7 +1119,7 @@ func TestJoinAzureClaims(t *testing.T) {
 			t.Run("scoped", func(t *testing.T) {
 				// Try to join via the new join service.
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+					Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
 					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role: types.RoleInstance,

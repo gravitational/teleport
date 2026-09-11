@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 func TestValidate(t *testing.T) {

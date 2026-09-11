@@ -32,8 +32,8 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"

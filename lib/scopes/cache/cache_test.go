@@ -25,7 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 // item is a a basic helper used for cache testing.

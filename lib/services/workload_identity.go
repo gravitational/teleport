@@ -28,6 +28,7 @@ import (
 	"golang.org/x/text/cases"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/gravitational/teleport/lib/backend"
@@ -82,7 +83,7 @@ type WorkloadIdentities interface {
 	// write to delete a WorkloadIdentity given its scope-qualified name.
 	AppendDeleteWorkloadIdentityActions(
 		actions []backend.ConditionalAction,
-		name scopes.QualifiedName,
+		name apiscopes.QualifiedName,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
 }
@@ -137,10 +138,10 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	// When the WorkloadIdentity is scoped, the scope itself must be valid and
 	// the SPIFFE ID must conform to the scoped SPIFFE ID structure (RFD 0229c).
 	if s.GetScope() != "" {
-		if err := scopes.StrongValidate(s.GetScope()); err != nil {
+		if err := apiscopes.StrongValidate(s.GetScope()); err != nil {
 			return trace.Wrap(err, "scope")
 		}
-		if scopes.Compare(s.GetScope(), scopes.Root) == scopes.Equivalent {
+		if apiscopes.Compare(s.GetScope(), apiscopes.Root) == apiscopes.Equivalent {
 			return trace.BadParameter("scope: must not be the root scope")
 		}
 		if err := ValidateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
@@ -151,7 +152,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		// workload identities - however - we should consider rolling out a
 		// write-side restriction to unscoped workload identities in a major
 		// version.
-		if err := scopes.StrongValidateResourceName(s.GetMetadata().GetName()); err != nil {
+		if err := apiscopes.StrongValidateResourceName(s.GetMetadata().GetName()); err != nil {
 			return trace.Wrap(err, "metadata.name:")
 		}
 	}

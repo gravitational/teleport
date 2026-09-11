@@ -32,6 +32,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -313,7 +314,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	}.Build()
 
 	patched, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
+		Bot:        apiscopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
 		InstanceID: bi.GetSpec().GetInstanceId(),
 		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 			bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
@@ -678,7 +679,7 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 
 	// Patching routes by scope, and the scope itself cannot be patched.
 	patched, err := service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		Bot:        apiscopes.QualifiedName{Scope: "/foo", Name: "x"},
 		InstanceID: foo.GetSpec().GetInstanceId(),
 		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 			bi.GetStatus().SetLatestHeartbeats([]*machineidv1.BotInstanceStatusHeartbeat{
@@ -691,7 +692,7 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 	require.Equal(t, "/foo", patched.GetScope())
 
 	_, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		Bot:        apiscopes.QualifiedName{Scope: "/foo", Name: "x"},
 		InstanceID: foo.GetSpec().GetInstanceId(),
 		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 			bi.SetScope("/other")

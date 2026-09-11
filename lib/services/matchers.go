@@ -27,10 +27,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"

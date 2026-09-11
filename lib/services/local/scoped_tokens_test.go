@@ -38,6 +38,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -578,7 +579,7 @@ func newBoundKeypairToken() *joiningv1.ScopedToken {
 		Scope: "/test",
 		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "",
-			Bot:           scopes.QualifiedName{Scope: "/test", Name: "example"}.String(),
+			Bot:           apiscopes.QualifiedName{Scope: "/test", Name: "example"}.String(),
 			JoinMethod:    string(types.JoinMethodBoundKeypair),
 			Roles:         []string{types.RoleBot.String()},
 			UsageMode:     string(joining.TokenUsageModeBot),

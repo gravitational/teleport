@@ -45,6 +45,7 @@ import (
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -1531,7 +1532,7 @@ func TestDeleteAppServer(t *testing.T) {
 					User: username,
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: assignedScope,
 						}.Build(),
 					},
@@ -1820,7 +1821,7 @@ func newFakeScopedAuthorizer(t *testing.T, username, pinScope string, reader fak
 
 	assigned := make([]string, 0, len(roles))
 	for _, role := range roles {
-		assigned = append(assigned, scopes.QualifiedName{
+		assigned = append(assigned, apiscopes.QualifiedName{
 			Scope: role.GetScope(),
 			Name:  role.GetMetadata().GetName(),
 		}.String())
@@ -1901,12 +1902,12 @@ func (r fakeScopedRoleReader) createScopedRole(name string, verbs ...string) *sc
 		}.Build(),
 	}.Build()
 
-	r.roles[scopes.QualifiedName{Scope: role.GetScope(), Name: name}.String()] = role
+	r.roles[apiscopes.QualifiedName{Scope: role.GetScope(), Name: name}.String()] = role
 	return role
 }
 
 func (r fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
-	role, ok := r.roles[scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}.String()]
+	role, ok := r.roles[apiscopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}.String()]
 	if !ok {
 		return nil, trace.NotFound("scoped role %q not found", req.GetName())
 	}

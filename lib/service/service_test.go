@@ -57,6 +57,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2686,7 +2687,7 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 		Metadata: headerv1.Metadata_builder{
 			Name: tokenName,
 		}.Build(),
-		Scope: scopes.Root,
+		Scope: apiscopes.Root,
 		Spec: joiningv1.ScopedTokenSpec_builder{
 			Roles:         []string{types.RoleApp.String()},
 			AssignedScope: agentScope,
@@ -2702,7 +2703,7 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	authCfg.Auth.StaticScopedTokens = joiningv1.StaticScopedTokens_builder{
 		Version: types.V1,
 		Kind:    types.KindStaticScopedTokens,
-		Scope:   scopes.Root,
+		Scope:   apiscopes.Root,
 		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
 		}.Build(),
@@ -2753,7 +2754,7 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = makeTempDir(t)
 	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
-	agentCfg.SetToken(scopes.QualifiedName{Scope: scopes.Root, Name: joining.EncodeScopedToken(tokenName, tokenSecret)}.String())
+	agentCfg.SetToken(apiscopes.QualifiedName{Scope: apiscopes.Root, Name: joining.EncodeScopedToken(tokenName, tokenSecret)}.String())
 	agentCfg.JoinMethod = types.JoinMethodToken
 	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	agentCfg.Auth.Enabled = false

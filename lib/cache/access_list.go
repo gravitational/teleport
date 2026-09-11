@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -208,7 +209,7 @@ func (c *Cache) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccess
 			return c.Config.AccessLists.GetAccessListV2(ctx, req)
 		},
 	}
-	out, err := getter.get(ctx, accessListCursor(scopes.QualifiedName{
+	out, err := getter.get(ctx, accessListCursor(apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}))
@@ -241,11 +242,11 @@ func accessListMemberNameIndexKey(r *accesslist.AccessListMember) string {
 	return namedAccessListMemberNameIndexKey(listSQN.ToScopesQualifiedName(), memberSQN.ToScopesQualifiedName())
 }
 
-func namedAccessListMemberNameIndexKey(listName, memberName scopes.QualifiedName) string {
+func namedAccessListMemberNameIndexKey(listName, memberName apiscopes.QualifiedName) string {
 	return scopes.MakeNestedResourceCursor(listName, memberName)
 }
 
-func accessListCursor(listName scopes.QualifiedName) string {
+func accessListCursor(listName apiscopes.QualifiedName) string {
 	return scopes.MakeResourceCursor(listName.Scope, listName.Name)
 }
 
@@ -254,7 +255,7 @@ func accessListMemberKindIndexKey(r *accesslist.AccessListMember) string {
 		return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
 	}
 
-	listSQN, listErr := scopes.ParseQualifiedName(r.Spec.AccessList)
+	listSQN, listErr := apiscopes.ParseQualifiedName(r.Spec.AccessList)
 	memberSQN, memberErr := accesslists.MemberScopeQualifiedName(r)
 	if listErr != nil || memberErr != nil {
 		return "~invalid/" + base32Encode(string(ordered.Encode(r.Spec.AccessList, r.Spec.MembershipKind, r.GetName())))
@@ -336,7 +337,7 @@ func (c *Cache) CountAccessListMembersV2(ctx context.Context, req *accesslistv1.
 		return count, listCount, trace.Wrap(err)
 	}
 
-	listCursor := accessListCursor(scopes.QualifiedName{
+	listCursor := accessListCursor(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessListName(),
 	})
@@ -384,7 +385,7 @@ func (c *Cache) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.L
 }
 
 func listAccessListMembers(store *store[*accesslist.AccessListMember, accessListMemberIndex], req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
-	listCursor := accessListCursor(scopes.QualifiedName{
+	listCursor := accessListCursor(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})
@@ -479,11 +480,11 @@ func (c *Cache) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.Get
 		return out, trace.Wrap(err)
 	}
 
-	listName := scopes.QualifiedName{
+	listName := apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	}
-	memberName := scopes.QualifiedName{
+	memberName := apiscopes.QualifiedName{
 		Scope: req.GetMemberScope(),
 		Name:  req.GetMemberName(),
 	}
@@ -638,7 +639,7 @@ func (c *Cache) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.L
 		},
 	}
 
-	listCursor := accessListCursor(scopes.QualifiedName{
+	listCursor := accessListCursor(apiscopes.QualifiedName{
 		Scope: req.GetAccessListScope(),
 		Name:  req.GetAccessList(),
 	})

@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
@@ -176,7 +177,7 @@ func (s *Service) IssueScopedBotCerts(
 			"user %q has no bot scope label", user.GetName(),
 		)
 	}
-	if err := scopes.StrongValidate(botScope); err != nil {
+	if err := apiscopes.StrongValidate(botScope); err != nil {
 		return nil, trace.Wrap(err, "validating bot user scope")
 	}
 
@@ -188,7 +189,7 @@ func (s *Service) IssueScopedBotCerts(
 	requestedScope := currentIdentity.ScopePin.GetScope()
 	// Sanity check that the requested scope is still descendant or equiv to
 	// botScope - in case bot scope has changed.
-	if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(requestedScope) {
+	if !apiscopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(requestedScope) {
 		return nil, trace.AccessDenied(
 			"requested scope %q is not descendant or equivalent to bot's scope %q",
 			requestedScope,

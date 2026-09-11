@@ -63,6 +63,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -4950,7 +4951,7 @@ func newScopedWorkloadIdentityUser(
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
 						Scope: scope,
 					}.Build(),
 				},
@@ -5071,7 +5072,7 @@ func createScopedWorkloadIdentityUser(
 	assignments := make([]*scopedaccessv1.Assignment, 0, len(roleNames))
 	for _, roleName := range roleNames {
 		assignments = append(assignments, scopedaccessv1.Assignment_builder{
-			Role:  scopes.QualifiedName{Scope: "/scopes", Name: roleName}.String(),
+			Role:  apiscopes.QualifiedName{Scope: "/scopes", Name: roleName}.String(),
 			Scope: scope,
 		}.Build())
 	}

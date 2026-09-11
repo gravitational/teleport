@@ -36,6 +36,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -96,7 +97,7 @@ func appServerServiceForHost(
 // multiple kube clusters on a single host, so the hostID prefix is needed.
 func kubeServerServiceForHost(
 	kubeServers *generic.ScopeAwareService[types.KubeServer],
-	sqn scopes.QualifiedName,
+	sqn apiscopes.QualifiedName,
 ) (*generic.Service[types.KubeServer], error) {
 	service, err := kubeServers.WithScopePrefix(sqn.Scope)
 	if err != nil {
@@ -328,7 +329,7 @@ func (s *PresenceService) DeleteSSHServer(ctx context.Context, req *presencev1.D
 	if req.GetName() == "" {
 		return trace.BadParameter("no name specified for ssh server deletion")
 	}
-	return trace.Wrap(s.sshServers.DeleteResource(ctx, scopes.QualifiedName{
+	return trace.Wrap(s.sshServers.DeleteResource(ctx, apiscopes.QualifiedName{
 		Name:  req.GetName(),
 		Scope: req.GetScope(),
 	}))
@@ -346,14 +347,14 @@ func (s *PresenceService) AppendDeleteNodeActions(
 	name string,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
-	return s.AppendDeleteSSHServerActions(actions, scopes.QualifiedName{Name: name}, condition)
+	return s.AppendDeleteSSHServerActions(actions, apiscopes.QualifiedName{Name: name}, condition)
 }
 
 // AppendDeleteSSHServerActions adds conditional actions to an atomic write to
 // delete a scoped or unscoped node resource.
 func (s *PresenceService) AppendDeleteSSHServerActions(
 	actions []backend.ConditionalAction,
-	scopedName scopes.QualifiedName,
+	scopedName apiscopes.QualifiedName,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
 	if scopedName.Name == "" {
@@ -385,7 +386,7 @@ func (s *PresenceService) GetSSHServer(ctx context.Context, req *presencev1.GetS
 	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	return s.sshServers.GetResource(ctx, scopes.QualifiedName{
+	return s.sshServers.GetResource(ctx, apiscopes.QualifiedName{
 		Name:  req.GetName(),
 		Scope: req.GetScope(),
 	})
@@ -1072,7 +1073,7 @@ func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server typ
 		}
 	}
 
-	svc, err := s.kubeServers.WithScopedResourcePrefix(scopes.QualifiedName{
+	svc, err := s.kubeServers.WithScopedResourcePrefix(apiscopes.QualifiedName{
 		Scope: server.GetScope(),
 		Name:  server.GetHostID(),
 	})
@@ -1106,7 +1107,7 @@ func (s *PresenceService) DeleteKubeServer(ctx context.Context, req *presencev1.
 		return trace.BadParameter("no hostID specified for kubernetes server deletion")
 	}
 
-	svc, err := kubeServerServiceForHost(s.kubeServers, scopes.QualifiedName{
+	svc, err := kubeServerServiceForHost(s.kubeServers, apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetHostId(),
 	})

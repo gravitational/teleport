@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -706,7 +707,7 @@ func verifyKeyScope(key, watchPrefix backend.Key, fieldScope string) error {
 		return trace.Wrap(err, "failed decoding scope from scoped resource key %q", key)
 	}
 
-	if scopes.Compare(keyScope, fieldScope) != scopes.Equivalent {
+	if apiscopes.Compare(keyScope, fieldScope) != apiscopes.Equivalent {
 		return trace.BadParameter("scoped resource at key %q has scope field %q conflicting with key-encoded scope %q", key, fieldScope, keyScope)
 	}
 

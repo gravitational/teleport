@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1177,7 +1178,7 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 }
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(t *testing.T, botName scopes.QualifiedName, botInternal bool) TestIdentity {
+func TestScopedBot(t *testing.T, botName apiscopes.QualifiedName, botInternal bool) TestIdentity {
 	// The cert username must match the User name the bot service persists.
 	userName, err := services.BotResourceName(botName)
 	if err != nil {

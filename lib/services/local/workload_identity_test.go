@@ -29,6 +29,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -382,12 +383,12 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 	ctx, service := setupWorkloadIdentityServiceTest(t)
 
 	const scope = "/staging"
-	scopedName := scopes.QualifiedName{Scope: scope, Name: "example"}
-	unscopedName := scopes.QualifiedName{Name: "example"}
-	getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+	scopedName := apiscopes.QualifiedName{Scope: scope, Name: "example"}
+	unscopedName := apiscopes.QualifiedName{Name: "example"}
+	getReq := func(n apiscopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
 		return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
 	}
-	delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+	delReq := func(n apiscopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
 		return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
 	}
 
@@ -434,12 +435,12 @@ func TestWorkloadIdentityService_Scoped(t *testing.T) {
 	require.NotEqual(t, "updated", gotUnscoped.GetSpec().GetSpiffe().GetHint())
 
 	// Range spans both key ranges, unscoped first.
-	var ranged []scopes.QualifiedName
+	var ranged []apiscopes.QualifiedName
 	for wi, err := range service.RangeWorkloadIdentities(ctx, "", "", "", false) {
 		require.NoError(t, err)
-		ranged = append(ranged, scopes.QualifiedName{Scope: wi.GetScope(), Name: wi.GetMetadata().GetName()})
+		ranged = append(ranged, apiscopes.QualifiedName{Scope: wi.GetScope(), Name: wi.GetMetadata().GetName()})
 	}
-	require.Equal(t, []scopes.QualifiedName{unscopedName, scopedName}, ranged)
+	require.Equal(t, []apiscopes.QualifiedName{unscopedName, scopedName}, ranged)
 
 	// Deleting the scoped identity leaves the unscoped one intact.
 	require.NoError(t, service.DeleteWorkloadIdentity(ctx, delReq(scopedName)))

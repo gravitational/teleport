@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -63,11 +64,11 @@ func (t *scopedTestResource153) GetScope() string {
 	return t.Scope
 }
 
-func specDataFor(sqn scopes.QualifiedName) string {
+func specDataFor(sqn apiscopes.QualifiedName) string {
 	return fmt.Sprintf("spec-data(scope=%q,name=%q)", sqn.Scope, sqn.Name)
 }
 
-func newScopedTestResource153(sqn scopes.QualifiedName) *scopedTestResource153 {
+func newScopedTestResource153(sqn apiscopes.QualifiedName) *scopedTestResource153 {
 	tr := &scopedTestResource153{
 		Metadata: headerv1.Metadata_builder{Name: sqn.Name}.Build(),
 		Scope:    sqn.Scope,
@@ -131,10 +132,10 @@ func newScopeAwareWrapperForTest(t *testing.T) *ScopeAwareServiceWrapper[*scoped
 	return service
 }
 
-func names(resources []*scopedTestResource153) []scopes.QualifiedName {
-	out := make([]scopes.QualifiedName, 0, len(resources))
+func names(resources []*scopedTestResource153) []apiscopes.QualifiedName {
+	out := make([]apiscopes.QualifiedName, 0, len(resources))
 	for _, r := range resources {
-		out = append(out, scopes.QualifiedName{Scope: r.GetScope(), Name: r.GetMetadata().GetName()})
+		out = append(out, apiscopes.QualifiedName{Scope: r.GetScope(), Name: r.GetMetadata().GetName()})
 	}
 	return out
 }
@@ -154,7 +155,7 @@ func collectStream(t *testing.T, seq iter.Seq2[*scopedTestResource153, error]) [
 // encoded in the backend key, its correct round-trip proves the whole resource
 // body — including its scope — is sourced from the persisted value, and not
 // reconstructed from the storage key.
-func requireResourceBody(t *testing.T, want scopes.QualifiedName, got *scopedTestResource153) {
+func requireResourceBody(t *testing.T, want apiscopes.QualifiedName, got *scopedTestResource153) {
 	t.Helper()
 	require.Equal(t, want.Name, got.GetMetadata().GetName())
 	require.Equal(t, want.Scope, got.GetScope())
@@ -168,8 +169,8 @@ func TestScopeAwareServiceWrapper_E2E(t *testing.T) {
 	svc := newScopeAwareWrapperForTest(t)
 	ctx := t.Context()
 
-	unscoped := scopes.QualifiedName{Name: "foo"}
-	scoped := scopes.QualifiedName{Scope: "/security", Name: "foo"}
+	unscoped := apiscopes.QualifiedName{Name: "foo"}
+	scoped := apiscopes.QualifiedName{Scope: "/security", Name: "foo"}
 
 	// A scoped and an unscoped resource may share a name; they live in distinct
 	// key ranges.
@@ -190,7 +191,7 @@ func TestScopeAwareServiceWrapper_E2E(t *testing.T) {
 
 	// An unscoped name does not resolve under a scope, and a scoped name does
 	// not resolve as unscoped.
-	_, err = svc.GetResource(ctx, scopes.QualifiedName{Scope: "/other", Name: "foo"})
+	_, err = svc.GetResource(ctx, apiscopes.QualifiedName{Scope: "/other", Name: "foo"})
 	require.True(t, trace.IsNotFound(err), "expected not found, got %v", err)
 
 	// Deleting one leaves the other intact.
@@ -207,7 +208,7 @@ func TestScopeAwareServiceWrapper_CreateResource(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("creates unscoped and scoped resources", func(t *testing.T) {
-		for _, qn := range []scopes.QualifiedName{
+		for _, qn := range []apiscopes.QualifiedName{
 			{Name: "foo"},
 			{Scope: "/security", Name: "foo"},
 		} {
@@ -222,7 +223,7 @@ func TestScopeAwareServiceWrapper_CreateResource(t *testing.T) {
 	})
 
 	t.Run("rejects duplicate within the same scope", func(t *testing.T) {
-		qn := scopes.QualifiedName{Scope: "/eng", Name: "dup"}
+		qn := apiscopes.QualifiedName{Scope: "/eng", Name: "dup"}
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 		require.NoError(t, err)
 		_, err = svc.CreateResource(ctx, newScopedTestResource153(qn))
@@ -230,8 +231,8 @@ func TestScopeAwareServiceWrapper_CreateResource(t *testing.T) {
 	})
 
 	t.Run("same name in different scopes does not conflict", func(t *testing.T) {
-		a := scopes.QualifiedName{Scope: "/a", Name: "shared"}
-		b := scopes.QualifiedName{Scope: "/b", Name: "shared"}
+		a := apiscopes.QualifiedName{Scope: "/a", Name: "shared"}
+		b := apiscopes.QualifiedName{Scope: "/b", Name: "shared"}
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(a))
 		require.NoError(t, err)
 		_, err = svc.CreateResource(ctx, newScopedTestResource153(b))
@@ -253,10 +254,10 @@ func TestScopeAwareServiceWrapper_UpsertResource(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		qn   scopes.QualifiedName
+		qn   apiscopes.QualifiedName
 	}{
-		{"unscoped", scopes.QualifiedName{Name: "up"}},
-		{"scoped", scopes.QualifiedName{Scope: "/security", Name: "up"}},
+		{"unscoped", apiscopes.QualifiedName{Name: "up"}},
+		{"scoped", apiscopes.QualifiedName{Scope: "/security", Name: "up"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Upsert creates when absent.
@@ -282,8 +283,8 @@ func TestScopeAwareServiceWrapper_UpsertResource(t *testing.T) {
 	t.Run("routes by scope", func(t *testing.T) {
 		// Upserting a scoped resource must not clobber an unscoped one of the
 		// same name.
-		unscoped := scopes.QualifiedName{Name: "router"}
-		scoped := scopes.QualifiedName{Scope: "/eng", Name: "router"}
+		unscoped := apiscopes.QualifiedName{Name: "router"}
+		scoped := apiscopes.QualifiedName{Scope: "/eng", Name: "router"}
 
 		u := newScopedTestResource153(unscoped)
 		u.Spec.Data = "unscoped"
@@ -311,10 +312,10 @@ func TestScopeAwareServiceWrapper_ConditionalUpdateResource(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		qn   scopes.QualifiedName
+		qn   apiscopes.QualifiedName
 	}{
-		{"unscoped", scopes.QualifiedName{Name: "cu"}},
-		{"scoped", scopes.QualifiedName{Scope: "/security", Name: "cu"}},
+		{"unscoped", apiscopes.QualifiedName{Name: "cu"}},
+		{"scoped", apiscopes.QualifiedName{Scope: "/security", Name: "cu"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			created, err := svc.CreateResource(ctx, newScopedTestResource153(tc.qn))
@@ -346,7 +347,7 @@ func TestScopeAwareServiceWrapper_ConditionalUpdateResource(t *testing.T) {
 	}
 
 	t.Run("missing resource errors", func(t *testing.T) {
-		_, err := svc.ConditionalUpdateResource(ctx, newScopedTestResource153(scopes.QualifiedName{Name: "ghost"}))
+		_, err := svc.ConditionalUpdateResource(ctx, newScopedTestResource153(apiscopes.QualifiedName{Name: "ghost"}))
 		require.Error(t, err)
 	})
 }
@@ -356,10 +357,10 @@ func TestScopeAwareServiceWrapper_GetResource(t *testing.T) {
 	svc := newScopeAwareWrapperForTest(t)
 	ctx := t.Context()
 
-	unscoped := scopes.QualifiedName{Name: "foo"}
-	scoped := scopes.QualifiedName{Scope: "/security/eu", Name: "foo"}
-	scopedOnly := scopes.QualifiedName{Scope: "/security", Name: "sec-only"}
-	for _, qn := range []scopes.QualifiedName{unscoped, scoped, scopedOnly} {
+	unscoped := apiscopes.QualifiedName{Name: "foo"}
+	scoped := apiscopes.QualifiedName{Scope: "/security/eu", Name: "foo"}
+	scopedOnly := apiscopes.QualifiedName{Scope: "/security", Name: "sec-only"}
+	for _, qn := range []apiscopes.QualifiedName{unscoped, scoped, scopedOnly} {
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 		require.NoError(t, err)
 	}
@@ -377,12 +378,12 @@ func TestScopeAwareServiceWrapper_GetResource(t *testing.T) {
 	})
 
 	t.Run("wrong scope is not found", func(t *testing.T) {
-		_, err := svc.GetResource(ctx, scopes.QualifiedName{Scope: "/other", Name: "foo"})
+		_, err := svc.GetResource(ctx, apiscopes.QualifiedName{Scope: "/other", Name: "foo"})
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
 	t.Run("scoped resource does not leak into the unscoped range", func(t *testing.T) {
-		_, err := svc.GetResource(ctx, scopes.QualifiedName{Name: "sec-only"})
+		_, err := svc.GetResource(ctx, apiscopes.QualifiedName{Name: "sec-only"})
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 }
@@ -393,9 +394,9 @@ func TestScopeAwareServiceWrapper_DeleteResource(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("deletes only the addressed scope", func(t *testing.T) {
-		unscoped := scopes.QualifiedName{Name: "foo"}
-		scoped := scopes.QualifiedName{Scope: "/security", Name: "foo"}
-		for _, qn := range []scopes.QualifiedName{unscoped, scoped} {
+		unscoped := apiscopes.QualifiedName{Name: "foo"}
+		scoped := apiscopes.QualifiedName{Scope: "/security", Name: "foo"}
+		for _, qn := range []apiscopes.QualifiedName{unscoped, scoped} {
 			_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 			require.NoError(t, err)
 		}
@@ -415,12 +416,12 @@ func TestScopeAwareServiceWrapper_DeleteResource(t *testing.T) {
 	})
 
 	t.Run("wrong scope does not delete", func(t *testing.T) {
-		qn := scopes.QualifiedName{Scope: "/eng", Name: "keep"}
+		qn := apiscopes.QualifiedName{Scope: "/eng", Name: "keep"}
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 		require.NoError(t, err)
 
 		// Deleting under a different scope must not remove it, and is NotFound.
-		err = svc.DeleteResource(ctx, scopes.QualifiedName{Scope: "/other", Name: "keep"})
+		err = svc.DeleteResource(ctx, apiscopes.QualifiedName{Scope: "/other", Name: "keep"})
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 		got, err := svc.GetResource(ctx, qn)
 		require.NoError(t, err)
@@ -428,7 +429,7 @@ func TestScopeAwareServiceWrapper_DeleteResource(t *testing.T) {
 	})
 
 	t.Run("missing is not found", func(t *testing.T) {
-		err := svc.DeleteResource(ctx, scopes.QualifiedName{Name: "ghost"})
+		err := svc.DeleteResource(ctx, apiscopes.QualifiedName{Name: "ghost"})
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 }
@@ -438,7 +439,7 @@ func TestScopeAwareServiceWrapper_DeleteAllResources(t *testing.T) {
 	svc := newScopeAwareWrapperForTest(t)
 	ctx := t.Context()
 
-	for _, qn := range []scopes.QualifiedName{
+	for _, qn := range []apiscopes.QualifiedName{
 		{Name: "a"},
 		{Name: "b"},
 		{Scope: "/security", Name: "x"},
@@ -462,7 +463,7 @@ func TestScopeAwareServiceWrapper_ListResourcesWithFilter(t *testing.T) {
 	svc := newScopeAwareWrapperForTest(t)
 	ctx := t.Context()
 
-	created := []scopes.QualifiedName{
+	created := []apiscopes.QualifiedName{
 		{Name: "keep-a"},
 		{Name: "drop-a"},
 		{Scope: "/security", Name: "keep-b"},
@@ -479,7 +480,7 @@ func TestScopeAwareServiceWrapper_ListResourcesWithFilter(t *testing.T) {
 	}
 	// The matcher must apply across both the unscoped and scoped ranges, with
 	// unscoped matches ordered first.
-	want := []scopes.QualifiedName{
+	want := []apiscopes.QualifiedName{
 		{Name: "keep-a"},
 		{Scope: "/security", Name: "keep-b"},
 		{Scope: "/security/eu", Name: "keep-c"},
@@ -520,7 +521,7 @@ func TestScopeAwareServiceWrapper_Resources(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
-		want := []scopes.QualifiedName{
+		want := []apiscopes.QualifiedName{
 			{Name: "a"},
 			{Name: "b"},
 			{Scope: "/security", Name: "x"},
@@ -537,10 +538,10 @@ func TestScopeAwareServiceWrapper_Resources(t *testing.T) {
 		// The scoped-start cursor is the boundary between the unscoped and scoped
 		// halves of the unified stream.
 		unscopedOnly := collectStream(t, svc.Resources(ctx, "", scopes.ResourceCursorScopedStart()))
-		require.Equal(t, []scopes.QualifiedName{{Name: "a"}, {Name: "b"}}, names(unscopedOnly))
+		require.Equal(t, []apiscopes.QualifiedName{{Name: "a"}, {Name: "b"}}, names(unscopedOnly))
 
 		scopedOnly := collectStream(t, svc.Resources(ctx, scopes.ResourceCursorScopedStart(), ""))
-		require.Equal(t, []scopes.QualifiedName{
+		require.Equal(t, []apiscopes.QualifiedName{
 			{Scope: "/security", Name: "x"},
 			{Scope: "/security/eu", Name: "y"},
 		}, names(scopedOnly))
@@ -553,10 +554,10 @@ func TestScopeAwareServiceWrapper_MakeBackendItem(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		qn   scopes.QualifiedName
+		qn   apiscopes.QualifiedName
 	}{
-		{"unscoped", scopes.QualifiedName{Name: "foo"}},
-		{"scoped", scopes.QualifiedName{Scope: "/security", Name: "foo"}},
+		{"unscoped", apiscopes.QualifiedName{Name: "foo"}},
+		{"scoped", apiscopes.QualifiedName{Scope: "/security", Name: "foo"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item, err := svc.MakeBackendItem(newScopedTestResource153(tc.qn))
@@ -584,7 +585,7 @@ func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
-		qn := scopes.QualifiedName{Name: "foo"}
+		qn := apiscopes.QualifiedName{Name: "foo"}
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 		require.NoError(t, err)
 
@@ -605,7 +606,7 @@ func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
-		qn := scopes.QualifiedName{Scope: "/security", Name: "foo"}
+		qn := apiscopes.QualifiedName{Scope: "/security", Name: "foo"}
 		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
 		require.NoError(t, err)
 
@@ -634,7 +635,7 @@ func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
-		qn := scopes.QualifiedName{Scope: "/security", Name: "child"}
+		qn := apiscopes.QualifiedName{Scope: "/security", Name: "child"}
 		routed, err := svc.WithScopePrefix(qn.Scope)
 		require.NoError(t, err)
 		sub := routed.WithPrefix("parent")
@@ -661,7 +662,7 @@ func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
 		page, next, err := svc.ListResources(ctx, 100, "")
 		require.NoError(t, err)
 		require.Empty(t, next)
-		require.Equal(t, []scopes.QualifiedName{qn}, names(page))
+		require.Equal(t, []apiscopes.QualifiedName{qn}, names(page))
 	})
 
 	t.Run("invalid scope errors", func(t *testing.T) {
@@ -705,7 +706,7 @@ func TestScopeAwareServiceWrapper_WithScopedResourcePrefix(t *testing.T) {
 		t.Parallel()
 		svc := newScopeAwareWrapperForTest(t)
 
-		routed, err := svc.WithScopedResourcePrefix(scopes.QualifiedName{Name: "parent"})
+		routed, err := svc.WithScopedResourcePrefix(apiscopes.QualifiedName{Name: "parent"})
 		require.NoError(t, err)
 		require.Equal(t,
 			backend.NewKey(testUnscopedPrefix, "parent", "child").String(),
@@ -718,8 +719,8 @@ func TestScopeAwareServiceWrapper_WithScopedResourcePrefix(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
-		qn := scopes.QualifiedName{Scope: "/security", Name: "child"}
-		routed, err := svc.WithScopedResourcePrefix(scopes.QualifiedName{Scope: qn.Scope, Name: "parent"})
+		qn := apiscopes.QualifiedName{Scope: "/security", Name: "child"}
+		routed, err := svc.WithScopedResourcePrefix(apiscopes.QualifiedName{Scope: qn.Scope, Name: "parent"})
 		require.NoError(t, err)
 
 		encodedScope, err := scopes.EncodeForKey(qn.Scope)
@@ -747,7 +748,7 @@ func TestScopeAwareServiceWrapper_WithScopedResourcePrefix(t *testing.T) {
 	t.Run("invalid scope errors", func(t *testing.T) {
 		t.Parallel()
 		svc := newScopeAwareWrapperForTest(t)
-		_, err := svc.WithScopedResourcePrefix(scopes.QualifiedName{Scope: "/not valid", Name: "parent"})
+		_, err := svc.WithScopedResourcePrefix(apiscopes.QualifiedName{Scope: "/not valid", Name: "parent"})
 		require.Error(t, err)
 	})
 }
@@ -757,7 +758,7 @@ func TestScopeAwareServiceWrapper_BackendKey(t *testing.T) {
 	svc := newScopeAwareWrapperForTest(t)
 
 	t.Run("unscoped", func(t *testing.T) {
-		key, err := svc.BackendKey(scopes.QualifiedName{Name: "foo"})
+		key, err := svc.BackendKey(apiscopes.QualifiedName{Name: "foo"})
 		require.NoError(t, err)
 		require.Equal(t, backend.NewKey(testUnscopedPrefix, "foo").String(), key.String())
 	})
@@ -765,7 +766,7 @@ func TestScopeAwareServiceWrapper_BackendKey(t *testing.T) {
 	t.Run("scoped is namespaced by encoded scope", func(t *testing.T) {
 		encodedScope, err := scopes.EncodeForKey("/security")
 		require.NoError(t, err)
-		key, err := svc.BackendKey(scopes.QualifiedName{Scope: "/security", Name: "foo"})
+		key, err := svc.BackendKey(apiscopes.QualifiedName{Scope: "/security", Name: "foo"})
 		require.NoError(t, err)
 		require.Equal(t,
 			backend.NewKey(testScopedTopPrefix, testUnscopedPrefix, encodedScope, "foo").String(),

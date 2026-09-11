@@ -21,6 +21,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -5318,13 +5319,13 @@ func genScopedUserContext(ctx context.Context, username string, scope string) co
 }
 
 func scopedAccessListName(scope, name string) accesslists.NormalizedSQN {
-	return accesslists.NormalizeSQN(scopes.QualifiedName{Scope: scope, Name: name})
+	return accesslists.NormalizeSQN(apiscopes.QualifiedName{Scope: scope, Name: name})
 }
 
 func accessListSQNsFromProto(accessLists []*accesslistv1.AccessList) []accesslists.NormalizedSQN {
 	out := make([]accesslists.NormalizedSQN, 0, len(accessLists))
 	for _, accessList := range accessLists {
-		out = append(out, accesslists.NormalizeSQN(scopes.QualifiedName{
+		out = append(out, accesslists.NormalizeSQN(apiscopes.QualifiedName{
 			Scope: accessList.GetScope(),
 			Name:  accessList.GetHeader().GetMetadata().GetName(),
 		}))

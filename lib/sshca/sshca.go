@@ -26,7 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH

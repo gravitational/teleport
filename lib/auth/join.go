@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -43,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/provision"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 )

@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -36,7 +37,7 @@ func TestResourceCursor(t *testing.T) {
 
 		parsed, err := ParseResourceCursor(cursor)
 		require.NoError(t, err)
-		require.Equal(t, QualifiedName{Name: "name"}, parsed)
+		require.Equal(t, apiscopes.QualifiedName{Name: "name"}, parsed)
 	})
 
 	t.Run("scoped", func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestResourceCursor(t *testing.T) {
 
 		parsed, err := ParseResourceCursor(cursor)
 		require.NoError(t, err)
-		require.Equal(t, QualifiedName{Scope: "/aa/bb", Name: "name"}, parsed)
+		require.Equal(t, apiscopes.QualifiedName{Scope: "/aa/bb", Name: "name"}, parsed)
 	})
 
 	t.Run("scoped start", func(t *testing.T) {
@@ -109,7 +110,7 @@ func TestResourceCursorInvalidScope(t *testing.T) {
 func TestResourceCursorSort(t *testing.T) {
 	t.Parallel()
 
-	resources := []QualifiedName{
+	resources := []apiscopes.QualifiedName{
 		{Scope: "/bb", Name: "aaa"},
 		{Scope: "", Name: "zzz"},
 		{Scope: "/aa", Name: "bbb"},
@@ -125,14 +126,14 @@ func TestResourceCursorSort(t *testing.T) {
 
 	slices.Sort(cursors)
 
-	var got []QualifiedName
+	var got []apiscopes.QualifiedName
 	for _, cursor := range cursors {
 		resource, err := ParseResourceCursor(cursor)
 		require.NoError(t, err)
 		got = append(got, resource)
 	}
 
-	require.Equal(t, []QualifiedName{
+	require.Equal(t, []apiscopes.QualifiedName{
 		// Unscoped cursors preserve historical name-only ordering and sort before
 		// all scoped cursors.
 		{Scope: "", Name: "aaa"},
@@ -148,8 +149,8 @@ func TestResourceCursorSort(t *testing.T) {
 func TestNestedResourceCursor(t *testing.T) {
 	for _, tc := range []struct {
 		desc        string
-		root        QualifiedName
-		descendents []QualifiedName
+		root        apiscopes.QualifiedName
+		descendents []apiscopes.QualifiedName
 		expected    string
 	}{
 		{
@@ -157,21 +158,21 @@ func TestNestedResourceCursor(t *testing.T) {
 		},
 		{
 			desc:     "unscoped",
-			root:     QualifiedName{Name: "test"},
+			root:     apiscopes.QualifiedName{Name: "test"},
 			expected: "test",
 		},
 		{
 			desc: "unscoped nested",
-			root: QualifiedName{Name: "test"},
-			descendents: []QualifiedName{
+			root: apiscopes.QualifiedName{Name: "test"},
+			descendents: []apiscopes.QualifiedName{
 				{Name: "nested"},
 			},
 			expected: "test/nested",
 		},
 		{
 			desc: "unscoped double nested",
-			root: QualifiedName{Name: "test"},
-			descendents: []QualifiedName{
+			root: apiscopes.QualifiedName{Name: "test"},
+			descendents: []apiscopes.QualifiedName{
 				{Name: "nested"},
 				{Name: "doublenested"},
 			},
@@ -179,13 +180,13 @@ func TestNestedResourceCursor(t *testing.T) {
 		},
 		{
 			desc:     "scoped",
-			root:     QualifiedName{Scope: "/aa", Name: "test"},
+			root:     apiscopes.QualifiedName{Scope: "/aa", Name: "test"},
 			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test",
 		},
 		{
 			desc: "scoped nested",
-			root: QualifiedName{Scope: "/aa", Name: "test"},
-			descendents: []QualifiedName{
+			root: apiscopes.QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []apiscopes.QualifiedName{
 				{Scope: "/", Name: "nested"},
 			},
 			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test" +
@@ -193,8 +194,8 @@ func TestNestedResourceCursor(t *testing.T) {
 		},
 		{
 			desc: "scoped double nested",
-			root: QualifiedName{Scope: "/aa", Name: "test"},
-			descendents: []QualifiedName{
+			root: apiscopes.QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []apiscopes.QualifiedName{
 				{Scope: "/", Name: "nested"},
 				{Scope: "/", Name: "doublenested"},
 			},
@@ -204,8 +205,8 @@ func TestNestedResourceCursor(t *testing.T) {
 		},
 		{
 			desc:        "mixed scopes",
-			root:        QualifiedName{Scope: "/aa", Name: "test"},
-			descendents: []QualifiedName{{Name: "nested"}},
+			root:        apiscopes.QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []apiscopes.QualifiedName{{Name: "nested"}},
 			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test" +
 				separator + EncodeForResourceCursor("") + separator + "nested",
 		},
@@ -217,7 +218,7 @@ func TestNestedResourceCursor(t *testing.T) {
 }
 
 func TestNestedResourceCursorSort(t *testing.T) {
-	sorted := [][]QualifiedName{
+	sorted := [][]apiscopes.QualifiedName{
 		{{Name: "a"}},
 		{{Name: "a"}, {Name: "a"}},
 		{{Name: "a"}, {Name: "b"}},
@@ -243,7 +244,7 @@ func TestNestedResourceCursorSort(t *testing.T) {
 		{{Scope: "bad scope 1"}},
 		{{Scope: "bad scope 2"}},
 	}
-	expectSortedCursors := sliceutils.Map(sorted, func(names []QualifiedName) string {
+	expectSortedCursors := sliceutils.Map(sorted, func(names []apiscopes.QualifiedName) string {
 		return MakeNestedResourceCursor(names[0], names[1:]...)
 	})
 

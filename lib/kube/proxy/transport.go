@@ -34,13 +34,13 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 

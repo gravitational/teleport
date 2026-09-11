@@ -45,6 +45,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -398,7 +399,7 @@ func TestJoinOracle(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+					Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
 					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role: types.RoleInstance,

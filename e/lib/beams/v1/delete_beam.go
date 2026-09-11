@@ -10,11 +10,11 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )

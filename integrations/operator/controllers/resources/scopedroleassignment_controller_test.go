@@ -30,6 +30,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
@@ -43,7 +44,7 @@ var scopedRoleAssignmentSpec = accessv1.ScopedRoleAssignmentSpec_builder{
 	User: "test-user",
 	Assignments: []*accessv1.Assignment{
 		accessv1.Assignment_builder{
-			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Role:  apiscopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
 			Scope: testNestedScope,
 		}.Build(),
 	},
@@ -143,7 +144,7 @@ func (g *scopedRoleAssignmentTestingPrimitives) ModifyKubernetesResource(ctx con
 	}
 	assignment.Spec.Assignments = []*accessv1.Assignment{
 		accessv1.Assignment_builder{
-			Role:  scopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
+			Role:  apiscopes.QualifiedName{Scope: testScope, Name: "test-role"}.String(),
 			Scope: testScope, // change from testNestedScope to testScope
 		}.Build(),
 	}

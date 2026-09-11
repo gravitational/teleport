@@ -37,6 +37,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -446,10 +447,10 @@ func TestJoinTPMScoped(t *testing.T) {
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
+				Bot: apiscopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "testbot"}.String(),
 						Scope: "/test",
 					}.Build(),
 				},
@@ -685,7 +686,7 @@ func TestJoinTPMScoped(t *testing.T) {
 				Scope: "/test",
 				Spec: joiningv1.ScopedTokenSpec_builder{
 					UsageMode: joining.TokenUsageModeBot,
-					Bot: scopes.QualifiedName{
+					Bot: apiscopes.QualifiedName{
 						Scope: "/test",
 						Name:  "testbot",
 					}.String(),
@@ -705,7 +706,7 @@ func TestJoinTPMScoped(t *testing.T) {
 			fakeTPM.badSolution = tc.badTPMSolution
 
 			result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: scopes.QualifiedName{
+				Token: apiscopes.QualifiedName{
 					Scope: token.GetScope(),
 					Name:  token.GetMetadata().GetName(),
 				}.String(),

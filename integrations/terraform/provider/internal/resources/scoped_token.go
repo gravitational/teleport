@@ -21,8 +21,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"

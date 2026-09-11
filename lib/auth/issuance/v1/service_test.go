@@ -38,6 +38,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -136,7 +137,7 @@ func TestIssueScopedBotCerts_UsageIdentity(t *testing.T) {
 			}.Build(),
 			Scope: botScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
+				Bot: apiscopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: botScope + "::bot-role", Scope: botScope}.Build(),
 				},
@@ -148,7 +149,7 @@ func TestIssueScopedBotCerts_UsageIdentity(t *testing.T) {
 
 	// Create a client with a scoped bot internal identity.
 	botClient, err := srv.NewClient(
-		authtest.TestScopedBot(t, scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
+		authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = botClient.Close() })
@@ -366,7 +367,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 			}.Build(),
 			Scope: testScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}.String(),
+				Bot: apiscopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: testScope + "::test-role", Scope: testScope}.Build(),
 				},
@@ -461,7 +462,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 
 	t.Run("scoped bot without BotInternal", func(t *testing.T) {
 		botClient, err := srv.NewClient(
-			authtest.TestScopedBot(t, scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, false),
+			authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, false),
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = botClient.Close() })
@@ -475,7 +476,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 	})
 
 	t.Run("scoped bot with DisallowReissue", func(t *testing.T) {
-		ident := authtest.TestScopedBot(t, scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, true)
+		ident := authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}, true)
 		lu := ident.I.(authz.LocalUser)
 		lu.Identity.DisallowReissue = true
 		ident.I = lu
@@ -558,7 +559,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 			}.Build(),
 			Scope: botScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
+				Bot: apiscopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: botScope + "::bot-role", Scope: botScope}.Build(),
 				},
@@ -585,7 +586,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 
 	// Create a client with a scoped bot internal identity.
 	botClient, err := srv.NewClient(
-		authtest.TestScopedBot(t, scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
+		authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}, true),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = botClient.Close() })
@@ -831,10 +832,10 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 				}.Build(),
 				Scope: childScope,
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					Bot: scopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}.String(),
+					Bot: apiscopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}.String(),
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: childScope, Name: "child-bot-role"}.String(),
+							Role:  apiscopes.QualifiedName{Scope: childScope, Name: "child-bot-role"}.String(),
 							Scope: childScope,
 						}.Build(),
 					},
@@ -845,7 +846,7 @@ func TestIssueScopedBotCerts_UsageApp(t *testing.T) {
 		waitForSRACache(t, srv, childSRAResp)
 
 		childBotClient, err := srv.NewClient(
-			authtest.TestScopedBot(t, scopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}, true),
+			authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: childScope, Name: childBot.GetMetadata().GetName()}, true),
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = childBotClient.Close() })

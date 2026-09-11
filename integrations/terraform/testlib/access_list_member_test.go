@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 func checkAccessListMemberExists(ctx context.Context, clt *accesslist.Client, accessList, memberName string, expires time.Time) resource.TestCheckFunc {

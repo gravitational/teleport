@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -39,7 +40,6 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func newAccessListSpec(nextAudit time.Time) accesslist.Spec {

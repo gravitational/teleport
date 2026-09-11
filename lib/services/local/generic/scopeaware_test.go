@@ -29,13 +29,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
-func newScopedTestResource(sqn scopes.QualifiedName) *testResource {
+func newScopedTestResource(sqn apiscopes.QualifiedName) *testResource {
 	r := newTestResource(sqn.Name)
 	r.Scope = sqn.Scope
 	return r
@@ -71,7 +72,7 @@ func TestScopeAwareService(t *testing.T) {
 	for baseScopeIndex := range 10 {
 		// Add ten at this base scope.
 		for nameIndex := range 10 {
-			resources = append(resources, newScopedTestResource(scopes.QualifiedName{
+			resources = append(resources, newScopedTestResource(apiscopes.QualifiedName{
 				Scope: fmt.Sprintf("/base%d", baseScopeIndex),
 				Name:  fmt.Sprintf("name%d", nameIndex),
 			}))
@@ -80,7 +81,7 @@ func TestScopeAwareService(t *testing.T) {
 		// Add ten more at each of 10 sub scopes.
 		for subScopeIndex := range 10 {
 			for nameIndex := range 10 {
-				resources = append(resources, newScopedTestResource(scopes.QualifiedName{
+				resources = append(resources, newScopedTestResource(apiscopes.QualifiedName{
 					Scope: fmt.Sprintf("/base%d/sub%d", baseScopeIndex, subScopeIndex),
 					Name:  fmt.Sprintf("name%d", nameIndex),
 				}))
@@ -88,15 +89,15 @@ func TestScopeAwareService(t *testing.T) {
 		}
 	}
 
-	expectedResourceNames := make(map[scopes.QualifiedName]struct{}, len(resources))
+	expectedResourceNames := make(map[apiscopes.QualifiedName]struct{}, len(resources))
 	for _, resource := range resources {
-		expectedResourceNames[scopes.QualifiedName{
+		expectedResourceNames[apiscopes.QualifiedName{
 			Scope: resource.GetScope(),
 			Name:  resource.GetName(),
 		}] = struct{}{}
 	}
 
-	checkExpectedResources := func(t *testing.T, expectedResourceNames map[scopes.QualifiedName]struct{}, resources iter.Seq2[*testResource, error]) {
+	checkExpectedResources := func(t *testing.T, expectedResourceNames map[apiscopes.QualifiedName]struct{}, resources iter.Seq2[*testResource, error]) {
 		t.Helper()
 
 		expected := maps.Clone(expectedResourceNames)
@@ -104,7 +105,7 @@ func TestScopeAwareService(t *testing.T) {
 		for resource, err := range resources {
 			require.NoError(t, err)
 
-			key := scopes.QualifiedName{
+			key := apiscopes.QualifiedName{
 				Scope: resource.GetScope(),
 				Name:  resource.GetName(),
 			}
@@ -115,10 +116,10 @@ func TestScopeAwareService(t *testing.T) {
 		assert.Empty(t, expected, "did not find expected resources")
 	}
 
-	expectedResourcesInCursorRange := func(t *testing.T, startKey, endKey string) map[scopes.QualifiedName]struct{} {
+	expectedResourcesInCursorRange := func(t *testing.T, startKey, endKey string) map[apiscopes.QualifiedName]struct{} {
 		t.Helper()
 
-		expected := make(map[scopes.QualifiedName]struct{})
+		expected := make(map[apiscopes.QualifiedName]struct{})
 		for _, resource := range resources {
 			cursor := scopes.MakeResourceCursor(resource.GetScope(), resource.GetName())
 			if startKey != "" && cursor < startKey {
@@ -127,7 +128,7 @@ func TestScopeAwareService(t *testing.T) {
 			if endKey != "" && cursor >= endKey {
 				continue
 			}
-			expected[scopes.QualifiedName{Scope: resource.GetScope(), Name: resource.GetName()}] = struct{}{}
+			expected[apiscopes.QualifiedName{Scope: resource.GetScope(), Name: resource.GetName()}] = struct{}{}
 		}
 		return expected
 	}
@@ -285,23 +286,23 @@ func newScopedOnlyServiceForTest(t *testing.T) *ScopeAwareService[*testResource]
 	return service
 }
 
-func newScopedTestResourceWithBody(sqn scopes.QualifiedName) *testResource {
+func newScopedTestResourceWithBody(sqn apiscopes.QualifiedName) *testResource {
 	r := newScopedTestResource(sqn)
 	r.Spec.PropA = specDataFor(sqn)
 	return r
 }
 
-func requireTestResourceBody(t *testing.T, want scopes.QualifiedName, got *testResource) {
+func requireTestResourceBody(t *testing.T, want apiscopes.QualifiedName, got *testResource) {
 	t.Helper()
 	require.Equal(t, want.Name, got.GetName())
 	require.Equal(t, want.Scope, got.GetScope())
 	require.Equal(t, specDataFor(want), got.Spec.PropA)
 }
 
-func scopedNames(resources []*testResource) []scopes.QualifiedName {
-	out := make([]scopes.QualifiedName, 0, len(resources))
+func scopedNames(resources []*testResource) []apiscopes.QualifiedName {
+	out := make([]apiscopes.QualifiedName, 0, len(resources))
 	for _, r := range resources {
-		out = append(out, scopes.QualifiedName{Scope: r.GetScope(), Name: r.GetName()})
+		out = append(out, apiscopes.QualifiedName{Scope: r.GetScope(), Name: r.GetName()})
 	}
 	return out
 }
@@ -323,7 +324,7 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		t.Parallel()
 		svc := newScopedOnlyServiceForTest(t)
 		ctx := t.Context()
-		unscoped := scopes.QualifiedName{Name: "foo"}
+		unscoped := apiscopes.QualifiedName{Name: "foo"}
 
 		_, err := svc.CreateResource(ctx, newScopedTestResource(unscoped))
 		require.True(t, trace.IsBadParameter(err), "create: %v", err)
@@ -351,7 +352,7 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		t.Parallel()
 		svc := newScopedOnlyServiceForTest(t)
 		ctx := t.Context()
-		qn := scopes.QualifiedName{Scope: "/security", Name: "foo"}
+		qn := apiscopes.QualifiedName{Scope: "/security", Name: "foo"}
 
 		created, err := svc.CreateResource(ctx, newScopedTestResourceWithBody(qn))
 		require.NoError(t, err)
@@ -387,8 +388,8 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		t.Parallel()
 		svc := newScopedOnlyServiceForTest(t)
 		ctx := t.Context()
-		a := scopes.QualifiedName{Scope: "/a", Name: "shared"}
-		b := scopes.QualifiedName{Scope: "/b", Name: "shared"}
+		a := apiscopes.QualifiedName{Scope: "/a", Name: "shared"}
+		b := apiscopes.QualifiedName{Scope: "/b", Name: "shared"}
 		_, err := svc.CreateResource(ctx, newScopedTestResourceWithBody(a))
 		require.NoError(t, err)
 		_, err = svc.CreateResource(ctx, newScopedTestResourceWithBody(b))
@@ -406,7 +407,7 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		t.Parallel()
 		svc := newScopedOnlyServiceForTest(t)
 		ctx := t.Context()
-		resources := []scopes.QualifiedName{
+		resources := []apiscopes.QualifiedName{
 			{Scope: "/a", Name: "1"},
 			{Scope: "/b", Name: "2"},
 			{Scope: "/c", Name: "3"},
@@ -424,7 +425,7 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		start := scopes.MakeResourceCursor("/b", "2")
 		end := scopes.MakeResourceCursor("/c", "3")
 		require.Equal(t,
-			[]scopes.QualifiedName{{Scope: "/b", Name: "2"}},
+			[]apiscopes.QualifiedName{{Scope: "/b", Name: "2"}},
 			scopedNames(collectScopedStream(t, svc.Resources(ctx, start, end))),
 		)
 	})
@@ -433,7 +434,7 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		t.Parallel()
 		svc := newScopedOnlyServiceForTest(t)
 		ctx := t.Context()
-		want := []scopes.QualifiedName{
+		want := []apiscopes.QualifiedName{
 			{Scope: "/a", Name: "1"},
 			{Scope: "/b", Name: "2"},
 			{Scope: "/c", Name: "3"},

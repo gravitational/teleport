@@ -27,6 +27,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -167,7 +168,7 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1
 	// the requested scope-qualified name. The scope is caller input, so weakly
 	// validate it before deriving the cursor.
 	if req.GetScope() != "" {
-		if err := scopes.WeakValidate(req.GetScope()); err != nil {
+		if err := apiscopes.WeakValidate(req.GetScope()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

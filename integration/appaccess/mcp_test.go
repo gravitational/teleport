@@ -31,9 +31,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/scopes"
 	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )

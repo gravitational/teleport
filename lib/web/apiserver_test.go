@@ -100,6 +100,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -10266,11 +10267,11 @@ func TestUserContextWithScopes(t *testing.T) {
 					// Deliberately put these out of order to make sure that the result
 					// is sorted.
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-b"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-b"}.String(),
 						Scope: "/test/b1",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -10291,23 +10292,23 @@ func TestUserContextWithScopes(t *testing.T) {
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a1",
 					}.Build(),
 					// Add a duplicate to make sure that the result is deduplicated.
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 					// This one should not appear; role does not exist.
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-that-does-not-exist"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-that-does-not-exist"}.String(),
 						Scope: "/test/broken1",
 					}.Build(),
 					// This one should not appear; role /test::role-a is not enforceable
 					// at scope /test/broken2.
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Role:  apiscopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/broken2",
 					}.Build(),
 				},

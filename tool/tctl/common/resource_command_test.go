@@ -55,6 +55,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -533,21 +534,21 @@ version: v1
 	assignmentName := as[0].GetMetadata().GetName()
 
 	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String(), "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String(), "--format=json"})
 	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String(), "--format=json"})
@@ -587,28 +588,28 @@ version: v1
 	require.ErrorContains(t, err, "scope-qualified name")
 
 	// scope mismatch on delete should return NotFound (assignment lives at "/", not "/wrong")
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", apiscopes.QualifiedName{
 		Scope: "/wrong",
 		Name:  assignmentName,
 	}.String()})
 	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on assignment delete, got %v", err)
 
 	// verify delete of assignment fails without subkind
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String()})
 	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// verify delete of assignment fails without materialized subkind.
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String()})
 	require.ErrorContains(t, err, "cannot be deleted")
 
 	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", apiscopes.QualifiedName{
 		Scope: "/",
 		Name:  assignmentName,
 	}.String()})
@@ -618,7 +619,7 @@ version: v1
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", apiscopes.QualifiedName{
 			Scope: "/",
 			Name:  assignmentName,
 		}.String(), "--format=json"})

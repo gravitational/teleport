@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -7644,10 +7645,10 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 						}.Build(),
 						Scope: c.scope,
 						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
+							Bot: apiscopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
 								scopedaccessv1.Assignment_builder{
-									Role:  scopes.QualifiedName{Scope: roleResp.GetRole().GetScope(), Name: roleResp.GetRole().GetMetadata().GetName()}.String(),
+									Role:  apiscopes.QualifiedName{Scope: roleResp.GetRole().GetScope(), Name: roleResp.GetRole().GetMetadata().GetName()}.String(),
 									Scope: c.scope,
 								}.Build(),
 							},
@@ -7657,7 +7658,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)
-				ident = authtest.TestScopedBot(t, scopes.QualifiedName{Scope: c.scope, Name: c.botName}, c.internal)
+				ident = authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: c.scope, Name: c.botName}, c.internal)
 			}
 
 			client, err := testServer.NewClient(ident)

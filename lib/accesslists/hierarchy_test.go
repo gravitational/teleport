@@ -33,12 +33,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // Mock implementation of AccessListAndMembersGetter.

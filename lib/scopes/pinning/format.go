@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 // FormatAssignmentTree formats an assignment tree for command-line display in a structure superficially similar to

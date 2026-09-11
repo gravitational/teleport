@@ -72,6 +72,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1579,7 +1580,7 @@ func TestScopedBotSSH(t *testing.T) {
 	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(scopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
+	nodeCfg.SetToken(apiscopes.QualifiedName{Scope: scopeName, Name: jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret())}.String())
 	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
@@ -1641,7 +1642,7 @@ func TestScopedBotSSH(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
+				scopeName: {scopeName: {apiscopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -1857,7 +1858,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
 	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
-	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(scopes.QualifiedName{Name: kubeTokenResp.GetToken().GetMetadata().GetName(), Scope: scopeName}.String(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
+	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(apiscopes.QualifiedName{Name: kubeTokenResp.GetToken().GetMetadata().GetName(), Scope: scopeName}.String(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
 	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	kubeNodeCfg.Auth.Enabled = false
 	kubeNodeCfg.Proxy.Enabled = false
@@ -1921,7 +1922,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
+				scopeName: {scopeName: {apiscopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -2047,7 +2048,7 @@ func TestScopedBotApp(t *testing.T) {
 	appAgentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	appAgentCfg.Hostname = "scoped-app-agent"
 	appAgentCfg.DataDir = t.TempDir()
-	appAgentCfg.SetToken(scopes.QualifiedName{
+	appAgentCfg.SetToken(apiscopes.QualifiedName{
 		Scope: scopeName,
 		Name:  jointoken.EncodeScopedToken(appTokenResp.GetToken().GetMetadata().GetName(), appTokenResp.GetToken().GetStatus().GetSecret()),
 	}.String())
@@ -2152,7 +2153,7 @@ func TestScopedBotApp(t *testing.T) {
 		// Configure tbot to target the unscoped app — this should fail.
 		unscopedAppOutput := &application.OutputConfig{
 			Destination: &destination.Memory{},
-			AppName:     scopes.QualifiedName{Scope: scopeName, Name: "unscoped-app"}.String(),
+			AppName:     apiscopes.QualifiedName{Scope: scopeName, Name: "unscoped-app"}.String(),
 		}
 		unscopedBotConfig := defaultBotConfig(
 			t, process, botOnboarding,
@@ -2272,7 +2273,7 @@ func TestScopedBotWorkloadIdentity(t *testing.T) {
 		Path:   filepath.Join(socketDir, "workload.sock"),
 	}
 	selector := bot.WorkloadIdentitySelector{
-		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
+		Name: apiscopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
 	}
 	botConfig := defaultBotConfig(
 		t, process, botOnboarding,
@@ -2433,7 +2434,7 @@ func createScopedBot(
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Bot:        apiscopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 						InitialPublicKey: botPublicKey,
@@ -2460,9 +2461,9 @@ func createScopedBot(
 			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Bot: apiscopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
+					scopedaccessv1.Assignment_builder{Role: apiscopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -2471,7 +2472,7 @@ func createScopedBot(
 	waitForSRACache(t, process.GetAuthServer(), sraResp)
 
 	return &onboarding.Config{
-		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
+		TokenValue: apiscopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,

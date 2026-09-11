@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -60,7 +61,7 @@ func TestEncodeDecode(t *testing.T) {
 			decoded, err := DecodeFromKey(encoded)
 			require.NoError(t, err)
 
-			require.Equal(t, NormalizeForEquality(tc), decoded)
+			require.Equal(t, apiscopes.NormalizeForEquality(tc), decoded)
 		})
 	}
 }
@@ -131,12 +132,12 @@ func TestEncodeForKeyWeaklyValid(t *testing.T) {
 		require.NoError(t, err, "expected %q to encode", tc)
 		decoded, err := DecodeFromKey(encoded)
 		require.NoError(t, err)
-		require.Equal(t, NormalizeForEquality(tc), decoded)
+		require.Equal(t, apiscopes.NormalizeForEquality(tc), decoded)
 	}
 }
 
 // TestEncodedSort asserts that a basic string sort over encoded scopes
-// produces the same ordering as sorting real scopes with [Sort].
+// produces the same ordering as sorting real scopes with [apiscopes.Sort].
 func TestEncodedSort(t *testing.T) {
 	t.Parallel()
 
@@ -150,7 +151,7 @@ func TestEncodedSort(t *testing.T) {
 	encoded, err := encodeScopes(unencoded)
 	require.NoError(t, err)
 
-	slices.SortFunc(unencoded, Sort)
+	slices.SortFunc(unencoded, apiscopes.Sort)
 	slices.Sort(encoded)
 
 	decoded, err := decodeScopes(encoded)
@@ -177,10 +178,10 @@ func TestEncodedSort(t *testing.T) {
 		require.True(t, ok)
 		decodedScope, err := DecodeFromKey(encodedScope)
 		require.NoError(t, err)
-		require.Equal(t, NormalizeForEquality(unencoded[i]), decodedScope)
+		require.Equal(t, apiscopes.NormalizeForEquality(unencoded[i]), decodedScope)
 	}
 
-	// [Sort] does not support empty scopes, so generatedScope does not
+	// [apiscopes.Sort] does not support empty scopes, so generatedScope does not
 	// generate any empty scopes. Manually test that empty encoded scopes sort
 	// to the beginning.
 	const numEmptyScopes = 10
@@ -210,7 +211,7 @@ func generateScope() string {
 		scope.WriteString(generateSegment(segmentLen))
 	}
 	if scope.Len() == 0 {
-		return Root
+		return apiscopes.Root
 	}
 	return scope.String()
 }
@@ -234,7 +235,7 @@ func generateSegment(segmentLen int) string {
 func randomValidByteInRange(min, max int) byte {
 	for {
 		candidate := byte(min + rand.IntN(max-min+1))
-		if WeakValidateSegment(string([]byte{candidate})) == nil {
+		if apiscopes.WeakValidateSegment(string([]byte{candidate})) == nil {
 			return candidate
 		}
 	}

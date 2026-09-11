@@ -48,6 +48,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -166,7 +167,7 @@ func TestCreateBot(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -1335,7 +1336,7 @@ func TestUpsertBot(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -2128,7 +2129,7 @@ func TestGetBot(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -2422,7 +2423,7 @@ func TestListBots(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -2447,7 +2448,7 @@ func TestListBots(t *testing.T) {
 				User: scopedUser2.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/ungranted",
 					}.Build(),
 				},
@@ -2710,7 +2711,7 @@ func TestDeleteBot(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -2897,12 +2898,12 @@ func TestDeleteBot(t *testing.T) {
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				wantUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: tt.req.GetScope(), Name: tt.req.GetBotName()})
+				wantUserName, err := services.BotResourceName(apiscopes.QualifiedName{Scope: tt.req.GetScope(), Name: tt.req.GetBotName()})
 				require.NoError(t, err)
 				_, err = srv.Auth().GetUser(ctx, wantUserName, false)
 				require.True(t, trace.IsNotFound(err), "bot user should be deleted")
 				if !tt.scoped {
-					roleName, err := services.BotResourceName(scopes.QualifiedName{Name: tt.req.GetBotName()})
+					roleName, err := services.BotResourceName(apiscopes.QualifiedName{Name: tt.req.GetBotName()})
 					require.NoError(t, err)
 					_, err = srv.Auth().GetRole(ctx, roleName)
 					require.True(t, trace.IsNotFound(err), "bot role should be deleted")
@@ -3478,7 +3479,7 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -3609,7 +3610,7 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -3740,7 +3741,7 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/granted",
 					}.Build(),
 				},
@@ -3761,7 +3762,7 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 						Scope: "/scopes/other",
 					}.Build(),
 				},
@@ -4083,10 +4084,10 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 				SubKind: scopedaccess.SubKindDynamic,
 				Scope:   "/scopes",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					Bot: scopes.QualifiedName{Scope: "/scopes/test", Name: botName}.String(),
+					Bot: apiscopes.QualifiedName{Scope: "/scopes/test", Name: botName}.String(),
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+							Role:  apiscopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
 							Scope: "/scopes/test",
 						}.Build(),
 					},
@@ -4096,7 +4097,7 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 		waitForSRACache(t, srv, sraResp)
 
-		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(t, scopes.QualifiedName{Scope: "/scopes/test", Name: botName}, true))
+		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(t, apiscopes.QualifiedName{Scope: "/scopes/test", Name: botName}, true))
 		createBotInstance(t, srv, botName, "/scopes/test", instanceID)
 
 		_, err = botClient.BotInstanceServiceClient().SubmitHeartbeat(ctx, machineidv1pb.SubmitHeartbeatRequest_builder{

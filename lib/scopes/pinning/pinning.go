@@ -29,9 +29,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // StrongValidate checks if the scope pin is well-formed according to all scope pin rules. This function

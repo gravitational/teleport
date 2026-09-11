@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -83,7 +84,7 @@ func TestACLReviews(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const name = "test"
-			accessListName := scopes.QualifiedName{Scope: tc.scope, Name: name}.String()
+			accessListName := apiscopes.QualifiedName{Scope: tc.scope, Name: name}.String()
 			removedMembers := "alice,bob"
 			expectedMembers := []string{"alice", "bob", "charlie"}
 			var scopedMember string
@@ -166,8 +167,8 @@ func TestScopedACLUsersAddRemove(t *testing.T) {
 	mustCreateAccessList(t, client, memberListScope, memberListName, time.Now().UTC().Add(30*24*time.Hour))
 	mustCreateAccessList(t, client, "", unscopedListName, time.Now().UTC().Add(30*24*time.Hour))
 
-	parentListQualifiedName := scopes.QualifiedName{Scope: parentListScope, Name: parentListName}.String()
-	memberListQualifiedName := scopes.QualifiedName{Scope: memberListScope, Name: memberListName}.String()
+	parentListQualifiedName := apiscopes.QualifiedName{Scope: parentListScope, Name: parentListName}.String()
+	memberListQualifiedName := apiscopes.QualifiedName{Scope: memberListScope, Name: memberListName}.String()
 
 	for _, tc := range []struct {
 		name               string
@@ -414,7 +415,7 @@ func mustCreateAccessListMember(t *testing.T, client *authclient.Client, scope, 
 	t.Helper()
 
 	member, err := accesslist.NewAccessListMemberWithScope(header.Metadata{Name: memberName}, accesslist.AccessListMemberSpec{
-		AccessList: scopes.QualifiedName{Scope: scope, Name: accessListName}.String(),
+		AccessList: apiscopes.QualifiedName{Scope: scope, Name: accessListName}.String(),
 		Name:       memberName,
 	}, scope)
 	require.NoError(t, err)
@@ -440,7 +441,7 @@ func getAccessListNames(t *testing.T, r io.Reader) []string {
 	lists := mustDecodeJSON[[]*accesslist.AccessList](t, r)
 	names := make([]string, 0, len(lists))
 	for _, list := range lists {
-		names = append(names, scopes.QualifiedName{Scope: list.GetScope(), Name: list.GetName()}.String())
+		names = append(names, apiscopes.QualifiedName{Scope: list.GetScope(), Name: list.GetName()}.String())
 	}
 	return names
 }

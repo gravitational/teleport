@@ -29,6 +29,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -537,7 +538,7 @@ func TestJoinKubernetes(t *testing.T) {
 			t.Run("scoped join", func(t *testing.T) {
 				secret, _ := tt.provisionToken.GetSecret()
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:       scopes.QualifiedName{Scope: tt.provisionToken.GetScope(), Name: tt.provisionToken.GetName()}.String(),
+					Token:       apiscopes.QualifiedName{Scope: tt.provisionToken.GetScope(), Name: tt.provisionToken.GetName()}.String(),
 					TokenSecret: secret,
 					JoinMethod:  types.JoinMethodKubernetes,
 					ID: state.IdentityID{

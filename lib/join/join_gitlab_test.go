@@ -29,6 +29,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -547,7 +548,7 @@ func TestJoinGitlab(t *testing.T) {
 				require.NoError(t, err)
 
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:      scopes.QualifiedName{Scope: scoped.GetScope(), Name: scoped.GetMetadata().GetName()}.String(),
+					Token:      apiscopes.QualifiedName{Scope: scoped.GetScope(), Name: scoped.GetMetadata().GetName()}.String(),
 					JoinMethod: types.JoinMethodGitLab,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
@@ -640,7 +641,7 @@ func TestJoinGitlabCIBot(t *testing.T) {
 
 		// Join the bot by referring to the scoped token by scope and name.
 		result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-			Token:      scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+			Token:      apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 			JoinMethod: types.JoinMethodGitLab,
 			ID: state.IdentityID{
 				Role: types.RoleBot,
@@ -705,7 +706,7 @@ func TestJoinGitlabCIBot(t *testing.T) {
 
 		// Join the bot by referring to the scoped token by scope and name.
 		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-			Token:      scopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
+			Token:      apiscopes.QualifiedName{Scope: nonMatchingToken.GetScope(), Name: nonMatchingToken.GetMetadata().GetName()}.String(),
 			JoinMethod: types.JoinMethodGitLab,
 			ID: state.IdentityID{
 				Role: types.RoleBot,

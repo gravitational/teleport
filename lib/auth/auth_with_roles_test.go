@@ -68,6 +68,7 @@ import (
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1483,7 +1484,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				User: user1.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 						Scope: scope,
 					}.Build(),
 				},
@@ -6125,7 +6126,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: scope,
 						}.Build(),
 					},
@@ -10145,7 +10146,7 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scope, Name: roleName}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scope, Name: roleName}.String(),
 						Scope: scope,
 					}.Build(),
 				},
@@ -13376,7 +13377,7 @@ func TestScopedRoleEvents(t *testing.T) {
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+					Role:  apiscopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
 				}.Build(),
 			},
@@ -14582,7 +14583,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopedRole.GetScope(), Name: scopedRole.GetMetadata().GetName()}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopedRole.GetScope(), Name: scopedRole.GetMetadata().GetName()}.String(),
 						Scope: scope,
 					}.Build(),
 				},

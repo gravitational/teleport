@@ -32,6 +32,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/join/jointest"
@@ -2276,7 +2277,7 @@ func TestValidateTokenForUse(t *testing.T) {
 	}))
 
 	// validation should succeed for bot role even if agent scope pins are disabled
-	token.GetSpec().SetBot(scopes.QualifiedName{
+	token.GetSpec().SetBot(apiscopes.QualifiedName{
 		Scope: token.GetSpec().GetAssignedScope(),
 		Name:  "bot-name",
 	}.String())

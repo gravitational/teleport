@@ -35,6 +35,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -156,7 +157,7 @@ func testScopedRoleEvents(t *testing.T) {
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  scopes.QualifiedName{Scope: "/", Name: role.GetMetadata().GetName()}.String(),
+					Role:  apiscopes.QualifiedName{Scope: "/", Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
 				}.Build(),
 			},
@@ -1100,13 +1101,13 @@ func TestScopedAccessRanging(t *testing.T) {
 	// the given scope. Root cannot be used as an assignable scope or scope of effect, so it gets a
 	// non-root descendant instead.
 	assignableFor := func(scope string) []string {
-		if scope == scopes.Root {
+		if scope == apiscopes.Root {
 			return []string{"/subscope"}
 		}
 		return []string{scope}
 	}
 	effectFor := func(scope string) string {
-		if scope == scopes.Root {
+		if scope == apiscopes.Root {
 			return "/subscope"
 		}
 		return scope

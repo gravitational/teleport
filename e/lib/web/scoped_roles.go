@@ -10,9 +10,9 @@ import (
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web"
 )

@@ -36,6 +36,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/wait"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -451,11 +452,11 @@ func TestTerraformJoinScoped(t *testing.T) {
 		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  scopes.QualifiedName{Name: testBotRole, Scope: testRootScope}.String(),
+					Role:  apiscopes.QualifiedName{Name: testBotRole, Scope: testRootScope}.String(),
 					Scope: testRootScope,
 				}.Build(),
 			},
-			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Bot: apiscopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
@@ -516,7 +517,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
 			}.Build(),
-			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Bot:   apiscopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 			Roles: []string{string(types.RoleBot)},
 		}.Build(),
 	}.Build()
@@ -560,7 +561,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 			kubernetes_token_path = %q
 			scoped = true
 		}
-	`, tt.addr, scopes.QualifiedName{Scope: testRootScope, Name: testTokenName}.String(), types.JoinMethodKubernetes, tokenPath)
+	`, tt.addr, apiscopes.QualifiedName{Scope: testRootScope, Name: testTokenName}.String(), types.JoinMethodKubernetes, tokenPath)
 
 			terraformProvider := provider.New()
 			terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

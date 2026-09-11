@@ -34,6 +34,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/authz"
@@ -182,8 +183,8 @@ func TestScopedJoiningService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, secondPage.GetTokens(), 1)
 		require.NotEqual(t,
-			scopes.QualifiedName{Scope: firstPage.GetTokens()[0].GetScope(), Name: firstPage.GetTokens()[0].GetMetadata().GetName()},
-			scopes.QualifiedName{Scope: secondPage.GetTokens()[0].GetScope(), Name: secondPage.GetTokens()[0].GetMetadata().GetName()},
+			apiscopes.QualifiedName{Scope: firstPage.GetTokens()[0].GetScope(), Name: firstPage.GetTokens()[0].GetMetadata().GetName()},
+			apiscopes.QualifiedName{Scope: secondPage.GetTokens()[0].GetScope(), Name: secondPage.GetTokens()[0].GetMetadata().GetName()},
 		)
 
 		// list tokens while filtering their resource scope

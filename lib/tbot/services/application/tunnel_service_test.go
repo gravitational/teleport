@@ -46,6 +46,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -502,7 +503,7 @@ func TestE2E_ScopedApplicationTunnelService(t *testing.T) {
 			TunnelServiceBuilder(
 				&TunnelConfig{
 					Listener: botListener,
-					AppName:  scopes.QualifiedName{Scope: childScopeName, Name: appName}.String(),
+					AppName:  apiscopes.QualifiedName{Scope: childScopeName, Name: appName}.String(),
 				},
 				connCfg,
 				bot.DefaultCredentialLifetime,
@@ -575,7 +576,7 @@ func makeScopedBot(
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Bot:        apiscopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 						InitialPublicKey: botPublicKey,
@@ -597,10 +598,10 @@ func makeScopedBot(
 			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Bot: apiscopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(),
+						Role:  apiscopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(),
 						Scope: scopeName,
 					}.Build(),
 				},
@@ -620,7 +621,7 @@ func makeScopedBot(
 	}, 10*time.Second, 100*time.Millisecond)
 
 	return &onboarding.Config{
-		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
+		TokenValue: apiscopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodBoundKeypair,
 		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 			StaticPrivateKeyPath: botKeyPath,
@@ -662,7 +663,7 @@ func makeScopedAppAgent(
 	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	agentCfg.Hostname = appName + "-agent"
 	agentCfg.DataDir = t.TempDir()
-	agentCfg.SetToken(scopes.QualifiedName{
+	agentCfg.SetToken(apiscopes.QualifiedName{
 		Scope: scopeName,
 		Name:  jointoken.EncodeScopedToken(tokenResp.GetToken().GetMetadata().GetName(), tokenResp.GetToken().GetStatus().GetSecret()),
 	}.String())

@@ -53,6 +53,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1507,7 +1508,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
+				Bot: apiscopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
 				},
@@ -1567,7 +1568,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
+			Bot:        apiscopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{
@@ -1586,7 +1587,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token:      scopes.QualifiedName{Scope: "/test", Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:      apiscopes.QualifiedName{Scope: "/test", Name: scopedToken.GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
 			Role: types.RoleBot,

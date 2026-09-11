@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -263,7 +264,7 @@ func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, page
 // GetResource returns a resource, if it exists, for the given scope-qualified name.
 // If the scope is empty, it returns an unscoped resource from the unscoped key range.
 // If the scope is non-empty, it returns a scoped resource from the scoped key range.
-func (s *ScopeAwareService[T]) GetResource(ctx context.Context, scopedName scopes.QualifiedName) (T, error) {
+func (s *ScopeAwareService[T]) GetResource(ctx context.Context, scopedName apiscopes.QualifiedName) (T, error) {
 	svc, err := s.WithScopePrefix(scopedName.Scope)
 	if err != nil {
 		var nul T
@@ -275,7 +276,7 @@ func (s *ScopeAwareService[T]) GetResource(ctx context.Context, scopedName scope
 // DeleteResource deletes a resource for the given scope-qualified name.
 // If the scope is empty, it deletes an unscoped resource from the unscoped key range.
 // If the scope is non-empty, it deletes a scoped resource from the scoped key range.
-func (s *ScopeAwareService[T]) DeleteResource(ctx context.Context, scopedName scopes.QualifiedName) error {
+func (s *ScopeAwareService[T]) DeleteResource(ctx context.Context, scopedName apiscopes.QualifiedName) error {
 	svc, err := s.WithScopePrefix(scopedName.Scope)
 	if err != nil {
 		return trace.Wrap(err)
@@ -379,7 +380,7 @@ func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error
 //
 // This may be appropriate for dependent resources keyed by a unique scoped
 // resource, i.e. members of a scoped access list.
-func (s *ScopeAwareService[T]) WithScopedResourcePrefix(scopedName scopes.QualifiedName) (*Service[T], error) {
+func (s *ScopeAwareService[T]) WithScopedResourcePrefix(scopedName apiscopes.QualifiedName) (*Service[T], error) {
 	if scopedName.Scope == "" {
 		if s.scopedOnly {
 			return nil, trace.BadParameter("scoped-only storage service received an empty scope")

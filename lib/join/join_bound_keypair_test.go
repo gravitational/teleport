@@ -44,6 +44,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -1901,7 +1902,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
+			Bot:        apiscopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 				Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 					InitialPublicKey: correctPublicKey,
@@ -1927,7 +1928,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Perform the first join.
 	joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -1964,7 +1965,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 		evt, err := lastEvent(ctx, srv.Auth(), srv.Auth().GetClock(), events.BotJoinEvent)
 		require.NoError(t, err)
 
-		sqn, err := scopes.ParseQualifiedName(scopedToken.GetSpec().GetBot())
+		sqn, err := apiscopes.ParseQualifiedName(scopedToken.GetSpec().GetBot())
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(
 			&apievents.BotJoin{
@@ -2041,7 +2042,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.NoError(t, err)
 
 	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -2068,7 +2069,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Now, discard those certs and attempt a recovery.
 	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -2099,7 +2100,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	// Try once more - should hit a limit.
 	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
+		Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: scopedToken.GetMetadata().GetName()}.String(),
 		TokenSecret: scopedToken.GetStatus().GetSecret(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,

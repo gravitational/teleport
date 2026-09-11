@@ -29,6 +29,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -152,7 +153,7 @@ func CreateScopedBot(t testing.TB, authServer *auth.Server, botName string) stri
 	require.NoError(t, err)
 
 	// Create a scoped role assignment for the bot.
-	qualifiedBotName := scopes.QualifiedName{Scope: scope, Name: botName}.String()
+	qualifiedBotName := apiscopes.QualifiedName{Scope: scope, Name: botName}.String()
 	resp, err := authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
