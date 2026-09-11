@@ -19,10 +19,13 @@ package grpcproxy
 import (
 	"context"
 	"log/slog"
+	"net"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/peer"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/grpcproxy/clientaddr"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
@@ -63,6 +66,10 @@ type Service struct {
 // CreatePairedDeviceEnrollToken forwards the request to the same RPC in the
 // Auth Service.
 func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
+	ctx, err := clientAddrContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	res, err := s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
 	return res, trace.Wrap(err)
 }
@@ -72,8 +79,27 @@ func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *public
 func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
 	err := grpcutils.ProxyBidiStream(s.log, stream,
 		func(ctx context.Context) (publicdevicepb.DeviceTrustService_EnrollDeviceClient, error) {
+			ctx, err := clientAddrContext(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			server, err := s.authClient.PublicDevicesClient().EnrollDevice(ctx)
 			return server, trace.Wrap(err)
 		})
 	return trace.Wrap(err)
+}
+
+// clientAddrContext returns ctx with the address of the calling client set as
+// the forwarded client address for the Auth Service. See [clientaddr.Header].
+func clientAddrContext(ctx context.Context) (context.Context, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok || p.Addr == nil {
+		return nil, trace.Errorf("client address unavailable")
+	}
+	tcpAddr, ok := p.Addr.(*net.TCPAddr)
+	if !ok {
+		return nil, trace.Errorf("client address %v (%T) is not a TCP address", p.Addr, p.Addr)
+	}
+	return clientaddr.WithOutgoingContext(ctx, tcpAddr), nil
 }
