@@ -24,6 +24,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"net"
 	"time"
 
@@ -138,7 +139,10 @@ func New(opts ...Opt) (*E, error) {
 
 	// Start.
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		// s.Stop may run before this goroutine is scheduled when a test finishes
+		// quickly. Serve then returns ErrServerStopped, which is a clean shutdown
+		// rather than a failure.
+		if err := s.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			panic(err)
 		}
 	}()
