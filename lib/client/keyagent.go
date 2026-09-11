@@ -150,11 +150,17 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
 		a.log.DebugContext(context.Background(), "Connecting to the system agent")
+		// Check whether the system agent is reachable
+		// and close the connection right away
 		systemAgent, err := sshagent.NewSystemAgentClient()
 		if err != nil {
 			a.log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
 		} else {
-			a.systemAgent = systemAgent
+			if err := systemAgent.Close(); err != nil {
+				a.log.DebugContext(context.Background(), "Failed to close connection to system agent", "error", err)
+			}
+			// Build a client that connects to the system agent for each request.
+			a.systemAgent = sshagent.NewSingleRequestClient(sshagent.NewSystemAgentClient)
 		}
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
