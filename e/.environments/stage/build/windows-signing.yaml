@@ -7,3 +7,5 @@ WINDOWSAUTH_UNSIGNED_BUCKET: tp-603330915152-us-west-2-windowsauth-unsigned-stag
 # DLLs returned by Microsoft. Prod is the only environment that can submit, so
 # this bucket receives the prod signed artifacts by replication.
 WINDOWSAUTH_SIGNED_BUCKET: tp-603330915152-us-west-2-windowsauth-signed-stage
+# Pinned Microsoft-signed DLLs and metadata consumed by release builds.
+WINDOWSAUTH_RELEASES_BUCKET: tp-603330915152-us-west-2-windowsauth-releases-stage

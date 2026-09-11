@@ -1609,6 +1609,7 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
 tag-build: MANAGED_UPDATES_SIGNING_KEY ?= primary
+tag-build: WINDOWSAUTH_BUILD_MODE ?= pinned
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1618,7 +1619,8 @@ tag-build:
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
 		-f "environment=$(ENVIRONMENT)" \
-		-f "managed-updates-signing-key=$(MANAGED_UPDATES_SIGNING_KEY)"
+		-f "managed-updates-signing-key=$(MANAGED_UPDATES_SIGNING_KEY)" \
+		-f "windowsauth-build-mode=$(WINDOWSAUTH_BUILD_MODE)"
 	@echo See runs at: https://github.com/gravitational/core/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.

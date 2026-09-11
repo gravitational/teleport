@@ -6,3 +6,5 @@ WINDOWS_SIGNING_ROLE_ARN: arn:aws:iam::146628656107:role/windows-signing-build-p
 WINDOWSAUTH_UNSIGNED_BUCKET: tp-146628656107-us-west-2-windowsauth-unsigned-prod
 # DLLs returned by Microsoft, uploaded by hand. Read by release builds.
 WINDOWSAUTH_SIGNED_BUCKET: tp-146628656107-us-west-2-windowsauth-signed-prod
+# Pinned Microsoft-signed DLLs and metadata consumed by release builds.
+WINDOWSAUTH_RELEASES_BUCKET: tp-146628656107-us-west-2-windowsauth-releases-prod

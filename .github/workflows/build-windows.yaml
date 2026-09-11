@@ -22,6 +22,11 @@ on:
         description: "Environment to build and upload the package to"
         type: string
         required: true
+      windowsauth-build-mode:
+        description: "How to obtain the windowsauth DLL: 'pinned' (consume the pinned, Microsoft-signed release) or 'source' (build from source, not LSA-capable)"
+        type: string
+        required: false
+        default: pinned
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -38,6 +43,10 @@ on:
       environment:
         type: string
         required: true
+      windowsauth-build-mode:
+        type: string
+        required: false
+        default: pinned
 
 jobs:
   build:
@@ -65,6 +74,25 @@ jobs:
           environment-name: ${{ inputs.environment }}
           value-sets: windows-signing
           environments-directory: e/.environments
+      - name: Assume AWS S3 artifact download role (windowsauth release read)
+        if: ${{ inputs.windowsauth-build-mode == 'pinned' }}
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "build-windows-windowsauth-release-${{ github.run_number }}"
+          role-duration-seconds: 900
+      # This must run and finish before the code signing role is assumed below,
+      # so the KMS-signing credentials used by every Invoke-SignBinary call in
+      # Build-Artifacts are never clobbered by this S3-scoped role.
+      - name: Fetch pinned windowsauth DLL
+        if: ${{ inputs.windowsauth-build-mode == 'pinned' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          . "build.assets/windows/build.ps1"
+          Get-PinnedWindowsAuthDLL -TeleportSourceDirectory "$(Get-Location)" -Bucket "$env:WINDOWSAUTH_RELEASES_BUCKET" -ReleasePrefix "prod"
       # TODO move this to an action in the share-workflows repo
       - name: Install Ubuntu WSL
         run: |
@@ -302,6 +330,8 @@ jobs:
       - name: Build the artifacts
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-version }}
+          BUILD_ENVIRONMENT: ${{ inputs.environment }}
+          WINDOWSAUTH_BUILD_MODE: ${{ inputs.windowsauth-build-mode }}
         run: |
           $ProgressPreference = 'SilentlyContinue'
           $ErrorActionPreference = 'Stop'
@@ -309,7 +339,8 @@ jobs:
           . "build.assets/windows/build.ps1"
           Install-BuildRequirements -InstallDirectory "C:\toolchains" -TeleportSourceDirectory "$(Get-Location)"
           Write-Version-Objects -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG"
-          Build-Artifacts -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
+          Build-Artifacts -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY" `
+            -WindowsAuthBuildMode "$env:WINDOWSAUTH_BUILD_MODE" -Environment "$env:BUILD_ENVIRONMENT"
       - name: Get the release server CLI
         env:
           RELCLI_URL: 'https://cdn.teleport.dev/relcli-${{ env.RELCLI_VERSION }}-windows.exe'

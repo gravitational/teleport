@@ -14,10 +14,9 @@ endif
 
 # Linking with IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY makes Windows verify the
 # image signature before loading the DLL. The Microsoft-signed DLL needs it to
-# load into a protected LSA, but an *unsigned* DLL carrying it does not load at
-# all -- and the DLL shipped in the installer today is unsigned. So this stays
-# off for the release build and is turned on only by the cab target, which
-# builds the DLL that gets submitted for signing.
+# load into a protected LSA. Source builds produce an unsigned DLL, and an
+# unsigned DLL carrying this flag does not load at all, so source builds leave it
+# off. The cab target turns it on for the DLL submitted to Microsoft.
 FORCE_INTEGRITY ?= no
 
 ifeq ($(FORCE_INTEGRITY),yes)
@@ -84,6 +83,12 @@ $(CAB): test installer/teleport.dll
 	cd installer && go run ./cmd/checkintegrity teleport.dll
 	powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path build | Out-Null"
 	makecab /F teleport-auth-package.ddf /D CabinetNameTemplate=$(notdir $(CAB))
+
+.PHONY: installer-exe
+installer-exe:
+	@test -f installer/teleport.dll || { echo "installer/teleport.dll not found - place a pre-built DLL there first"; exit 1; }
+	cd installer && \
+	$(GO_FLAGS) go build -trimpath -ldflags "-s -w" -o "../$(INSTALLER)" .
 
 .PHONY: lint
 lint:

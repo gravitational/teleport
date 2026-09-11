@@ -36,6 +36,14 @@ on:
         type: string
         default: primary
 
+      windowsauth-build-mode:
+        description: |
+          How to obtain the windowsauth DLL: `pinned` (consume the pinned,
+          Microsoft-signed release) or `source` (build from source, not
+          LSA-capable -- for ad hoc developer iteration only).
+        type: string
+        default: pinned
+
   # The workflow_call event duplicates the workflow_dispatch input parameters, without descriptions.
   workflow_call:
     inputs:
@@ -55,6 +63,9 @@ on:
       managed-updates-signing-key:
         type: string
         default: primary
+      windowsauth-build-mode:
+        type: string
+        default: pinned
 
 jobs:
   setup:
@@ -188,6 +199,7 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       artifact-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
+      windowsauth-build-mode: ${{ inputs.windowsauth-build-mode }}
 
   build-updater:
     name: Build Teleport Updater
