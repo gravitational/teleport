@@ -203,18 +203,57 @@ type KubernetesOnboardingConfig struct {
 // GenericOIDCOnboardingConfig contains configuration relevant to the
 // `generic_oidc` join method.
 type GenericOIDCOnboardingConfig struct {
-	// Env is the name of the environment variable containing a JWT. Cannot be
-	// set if `command` is set.
+	// Env is the name of the environment variable containing a JWT.
+	// Exactly one of Env, Command, or HTTPRequest must be set.
 	Env string `yaml:"env,omitempty"`
 
 	// Command is the command to run and its arguments. The executable is the
-	// first element, followed by optional arguments. Cannot be set if `env` is
-	// set.
+	// first element, followed by optional arguments.
+	// Exactly one of Env, Command, or HTTPRequest must be set.
 	Command []string `yaml:"command,omitempty"`
 
-	// Timeout is the maximum amount of time to wait for this command to
-	// complete before giving up, after which the join attempt fails.
+	// Timeout is the maximum amount of time to wait for the command or HTTP request to complete before the join attempt fails.
+	// Defaults to 1 minute.
 	Timeout time.Duration `yaml:"timeout,omitempty"`
+
+	// HTTPRequest contains the parameters to obtain a JWT from an HTTP endpoint.
+	// Exactly one of Env, Command, or HTTPRequest must be set.
+	HTTPRequest GenericOIDCHTTPRequestParams `yaml:"http_request,omitempty"`
+}
+
+// GenericOIDCHTTPRequestParams configures fetching a JWT from an HTTP endpoint.
+type GenericOIDCHTTPRequestParams struct {
+	// Request describes the HTTP request to make.
+	Request GenericOIDCHTTPRequest `yaml:"request,omitempty"`
+
+	// Result describes how the JWT is extracted from the response.
+	Result GenericOIDCHTTPResult `yaml:"result,omitempty"`
+}
+
+// GenericOIDCHTTPRequest describes the HTTP request made to obtain a JWT.
+type GenericOIDCHTTPRequest struct {
+	// Method is the HTTP method to use. Defaults to GET.
+	Method string `yaml:"method,omitempty"`
+
+	// URL is the endpoint to request.
+	URL string `yaml:"url,omitempty"`
+
+	// QueryParams are added to the URL's query string, overriding any existing parameters with the same names.
+	QueryParams map[string]string `yaml:"query_params,omitempty"`
+
+	// Headers are the HTTP headers to include in the request.
+	Headers map[string]string `yaml:"headers,omitempty"`
+
+	// InsecureAllowHTTP permits HTTP requests to hosts outside the built-in allowlist.
+	// Defaults to false.
+	InsecureAllowHTTP bool `yaml:"insecure_allow_http,omitempty"`
+}
+
+// GenericOIDCHTTPResult describes how the JWT is extracted from the HTTP response.
+type GenericOIDCHTTPResult struct {
+	// JSONPath selects the JWT from a JSON response, for example $.id_token.
+	// If unset, the whole response body is used as the JWT.
+	JSONPath string `yaml:"json_path,omitempty"`
 }
 
 // Config contains values relevant to how the bot authenticates with

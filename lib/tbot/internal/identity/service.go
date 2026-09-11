@@ -43,6 +43,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -820,10 +821,23 @@ func botIdentityFromToken(
 	case types.JoinMethodKubernetes:
 		params.KubernetesTokenPath = cfg.Onboarding.Kubernetes.TokenPath
 	case types.JoinMethodGenericOIDC:
+		httpRequest := cfg.Onboarding.GenericOIDC.HTTPRequest
 		params.GenericOIDCParams = join.GenericOIDCParams{
 			EnvVarName: cfg.Onboarding.GenericOIDC.Env,
 			Command:    cfg.Onboarding.GenericOIDC.Command,
 			Timeout:    cfg.Onboarding.GenericOIDC.Timeout,
+			HTTPRequest: genericoidc.JWTFromHTTPEndpointParams{
+				Request: genericoidc.HTTPRequestParams{
+					Method:            httpRequest.Request.Method,
+					URL:               httpRequest.Request.URL,
+					QueryParams:       httpRequest.Request.QueryParams,
+					Headers:           httpRequest.Request.Headers,
+					InsecureAllowHTTP: httpRequest.Request.InsecureAllowHTTP,
+				},
+				Result: genericoidc.ResponseExtractParams{
+					JSONPath: httpRequest.Result.JSONPath,
+				},
+			},
 		}
 	}
 
