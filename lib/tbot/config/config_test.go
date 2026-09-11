@@ -77,6 +77,81 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "127.0.0.1:1337", cfg.DiagAddr)
 }
 
+func TestReadConfig_GenericOIDCHTTP(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		yaml string
+		want onboarding.GenericOIDCOnboardingConfig
+	}{
+		{
+			name: "HTTP defaults",
+			yaml: `    http_request:
+      request:
+        url: https://issuer.example.com/token
+`,
+			want: onboarding.GenericOIDCOnboardingConfig{
+				HTTPRequest: onboarding.GenericOIDCHTTPRequestParams{
+					Request: onboarding.GenericOIDCHTTPRequest{
+						URL: "https://issuer.example.com/token",
+					},
+				},
+			},
+		},
+		{
+			name: "HTTP options",
+			yaml: `    timeout: 15s
+    http_request:
+      request:
+        method: POST
+        url: http://issuer.example.com/token
+        query_params:
+          audience: teleport
+        headers:
+          Metadata: "true"
+        insecure_allow_http: true
+      result:
+        json_path: $.id_token
+`,
+			want: onboarding.GenericOIDCOnboardingConfig{
+				Timeout: 15 * time.Second,
+				HTTPRequest: onboarding.GenericOIDCHTTPRequestParams{
+					Request: onboarding.GenericOIDCHTTPRequest{
+						Method:            "POST",
+						URL:               "http://issuer.example.com/token",
+						QueryParams:       map[string]string{"audience": "teleport"},
+						Headers:           map[string]string{"Metadata": "true"},
+						InsecureAllowHTTP: true,
+					},
+					Result: onboarding.GenericOIDCHTTPResult{JSONPath: "$.id_token"},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(`version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: generic_oidc
+  token: example-bot
+  generic_oidc:
+`+tt.yaml), false)
+			require.NoError(t, err)
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			require.Equal(t, types.JoinMethodGenericOIDC, cfg.Onboarding.JoinMethod)
+			require.Equal(t, tt.want, cfg.Onboarding.GenericOIDC)
+
+			// Config generation must preserve the source and all its options.
+			encoded, err := yaml.Marshal(cfg)
+			require.NoError(t, err)
+			decoded, err := ReadConfig(bytes.NewReader(encoded), false)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, decoded.Onboarding.GenericOIDC)
+		})
+	}
+}
+
 func TestLoadTokenFromFile(t *testing.T) {
 	tokenDir := t.TempDir()
 	tokenFile := filepath.Join(tokenDir, "token")

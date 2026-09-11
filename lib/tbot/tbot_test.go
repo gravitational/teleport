@@ -32,6 +32,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/user"
@@ -88,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
@@ -235,6 +237,109 @@ func defaultBotConfig(
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
 	return cfg
+}
+
+func TestBotGenericOIDCHTTP(t *testing.T) {
+	t.Parallel()
+
+	log := logtest.NewLogger()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, rootClient.Close()) })
+
+	const (
+		audience = "teleport"
+		subject  = "test-bot"
+	)
+	idp, err := fakeissuer.NewIDP(log)
+	require.NoError(t, err)
+	t.Cleanup(idp.Close)
+
+	now := time.Now()
+	idToken, err := idp.IssueToken(idp.IssuerURL(), audience, subject, now.Add(-time.Minute), now.Add(time.Hour), nil)
+	require.NoError(t, err)
+
+	claims, err := types.NewStructFromGoValues(map[string]any{"sub": subject})
+	require.NoError(t, err)
+
+	onboard, botResource := makeBot(t, rootClient, "oidc-bot")
+	token, err := types.NewProvisionTokenFromSpec("oidc-token", now.Add(time.Hour), types.ProvisionTokenSpecV2{
+		Roles:      []types.SystemRole{types.RoleBot},
+		BotName:    botResource.GetMetadata().GetName(),
+		JoinMethod: types.JoinMethodGenericOIDC,
+		GenericOIDC: &types.ProvisionTokenSpecV2GenericOIDC{
+			Issuer:                  idp.IssuerURL(),
+			Audience:                audience,
+			MustMatchFields:         claims,
+			InsecureAllowHTTPIssuer: true,
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, rootClient.CreateToken(t.Context(), token))
+	onboard.JoinMethod = types.JoinMethodGenericOIDC
+	onboard.TokenValue = token.GetName()
+
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/error" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body := idToken
+		if r.URL.Path == "/json" {
+			body = fmt.Sprintf(`{"id_token": %q}`, idToken)
+		}
+		_, err := io.WriteString(w, body)
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(endpoint.Close)
+
+	for _, tt := range []struct {
+		name     string
+		path     string
+		jsonPath string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "raw JWT",
+			path:     "/raw",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "JSON JWT",
+			path:     "/json",
+			jsonPath: "$.id_token",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "HTTP failure",
+			path:     "/error",
+			errCheck: require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := defaultBotConfig(t, process, onboard, nil, defaultBotConfigOpts{useAuthServer: true})
+			cfg.Onboarding.GenericOIDC.HTTPRequest = onboarding.GenericOIDCHTTPRequestParams{
+				Request: onboarding.GenericOIDCHTTPRequest{URL: endpoint.URL + tt.path},
+				Result:  onboarding.GenericOIDCHTTPResult{JSONPath: tt.jsonPath},
+			}
+
+			b := New(cfg, log)
+			err := b.Run(t.Context())
+			tt.errCheck(t, err)
+			if err == nil {
+				require.Equal(t, botResource.GetStatus().GetUserName(), b.getBotIdentity().TLSIdentity.Username)
+			}
+		})
+	}
 }
 
 // TestBot is a one-shot run of the bot that communicates with a stood up
