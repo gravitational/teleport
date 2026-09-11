@@ -23,6 +23,8 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -37,6 +39,7 @@ import (
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	grpcinterceptors "github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/grpcproxy/clientaddr"
 )
 
@@ -224,8 +227,57 @@ func TestService_EnrollDevice(t *testing.T) {
 
 		stream, err := client.EnrollDevice(t.Context())
 		require.NoError(t, err)
+		// The proxy opens the Auth Service stream only once the init message has
+		// arrived, so the error cannot reach the client before it is sent.
+		require.NoError(t, stream.Send(publicdevicepb.EnrollDeviceRequest_builder{
+			Init: publicdevicepb.EnrollDeviceInit_builder{Token: "enroll-token"}.Build(),
+		}.Build()))
 		_, err = stream.Recv()
 		assert.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	})
+
+	t.Run("ends a stream whose client never sends init", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			fake := &fakeAuthService{}
+			client := newProxyClient(t, fake)
+
+			start := time.Now()
+			stream, err := client.EnrollDevice(t.Context())
+			require.NoError(t, err)
+
+			_, err = recvWithTimeout(t, stream, devicetrust.PublicEnrollDeviceProxyTimeout+time.Minute)
+			assert.ErrorIs(t, err, errEnrollDeviceFirstMessageTimeout)
+			assert.Equal(t, devicetrust.PublicEnrollDeviceFirstMessageTimeout, time.Since(start))
+		})
+	})
+
+	t.Run("ends a stream the auth service never ends", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			fake := &fakeAuthService{}
+			client := newProxyClient(t, fake)
+
+			start := time.Now()
+			stream, err := client.EnrollDevice(t.Context())
+			require.NoError(t, err)
+			require.NoError(t, stream.Send(publicdevicepb.EnrollDeviceRequest_builder{
+				Init: publicdevicepb.EnrollDeviceInit_builder{
+					Token: "enroll-token",
+					DeviceData: devicepb.DeviceCollectedData_builder{
+						OsType:       devicepb.OSType_OS_TYPE_IOS,
+						SerialNumber: "CXXXXXXXXX01",
+					}.Build(),
+				}.Build(),
+			}.Build()))
+			resp, err := stream.Recv()
+			require.NoError(t, err)
+			require.NotNil(t, resp.GetIosChallenge())
+
+			// The client stalls and the fake Auth Service has no timeout of its
+			// own, so the proxy's stream timeout is what ends the RPC.
+			_, err = recvWithTimeout(t, stream, devicetrust.PublicEnrollDeviceProxyTimeout+time.Minute)
+			assert.ErrorIs(t, err, errEnrollDeviceProxyTimeout)
+			assert.Equal(t, devicetrust.PublicEnrollDeviceProxyTimeout, time.Since(start))
+		})
 	})
 }
 
@@ -413,3 +465,27 @@ type remoteAddrConn struct {
 }
 
 func (c *remoteAddrConn) RemoteAddr() net.Addr { return c.remote }
+
+// recvWithTimeout receives from stream in a goroutine and fails the test if
+// nothing arrives within timeout, so that a proxy that never ends the stream
+// fails the test instead of hanging it. Meant for synctest bubbles, where the
+// timeout costs no wall time.
+func recvWithTimeout(t *testing.T, stream publicdevicepb.DeviceTrustService_EnrollDeviceClient, timeout time.Duration) (*publicdevicepb.EnrollDeviceResponse, error) {
+	t.Helper()
+	type result struct {
+		resp *publicdevicepb.EnrollDeviceResponse
+		err  error
+	}
+	resCh := make(chan result, 1)
+	go func() {
+		resp, err := stream.Recv()
+		resCh <- result{resp: resp, err: err}
+	}()
+	select {
+	case res := <-resCh:
+		return res.resp, res.err
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for the proxy to end the stream")
+		return nil, nil
+	}
+}

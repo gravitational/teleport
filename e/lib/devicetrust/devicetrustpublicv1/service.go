@@ -628,19 +628,7 @@ var errEnrollDeviceUnavailable = &trace.ConnectionProblemError{Message: "device 
 // caller knows it cannot just repeat the request.
 var errEnrollDeviceFailed = &trace.CompareFailedError{Message: "device enrollment failed, request a new enrollment token"}
 
-// enrollDeviceTimeout bounds the whole EnrollDevice stream, from the handler
-// entry to the last Send. The caller is unauthenticated until the init message
-// arrives, so nothing else stops a client that opens a stream and goes silent
-// from holding an Auth Service handler, and the Proxy Service stream in front
-// of it, until it disconnects. The ceremony is two round trips, so a healthy
-// client finishes well within the timeout.
-//
-// TODO(ravicious): Replace with rate limiting and stream deadlines proper.
-// Perhaps the timeout pre-Init should be different once a response to Init is
-// sent? https://github.com/gravitational/teleport.e/issues/9346
-const enrollDeviceTimeout = time.Minute
-
-// errEnrollDeviceTimeout ends a stream that outlived [enrollDeviceTimeout].
+// errEnrollDeviceTimeout ends a stream that outlived [dtoss.PublicEnrollDeviceTimeout].
 // It is a LimitExceededError to signal that the caller ran into a limit imposed
 // by the service.
 var errEnrollDeviceTimeout = &trace.LimitExceededError{Message: "device enrollment timed out"}
@@ -659,7 +647,7 @@ var mobileOSTypes = []devicepb.OSType{
 // the handler resolves the token's user, reruns authorization on their behalf
 // and only then lets the ceremony from the private service spend the token.
 func (s *Service) EnrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_EnrollDeviceServer) error {
-	return runWithStreamTimeout(stream, enrollDeviceTimeout, errEnrollDeviceTimeout, s.enrollDevice)
+	return runWithStreamTimeout(stream, dtoss.PublicEnrollDeviceTimeout, errEnrollDeviceTimeout, s.enrollDevice)
 }
 
 func (s *Service) enrollDevice(stream devicetrustpublicv1pb.DeviceTrustService_EnrollDeviceServer) error {

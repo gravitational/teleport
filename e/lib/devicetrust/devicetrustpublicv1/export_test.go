@@ -1,7 +1,6 @@
 package devicetrustpublicv1
 
 const EnrollPairingApprovalTimeout = enrollPairingApprovalTimeout
-const EnrollDeviceTimeout = enrollDeviceTimeout
 
 var ErrPairingClaimed = errPairingClaimed
 var ErrInvalidPairingToken = errInvalidPairingToken

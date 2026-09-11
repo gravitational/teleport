@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/peer"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/grpcproxy/clientaddr"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
@@ -74,6 +75,17 @@ func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *public
 	return res, trace.Wrap(err)
 }
 
+// errEnrollDeviceFirstMessageTimeout ends a stream whose client sent no init
+// message within [devicetrust.PublicEnrollDeviceFirstMessageTimeout]. It is a
+// LimitExceededError because the caller ran into a limit the server imposes on
+// the stream, rather than just a regular exceeded deadline.
+var errEnrollDeviceFirstMessageTimeout = &trace.LimitExceededError{Message: "device enrollment timed out waiting for the init message"}
+
+// errEnrollDeviceProxyTimeout ends a stream that outlived
+// [devicetrust.PublicEnrollDeviceProxyTimeout]. See
+// [errEnrollDeviceFirstMessageTimeout] for the choice of error type.
+var errEnrollDeviceProxyTimeout = &trace.LimitExceededError{Message: "device enrollment timed out on the proxy"}
+
 // EnrollDevice forwards the enrollment ceremony stream to the same RPC in the
 // Auth Service.
 func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
@@ -86,7 +98,10 @@ func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDe
 
 			server, err := s.authClient.PublicDevicesClient().EnrollDevice(ctx)
 			return server, trace.Wrap(err)
-		})
+		},
+		grpcutils.WithFirstClientMessageTimeout(devicetrust.PublicEnrollDeviceFirstMessageTimeout, errEnrollDeviceFirstMessageTimeout),
+		grpcutils.WithStreamTimeout(devicetrust.PublicEnrollDeviceProxyTimeout, errEnrollDeviceProxyTimeout),
+	)
 	return trace.Wrap(err)
 }
 

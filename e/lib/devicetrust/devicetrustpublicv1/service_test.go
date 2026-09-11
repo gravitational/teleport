@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	osstestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1208,8 +1209,8 @@ func TestService_EnrollDevice_timeout(t *testing.T) {
 		select {
 		case err := <-errCh:
 			assertErrorIsAndEqual(t, err, devicetrustpublicv1.ErrEnrollDeviceTimeout)
-			assert.Equal(t, devicetrustpublicv1.EnrollDeviceTimeout, time.Since(start))
-		case <-time.After(devicetrustpublicv1.EnrollDeviceTimeout + time.Minute):
+			assert.Equal(t, dtoss.PublicEnrollDeviceTimeout, time.Since(start))
+		case <-time.After(dtoss.PublicEnrollDeviceTimeout + time.Minute):
 			t.Fatal("timed out waiting for EnrollDevice to end the stream")
 		}
 	}

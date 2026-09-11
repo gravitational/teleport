@@ -22,10 +22,13 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -227,21 +230,47 @@ func TestProxyBidiStream_ReturnsEOFWhenServerReturnsEarly(t *testing.T) {
 // a ResourceExhausted status error; the handler must propagate it.
 func TestProxyBidiStream_SurfacesClientRecvError(t *testing.T) {
 	t.Parallel()
-	_, fakeServerSvcClient := newFakeServerSvc(t)
 
-	lis := bufconn.Listen(1024)
-	newProxyService(t, lis, fakeServerSvcClient, grpc.MaxRecvMsgSize(64))
+	for _, tc := range []struct {
+		name      string
+		proxyOpts []grpcutils.ProxyBidiStreamOption
+		// wantDials is how many server streams the proxy opened. With a first
+		// message timeout the failing Recv is the one that waits for the first
+		// message, which happens before the proxy dials the server.
+		wantDials int32
+	}{
+		{
+			name:      "no first message timeout",
+			wantDials: 1,
+		},
+		{
+			name: "first message timeout",
+			proxyOpts: []grpcutils.ProxyBidiStreamOption{
+				grpcutils.WithFirstClientMessageTimeout(time.Minute, trace.LimitExceeded("no first message")),
+			},
+			wantDials: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, fakeServerSvcClient := newFakeServerSvc(t)
 
-	client := newProxyServiceClient(t, lis)
-	stream, err := client.ConnectToDesktop(t.Context())
-	require.NoError(t, err)
+			lis := bufconn.Listen(1024)
+			proxySvc := newProxyServiceWithOpts(t, lis, fakeServerSvcClient, tc.proxyOpts, grpc.MaxRecvMsgSize(64))
 
-	// Send a message larger than the proxy's MaxRecvMsgSize.
-	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte(strings.Repeat("x", 256))}.Build())
-	require.NoError(t, err)
+			client := newProxyServiceClient(t, lis)
+			stream, err := client.ConnectToDesktop(t.Context())
+			require.NoError(t, err)
 
-	_, err = stream.Recv()
-	require.ErrorContains(t, err, "larger than max")
+			// Send a message larger than the proxy's MaxRecvMsgSize.
+			err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte(strings.Repeat("x", 256))}.Build())
+			require.NoError(t, err)
+
+			_, err = stream.Recv()
+			assert.ErrorContains(t, err, "larger than max")
+			assert.Equal(t, tc.wantDials, proxySvc.dials.Load())
+		})
+	}
 }
 
 // TestProxyBidiStream_SurfacesServerSendError asserts that when server.Send on
@@ -282,45 +311,231 @@ func TestProxyBidiStream_SurfacesServerSendError(t *testing.T) {
 // response headers and trailers back to the client.
 func TestProxyBidiStream_ForwardsMetadata(t *testing.T) {
 	t.Parallel()
-	service, fakeServerSvcClient := newFakeServerSvc(t)
-	service.echoMetadata = true
 
-	lis := bufconn.Listen(1024)
-	newProxyService(t, lis, fakeServerSvcClient)
+	for _, tc := range []struct {
+		name      string
+		proxyOpts []grpcutils.ProxyBidiStreamOption
+	}{
+		{name: "no first message timeout"},
+		{
+			// With a first message timeout the proxy dials the server only once
+			// the first message has arrived. The metadata attached to the call
+			// must survive that.
+			name: "first message timeout",
+			proxyOpts: []grpcutils.ProxyBidiStreamOption{
+				grpcutils.WithFirstClientMessageTimeout(time.Minute, trace.LimitExceeded("no first message")),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			service, fakeServerSvcClient := newFakeServerSvc(t)
+			service.echoMetadata = true
 
-	// Short timeout so a hang (e.g. Header() never unblocks due to a regression)
-	// surfaces as a test failure rather than waiting out the default go-test timeout.
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	// Attach metadata to the outgoing call so the proxy can forward it upstream.
-	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-test-key", "test-value"))
+			lis := bufconn.Listen(1024)
+			newProxyServiceWithOpts(t, lis, fakeServerSvcClient, tc.proxyOpts)
 
-	client := newProxyServiceClient(t, lis)
-	stream, err := client.ConnectToDesktop(ctx)
-	require.NoError(t, err)
+			// Short timeout so a hang (e.g. Header() never unblocks due to a regression)
+			// surfaces as a test failure rather than waiting out the default go-test timeout.
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			// Attach metadata to the outgoing call so the proxy can forward it upstream.
+			ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-test-key", "test-value"))
 
-	err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
-	require.NoError(t, err)
+			client := newProxyServiceClient(t, lis)
+			stream, err := client.ConnectToDesktop(ctx)
+			require.NoError(t, err)
 
-	// Receive the server's first response; by this point the server has already
-	// called SendHeader so headers are available on the client stream.
-	_, err = stream.Recv()
-	require.NoError(t, err)
+			err = stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build())
+			require.NoError(t, err)
 
-	headers, err := stream.Header()
-	require.NoError(t, err)
-	require.Equal(t, []string{"test-value"}, headers.Get("x-test-key"),
-		"response headers not forwarded through proxy")
+			// Receive the server's first response; by this point the server has already
+			// called SendHeader so headers are available on the client stream.
+			_, err = stream.Recv()
+			require.NoError(t, err)
 
-	err = stream.CloseSend()
-	require.NoError(t, err)
+			headers, err := stream.Header()
+			require.NoError(t, err)
+			assert.Equal(t, []string{"test-value"}, headers.Get("x-test-key"),
+				"response headers not forwarded through proxy")
 
-	_, err = stream.Recv()
-	require.ErrorIs(t, err, io.EOF)
+			err = stream.CloseSend()
+			require.NoError(t, err)
 
-	trailers := stream.Trailer()
-	require.Equal(t, []string{"test-value"}, trailers.Get("x-test-key"),
-		"response trailers not forwarded through proxy")
+			_, err = stream.Recv()
+			assert.ErrorIs(t, err, io.EOF)
+
+			trailers := stream.Trailer()
+			assert.Equal(t, []string{"test-value"}, trailers.Get("x-test-key"),
+				"response trailers not forwarded through proxy")
+		})
+	}
+}
+
+// TestProxyBidiStream_StreamTimeout covers WithStreamTimeout: a client that
+// keeps the stream open past the timeout gets the configured error, and the
+// server stream is canceled so that its handler is released as well.
+func TestProxyBidiStream_StreamTimeout(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const streamTimeout = time.Minute
+		service, fakeServerSvcClient := newFakeServerSvc(t)
+		lis := bufconn.Listen(1024)
+		newProxyServiceWithOpts(t, lis, fakeServerSvcClient, []grpcutils.ProxyBidiStreamOption{
+			grpcutils.WithStreamTimeout(streamTimeout, trace.LimitExceeded("stream timed out")),
+		})
+		client := newProxyServiceClient(t, lis)
+
+		start := time.Now()
+		stream, err := client.ConnectToDesktop(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build()))
+		msg, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, []byte("ack"), msg.GetData())
+
+		// The client stalls with the stream open.
+		_, err = recvWithTimeout(t, stream, streamTimeout+time.Minute)
+		assert.ErrorContains(t, err, "stream timed out")
+		assert.Equal(t, streamTimeout, time.Since(start))
+
+		// The deadline ended the server stream as well, which fails the server
+		// handler's pending Recv.
+		synctest.Wait()
+		assert.Equal(t, int32(1), service.returned.Load())
+	})
+}
+
+// TestProxyBidiStream_StreamTimeoutClientNotReading covers WithStreamTimeout on
+// a client that stops reading. The proxy's Send to that client blocks on flow
+// control once the client's window is full, so the deadline cannot surface
+// through the forwarding goroutines and the handler has to observe it itself.
+func TestProxyBidiStream_StreamTimeoutClientNotReading(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const streamTimeout = time.Minute
+		service, fakeServerSvcClient := newFakeServerSvc(t)
+		// 256 KiB in total, twice what the client's window and the proxy's send
+		// queue absorb together.
+		service.largeResponses = 16
+		lis := bufconn.Listen(1024)
+		proxySvc := newProxyServiceWithOpts(t, lis, fakeServerSvcClient, []grpcutils.ProxyBidiStreamOption{
+			grpcutils.WithStreamTimeout(streamTimeout, trace.LimitExceeded("stream timed out")),
+		})
+		// A static window keeps gRPC from growing it as responses arrive, which
+		// would make the point at which Send blocks depend on timing.
+		client := newProxyServiceClient(t, lis, grpc.WithStaticStreamWindowSize(64*1024))
+
+		stream, err := client.ConnectToDesktop(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build()))
+
+		// The client never reads. Right before the timeout the handler is still
+		// running, at the timeout it has returned.
+		time.Sleep(streamTimeout - time.Nanosecond)
+		synctest.Wait()
+		require.Zero(t, proxySvc.returned.Load())
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		require.Equal(t, int32(1), proxySvc.returned.Load(), "the proxy handler did not return at the stream timeout")
+
+		// Once the client reads again, it drains what the proxy managed to send
+		// and then gets the timeout error.
+		for err == nil {
+			_, err = stream.Recv()
+		}
+		assert.ErrorContains(t, err, "stream timed out")
+	})
+}
+
+// TestProxyBidiStream_FirstClientMessageTimeout covers
+// WithFirstClientMessageTimeout on a client that opens a stream and sends
+// nothing.
+func TestProxyBidiStream_FirstClientMessageTimeout(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const firstMessageTimeout = 10 * time.Second
+		service, fakeServerSvcClient := newFakeServerSvc(t)
+		lis := bufconn.Listen(1024)
+		proxySvc := newProxyServiceWithOpts(t, lis, fakeServerSvcClient, []grpcutils.ProxyBidiStreamOption{
+			grpcutils.WithFirstClientMessageTimeout(firstMessageTimeout, trace.LimitExceeded("no first message")),
+		})
+		client := newProxyServiceClient(t, lis)
+
+		start := time.Now()
+		stream, err := client.ConnectToDesktop(t.Context())
+		require.NoError(t, err)
+
+		_, err = recvWithTimeout(t, stream, firstMessageTimeout+time.Minute)
+		assert.ErrorContains(t, err, "no first message")
+		assert.Equal(t, firstMessageTimeout, time.Since(start))
+
+		synctest.Wait()
+		assert.Equal(t, int32(0), proxySvc.dials.Load(), "server must not be dialed before the first message")
+		assert.Equal(t, int32(0), service.returned.Load())
+	})
+}
+
+// TestProxyBidiStream_FirstClientMessageInTime checks that a first message that
+// arrives in time is forwarded, and that the first message timeout is over once
+// it has. The stream should stay usable well past it.
+func TestProxyBidiStream_FirstClientMessageInTime(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const firstMessageTimeout = 10 * time.Second
+		_, fakeServerSvcClient := newFakeServerSvc(t)
+		lis := bufconn.Listen(1024)
+		proxySvc := newProxyServiceWithOpts(t, lis, fakeServerSvcClient, []grpcutils.ProxyBidiStreamOption{
+			grpcutils.WithFirstClientMessageTimeout(firstMessageTimeout, trace.LimitExceeded("no first message")),
+		})
+		client := newProxyServiceClient(t, lis)
+
+		stream, err := client.ConnectToDesktop(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("hello")}.Build()))
+		msg, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, []byte("ack"), msg.GetData())
+		assert.Equal(t, int32(1), proxySvc.dials.Load())
+
+		// Well past the first message timeout the stream still works.
+		time.Sleep(2 * firstMessageTimeout)
+		require.NoError(t,
+			stream.Send(teletermv1.ConnectToDesktopRequest_builder{Data: []byte("again")}.Build()),
+			"expected the stream to stay usable past the first message timeout")
+		msg, err = stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, []byte("ack"), msg.GetData())
+
+		require.NoError(t, stream.CloseSend())
+		_, err = stream.Recv()
+		assert.ErrorIs(t, err, io.EOF)
+	})
+}
+
+// TestProxyBidiStream_HalfCloseBeforeFirstMessage checks that with a first
+// message timeout, a client that half-closes without sending anything still
+// gets the server's verdict: the proxy dials the server, which sees io.EOF, and
+// its terminal error reaches the client.
+func TestProxyBidiStream_HalfCloseBeforeFirstMessage(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		service, fakeServerSvcClient := newFakeServerSvc(t)
+		service.postClientEOFErr = trace.BadParameter("nothing uploaded")
+		lis := bufconn.Listen(1024)
+		proxySvc := newProxyServiceWithOpts(t, lis, fakeServerSvcClient, []grpcutils.ProxyBidiStreamOption{
+			grpcutils.WithFirstClientMessageTimeout(10*time.Second, trace.LimitExceeded("no first message")),
+		})
+		client := newProxyServiceClient(t, lis)
+
+		stream, err := client.ConnectToDesktop(t.Context())
+		require.NoError(t, err)
+		require.NoError(t, stream.CloseSend())
+
+		_, err = recvWithTimeout(t, stream, time.Minute)
+		assert.ErrorContains(t, err, "nothing uploaded")
+		assert.Equal(t, int32(1), proxySvc.dials.Load())
+	})
 }
 
 func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerSvc, teletermv1.TerminalServiceClient) {
@@ -342,6 +557,7 @@ func newFakeServerSvc(t *testing.T, clientOpts ...grpc.DialOption) (*fakeServerS
 	}, clientOpts...)
 	client, err := grpc.NewClient("passthrough:///bufconn", opts...)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	return service, teletermv1.NewTerminalServiceClient(client)
 }
@@ -364,6 +580,18 @@ type fakeServerSvc struct {
 	// from the stream context and echo it back as both response headers and
 	// trailers. Used to verify the proxy forwards metadata in both directions.
 	echoMetadata bool
+
+	// returned counts ConnectToDesktop calls that have returned, so that tests
+	// can check that the proxy releases the server handler when it ends a stream
+	// on its own.
+	returned atomic.Int32
+
+	// largeResponses, if positive, makes ConnectToDesktop answer each request
+	// with this many 16 KiB responses instead of the ack. Once a client that
+	// stopped reading has 64 KiB of them in its flow control window and the
+	// proxy has queued another 64 KiB for that stream, the proxy's Send to that
+	// client blocks.
+	largeResponses int
 }
 
 // ConnectToDesktop does NOT implement the semantics of the real
@@ -374,8 +602,9 @@ type fakeServerSvc struct {
 // Contract used by the tests:
 //   - Every request must populate data with a non-empty payload. An empty data
 //     triggers a trace.BadParameter return.
-//   - Every response carries data = "ack".
+//   - Every response carries data = "ack", unless largeResponses is set.
 func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_ConnectToDesktopServer) error {
+	defer f.returned.Add(1)
 	if f.echoMetadata {
 		if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 			stream.SetTrailer(md)
@@ -398,6 +627,15 @@ func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_Conne
 		if len(req.GetData()) == 0 {
 			return trace.BadParameter("empty data")
 		}
+		if f.largeResponses > 0 {
+			data := make([]byte, 16*1024)
+			for range f.largeResponses {
+				if err := stream.Send(teletermv1.ConnectToDesktopResponse_builder{Data: data}.Build()); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			continue
+		}
 		if err := stream.Send(teletermv1.ConnectToDesktopResponse_builder{Data: []byte("ack")}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
@@ -413,12 +651,23 @@ func (f *fakeServerSvc) ConnectToDesktop(stream teletermv1.TerminalService_Conne
 // drive specific fault scenarios.
 func newProxyService(t *testing.T, lis net.Listener, client teletermv1.TerminalServiceClient, opts ...grpc.ServerOption) {
 	t.Helper()
+	newProxyServiceWithOpts(t, lis, client, nil, opts...)
+}
+
+// newProxyServiceWithOpts is newProxyService with ProxyBidiStream options, for
+// the tests that exercise them. It returns the service so that tests can read
+// its counters.
+func newProxyServiceWithOpts(t *testing.T, lis net.Listener, client teletermv1.TerminalServiceClient,
+	proxyOpts []grpcutils.ProxyBidiStreamOption, opts ...grpc.ServerOption,
+) *proxyService {
+	t.Helper()
 
 	s := grpc.NewServer(opts...)
 	t.Cleanup(s.GracefulStop)
 
 	proxySvc := &proxyService{
 		serverSvcClient: client,
+		opts:            proxyOpts,
 	}
 
 	teletermv1.RegisterTerminalServiceServer(s, proxySvc)
@@ -427,12 +676,20 @@ func newProxyService(t *testing.T, lis net.Listener, client teletermv1.TerminalS
 		err := s.Serve(lis)
 		require.NoError(t, err)
 	}()
+	return proxySvc
 }
 
 type proxyService struct {
 	teletermv1.UnimplementedTerminalServiceServer
 
 	serverSvcClient teletermv1.TerminalServiceClient
+	// opts are passed to every ProxyBidiStream call.
+	opts []grpcutils.ProxyBidiStreamOption
+	// dials counts the server streams the proxy opened.
+	dials atomic.Int32
+	// returned counts ConnectToDesktop calls that have returned, for tests whose
+	// client cannot observe the end of the stream.
+	returned atomic.Int32
 }
 
 // ConnectToDesktop forwards every client request (whose data is non-empty by
@@ -447,24 +704,53 @@ type proxyService struct {
 // server from getServer goes from the proxy to the server. From that point of
 // view, the proxy is a client of the server.
 func (p *proxyService) ConnectToDesktop(client teletermv1.TerminalService_ConnectToDesktopServer) error {
+	defer p.returned.Add(1)
 	getServer := func(ctx context.Context) (teletermv1.TerminalService_ConnectToDesktopClient, error) {
+		p.dials.Add(1)
 		return p.serverSvcClient.ConnectToDesktop(ctx)
 	}
-	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer)
+	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer, p.opts...)
 	return trace.Wrap(err)
 }
 
-func newProxyServiceClient(t *testing.T, lis *bufconn.Listener) teletermv1.TerminalServiceClient {
+func newProxyServiceClient(t *testing.T, lis *bufconn.Listener, opts ...grpc.DialOption) teletermv1.TerminalServiceClient {
 	t.Helper()
 	clientConn, err := grpc.NewClient(
 		"passthrough:///bufconn",
-		grpc.WithContextDialer(
-			func(ctx context.Context, _ string) (net.Conn, error) {
-				return lis.DialContext(ctx)
-			},
-		),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		append([]grpc.DialOption{
+			grpc.WithContextDialer(
+				func(ctx context.Context, _ string) (net.Conn, error) {
+					return lis.DialContext(ctx)
+				},
+			),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		}, opts...)...,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = clientConn.Close() })
 	return teletermv1.NewTerminalServiceClient(clientConn)
+}
+
+// recvWithTimeout receives from stream in a goroutine and fails the test if
+// nothing arrives within timeout, so that a proxy that never ends the stream
+// fails the test instead of hanging it. Meant for synctest bubbles, where the
+// timeout costs no wall time.
+func recvWithTimeout(t *testing.T, stream teletermv1.TerminalService_ConnectToDesktopClient, timeout time.Duration) (*teletermv1.ConnectToDesktopResponse, error) {
+	t.Helper()
+	type result struct {
+		msg *teletermv1.ConnectToDesktopResponse
+		err error
+	}
+	resCh := make(chan result, 1)
+	go func() {
+		msg, err := stream.Recv()
+		resCh <- result{msg: msg, err: err}
+	}()
+	select {
+	case res := <-resCh:
+		return res.msg, res.err
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for the proxy to end the stream")
+		return nil, nil
+	}
 }
