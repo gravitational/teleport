@@ -56,7 +56,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	clt := newFakeClient()
 	clt.setRandomFlake(randomFlake)
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	var exportedMu sync.Mutex
 	var exported []*auditlogpb.ExportEventUnstructured
@@ -242,7 +242,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	clt := newFakeClient()
 	clt.setRandomFlake(randomFlake)
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	// export via unbuffered channel so that we can easily block/unblock export from
 	// the main test routine.
