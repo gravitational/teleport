@@ -16,7 +16,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -1414,45 +1413,50 @@ func TestS_RunOnce_continuesPastUnconvertiblePage(t *testing.T) {
 // exits too.
 func TestS_RunOnce_noGoroutineLeakOnStreamError(t *testing.T) {
 	t.Parallel()
-
-	env := testenv.NewUsingT(t, &testenv.Opts{
-		DeviceTrustEnv: true,
-	})
-
-	// The consumer reads a single page before the mocked stream error, so the
-	// producer only has to outrun the channel buffer to end up parked on a send
-	// forever (the leak this test guards against). Syncing one device per page,
-	// ten devices is comfortably more than devicesC can buffer.
-	const numDevices = 10
-	jamfDevs := make([]*jamf.ComputerInventory, 0, numDevices)
-	for i := 1; i <= numDevices; i++ {
-		jamfDevs = append(jamfDevs, &jamf.ComputerInventory{
-			ID:   strconv.Itoa(i),
-			UDID: strconv.Itoa(i),
-			General: &jamf.ComputerGeneralSection{
-				Platform:   "Mac",
-				ReportDate: time.Unix(int64(i), 0),
-			},
-			Hardware: &jamf.ComputerHardwareSection{
-				SerialNumber: fmt.Sprintf("C%011d", i),
-			},
+	synctest.Test(t, func(t *testing.T) {
+		env := testenv.NewUsingT(t, &testenv.Opts{
+			DeviceTrustEnv: true,
+			InMemory:       true,
 		})
-	}
-	env.API.SetInventory(jamfDevs)
 
-	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-		opts.DevicesClient = failingDevicesClient{DeviceTrustServiceClient: opts.DevicesClient}
+		// The consumer reads a single page before the mocked stream error, so the
+		// producer only has to outrun the channel buffer to end up parked on a send
+		// forever (the leak this test guards against). Syncing one device per page,
+		// ten devices is comfortably more than devicesC can buffer.
+		const numDevices = 10
+		jamfDevs := make([]*jamf.ComputerInventory, 0, numDevices)
+		for i := 1; i <= numDevices; i++ {
+			jamfDevs = append(jamfDevs, &jamf.ComputerInventory{
+				ID:   strconv.Itoa(i),
+				UDID: strconv.Itoa(i),
+				General: &jamf.ComputerGeneralSection{
+					Platform:   "Mac",
+					ReportDate: time.Unix(int64(i), 0),
+				},
+				Hardware: &jamf.ComputerHardwareSection{
+					SerialNumber: fmt.Sprintf("C%011d", i),
+				},
+			})
+		}
+		env.API.SetInventory(jamfDevs)
+
+		s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+			opts.DevicesClient = failingDevicesClient{DeviceTrustServiceClient: opts.DevicesClient}
+		})
+
+		// A leaked producer parks on a devicesC send until its context is canceled.
+		// The bubble cancels t.Context before running cleanups, which would let the
+		// leak slip by, so use a context that outlives the bubble instead. synctest
+		// then reports the parked goroutine as a deadlock.
+		_, err := s.RunOnce(context.Background(), jamfservice.RunSpec{
+			Mode:       mdmsync.SyncModeFull,
+			DeviceType: types.JamfDeviceTypeComputers,
+			PageSize:   1,
+		})
+		require.Error(t, err)
+
+		synctest.Wait()
 	})
-
-	// Snapshot goroutines after the env is up, so its servers aren't flagged.
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-
-	_, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
-		Mode:       mdmsync.SyncModeFull,
-		DeviceType: types.JamfDeviceTypeComputers,
-		PageSize:   1,
-	})
-	require.Error(t, err)
 }
 
 func clearDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient) {
@@ -1558,7 +1562,7 @@ func serviceFromEnv(t testing.TB, env *testenv.E, modifyOpts func(opts *jamfserv
 
 // failingSyncStream acks the initial sync request, then fails every subsequent
 // Recv. This drives RunOnce into its "devices: Recv" error return while the
-// producer goroutine is still reading pages from Jamf.
+// producer goroutine is parked on a devicesC send.
 type failingSyncStream struct {
 	grpc.BidiStreamingClient[devicepb.SyncInventoryRequest, devicepb.SyncInventoryResponse]
 	recvCount int
@@ -1575,6 +1579,9 @@ func (s *failingSyncStream) Recv() (*devicepb.SyncInventoryResponse, error) {
 			Ack: &devicepb.SyncInventoryAck{},
 		}.Build(), nil
 	}
+	// Let the producer run until it parks on the full devicesC, so the error
+	// below reaches RunOnce while the producer is blocked on a send.
+	synctest.Wait()
 	return nil, errors.New("simulated stream failure")
 }
 
