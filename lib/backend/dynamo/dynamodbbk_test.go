@@ -197,7 +197,7 @@ func TestDeleteRangeRetriesUnprocessedItems(t *testing.T) {
 			}
 		})
 
-		listener := bufconn.Listen(1024)
+		listener := bufconn.Listen(1024 * 1024)
 		server := &httptest.Server{
 			Listener: listenerAddrOverride{Listener: listener},
 			Config:   &http.Server{Handler: handler},
