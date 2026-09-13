@@ -63,7 +63,7 @@ it in a PowerShell console as a domain administrator.
 
 ## Option 2: Manual configuration
 
-### Step 1/7. Create a restrictive service account
+### Step 1/6. Create a restrictive service account
 
 Teleport requires a service account to connect to your Active Directory domain.
 You should create a dedicated service account with restrictive permissions
@@ -168,7 +168,7 @@ To create the service account:
 
 </Checkpoint>
 
-### Step 2/7. Prevent the service account from performing interactive logins
+### Step 2/6. Prevent the service account from performing interactive logins
 
 The next steps modify group policy objects (GPOs). Changes to group policies
 can take time to propagate to all hosts. You can force changes to take effect
@@ -221,7 +221,7 @@ logins.
   If you disable username and password authentication, only the Teleport virtual smart
   card can be used to access Windows computers in the domain.
 
-### Step 3/7. Configure a GPO to allow Teleport connections
+### Step 3/6. Configure a GPO to allow Teleport connections
 
 To enable access to Windows desktop sessions through Teleport, you must configure a
 group policy object that allows Windows computers to trust the Teleport certificate
@@ -492,93 +492,7 @@ the performance of remote desktop connections.
 
 </Checkpoint>
 
-### Step 4/7. Configure a certificate for RDP connections
-
-The Teleport RDP client requires secure cryptographic algorithms to make
-TLS connections. However, Windows Server 2012 R2 doesn't support these algorithms
-by default.
-
-You can configure Windows Server 2012 R2 to support the
-required algorithms by doing the following:
-
-- Create a new certificate template that uses elliptic curve cryptography.
-- Update the Teleport group policy object to use the new certificate template
-  when issuing certificates for remote desktop connections.
-
-If your hosts support the required algorithms, you can skip this step
-and go to [Export your LDAP CA certificate](#step-57-export-your-ldap-ca-certificate).
-
-#### Create a certificate template
-
-To create a certificate template that uses elliptic curve P-384 and SHA384 as the
-signature algorithm:
-
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
-
-1. Open your CA computer, right-click **Certificate Templates**, then select **Manage**.
-
-1. Select the *Computer* template, right-click, then select **Duplicate Template**.
-
-1. Select the **Compatibility** tab:
-
-   - Change **Certification Authority** to **Windows Server 2012 R2**, then click **OK**.
-   - Change **Certificate recipient** to **Windows Server 2012 R2**, then click **OK**.
-
-1. Select the **General** tab:
-
-   - Change **Template display name** to **RemoteDesktopAccess**.
-   - Verify that **Template name** is also **RemoteDesktopAccess**.
-
-1. Select the **Cryptography** tab:
-
-   - Change **Provider Category** to **Key Storage Provider**.
-   - Change **Algorithm name** to **ECDH_P384**.
-   - Change **Request hash** to **SHA384**.
-
-1. Select the **Extensions** tab:
-
-   - Select **Application Polices**, then click **Edit**.
-   - Remove all entries from the list.
-
-1. Select the **Security** tab:
-
-   - Select **Domain Computers** and give the group **Read** and **Enroll** permissions.
-
-1. Click **OK** to create the Template.
-
-1. Go back to the Certificate Authority console, right-click **Certificate Templates**.
-
-1. Click **New**, select **Certificate Template to Issue**, then select **RemoteDesktopAccess**.
-
-1. Click **OK**.
-
-#### Update GPO to use a new certificate template
-
-To update the Teleport group policy object to use the new certificate template:
-
-1. Open the `Teleport Access Policy` group policy object in the group policy editor.
-
-1. Expand **`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security`**.
-
-1. Right-click **Server authentication certificate template**, select **Edit**, select
-   **Enabled**, then set the Certificate Template Name to **RemoteDesktopAccess**.
-
-   ![RDP Certificate Template](../../../img/desktop-access/rdp-certificate-template.png)
-
-1. Expand Computer Configuration, Policies, and Windows Settings to select
-   **Public Key Policies**.
-
-1. Double-click **Certificate Services Client - Auto-Enrollment**, then select
-   **Enabled** in the Configuration Model.
-
-1. Open PowerShell and run the following command to update your Teleport
-   group policy object:
-
-   ```powershell
-   gpupdate.exe /force
-   ```
-
-### Step 5/7. Export your LDAP CA certificate
+### Step 4/6. Export your LDAP CA certificate
 
 Teleport connects to your domain controller using LDAPS. This means that you must
 let Teleport know that the certificate sent by your domain controller during the
@@ -605,7 +519,7 @@ To export a CA certificate:
    can either add this certificate to your system's trusted repository or
    provide the contents via the `ldap_ca_cert` configuration field.
 
-### Step 6/7. Configure Teleport
+### Step 5/6. Configure Teleport
 
 To configure Teleport to protect access to Windows desktops:
 
@@ -736,7 +650,7 @@ To configure Teleport to protect access to Windows desktops:
 
 </Checkpoint>
 
-### Step 7/7. Log in using Teleport
+### Step 6/6. Log in using Teleport
 
 Teleport users must have appropriate permissions to access remote Windows desktops.
 For example, you can create a role that gives its users access to all Windows
@@ -1022,7 +936,7 @@ in the external forest:
 - [Publish the Teleport CA to the Active Directory domain](#publish-the-teleport-ca-to-the-active-directory-domain)
 - [Publish the Teleport CA to the NTAuth Store](#publish-the-teleport-ca-to-the-ntauth-store)
 
-Additionally, repeat the ["Export your LDAP CA Certificate"](#step-57-export-your-ldap-ca-certificate) step for the domain in
+Additionally, repeat the ["Export your LDAP CA Certificate"](#step-46-export-your-ldap-ca-certificate) step for the domain in
 the external forest. Multiple CA certificates can be written to the `ldap_ca_cert` configuration field for the Teleport LDAPS client to trust.
 
   ```yaml
