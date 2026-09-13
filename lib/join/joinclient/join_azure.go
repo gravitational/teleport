@@ -63,20 +63,40 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	if imds == nil {
 		imds = azure.NewInstanceMetadataClient()
 	}
-	if !imds.IsAvailable(ctx) {
-		return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
-	}
-	ad, err := imds.GetAttestedData(ctx, challenge.Challenge)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting attested data document")
-	}
-	intermediate, err := getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting intermediate CA for attested data")
-	}
-	accessToken, err := imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting access token")
+
+	var (
+		ad           []byte
+		intermediate []byte
+		accessToken  string
+	)
+
+	if imds.IsAvailable(ctx) {
+		// Standard path: full IMDS is available (VMs, VMSS).
+		// Attempt to get the attested data document for nonce-based replay protection.
+		var attestErr error
+		ad, attestErr = imds.GetAttestedData(ctx, challenge.Challenge)
+		if attestErr != nil {
+			slog.InfoContext(ctx, "Attested data endpoint unavailable; falling back to token-only Azure join",
+				"error", attestErr)
+		} else {
+			intermediate, err = getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting intermediate CA for attested data")
+			}
+		}
+		accessToken, err = imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting access token")
+		}
+	} else {
+		// Token-only path: IMDS version discovery is not available (e.g. ACI,
+		// AKS) but the managed identity token endpoint may still be reachable.
+		slog.InfoContext(ctx, "Standard IMDS not available; attempting token-only Azure join (e.g. ACI, AKS)")
+		accessToken, err = imds.GetAccessTokenForIdentity(ctx, joinParams.AzureParams.ClientID)
+		if err != nil {
+			return nil, trace.AccessDenied("could not reach Azure instance metadata or managed identity endpoint. "+
+				"Is Teleport running on an Azure compute resource with a managed identity? error: %v", err)
+		}
 	}
 
 	if err := stream.Send(&messages.AzureChallengeSolution{

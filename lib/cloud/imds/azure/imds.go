@@ -277,7 +277,19 @@ func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, client
 	if !client.IsAvailable(ctx) {
 		return "", trace.NotFound("Instance metadata is not available")
 	}
+	return client.getAccessTokenDirect(ctx, clientID)
+}
 
+// GetAccessTokenForIdentity fetches an oauth2 access token from the managed
+// identity endpoint without requiring the standard IMDS version discovery to
+// succeed first. This is needed on compute types (e.g. Azure Container
+// Instances) where the /metadata/versions endpoint is unavailable but the
+// /metadata/identity/oauth2/token endpoint is still reachable.
+func (client *InstanceMetadataClient) GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error) {
+	return client.getAccessTokenDirect(ctx, clientID)
+}
+
+func (client *InstanceMetadataClient) getAccessTokenDirect(ctx context.Context, clientID string) (string, error) {
 	params := url.Values{"resource": []string{"https://management.azure.com/"}}
 	if clientID != "" {
 		params["client_id"] = []string{clientID}
