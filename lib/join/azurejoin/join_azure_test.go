@@ -1542,6 +1542,67 @@ func aksResourceID(subscription, resourceGroup, name string) string {
 	return resourceID("Microsoft.ContainerService/managedClusters", subscription, resourceGroup, name)
 }
 
+func TestVerifyTokenOnlyIssuedAt(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+
+	makeRawToken := func(issuedAt time.Time) string {
+		tok, err := makeToken("tenant", "tenant", "mirID", "", issuedAt)
+		require.NoError(t, err)
+		return tok
+	}
+
+	tests := []struct {
+		name        string
+		issuedAt    time.Time
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "token issued 1 second ago is accepted",
+			issuedAt:    now.Add(-1 * time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:        "token issued just within max age boundary is accepted",
+			issuedAt:    now.Add(-azurejoin.TokenOnlyMaxAge + 2*time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:     "token issued just beyond max age is rejected",
+			issuedAt: now.Add(-azurejoin.TokenOnlyMaxAge - time.Second),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+		{
+			name:     "token issued in the far past is rejected",
+			issuedAt: now.Add(-2 * time.Hour),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+		{
+			name:        "token with slight future IssuedAt (clock skew) is accepted",
+			issuedAt:    now.Add(10 * time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:     "token with large future IssuedAt is rejected",
+			issuedAt: now.Add(time.Minute),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tok := makeRawToken(tc.issuedAt)
+			err := azurejoin.VerifyTokenOnlyIssuedAt(tok, now)
+			tc.assertError(t, err)
+		})
+	}
+}
+
 type keypair struct {
 	key  crypto.Signer
 	cert *x509.Certificate

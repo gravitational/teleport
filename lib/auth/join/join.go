@@ -955,12 +955,18 @@ func registerUsingAzureMethod(
 
 		if imds.IsAvailable(ctx) {
 			// Standard path: VMs and VMSS. Attempt attested data for nonce-based
-			// replay protection; fall back to token-only if the endpoint is absent.
+			// replay protection; fall back to token-only only on 404 (endpoint
+			// absent). Other errors are propagated to prevent silent downgrade.
 			var attestErr error
 			ad, attestErr = imds.GetAttestedData(ctx, challenge)
-			if attestErr != nil {
-				log.InfoContext(ctx, "Attested data endpoint unavailable; falling back to token-only Azure join", "error", attestErr)
+			switch {
+			case attestErr == nil:
+				// ok
+			case trace.IsNotFound(attestErr):
+				log.InfoContext(ctx, "Attested data endpoint returned 404; using token-only Azure join path", "error", attestErr)
 				ad = nil
+			default:
+				return nil, trace.Wrap(attestErr, "getting attested data document")
 			}
 			var err error
 			accessToken, err = imds.GetAccessToken(ctx, params.AzureParams.ClientID)

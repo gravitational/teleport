@@ -73,16 +73,25 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	if imds.IsAvailable(ctx) {
 		// Standard path: full IMDS is available (VMs, VMSS).
 		// Attempt to get the attested data document for nonce-based replay protection.
-		var attestErr error
-		ad, attestErr = imds.GetAttestedData(ctx, challenge.Challenge)
-		if attestErr != nil {
-			slog.InfoContext(ctx, "Attested data endpoint unavailable; falling back to token-only Azure join",
-				"error", attestErr)
-		} else {
+		ad, err = imds.GetAttestedData(ctx, challenge.Challenge)
+		switch {
+		case err == nil:
+			// Attested data retrieved; also fetch the intermediate CA chain.
 			intermediate, err = getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
 			if err != nil {
 				return nil, trace.Wrap(err, "getting intermediate CA for attested data")
 			}
+		case trace.IsNotFound(err):
+			// The attested document endpoint returned 404 — this compute type
+			// (e.g. VMSS with certain configurations) does not expose it.
+			// Fall back to token-only. Any other error is propagated so that
+			// transient IMDS failures or access-denied responses are not silently
+			// downgraded, preventing a potential downgrade attack.
+			slog.InfoContext(ctx, "Attested data endpoint returned 404; using token-only Azure join path",
+				"error", err)
+			ad = nil
+		default:
+			return nil, trace.Wrap(err, "getting attested data document")
 		}
 		accessToken, err = imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
 		if err != nil {
