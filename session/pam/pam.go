@@ -33,6 +33,7 @@ package pam
 // extern struct pam_conv *make_pam_conv(int);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
 // extern int _pam_putenv(void *, pam_handle_t *, const char *);
+// extern int _pam_set_item(void *, pam_handle_t *, int, const void *);
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
@@ -397,6 +398,37 @@ func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 		// These would perform any extra authentication steps configured in the PAM
 		// stack, like per-session 2FA.
 		p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError()
+		}
+	}
+
+	// Describe the session before opening it.
+	//
+	// pam_systemd derives the logind session Type and Class from the PAM items.
+	// With neither PAM_TTY nor PAM_XDISPLAY set it registers the session as
+	// Type=unspecified and therefore Class=background, so tools that enumerate
+	// interactive user sessions through logind -- w(1), and who(1) on
+	// distributions that have dropped utmp -- do not report the session at all.
+	//
+	// TTYName is empty for a non-interactive request, which correctly leaves such
+	// a session classified as background.
+	if config.TTYName != "" {
+		pamTTY := C.CString(config.TTYName)
+		defer C.free(unsafe.Pointer(pamTTY))
+		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_TTY, unsafe.Pointer(pamTTY))
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError()
+		}
+	}
+
+	// PAM_RHOST lets modules that act on the origin of a session -- pam_access,
+	// for example -- see the client, and populates the remote host recorded for
+	// the logind session.
+	if config.RemoteHost != "" {
+		pamRHost := C.CString(config.RemoteHost)
+		defer C.free(unsafe.Pointer(pamRHost))
+		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RHOST, unsafe.Pointer(pamRHost))
 		if p.retval != C.PAM_SUCCESS {
 			return nil, p.codeToError()
 		}

@@ -426,10 +426,23 @@ func RunCommand() (exitErr error, err error) {
 	if c.PAMConfig != nil {
 		slog.DebugContext(ctx, "Opening PAM context")
 
+		// PAM_RHOST conventionally holds the host without the port.
+		remoteHost := c.ClientAddress
+		if host, _, err := net.SplitHostPort(remoteHost); err == nil {
+			remoteHost = host
+		}
+
 		cfg := &pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
+			// Describe where the session comes from, so that pam_systemd can
+			// classify it and modules which act on origin can see the client.
+			// Both values are already carried for auditd. TTYName is empty for a
+			// non-interactive request, which correctly leaves the logind session
+			// classified as a background one.
+			TTYName:    c.TerminalName,
+			RemoteHost: remoteHost,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
