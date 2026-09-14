@@ -27,7 +27,11 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
+	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -261,6 +265,76 @@ func TestX509KeyPair(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectCert, tlsCert, cmpopts.IgnoreFields(tls.Certificate{}, "Leaf")))
 		})
 	}
+}
+
+func TestX509KeyPairOptions(t *testing.T) {
+	hardwareKeyService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	signer, err := hardwareKeyService.NewPrivateKey(t.Context(), hardwarekey.PrivateKeyConfig{})
+	require.NoError(t, err)
+
+	keyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(t, err)
+	certPEM := testCertificatePEM(t, signer.Public())
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "proxy.example.com",
+		Username:    "user@example.com",
+		ClusterName: "cluster.example.com",
+	}
+
+	for _, tc := range []struct {
+		name string
+		load func(*testing.T, []byte, []byte) (tls.Certificate, error)
+	}{
+		{
+			name: "X509KeyPair",
+			load: func(_ *testing.T, certPEM, keyPEM []byte) (tls.Certificate, error) {
+				return keys.X509KeyPair(certPEM, keyPEM,
+					keys.WithHardwareKeyService(hardwareKeyService),
+					keys.WithContextualKeyInfo(contextualKeyInfo),
+				)
+			},
+		},
+		{
+			name: "LoadX509KeyPair",
+			load: func(t *testing.T, certPEM, keyPEM []byte) (tls.Certificate, error) {
+				dir := t.TempDir()
+				certPath := filepath.Join(dir, "cert.pem")
+				keyPath := filepath.Join(dir, "key.pem")
+				require.NoError(t, os.WriteFile(certPath, certPEM, 0o600))
+				require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o600))
+				return keys.LoadX509KeyPair(certPath, keyPath,
+					keys.WithHardwareKeyService(hardwareKeyService),
+					keys.WithContextualKeyInfo(contextualKeyInfo),
+				)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tlsCert, err := tc.load(t, certPEM, keyPEM)
+			require.NoError(t, err)
+
+			parsedSigner, ok := tlsCert.PrivateKey.(*hardwarekey.Signer)
+			require.True(t, ok)
+			require.Equal(t, contextualKeyInfo, parsedSigner.KeyInfo)
+			_, err = parsedSigner.Sign(rand.Reader, make([]byte, crypto.SHA256.Size()), crypto.SHA256)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func testCertificatePEM(t *testing.T, publicKey crypto.PublicKey) []byte {
+	t.Helper()
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now().Add(-time.Minute),
+		NotAfter:     time.Now().Add(time.Minute),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, caKey)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 }
 
 func TestX509Certificate(t *testing.T) {

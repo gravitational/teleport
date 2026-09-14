@@ -18,9 +18,11 @@ package client_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"path/filepath"
 	"testing"
 	"time"
@@ -29,6 +31,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -78,46 +83,82 @@ func TestCertChecker(t *testing.T) {
 }
 
 func TestLocalCertGenerator(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	certIssuer := newMockCertIssuer(t, clock)
-	certChecker := client.NewCertChecker(certIssuer, clock)
-	caPath := filepath.Join(t.TempDir(), "localca.pem")
+	for _, tt := range []struct {
+		name      string
+		newSigner func(context.Context) (crypto.Signer, error)
+	}{
+		{
+			name: "software key",
+			newSigner: func(context.Context) (crypto.Signer, error) {
+				return cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			},
+		},
+		{
+			name: "PIV key",
+			newSigner: func(ctx context.Context) (crypto.Signer, error) {
+				hwks := piv.NewYubiKeyService(nil /*prompt*/)
+				return hwks.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{})
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			clock := clockwork.NewFakeClock()
+			certIssuer := newMockCertIssuer(t, clock)
+			certIssuer.newSigner = tt.newSigner
+			certChecker := client.NewCertChecker(certIssuer, clock)
+			caPath := filepath.Join(t.TempDir(), "localca.pem")
 
-	localCertGenerator, err := client.NewLocalCertGenerator(ctx, certChecker, caPath)
-	require.NoError(t, err)
+			localCertGenerator, err := client.NewLocalCertGenerator(ctx, certChecker, caPath)
+			require.NoError(t, err)
 
-	// The cert generator should return the local CA cert for SNIs "localhost" or empty (plain ip).
-	caCert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
-		ServerName: "localhost",
-	})
-	require.NoError(t, err)
-	require.Equal(t, []string{"localhost"}, caCert.Leaf.DNSNames)
+			// The cert generator should return the local CA cert for SNIs "localhost" or empty (plain ip).
+			caCert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
+				ServerName: "localhost",
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"localhost"}, caCert.Leaf.DNSNames)
 
-	cert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
-		ServerName: "",
-	})
-	require.NoError(t, err)
-	require.Equal(t, caCert, cert)
+			cert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
+				ServerName: "",
+			})
+			require.NoError(t, err)
+			require.Equal(t, caCert, cert)
 
-	// The cert generator should issue new certs from the local CA for other SNIs.
-	exampleCert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
-		ServerName: "example.com",
-	})
-	require.NoError(t, err)
-	require.Equal(t, []string{"example.com"}, exampleCert.Leaf.DNSNames)
+			// The cert generator should issue new certs from the local CA for other SNIs.
+			exampleCert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
+				ServerName: "example.com",
+			})
+			require.NoError(t, err)
+			require.Equal(t, []string{"example.com"}, exampleCert.Leaf.DNSNames)
+			// Verify that the generated certificate is actually trusted by the local
+			// CA.
+			roots := x509.NewCertPool()
+			roots.AddCert(caCert.Leaf)
+			_, err = exampleCert.Leaf.Verify(x509.VerifyOptions{
+				Roots:       roots,
+				DNSName:     "example.com",
+				CurrentTime: caCert.Leaf.NotBefore,
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 type mockCertIssuer struct {
-	ca       *tlsca.CertAuthority
-	clock    clockwork.Clock
-	checkErr error
-	issueErr error
+	ca        *tlsca.CertAuthority
+	clock     clockwork.Clock
+	checkErr  error
+	issueErr  error
+	newSigner func(context.Context) (crypto.Signer, error)
 }
 
 func newMockCertIssuer(t *testing.T, clock clockwork.Clock) *mockCertIssuer {
 	certIssuer := &mockCertIssuer{
 		clock: clock,
+		newSigner: func(context.Context) (crypto.Signer, error) {
+			return cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		},
 	}
 
 	certIssuer.initCA(t)
@@ -152,13 +193,13 @@ func (c *mockCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error)
 		return tls.Certificate{}, trace.Wrap(c.issueErr)
 	}
 
-	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	signer, err := c.newSigner(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	certPem, err := c.ca.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: priv.Public(),
+		PublicKey: signer.Public(),
 		Subject: pkix.Name{
 			CommonName:   "user",
 			Organization: []string{"teleport"},
@@ -169,10 +210,58 @@ func (c *mockCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error)
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := tls.X509KeyPair(certPem, priv.PrivateKeyPEM())
+	tlsCert, err := keys.TLSCertificateForSigner(signer, certPem)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	return tlsCert, nil
+}
+
+// TestPIVKeyPEMParsing watches the watcher -- it demonistrates that
+// mockCertIssuer correctly produces a private key that points to a Yubikey when
+// the signer is a hardware key, causing tls.X509KeyPair to fail while
+// keys.X509KeyPair still works and therefore allows us to correctly verify
+// hardware key vs non-hardware key behavior.
+func TestPIVKeyPEMParsing(t *testing.T) {
+	ctx := t.Context()
+	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	signer, err := hwks.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{})
+	require.NoError(t, err)
+
+	certIssuer := newMockCertIssuer(t, clockwork.NewFakeClock())
+	certIssuer.newSigner = func(context.Context) (crypto.Signer, error) {
+		return signer, nil
+	}
+	tlsCert, err := certIssuer.IssueCert(ctx)
+	require.NoError(t, err)
+
+	keyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(t, err)
+	keyBlock, _ := pem.Decode(keyPEM)
+	require.NotNil(t, keyBlock)
+	// This proves our private key is a pointer to yubikey rather than actual
+	// private key material.
+	require.Equal(t, "PIV YUBIKEY PRIVATE KEY", keyBlock.Type)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsCert.Certificate[0],
+	})
+
+	// We expect an error here because the tls library cannot handle Yubikeys.
+	// This further demonstrates that the mock correctly simulates hardware keys.
+	_, err = tls.X509KeyPair(certPEM, keyPEM)
+	require.Error(t, err)
+
+	// This test does not error because the Teleport keys package can handle
+	// Yubikeys. This represents the correct way to acquire the cert. Note that
+	// users should always use keys.TLSCertificateForSigner() rather than
+	// keys.X509KeyPair() because the latter generates a new signer, which will
+	// prompt the user for an additional touch unnecessarily.
+	_, err = keys.TLSCertificateForSigner(signer, certPEM)
+	require.NoError(t, err)
+
+	_, err = keys.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
 }
