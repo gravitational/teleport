@@ -18,6 +18,8 @@
 
 package client
 
+import "github.com/gravitational/teleport/api/client/webclient"
+
 func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {
 	tc.dtAttemptLoginIgnorePing = val
 }
@@ -32,4 +34,8 @@ func (tc *TeleportClient) SetDTAuthnRunCeremony(fn DTAuthnRunCeremonyFunc) {
 
 func (tc *TeleportClient) SetDTAutoEnroll(fn DTAutoEnrollFunc) {
 	tc.DTAutoEnroll = fn
+}
+
+func (tc *TeleportClient) CanDefaultToPasswordless(pr *webclient.PingResponse) bool {
+	return tc.canDefaultToPasswordless(pr)
 }

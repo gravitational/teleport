@@ -43,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -71,6 +72,128 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestTeleportClientCanDefaultToPasswordless(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		configure  func(clt *client.TeleportClient, resp *webclient.PingResponse)
+		assertFunc func(t *testing.T, got bool, rpID, user string)
+	}{
+		{
+			name: "defaults to passwordless when platform credentials exist",
+			assertFunc: func(t *testing.T, got bool, rpID, user string) {
+				require.True(t, got)
+				require.Equal(t, "localhost", rpID)
+				require.Empty(t, user)
+			},
+		},
+		{
+			name: "passes explicitly set username when checking credentials",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.ExplicitUsername = true
+				tc.Username = "llama"
+			},
+			assertFunc: func(t *testing.T, got bool, rpID, user string) {
+				require.True(t, got)
+				require.Equal(t, "localhost", rpID)
+				require.Equal(t, "llama", user)
+			},
+		},
+		{
+			name: "does not default to passwordless when credentials are absent",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.HasTouchIDCredentialsFunc = func(_, _ string) bool { return false }
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "does not default to passwordless when passwordless is disabled",
+			configure: func(_ *client.TeleportClient, pr *webclient.PingResponse) {
+				pr.Auth.AllowPasswordless = false
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "does not default to passwordless without webauthn settings",
+			configure: func(_ *client.TeleportClient, pr *webclient.PingResponse) {
+				pr.Auth.Webauthn = nil
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "does not default to passwordless when a local connector is explicitly selected",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.AuthConnector = constants.LocalConnector
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "does not default to passwordless when OTP is preferred",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.PreferOTP = true
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "does not default to passwordless for cross-platform authenticators",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.False(t, got)
+			},
+		},
+		{
+			name: "defaults to passwordless for platform authenticators",
+			configure: func(tc *client.TeleportClient, _ *webclient.PingResponse) {
+				tc.AuthenticatorAttachment = wancli.AttachmentPlatform
+			},
+			assertFunc: func(t *testing.T, got bool, _, _ string) {
+				require.True(t, got)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pr := &webclient.PingResponse{
+				Auth: webclient.AuthenticationSettings{
+					AllowPasswordless: true,
+					Webauthn: &webclient.Webauthn{
+						RPID: "localhost",
+					},
+				},
+			}
+
+			var gotRPID, gotUser string
+			tc := &client.TeleportClient{
+				HasTouchIDCredentialsFunc: func(rpID, user string) bool {
+					gotRPID = rpID
+					gotUser = user
+					return true
+				},
+			}
+			if tt.configure != nil {
+				tt.configure(tc, pr)
+			}
+
+			got := tc.CanDefaultToPasswordless(pr)
+			tt.assertFunc(t, got, gotRPID, gotUser)
+		})
+	}
+}
 
 func TestTeleportClient_Login_local(t *testing.T) {
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
@@ -220,55 +343,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			},
 			makeSolveWebauthn: solvePwdless,
 			authConnector:     constants.PasswordlessConnector,
-		},
-		{
-			name: "default to passwordless if registered",
-			makeInputReader: func(_, _ string, _ clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader() // no inputs
-			},
-			makeSolveWebauthn:     solvePwdless,
-			hasTouchIDCredentials: true,
-		},
-		{
-			name: "cross-platform attachment doesn't default to passwordless",
-			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(func(ctx context.Context) (string, error) {
-						panic("this should not be called")
-					})
-			},
-			makeSolveWebauthn:       solveWebauthn,
-			hasTouchIDCredentials:   true,
-			authenticatorAttachment: wancli.AttachmentCrossPlatform,
-		},
-		{
-			name: "local connector doesn't default to passwordless",
-			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(func(ctx context.Context) (string, error) {
-						panic("this should not be called")
-					})
-			},
-			makeSolveWebauthn:     solveWebauthn,
-			authConnector:         constants.LocalConnector,
-			hasTouchIDCredentials: true,
-		},
-		{
-			name: "OTP preferred doesn't default to passwordless",
-			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(solveOTP(otpKey, clock))
-			},
-			makeSolveWebauthn: func(_ *mocku2f.Key, _ []byte) webauthnFunc {
-				return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-					panic("this should not be called")
-				}
-			},
-			preferOTP:             true,
-			hasTouchIDCredentials: true,
 		},
 		{
 			name: "scoped login",
