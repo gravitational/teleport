@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,18 +38,22 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
@@ -128,6 +133,7 @@ func withChallenge(challenge string) challengeResponseOption {
 type iamJoinTestCase struct {
 	desc                     string
 	authServer               *authtest.Server
+	auditLog                 *fakeAuditLog
 	tokenName                string
 	requestTokenName         string
 	tokenSpec                types.ProvisionTokenSpecV2
@@ -135,6 +141,90 @@ type iamJoinTestCase struct {
 	challengeResponseOptions []challengeResponseOption
 	challengeResponseErr     error
 	assertError              require.ErrorAssertionFunc
+}
+
+type fakeAuditLog struct {
+	*events.DiscardAuditLog
+	*eventstest.ChannelEmitter
+
+	mu                        sync.Mutex
+	wantJoinEventInstanceName apiscopes.QualifiedName
+	joinEventEmitted          chan struct{}
+}
+
+func newFakeAuditLog() *fakeAuditLog {
+	return &fakeAuditLog{
+		DiscardAuditLog: events.NewDiscardAuditLog(),
+		ChannelEmitter:  eventstest.NewChannelEmitter(100),
+	}
+}
+
+func (l *fakeAuditLog) notifyOnInstanceJoin(name apiscopes.QualifiedName) <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.wantJoinEventInstanceName = name
+	l.joinEventEmitted = make(chan struct{})
+	return l.joinEventEmitted
+}
+
+func (l *fakeAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if err := l.ChannelEmitter.EmitAuditEvent(ctx, event); err != nil {
+		return err
+	}
+
+	joinEvent, ok := event.(*apievents.InstanceJoin)
+	if !ok || joinEvent.Metadata.Type != events.InstanceJoinEvent {
+		return nil
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.joinEventEmitted != nil && joinEvent.NodeName == l.wantJoinEventInstanceName.Name && joinEvent.Scope == l.wantJoinEventInstanceName.Scope {
+		close(l.joinEventEmitted)
+		l.joinEventEmitted = nil
+	}
+	return nil
+}
+
+type closeSendWaitAuthClient struct {
+	authjoin.AuthJoinClient
+	waitFor <-chan struct{}
+}
+
+func (c closeSendWaitAuthClient) JoinV1Client() joinv1.JoinServiceClient {
+	return closeSendWaitJoinServiceClient{
+		JoinServiceClient: c.AuthJoinClient.JoinV1Client(),
+		waitFor:           c.waitFor,
+	}
+}
+
+type closeSendWaitJoinServiceClient struct {
+	joinv1.JoinServiceClient
+	waitFor <-chan struct{}
+}
+
+func (c closeSendWaitJoinServiceClient) Join(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[joinv1.JoinRequest, joinv1.JoinResponse], error) {
+	stream, err := c.JoinServiceClient.Join(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return closeSendWaitStream{
+		BidiStreamingClient: stream,
+		waitFor:             c.waitFor,
+	}, nil
+}
+
+type closeSendWaitStream struct {
+	grpc.BidiStreamingClient[joinv1.JoinRequest, joinv1.JoinResponse]
+	waitFor <-chan struct{}
+}
+
+func (s closeSendWaitStream) CloseSend() error {
+	if s.waitFor != nil {
+		<-s.waitFor
+	}
+	return s.BidiStreamingClient.CloseSend()
 }
 
 func TestJoinIAM(t *testing.T) {
@@ -179,6 +269,18 @@ func TestJoinIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
+
+	challengeResponseAuditLog := newFakeAuditLog()
+	challengeResponseServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:                          t.TempDir(),
+			AuditLog:                     challengeResponseAuditLog,
+			AWSOrganizationsClientGetter: organizationsClientGetter,
+			ScopesFeatures:               scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, challengeResponseServer.Shutdown(ctx)) })
 
 	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -564,7 +666,8 @@ func TestJoinIAM(t *testing.T) {
 		},
 		{
 			desc:             "challenge response error",
-			authServer:       regularServer,
+			authServer:       challengeResponseServer,
+			auditLog:         challengeResponseAuditLog,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -914,6 +1017,72 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 		return identityRequest.Bytes(), nil
 	}
 
+	const (
+		legacyNodeName = "test-node-legacy"
+		newNodeName    = "test-node-new"
+		scopedNodeName = "test-node-scoped"
+	)
+
+	cmpOpts := []cmp.Option{
+		protocmp.Transform(),
+		cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+			return key == "Time" || key == "ID" || key == "TokenExpires"
+		}),
+	}
+
+	requireInstanceJoinEvent := func(t *testing.T, want *apievents.InstanceJoin) {
+		t.Helper()
+
+		for {
+			select {
+			case evt := <-tc.auditLog.C():
+				if cmp.Equal(want, evt, cmpOpts...) {
+					return
+				}
+			default:
+				t.Fatalf("expected join event %v was never emitted", want)
+			}
+		}
+	}
+
+	challengeResponseErrEvent := func(sqn apiscopes.QualifiedName) *apievents.InstanceJoin {
+		return &apievents.InstanceJoin{
+			Metadata: apievents.Metadata{
+				Type: events.InstanceJoinEvent,
+				Code: events.InstanceJoinFailureCode,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error: fmt.Sprintf(
+					"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
+					tc.challengeResponseErr,
+				),
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: "127.0.0.1",
+			},
+			Role:      "Instance",
+			Roles:     []string{types.RoleNode.String()},
+			Method:    "iam",
+			NodeName:  sqn.Name,
+			TokenName: tc.tokenName,
+			Scope:     sqn.Scope,
+		}
+	}
+
+	authClientForChallengeResponseError := func(t *testing.T, name apiscopes.QualifiedName) authjoin.AuthJoinClient {
+		t.Helper()
+		if tc.challengeResponseErr == nil {
+			return nopClient
+		}
+
+		require.NotNil(t, tc.auditLog)
+		return closeSendWaitAuthClient{
+			AuthJoinClient: nopClient,
+			waitFor:        tc.auditLog.notifyOnInstanceJoin(name),
+		}
+	}
+
 	// Test joining via the legacy join service.
 	//
 	// TODO(nklaassen): DELETE IN 20 when removing the legacy join service.
@@ -924,7 +1093,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 			ID: state.IdentityID{
 				Role:     types.RoleInstance,
 				HostUUID: "test-uuid",
-				NodeName: "test-node",
+				NodeName: legacyNodeName,
 			},
 			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
 			AuthClient:                         nopClient,
@@ -934,107 +1103,54 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 
 	// Tests joining via the new join service with auth-assigned host UUIDs.
 	t.Run("new", func(t *testing.T) {
+		var wantEvent *apievents.InstanceJoin
+		if tc.challengeResponseErr != nil {
+			wantEvent = challengeResponseErrEvent(apiscopes.QualifiedName{Name: newNodeName})
+		}
+
+		authClient := authClientForChallengeResponseError(t, apiscopes.QualifiedName{Name: newNodeName})
 		_, err := joinclient.Join(ctx, joinclient.JoinParams{
 			Token: tc.requestTokenName,
 			ID: state.IdentityID{
 				Role:     types.RoleInstance,
-				NodeName: "test-node",
+				NodeName: newNodeName,
 			},
 			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
-			AuthClient:                         nopClient,
+			AuthClient:                         authClient,
 		})
 		tc.assertError(t, err)
 
 		// If the challenge-response is expected to fail, assert that a join
 		// failure event was emitted with an error message about the client
 		// giving up on the join attempt.
-		if tc.challengeResponseErr == nil {
-			return
+		if wantEvent != nil {
+			requireInstanceJoinEvent(t, wantEvent)
 		}
-		assert.EventuallyWithT(t, func(t *assert.CollectT) {
-			evt, err := lastEvent(ctx, tc.authServer.Auth(), tc.authServer.Auth().GetClock(), "instance.join")
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(
-				&apievents.InstanceJoin{
-					Metadata: apievents.Metadata{
-						Type: "instance.join",
-						Code: events.InstanceJoinFailureCode,
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error: fmt.Sprintf(
-							"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
-							tc.challengeResponseErr,
-						),
-					},
-					ConnectionMetadata: apievents.ConnectionMetadata{
-						RemoteAddr: "127.0.0.1",
-					},
-					Role:      "Instance",
-					Roles:     []string{types.RoleNode.String()},
-					Method:    "iam",
-					NodeName:  "test-node",
-					TokenName: "test-token",
-				},
-				evt,
-				protocmp.Transform(),
-				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
-					return key == "Time" || key == "ID" || key == "TokenExpires"
-				}),
-			))
-		}, 5*time.Second, 5*time.Millisecond)
 	})
 	t.Run("scoped", func(t *testing.T) {
+		var wantEvent *apievents.InstanceJoin
+		if tc.challengeResponseErr != nil {
+			wantEvent = challengeResponseErrEvent(apiscopes.QualifiedName{Name: scopedNodeName, Scope: "/test/one"})
+		}
+
+		authClient := authClientForChallengeResponseError(t, apiscopes.QualifiedName{Name: scopedNodeName, Scope: "/test/one"})
 		_, err := joinclient.Join(ctx, joinclient.JoinParams{
 			Token:       apiscopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
 			TokenSecret: scopedToken.GetStatus().GetSecret(),
 			ID: state.IdentityID{
 				Role:     types.RoleInstance,
-				NodeName: "test-node",
+				NodeName: scopedNodeName,
 			},
 			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
-			AuthClient:                         nopClient,
+			AuthClient:                         authClient,
 		})
 		tc.assertError(t, err)
 
 		// If the challenge-response is expected to fail, assert that a join
 		// failure event was emitted with an error message about the client
 		// giving up on the join attempt.
-		if tc.challengeResponseErr == nil {
-			return
+		if wantEvent != nil {
+			requireInstanceJoinEvent(t, wantEvent)
 		}
-		assert.EventuallyWithT(t, func(t *assert.CollectT) {
-			evt, err := lastEvent(ctx, tc.authServer.Auth(), tc.authServer.Auth().GetClock(), "instance.join")
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(
-				&apievents.InstanceJoin{
-					Metadata: apievents.Metadata{
-						Type: "instance.join",
-						Code: events.InstanceJoinFailureCode,
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error: fmt.Sprintf(
-							"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
-							tc.challengeResponseErr,
-						),
-					},
-					ConnectionMetadata: apievents.ConnectionMetadata{
-						RemoteAddr: "127.0.0.1",
-					},
-					Role:      "Instance",
-					Method:    "iam",
-					NodeName:  "test-node",
-					TokenName: "test-token",
-					Scope:     "/test/one",
-					Roles:     []string{types.RoleNode.String()},
-				},
-				evt,
-				protocmp.Transform(),
-				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
-					return key == "Time" || key == "ID" || key == "TokenExpires"
-				}),
-			))
-		}, 5*time.Second, 5*time.Millisecond)
 	})
 }
