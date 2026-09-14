@@ -171,6 +171,7 @@ const (
 	AuthService_DeleteOIDCConnector_FullMethodName                 = "/proto.AuthService/DeleteOIDCConnector"
 	AuthService_CreateOIDCAuthRequest_FullMethodName               = "/proto.AuthService/CreateOIDCAuthRequest"
 	AuthService_GetOIDCAuthRequest_FullMethodName                  = "/proto.AuthService/GetOIDCAuthRequest"
+	AuthService_ValidateOIDCAuthCallback_FullMethodName            = "/proto.AuthService/ValidateOIDCAuthCallback"
 	AuthService_GetSAMLConnector_FullMethodName                    = "/proto.AuthService/GetSAMLConnector"
 	AuthService_GetSAMLConnectors_FullMethodName                   = "/proto.AuthService/GetSAMLConnectors"
 	AuthService_ListSAMLConnectors_FullMethodName                  = "/proto.AuthService/ListSAMLConnectors"
@@ -694,6 +695,9 @@ type AuthServiceClient interface {
 	CreateOIDCAuthRequest(ctx context.Context, in *types.OIDCAuthRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found.
 	GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
+	// ValidateOIDCAuthCallback is called by the Proxy to validate the OIDC
+	// provider callback and issue the user's session and certificates.
+	ValidateOIDCAuthCallback(ctx context.Context, in *ValidateOIDCAuthCallbackRequest, opts ...grpc.CallOption) (*ValidateOIDCAuthCallbackResponse, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// Deprecated: Do not use.
@@ -2556,6 +2560,16 @@ func (c *authServiceClient) GetOIDCAuthRequest(ctx context.Context, in *GetOIDCA
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.OIDCAuthRequest)
 	err := c.cc.Invoke(ctx, AuthService_GetOIDCAuthRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateOIDCAuthCallback(ctx context.Context, in *ValidateOIDCAuthCallbackRequest, opts ...grpc.CallOption) (*ValidateOIDCAuthCallbackResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateOIDCAuthCallbackResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateOIDCAuthCallback_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4433,6 +4447,9 @@ type AuthServiceServer interface {
 	CreateOIDCAuthRequest(context.Context, *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found.
 	GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error)
+	// ValidateOIDCAuthCallback is called by the Proxy to validate the OIDC
+	// provider callback and issue the user's session and certificates.
+	ValidateOIDCAuthCallback(context.Context, *ValidateOIDCAuthCallbackRequest) (*ValidateOIDCAuthCallbackResponse, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
 	// Deprecated: Do not use.
@@ -5240,6 +5257,9 @@ func (UnimplementedAuthServiceServer) CreateOIDCAuthRequest(context.Context, *ty
 }
 func (UnimplementedAuthServiceServer) GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetOIDCAuthRequest not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateOIDCAuthCallback(context.Context, *ValidateOIDCAuthCallbackRequest) (*ValidateOIDCAuthCallbackResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateOIDCAuthCallback not implemented")
 }
 func (UnimplementedAuthServiceServer) GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSAMLConnector not implemented")
@@ -7989,6 +8009,24 @@ func _AuthService_GetOIDCAuthRequest_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetOIDCAuthRequest(ctx, req.(*GetOIDCAuthRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ValidateOIDCAuthCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateOIDCAuthCallbackRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateOIDCAuthCallback(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateOIDCAuthCallback_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateOIDCAuthCallback(ctx, req.(*ValidateOIDCAuthCallbackRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -11068,6 +11106,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOIDCAuthRequest",
 			Handler:    _AuthService_GetOIDCAuthRequest_Handler,
+		},
+		{
+			MethodName: "ValidateOIDCAuthCallback",
+			Handler:    _AuthService_ValidateOIDCAuthCallback_Handler,
 		},
 		{
 			MethodName: "GetSAMLConnector",

@@ -2677,6 +2677,55 @@ message GetOIDCAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+// ValidateOIDCAuthCallbackRequest is the request for the
+// ValidateOIDCAuthCallback RPC.
+message ValidateOIDCAuthCallbackRequest {
+  // The query string parameters from the OIDC provider callback redirect.
+  map<string, wrappers.StringValues> query = 1;
+}
+
+// ValidateOIDCAuthCallbackResponse is the response for the
+// ValidateOIDCAuthCallback RPC.
+message ValidateOIDCAuthCallbackResponse {
+  // RequestInfo echoes fields of the original OIDC auth request back to the
+  // Proxy.
+  message RequestInfo {
+    // The name of the connector in use.
+    string connector_id = 1;
+    // Used to protect against CSRF attacks.
+    string csrf_token = 2;
+    // The SSH public key requested as the subject of the user's SSH
+    // certificate, in SSH authorized_keys format.
+    bytes ssh_pub_key = 3;
+    // The TLS public key requested as the subject of the user's TLS
+    // certificate, in PEM-encoded PKCS#1 or PKIX format.
+    bytes tls_pub_key = 4;
+    // Whether the user wants a web session after successful authentication.
+    bool create_web_session = 5;
+    // The URL the client will be redirected to after successful auth.
+    string client_redirect_url = 6;
+  }
+
+  // The name of the authenticated Teleport user.
+  string username = 1;
+  // The validated external identity.
+  types.ExternalIdentity identity = 2;
+  // The web session created for the user, if one was requested.
+  types.WebSessionV2 session = 3;
+  // The generated SSH client certificate.
+  bytes cert = 4;
+  // The PEM-encoded TLS client certificate.
+  bytes tls_cert = 5;
+  // Echoes the original auth request.
+  RequestInfo req = 6;
+  // Signing host public keys trusted by the proxy, used in console login.
+  repeated types.CertAuthorityV2 host_signers = 7;
+  // Options the cluster wants the client to use.
+  LoginClientOptions client_options = 8;
+  // An SSO MFA token.
+  string mfa_token = 9;
+}
+
 // GetSAMLAuthRequestRequest is a request for GetSAMLAuthRequest.
 message GetSAMLAuthRequestRequest {
   // ID is a saml auth request unique id.
@@ -3841,6 +3890,9 @@ service AuthService {
   rpc CreateOIDCAuthRequest(types.OIDCAuthRequest) returns (types.OIDCAuthRequest);
   // GetOIDCAuthRequest returns OIDC auth request if found.
   rpc GetOIDCAuthRequest(GetOIDCAuthRequestRequest) returns (types.OIDCAuthRequest);
+  // ValidateOIDCAuthCallback is called by the Proxy to validate the OIDC
+  // provider callback and issue the user's session and certificates.
+  rpc ValidateOIDCAuthCallback(ValidateOIDCAuthCallbackRequest) returns (ValidateOIDCAuthCallbackResponse);
 
   // GetSAMLConnector gets a SAML connector resource by name.
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);

@@ -2217,6 +2217,18 @@ func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*ty
 	return resp, nil
 }
 
+// ValidateOIDCAuthCallback is called by the proxy to validate the OIDC
+// provider callback and issue the user's session and certificates.
+func (c *Client) ValidateOIDCAuthCallback(
+	ctx context.Context, req *proto.ValidateOIDCAuthCallbackRequest,
+) (*proto.ValidateOIDCAuthCallbackResponse, error) {
+	resp, err := c.grpc.ValidateOIDCAuthCallback(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetSAMLConnector returns a SAML connector by name.
 func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
 	return c.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets)
