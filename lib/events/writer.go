@@ -21,13 +21,14 @@ package events
 import (
 	"context"
 	"io"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -69,11 +70,11 @@ func (w *WriterLog) SearchUnstructuredEvents(ctx context.Context, req SearchEven
 	return nil, "", trace.NotImplemented(writerCannotRead)
 }
 
-func (w *WriterLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (w *WriterLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented(writerCannotRead))
 }
 
-func (w *WriterLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (w *WriterLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented(writerCannotRead))
 }
 

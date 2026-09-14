@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"strconv"
 	"strings"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/secreports/query"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -234,7 +234,7 @@ func (e *EventuallyConsistentAuditLogger) SearchEvents(ctx context.Context, req 
 	return e.Inner.SearchEvents(ctx, req)
 }
 
-func (e *EventuallyConsistentAuditLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (e *EventuallyConsistentAuditLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.emitWasAfterLastDelay {
@@ -245,7 +245,7 @@ func (e *EventuallyConsistentAuditLogger) ExportUnstructuredEvents(ctx context.C
 	return e.Inner.ExportUnstructuredEvents(ctx, req)
 }
 
-func (e *EventuallyConsistentAuditLogger) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (e *EventuallyConsistentAuditLogger) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.emitWasAfterLastDelay {

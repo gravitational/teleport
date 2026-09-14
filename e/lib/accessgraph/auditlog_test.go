@@ -3,6 +3,7 @@ package accessgraph
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -23,11 +24,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/accessgraph/grpctest"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 var (
@@ -380,7 +381,7 @@ func (t *searchEventsMock) SearchEvents(ctx context.Context, req events.SearchEv
 	return batch.events, batch.nextKey, nil
 }
 
-func (t *searchEventsMock) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (t *searchEventsMock) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	// called to check if exporter is bulk or search, see auditLogExporter.isBulkExporter method.
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("searchEventsMock does not implement GetEventExportChunks"))
 }
@@ -669,7 +670,7 @@ func (b *bulkEventsMock) addChunk(chunkDate time.Time, chunkID string, eventCnt 
 	return result
 }
 
-func (b *bulkEventsMock) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (b *bulkEventsMock) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	chunks, ok := b.data[req.GetDate().AsTime().Format(time.DateOnly)]
@@ -686,7 +687,7 @@ func (b *bulkEventsMock) GetEventExportChunks(ctx context.Context, req *auditlog
 	return stream.Slice(chunkIDs)
 }
 
-func (b *bulkEventsMock) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (b *bulkEventsMock) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	date := req.GetDate().AsTime().Format(time.DateOnly)
@@ -719,40 +720,20 @@ func (b *bulkEventsMock) Close() error {
 	return nil
 }
 
-type slowSlice[T any] struct {
-	ctx   context.Context
-	items []T
-	idx   int
-
-	delay time.Duration
-}
-
-func (s *slowSlice[T]) Next() bool {
-	s.idx++
-	if s.idx > 0 && s.idx < len(s.items) { // don't sleep for fist item or when done
-		select {
-		case <-time.After(s.delay):
-		case <-s.ctx.Done():
-			return false
-		}
-	}
-	return s.idx < len(s.items)
-}
-
-func (s *slowSlice[T]) Item() T {
-	return s.items[s.idx]
-}
-
-func (s *slowSlice[T]) Done() error {
-	return nil
-}
-
 func slowStream[T any](ctx context.Context, items []T, delay time.Duration) stream.Stream[T] {
-	return &slowSlice[T]{
-		ctx:   ctx,
-		delay: delay,
-		items: items,
-		idx:   -1,
+	return func(yield func(T, error) bool) {
+		for idx, item := range items {
+			if idx > 0 { // don't sleep for first item
+				select {
+				case <-time.After(delay):
+				case <-ctx.Done():
+					return
+				}
+			}
+			if !yield(item, nil) {
+				return
+			}
+		}
 	}
 }
 

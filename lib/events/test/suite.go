@@ -40,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -186,8 +187,9 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 		Date: timestamppb.New(baseTime),
 	}.Build())
 
-	require.False(t, chunks.Next())
-	require.NoError(t, chunks.Done())
+	collected, err := stream.Collect(chunks)
+	require.NoError(t, err)
+	require.Empty(t, collected)
 
 	names := []string{"bob", "jack", "daisy", "evan"}
 
@@ -214,21 +216,20 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 		var chunkCount, eventCount int
 
-		for chunks.Next() {
+		for chunk, err := range chunks {
+			require.NoError(t, err)
 			chunkCount++
 
 			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 				Date:  timestamppb.New(baseTime),
-				Chunk: chunks.Item().GetChunk(),
+				Chunk: chunk.GetChunk(),
 			}.Build())
 
-			for events.Next() {
+			for _, err := range events {
+				require.NoError(t, err)
 				eventCount++
 			}
-			require.NoError(t, events.Done())
 		}
-
-		require.NoError(t, chunks.Done())
 
 		require.Equal(t, 1, chunkCount)
 		require.Equal(t, 4, eventCount)
@@ -257,21 +258,20 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 		var chunkCount, eventCount int
 
-		for chunks.Next() {
+		for chunk, err := range chunks {
+			require.NoError(t, err)
 			chunkCount++
 
 			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 				Date:  timestamppb.New(baseTime),
-				Chunk: chunks.Item().GetChunk(),
+				Chunk: chunk.GetChunk(),
 			}.Build())
 
-			for events.Next() {
+			for _, err := range events {
+				require.NoError(t, err)
 				eventCount++
 			}
-			require.NoError(t, events.Done())
 		}
-
-		require.NoError(t, chunks.Done())
 
 		require.Equal(t, 2, chunkCount)
 		require.Equal(t, 8, eventCount)
@@ -283,23 +283,23 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 		Chunk: uuid.New().String(),
 	}.Build())
 
-	require.False(t, events.Next())
-	require.True(t, trace.IsNotFound(events.Done()))
+	collected2, err := stream.Collect(events)
+	require.Empty(t, collected2)
+	require.True(t, trace.IsNotFound(err))
 
 	// try a different day and verify that no chunks are found
 	chunks = s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 		Date: timestamppb.New(baseTime.AddDate(0, 0, 1)),
 	}.Build())
 
-	require.False(t, chunks.Next())
-
-	require.NoError(t, chunks.Done())
+	collected, err = stream.Collect(chunks)
+	require.NoError(t, err)
+	require.Empty(t, collected)
 
 	// as a sanity check, try pulling events using the exporter helper (should be
 	// equivalent to the above behavior)
 	var exportedEvents atomic.Uint64
 	var exporter *export.DateExporter
-	var err error
 	exporter, err = export.NewDateExporter(export.DateExporterConfig{
 		Client: s.Log,
 		Date:   baseTime,

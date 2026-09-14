@@ -13,12 +13,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func initiateAndProcessAuditLogStream(ctx context.Context, log *slog.Logger, service accessgraphv1.AccessGraphServiceClient, authServer *auth.Server, config AuditLogConfig) error {

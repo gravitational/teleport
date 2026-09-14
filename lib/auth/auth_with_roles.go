@@ -7383,9 +7383,9 @@ func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req even
 
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
 // performance over ordering and filtering, and is intended for bulk export of events.
-func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	if err := a.authorizeAction(types.KindEvent, types.VerbList); err != nil {
-		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+		return iterstream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
 	}
 
 	return a.alog.ExportUnstructuredEvents(ctx, req)
@@ -7393,9 +7393,9 @@ func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *aud
 
 // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
-func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	if err := a.authorizeAction(types.KindEvent, types.VerbList); err != nil {
-		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+		return iterstream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
 	}
 
 	return a.alog.GetEventExportChunks(ctx, req)

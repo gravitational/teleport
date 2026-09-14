@@ -21,11 +21,14 @@ package export
 import (
 	"context"
 	"fmt"
+	"iter"
 	"math/rand/v2"
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,9 +36,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDateExporterBasics tests the basic functionality of the date exporter, with and
@@ -360,6 +363,82 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	waitIdle(t)
 }
 
+// TestDateExporterReleasesStreamOnExportFailure verifies that an export stream is
+// released when the export callback fails, rather than remaining open across retries.
+func TestDateExporterReleasesStreamOnExportFailure(t *testing.T) {
+	t.Parallel()
+	for _, batch := range []bool{false, true} {
+		t.Run(fmt.Sprintf("batch=%t", batch), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				clt := &streamTrackingClient{fakeClient: newFakeClient()}
+
+				// the fake client keys chunks by UTC date, matching the exporter's timestamp conversion.
+				now := time.Now().UTC()
+
+				// use a chunk large enough that the stream always has events remaining
+				// when the export callback fails.
+				chunk, _ := makeEventChunk(t, now, 100)
+				clt.addChunk(now.Format(time.DateOnly), uuid.NewString(), chunk)
+
+				var failures atomic.Int64
+				cfg := DateExporterConfig{
+					Client:     clt,
+					Date:       now,
+					MaxBackoff: time.Minute,
+				}
+				if batch {
+					cfg.BatchExport = &BatchExportConfig{
+						Callback: func(ctx context.Context, events []*auditlogpb.EventUnstructured, resumeState BulkExportResumeState) error {
+							failures.Add(1)
+							return trace.Errorf("batch export failed as test condition")
+						},
+						// export a single event per batch so that the callback fails early in the stream.
+						MaxSize: 1,
+					}
+				} else {
+					cfg.Export = func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+						failures.Add(1)
+						return trace.Errorf("export failed as test condition")
+					}
+				}
+
+				exporter, err := NewDateExporter(cfg)
+				require.NoError(t, err)
+				defer exporter.Close()
+
+				// each sleep covers at least one full backoff, and Wait lets the
+				// resulting attempt run until every goroutine is blocked again.
+				for range 5 {
+					time.Sleep(cfg.MaxBackoff)
+					synctest.Wait()
+				}
+
+				// with every goroutine blocked, the only streams still open are
+				// those abandoned by failed attempts.
+				require.GreaterOrEqual(t, failures.Load(), int64(5))
+				require.Zero(t, clt.activeStreams.Load())
+			})
+		})
+	}
+}
+
+// streamTrackingClient wraps fakeClient to track the number of export streams
+// that have been started but not yet finished.
+type streamTrackingClient struct {
+	*fakeClient
+	activeStreams atomic.Int64
+}
+
+func (c *streamTrackingClient) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
+	events := c.fakeClient.ExportUnstructuredEvents(ctx, req)
+	return func(yield func(*auditlogpb.ExportEventUnstructured, error) bool) {
+		c.activeStreams.Add(1)
+		defer c.activeStreams.Add(-1)
+		events(yield)
+	}
+}
+
 func makeEventChunk(t *testing.T, ts time.Time, n int) ([]*auditlogpb.ExportEventUnstructured, []*auditlogpb.EventUnstructured) {
 	var batchedEvents []*auditlogpb.EventUnstructured
 	var chunk []*auditlogpb.ExportEventUnstructured
@@ -414,7 +493,7 @@ func (c *fakeClient) addChunk(date string, chunk string, events []*auditlogpb.Ex
 	c.data[date][chunk] = events
 }
 
-func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	chunks, ok := c.data[req.GetDate().AsTime().Format(time.DateOnly)]
@@ -454,7 +533,7 @@ func (c *fakeClient) ExportUnstructuredEvents(ctx context.Context, req *auditlog
 	})
 }
 
-func (c *fakeClient) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (c *fakeClient) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	chunks, ok := c.data[req.GetDate().AsTime().Format(time.DateOnly)]
