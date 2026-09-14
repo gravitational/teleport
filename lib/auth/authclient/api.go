@@ -132,9 +132,6 @@ type ReadNodeAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -149,9 +146,6 @@ type ReadNodeAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
-	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
 
 // NodeAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -193,9 +187,6 @@ type ReadProxyAccessPoint interface {
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -431,9 +422,6 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -557,9 +545,6 @@ type ReadKubernetesAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -624,9 +609,6 @@ type ReadAppsAccessPoint interface {
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -707,9 +689,6 @@ type ReadDatabaseAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -776,9 +755,6 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -842,9 +818,6 @@ type ReadLinuxDesktopAccessPoint interface {
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -1149,9 +1122,6 @@ type AccessCache interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
