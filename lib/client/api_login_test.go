@@ -30,11 +30,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
@@ -51,6 +54,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -195,19 +199,128 @@ func TestTeleportClientCanDefaultToPasswordless(t *testing.T) {
 	}
 }
 
+func TestTeleportClientNewMFAPrompt(t *testing.T) {
+	t.Parallel()
+
+	type promptKind string
+	const (
+		promptKindTOTP     promptKind = "totp"
+		promptKindWebAuthn promptKind = "webauthn"
+	)
+
+	tests := []struct {
+		name              string
+		configure         func(t *testing.T, tc *client.TeleportClient, webauthnCalls *atomic.Int32)
+		challenge         *proto.MFAAuthenticateChallenge
+		wantResponse      promptKind
+		wantTOTPCode      string
+		wantWebauthnCalls int32
+	}{
+		{
+			name: "forwards AllowStdinHijack and StdinFunc",
+			configure: func(t *testing.T, tc *client.TeleportClient, webauthnCalls *atomic.Int32) {
+				stdin := prompt.NewFakeReader().AddString("123456")
+				tc.AllowStdinHijack = true
+				tc.StdinFunc = func() prompt.StdinReader { return stdin }
+				tc.WebauthnLogin = func(ctx context.Context, _ string, _ *wantypes.CredentialAssertion, _ wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					webauthnCalls.Add(1)
+					// Keep the WebAuthn attempt pending to validate that a concurrent
+					// OTP attempt that is completed successfully wins and cancels this
+					// context.
+					<-ctx.Done()
+					return nil, "", ctx.Err()
+				}
+			},
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP:              &proto.TOTPChallenge{},
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			wantResponse:      promptKindTOTP,
+			wantTOTPCode:      "123456",
+			wantWebauthnCalls: 1,
+		},
+		{
+			name: "forwards PreferOTP",
+			configure: func(t *testing.T, tc *client.TeleportClient, webauthnCalls *atomic.Int32) {
+				stdin := prompt.NewFakeReader().AddString("123456")
+				tc.PreferOTP = true
+				tc.StdinFunc = func() prompt.StdinReader { return stdin }
+				tc.WebauthnLogin = func(context.Context, string, *wantypes.CredentialAssertion, wancli.LoginPrompt, *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					webauthnCalls.Add(1)
+					return nil, "", trace.BadParameter("WebauthnLogin called despite PreferOTP")
+				}
+			},
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP:              &proto.TOTPChallenge{},
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			wantResponse:      promptKindTOTP,
+			wantTOTPCode:      "123456",
+			wantWebauthnCalls: 0,
+		},
+		{
+			name: "forwards WebAuthn settings",
+			configure: func(t *testing.T, tc *client.TeleportClient, webauthnCalls *atomic.Int32) {
+				tc.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
+				tc.WebauthnLogin = func(_ context.Context, origin string, _ *wantypes.CredentialAssertion, _ wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+					webauthnCalls.Add(1)
+					if origin != "https://proxy.example" {
+						return nil, "", trace.BadParameter("origin must be https://proxy.example - got %s", origin)
+					}
+					if wancli.AttachmentCrossPlatform != opts.AuthenticatorAttachment {
+						return nil, "", trace.BadParameter("authenticator attachment must be %s got %s", wancli.AttachmentCrossPlatform, opts.AuthenticatorAttachment)
+					}
+					return &proto.MFAAuthenticateResponse{
+						Response: &proto.MFAAuthenticateResponse_Webauthn{
+							Webauthn: &webauthnpb.CredentialAssertionResponse{},
+						},
+					}, "", nil
+				}
+			},
+			challenge: &proto.MFAAuthenticateChallenge{
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			wantResponse:      promptKindWebAuthn,
+			wantWebauthnCalls: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// synctest is used to catch any leaked goroutines from prompts not
+			// being cleaned up if they aren't selected.
+			synctest.Test(t, func(t *testing.T) {
+				tc := &client.TeleportClient{
+					Stderr:       io.Discard,
+					WebProxyAddr: "proxy.example",
+				}
+				var webauthnCalls atomic.Int32
+				test.configure(t, tc, &webauthnCalls)
+
+				resp, err := tc.NewMFAPrompt().Run(t.Context(), test.challenge)
+				require.NoError(t, err)
+				synctest.Wait()
+
+				switch test.wantResponse {
+				case promptKindTOTP:
+					require.Equal(t, test.wantTOTPCode, resp.GetTOTP().GetCode())
+					require.Nil(t, resp.GetWebauthn())
+				case promptKindWebAuthn:
+					require.NotNil(t, resp.GetWebauthn())
+					require.Nil(t, resp.GetTOTP())
+				default:
+					t.Fatalf("unexpected wantResponse %q", test.wantResponse)
+				}
+				require.Equal(t, test.wantWebauthnCalls, webauthnCalls.Load())
+			})
+		})
+	}
+}
+
 func TestTeleportClient_Login_local(t *testing.T) {
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-
-	waitForCancelFn := func(ctx context.Context) (string, error) {
-		<-ctx.Done() // wait for timeout
-		return "", ctx.Err()
-	}
-	noopWebauthnFn := func(_ *mocku2f.Key, _ []byte) webauthnFunc {
-		return func(ctx context.Context, _ string, _ *wantypes.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-			<-ctx.Done() // wait for timeout
-			return nil, ctx.Err()
-		}
-	}
 
 	solveOTP := func(otpKey string, clock clockwork.Clock) func(ctx context.Context) (string, error) {
 		return func(ctx context.Context) (string, error) {
@@ -243,74 +356,14 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 	}
 
-	const pin = "pin123"
-	userPINFn := func(ctx context.Context) (string, error) {
-		return pin, nil
-	}
-	solvePIN := func(device *mocku2f.Key, webID []byte) webauthnFunc {
-		return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-			// Ask and verify the PIN. Usually the authenticator would verify the PIN,
-			// but we are faking it here.
-			got, err := prompt.PromptPIN()
-			switch {
-			case err != nil:
-				return nil, err
-			case got != pin:
-				return nil, errors.New("invalid PIN")
-			}
-
-			resp, err := solveWebauthn(device, webID)(ctx, origin, assertion, prompt)
-			if err != nil {
-				return nil, err
-			}
-			return resp, nil
-		}
-	}
-
 	tests := []struct {
-		name                    string
-		makeInputReader         func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader
-		makeSolveWebauthn       func(device *mocku2f.Key, webID []byte) webauthnFunc
-		authConnector           string
-		allowStdinHijack        bool
-		preferOTP               bool
-		preferBrowser           bool
-		hasTouchIDCredentials   bool
-		authenticatorAttachment wancli.AuthenticatorAttachment
-		scope                   string
+		name              string
+		makeInputReader   func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader
+		makeSolveWebauthn func(device *mocku2f.Key, webID []byte) webauthnFunc
+		authConnector     string
+		preferOTP         bool
+		scope             string
 	}{
-		{
-			name: "OTP device login with hijack",
-			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(solveOTP(otpKey, clock))
-			},
-			makeSolveWebauthn: noopWebauthnFn,
-			allowStdinHijack:  true,
-		},
-		{
-			name: "Webauthn device login with hijack",
-			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(waitForCancelFn)
-			},
-			makeSolveWebauthn: solveWebauthn,
-			allowStdinHijack:  true,
-		},
-		{
-			name: "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
-			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString(pass).
-					AddReply(waitForCancelFn).
-					AddReply(userPINFn)
-			},
-
-			makeSolveWebauthn: solvePIN,
-			allowStdinHijack:  true,
-		},
 		{
 			name: "OTP preferred",
 			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
@@ -388,11 +441,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			// Prepare the client proper.
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
-			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
-			tc.PreferBrowser = test.preferBrowser
-			tc.AuthenticatorAttachment = test.authenticatorAttachment
 			inputReader := test.makeInputReader(password, otpKey, clock)
 			tc.StdinFunc = func() prompt.StdinReader { return inputReader }
 
@@ -405,22 +455,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				return resp, "", err
 			}
 
-			tc.HasTouchIDCredentialsFunc = func(_, _ string) bool {
-				return test.hasTouchIDCredentials
-			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-
-			// Only enable BrowserAuthentication for tests that explicitly request it
-			if test.preferBrowser != false {
-				authServer := sa.Auth.GetAuthServer()
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err)
-				authPref.SetAllowCLIAuthViaBrowser(true)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err)
-			}
 
 			// Test.
 			clock.Advance(30 * time.Second)
