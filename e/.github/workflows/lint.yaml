@@ -115,14 +115,6 @@ jobs:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           skip-cache: true
 
-      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
-        with:
-          verify: false
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
-          skip-cache: true
-          working-directory: e/tests/antithesis/workloads
-          args: --config ../../../../.golangci.yml
-
   lint-workflows:
     name: Lint (GHA workflows)
     runs-on: ubuntu-latest

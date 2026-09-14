@@ -6,8 +6,9 @@ import (
 
 	"github.com/antithesishq/antithesis-sdk-go/assert"
 	"github.com/google/uuid"
-	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 	"github.com/gravitational/trace"
+
+	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 )
 
 func runDeniedSSHCommandProperty(ctx context.Context, params *TestCaseParams) error {
