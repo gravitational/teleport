@@ -375,6 +375,10 @@ Clusters that do not require per-session MFA share a certificate,
 while each cluster that does require it gets its own.
 Connecting to a large fleet is faster as a result.
 
+To cover the whole fleet without writing a selector, use `tsh proxy kube --all`,
+which proxies every Kubernetes cluster the user can access in the current
+Teleport cluster.
+
 Note that each MFA check remains valid for up to 5 minutes. Within that window,
 Teleport reuses it for any further certificates the local proxy requests. Once
 the window passes, issuing another certificate requires a new check.

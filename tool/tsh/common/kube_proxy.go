@@ -63,6 +63,7 @@ type proxyKubeCommand struct {
 
 	labels              string
 	predicateExpression string
+	all                 bool
 	exec                bool
 	execCmd             string   // Command to execute when --exec is enabled
 	execArgs            []string // Arguments for the command
@@ -84,6 +85,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
+	c.Flag("all", "Proxy every Kubernetes cluster the user has access to. Mutually exclusive with --labels, --query, or kube cluster names.").BoolVar(&c.all)
 	c.Flag("set-context-name", "Define a custom context name or template.").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
@@ -105,7 +107,11 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("cannot use --exec-arg without --exec-cmd")
 	}
 
-	if len(c.kubeClusters) > 1 || cf.Labels != "" || cf.PredicateExpression != "" {
+	if c.all && (len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "") {
+		return trace.BadParameter("cannot use --labels, --query, or kube cluster names with --all")
+	}
+
+	if c.all || len(c.kubeClusters) > 1 || cf.Labels != "" || cf.PredicateExpression != "" {
 		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -218,10 +224,11 @@ Or login the Kubernetes cluster first:
 	}
 	errorMsg := fmt.Sprintf(`No Kubernetes clusters found to proxy.
 
-Please provide Kubernetes cluster names or labels or predicate expression to this command:
+Please provide Kubernetes cluster names, labels, a predicate expression, or --all to this command:
     tsh %[1]sproxy kube <kube-cluster-1> <kube-cluster-2>
     tsh %[1]sproxy kube --labels env=root
-    tsh %[1]sproxy kube --query 'labels["env"]=="root"'%[2]s`, headlessFlag, secondPart)
+    tsh %[1]sproxy kube --query 'labels["env"]=="root"'
+    tsh %[1]sproxy kube --all%[2]s`, headlessFlag, secondPart)
 
 	return errorMsg
 }
@@ -235,7 +242,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 	errorMsg := getPrepareErrorMessage(cf.Headless)
 
 	// Use kube clusters from arg.
-	if len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "" {
+	if c.all || len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "" {
 		_, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -243,6 +250,8 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 		switch len(c.kubeClusters) {
 		case 0:
 			// if no names are given, check just the labels/predicate selection.
+			// --all lands here as well, and reports the same not-found error when
+			// the user can reach nothing.
 			if err := checkClusterSelection(cf, kubeClusters, ""); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
