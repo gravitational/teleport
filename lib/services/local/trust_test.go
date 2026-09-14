@@ -575,6 +575,121 @@ func TestCA_TunnelConnections_CorruptItem(t *testing.T) {
 	require.ElementsMatch(t, want, gotNames)
 }
 
+// TestCA_GetCertAuthorities_SkipsCorruptItems ensures that cert authorities
+// which cannot be unmarshalled are skipped rather than leaving nil holes in the
+// returned slice.
+func TestCA_GetCertAuthorities_SkipsCorruptItems(t *testing.T) {
+	t.Parallel()
+
+	corruptValue := []byte("}not a valid cert authority{")
+
+	// putCorruptCA writes an unparseable value directly to the backend, bypassing marshaling.
+	putCorruptCA := func(t *testing.T, bk backend.Backend, caType types.CertAuthType, name string) {
+		t.Helper()
+		_, err := bk.Put(t.Context(), backend.Item{
+			Key:   backend.NewKey(authoritiesPrefix, string(caType), name),
+			Value: corruptValue,
+		})
+		require.NoError(t, err)
+	}
+
+	newService := func(t *testing.T) (backend.Backend, *CA) {
+		t.Helper()
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+		return bk, NewCAService(bk)
+	}
+
+	t.Run("corrupt items are skipped", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		bk, service := newService(t)
+
+		want := make([]types.CertAuthority, 0, 5)
+		wantNames := make([]string, 0, 5)
+		for i := range 5 {
+			domain := fmt.Sprintf("ca-%d.example.com", i)
+			ca := newCertAuthority(t, types.HostCA, domain)
+			require.NoError(t, service.UpsertCertAuthority(ctx, ca))
+			want = append(want, ca)
+			wantNames = append(wantNames, domain)
+		}
+
+		// Corrupt items placed so that they sort first, in the middle and last,
+		// to catch both nil holes and index shifting.
+		putCorruptCA(t, bk, types.HostCA, "ca-0-corrupt.example.com")
+		putCorruptCA(t, bk, types.HostCA, "ca-2x.example.com")
+		putCorruptCA(t, bk, types.HostCA, "ca-9-corrupt.example.com")
+
+		// A corrupt item of a different CA type must never be considered.
+		putCorruptCA(t, bk, types.UserCA, "other.example.com")
+
+		compareOpts := []cmp.Option{
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.SortSlices(func(a, b types.CertAuthority) bool {
+				return a.GetName() < b.GetName()
+			}),
+		}
+
+		for _, loadSigningKeys := range []bool{false, true} {
+			t.Run(fmt.Sprintf("loadSigningKeys=%v", loadSigningKeys), func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+
+				cas, err := service.GetCertAuthorities(ctx, types.HostCA, loadSigningKeys)
+				require.NoError(t, err)
+				require.Len(t, cas, len(want))
+
+				for i, ca := range cas {
+					require.NotNil(t, ca, "nil cert authority at index %d", i)
+				}
+
+				gotNames := make([]string, 0, len(cas))
+				for _, ca := range cas {
+					gotNames = append(gotNames, ca.GetName())
+				}
+				require.ElementsMatch(t, wantNames, gotNames)
+
+				expected := make([]types.CertAuthority, 0, len(want))
+				for _, ca := range want {
+					clone := ca.Clone()
+					if !loadSigningKeys {
+						types.RemoveCASecrets(clone)
+					}
+					expected = append(expected, clone)
+				}
+				require.Empty(t, cmp.Diff(expected, cas, compareOpts...))
+			})
+		}
+	})
+
+	t.Run("all items corrupt", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		bk, service := newService(t)
+		for i := range 3 {
+			putCorruptCA(t, bk, types.HostCA, fmt.Sprintf("ca-%d.example.com", i))
+		}
+
+		cas, err := service.GetCertAuthorities(ctx, types.HostCA, true)
+		require.NoError(t, err)
+		require.Empty(t, cas)
+	})
+
+	t.Run("invalid ca type", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		_, service := newService(t)
+
+		_, err := service.GetCertAuthorities(ctx, types.CertAuthType("bogus"), true)
+		require.True(t, trace.IsBadParameter(err), "err=%v", err)
+	})
+}
+
 func TestTrustedClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

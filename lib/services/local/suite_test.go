@@ -236,6 +236,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	cas, err := s.TrustS.GetCertAuthorities(ctx, types.UserCA, false)
 	require.NoError(t, err)
+	require.Len(t, cas, 1)
 	ca2 := ca.Clone().(*types.CertAuthorityV2)
 	ca2.Spec.ActiveKeys.SSH[0].PrivateKey = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
@@ -243,14 +244,15 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	cas, err = s.TrustS.GetCertAuthorities(ctx, types.UserCA, true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	cas, err = s.TrustS.GetCertAuthorities(ctx, types.UserCA, true)
-	require.NoError(t, err)
+	require.Len(t, cas, 1)
 	require.Empty(t, cmp.Diff(cas[0], ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.TrustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
+
+	cas, err = s.TrustS.GetCertAuthorities(ctx, types.UserCA, false)
+	require.NoError(t, err)
+	require.Empty(t, cas)
 
 	// test compare and swap
 	ca, err = authcatest.NewCA(types.UserCA, "example.com")
