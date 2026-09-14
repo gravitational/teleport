@@ -74,11 +74,10 @@ Different providers issue tokens to workloads in different ways, for example:
   token.
 
 Regardless of your provider, to continue you'll need to determine which of the
-two options you'll use to configure the `tbot` client to use the token:
-1. An environment variable that contains a JWT
-2. A command to run that fetches a JWT. For providers that provide an HTTP
-   endpoint, you may need to provide your own script that fetches the token, for
-   example using `curl`.
+following sources you'll use to configure the `tbot` client to use the token:
+- `env`: an environment variable that contains a JWT
+- `command`: a command that fetches a JWT and writes it to stdout
+- `http_request`: an HTTP endpoint that returns a JWT, either directly or in a JSON response
 
 For this example, we'll use a hypothetical provider named ExampleCI. They
 provide a command to run to fetch tokens with a given audience (`aud`) value,
@@ -251,20 +250,47 @@ Proxy, Kubernetes, Application, Database, or Desktop Service.
        token_name: generic-oidc-token
        method: generic_oidc
        generic_oidc:
+         # Configure exactly one of command, env, or http_request.
+         # The JWT will be fetched from the configured source.
+
          # Specify a command to run. The first value must be the executable to run,
          # followed by arguments, one per list entry. This example calls
          # `example-provider issue-token ...` with a client-specified audience
          # request. Your provider will differ.
          command: ["example-ci", "issue-token", "--audience=teleport.example.com/example-agent"]
 
-         # By default, commands timeout after 1 minute. If your OIDC provider
-         # needs a different value, specify it in `timeout`
+         # By default, command and http_request timeout after 1 minute.
+         # If you need a different value, specify it in `timeout`
          # timeout: 1m
+         # If the token can be found inside an environment variable,
+         # you can simply specify the name of the variable containing the token.
+         # env: ENV_VAR_NAME
 
-         # Alternatively, if the token can be found inside an environment
-         # variable, you can simply specify the name of the variable containing
-         # the token. This cannot be combined with `command`.
-         # env: "ENV_VAR_WITH_JWT"
+         # If the token can be fetched from an HTTP endpoint, use `http_request`.
+         # It fetches a JWT directly from an HTTP endpoint, which must return a 2xx status.
+         # Redirects are not followed and HTTP proxy environment variables are ignored.
+         # http_request:
+         #   request:
+         #     # Required: the endpoint that returns the JWT.
+         #     url: https://issuer.example.com/token
+         #     # HTTP method, defaults to GET. Requests have no body.
+         #     method: GET
+         #     # Optional query parameters. Values are URL-encoded and override
+         #     # parameters with the same names in url.
+         #     query_params:
+         #       audience: teleport.example.com/example-agent
+         #     # Optional request headers, with string values.
+         #     headers:
+         #       Accept: application/json
+         #     # Defaults to false. HTTPS is allowed but plain HTTP is only allowed for 169.254.169.254 and 127.0.0.1.
+         #     # Set true to allow other plain HTTP hosts.
+         #     insecure_allow_http: false
+         #   result:
+         #     # Optional JSONPath expression to extract the JWT from a JSON response.
+         #     # Must select exactly one string.
+         #     # Omit result to use the response body directly as the JWT.
+         #     json_path: $.id_token
+
      proxy_server: <Var name="teleport.example.com:443"/>
    ssh_service:
      enabled: true
