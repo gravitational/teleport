@@ -159,7 +159,7 @@ Setting this to a non-empty array is required.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"database":"","enabled":false,"maxmindGeoipCityDbPath":"","region":"","s3":"","s3LargeFiles":"","s3Results":"","sqsQueueUrl":"","table":"","workgroup":""}` |
+| `object` | `{"database":"","enabled":false,"maxmindGeoipCityDbPath":"","parquetBuffer":{"enabled":false,"existingVolume":"","medium":"","mountPath":"/var/lib/teleport-access-graph/parquet-buffer","sizeLimit":"2Gi"},"region":"","s3":"","s3LargeFiles":"","s3Results":"","sqsQueueUrl":"","table":"","workgroup":""}` |
 
 `identityActivityCenter` contains options for the Identity Activity Center feature.
 This feature allows Access Graph to store security events in a central location
@@ -277,6 +277,62 @@ identityActivityCenter:
 ```
 
 If you do not want to use the MaxMind GeoIP City database, set this to an empty string.
+
+### `identityActivityCenter.parquetBuffer`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"enabled":false,"existingVolume":"","medium":"","mountPath":"/var/lib/teleport-access-graph/parquet-buffer","sizeLimit":"2Gi"}` |
+
+`identityActivityCenter.parquetBuffer` spill parquet column pages to a scratch
+volume instead of holding them in memory while building the files uploaded to S3.
+Only useful when the consumer is memory constrained and batches span many Teleport
+clusters or days, since one parquet writer is held open per cluster and day.
+
+#### `identityActivityCenter.parquetBuffer.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`identityActivityCenter.parquetBuffer.enabled` spill parquet page buffers to disk.
+
+#### `identityActivityCenter.parquetBuffer.mountPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"/var/lib/teleport-access-graph/parquet-buffer"` |
+
+`identityActivityCenter.parquetBuffer.mountPath` where the scratch volume is mounted.
+
+#### `identityActivityCenter.parquetBuffer.sizeLimit`
+
+| Type | Default |
+|------|---------|
+| `string` | `"2Gi"` |
+
+`identityActivityCenter.parquetBuffer.sizeLimit` the size limit of the `emptyDir`
+volume created for the scratch space. Ignored when `existingVolume` is set.
+Budget roughly 32MB per (Teleport cluster x day) in a batch; the pod is evicted if the
+volume overflows, so set a matching `ephemeral-storage` request under `resources`.
+
+#### `identityActivityCenter.parquetBuffer.medium`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identityActivityCenter.parquetBuffer.medium` the `emptyDir` medium. Leave empty
+to use node disk; `Memory` would keep the pages in RAM and defeat the purpose.
+
+#### `identityActivityCenter.parquetBuffer.existingVolume`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identityActivityCenter.parquetBuffer.existingVolume` the name of a volume declared
+in `volumes` to mount at `mountPath` instead of the chart creating an `emptyDir`.
 
 ## `service`
 
