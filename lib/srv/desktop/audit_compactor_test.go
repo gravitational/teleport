@@ -21,6 +21,8 @@ package desktop
 import (
 	"context"
 	"math"
+	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -28,8 +30,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
 
 	"github.com/gravitational/teleport/api/types/events"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func newReadEvent(path string, directory directoryID, offset uint64, length uint32) *events.DesktopSharedDirectoryRead {
@@ -50,6 +54,192 @@ func newWriteEvent(path string, directory directoryID, offset uint64, length uin
 	}
 }
 
+type directoryEvent struct {
+	DirectoryID uint32
+	Offset      uint64
+	Length      uint64
+}
+
+type eventCase struct {
+	// A base read/write event
+	Base directoryEvent
+	// The result of splitting the base event
+	// into some number of compatible events.
+	Split []directoryEvent
+}
+
+type eventCases []eventCase
+
+func (e eventCases) allEvents() (all []directoryEvent) {
+	for _, evnt := range e {
+		all = append(all, evnt.Split...)
+	}
+	return
+}
+
+// Generate what we'll call "Base" events. These are reads/writes
+// which we will later split into many smaller read/write events.
+func generateBaseEvents(minDirectoryID, maxDirectoryID uint32, minLength uint64) *rapid.Generator[directoryEvent] {
+	maxLength := 1024 * 1024 * 1024 // 1GiB
+	return rapid.MakeCustom[directoryEvent](rapid.MakeConfig{
+		Fields: map[reflect.Type]map[string]*rapid.Generator[any]{
+			reflect.TypeFor[directoryEvent](): {
+				"DirectoryID": rapid.Uint32Range(minDirectoryID, maxDirectoryID).AsAny(),
+				"Offset":      rapid.Uint64Range(0, uint64(math.MaxUint32-maxLength)).AsAny(),
+				"Length":      rapid.Uint64Range(minLength, uint64(maxLength)).AsAny(),
+			},
+		},
+	})
+}
+
+// Generate 'eventCase' instances from base 'directoryEvents' instances.
+// Divide up each base event into some number of subEvents to simulate a large read/write
+// being randomly split into N sub-reads/sub-writes.
+func genEventCaseEx(baseGen *rapid.Generator[directoryEvent]) *rapid.Generator[eventCase] {
+	return rapid.Custom(func(t *rapid.T) eventCase {
+		baseEvent := baseGen.Draw(t, "base events")
+
+		// Cannot split events with length < 2
+		if baseEvent.Length < 2 {
+			return eventCase{
+				Base:  baseEvent,
+				Split: []directoryEvent{baseEvent},
+			}
+		}
+
+		// Select N distinct pivots in the range [1, eventLength).
+		// Note: rapid.Uint64Range is *inclusive*.
+		// Limit to 32 pivots (events can only be split into 33 chunks max).
+		const maxPivots = 32
+		pivotCount := int(min(baseEvent.Length-1, maxPivots))
+		pivots := rapid.SliceOfNDistinct(rapid.Uint64Range(1, baseEvent.Length-1), 1, pivotCount, rapid.ID).Draw(t, "pivots")
+		slices.Sort(pivots)
+
+		// Ex: length: 100 pivots: [10, 25, 55, 72, 87]
+		// yields lengths: 10, 15, 30, 17, 15, 13
+		length := baseEvent.Length
+		evnts := []directoryEvent{}
+		relativeOffset := uint64(0)
+
+		for _, pivot := range pivots {
+			evnts = append(evnts, directoryEvent{
+				DirectoryID: baseEvent.DirectoryID,
+				Offset:      baseEvent.Offset + relativeOffset,
+				Length:      pivot - relativeOffset,
+			})
+			relativeOffset += pivot - relativeOffset
+		}
+
+		// And the remainder
+		evnts = append(evnts, directoryEvent{
+			DirectoryID: baseEvent.DirectoryID,
+			Offset:      baseEvent.Offset + relativeOffset,
+			Length:      length - relativeOffset,
+		})
+
+		return eventCase{
+			Base:  baseEvent,
+			Split: evnts,
+		}
+	})
+}
+
+func runCompaction(ctx context.Context, evnts []directoryEvent, maxEvents int) []directoryEvent {
+	auditEvents := []events.AuditEvent{}
+	eventsLock := sync.Mutex{}
+	const refreshInterval = 1 * time.Second
+	const maxDelayInterval = 3 * time.Second
+	compactor := &auditCompactor{
+		maxEventsPerBucket: maxEvents,
+		refreshInterval:    refreshInterval,
+		maxDelayInterval:   maxDelayInterval,
+		emitFn: func(_ context.Context, event events.AuditEvent) {
+			eventsLock.Lock()
+			defer eventsLock.Unlock()
+			auditEvents = append(auditEvents, event)
+		},
+		buckets:  map[fileOperationsKey]*fileOperationsBucket{},
+		flushing: map[*fileOperationsBucket]struct{}{},
+	}
+
+	for _, event := range evnts {
+		compactor.handleEvent(ctx, &readEvent{newReadEvent("foo", directoryID(event.DirectoryID), event.Offset, uint32(event.Length))})
+	}
+	// Compact
+	compactor.flush(ctx)
+	// Transform audit events to directoryEvent
+	return sliceutils.Map(auditEvents, func(evnt events.AuditEvent) directoryEvent {
+		readEvent := evnt.(*events.DesktopSharedDirectoryRead)
+		return directoryEvent{
+			DirectoryID: readEvent.DirectoryID,
+			Offset:      readEvent.Offset,
+			Length:      uint64(readEvent.Length),
+		}
+	})
+}
+
+func genEventCase(mustBeCompactible bool) *rapid.Generator[eventCase] {
+	if mustBeCompactible {
+		// Require minimum length of two to guarantee
+		// that generated events can be compacted.
+		return genEventCaseEx(generateBaseEvents(1, 1, 2))
+	}
+	return genEventCaseEx(generateBaseEvents(1, 1, 0))
+}
+
+func TestProperty_AuditCompactor_HalvesCompactibleFileOperations(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		evnts := rapid.SliceOfN(genEventCase(true), 10, 100).Draw(t, "events")
+		allEvents := eventCases(evnts).allEvents()
+
+		compactedEvents := runCompaction(t.Context(), rapid.Permutation(allEvents).Draw(t, "shuffled"), 0)
+
+		// Event count should be reduced by at least half
+		if len(compactedEvents) > len(allEvents)/2 {
+			t.Errorf("compaction should reduce event count by at least half. pre-compaction: %d, post-compaction: %d, eventCase: %v", len(allEvents), len(compactedEvents), evnts)
+		}
+	})
+}
+
+func TestProperty_AuditCompactor_PreservesFileOperationLengths(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		evnts := rapid.SliceOfN(genEventCase(false), 10, 100).Draw(t, "events")
+		allEvents := eventCases(evnts).allEvents()
+		totalBaseReads := uint64(0)
+		for _, evnt := range evnts {
+			totalBaseReads += evnt.Base.Length
+		}
+
+		compactedEvents := runCompaction(t.Context(), rapid.Permutation(allEvents).Draw(t, "shuffled"), 0)
+
+		// Count the total bytes.
+		totalCompactedReads := uint64(0)
+		for _, evnt := range compactedEvents {
+			totalCompactedReads += evnt.Length
+		}
+
+		// Compaction must not alter the total number of bytes read.
+		if totalCompactedReads != totalBaseReads {
+			t.Errorf("Compacted reads != original reads. Got: %d, expected: %d", totalCompactedReads, totalBaseReads)
+		}
+	})
+}
+
+func TestProperty_AuditCompactor_HonorsMaxCompaction(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		evnts := rapid.SliceOfN(genEventCase(true), 10, 100).Draw(t, "events")
+		allEvents := eventCases(evnts).allEvents()
+
+		// Only allow 1 event per bucket.
+		compactedEvents := runCompaction(t.Context(), rapid.Permutation(allEvents).Draw(t, "shuffled"), 1)
+
+		// Compaction should not be possible with 'maxEventsPerBucket' set to 1.
+		if len(compactedEvents) > len(allEvents) {
+			t.Errorf("compaction should not be possible. pre-compaction: %d, post-compaction: %d, eventCase: %v", len(allEvents), len(compactedEvents), evnts)
+		}
+	})
+}
+
 func TestAuditCompactor(t *testing.T) {
 	auditEvents := []events.AuditEvent{}
 	eventsLock := sync.Mutex{}
@@ -63,7 +253,8 @@ func TestAuditCompactor(t *testing.T) {
 			defer eventsLock.Unlock()
 			auditEvents = append(auditEvents, event)
 		},
-		buckets: map[fileOperationsKey]*fileOperationsBucket{},
+		buckets:  map[fileOperationsKey]*fileOperationsBucket{},
+		flushing: map[*fileOperationsBucket]struct{}{},
 	}
 
 	t.Run("basic", func(t *testing.T) {
@@ -104,9 +295,13 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32+1, 1))
 
 			compactor.flush(ctx)
-			require.Len(t, auditEvents, 1)
-			// We should emit a single audit event with the largest length that we can represent
+			require.Len(t, auditEvents, 2)
+			// The 'length' field of the underlying directory read/write audit events is a uint32,
+			// so we can't record a length greater than 'math.MaxUint32'. Expect the compaction algorithm
+			// to handle this gracefully by breaking the read sequence above into two events. One covering the range
+			// [0, math.MaxUint32) and the other [math.MaxUint32, math.MaxUint32+2)
 			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, math.MaxUint32))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, math.MaxUint32, 2))
 		})
 	})
 
