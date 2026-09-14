@@ -18,6 +18,7 @@ node_modules/**
 # Allow scripts needed by the image itself
 !e/tests/antithesis/docker/**/*.sh
 !e/tests/antithesis/scripts/*.sh
+!e/tests/antithesis/preload/*.sha256
 
 # Allow workload commands.
 !e/tests/antithesis/workloads/cmd/

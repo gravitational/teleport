@@ -119,23 +119,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS kubectl
 ARG KUBECTL_VERSION=v1.31.5
 ARG TARGETARCH
-# Checksums are published at https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/{amd64,arm64}/kubectl.sha256
-ARG KUBECTL_SHA256_AMD64=fbecbfd375b3686002c2e81d51c390172f5ffba3d6b47920d55342cb03f557af
-ARG KUBECTL_SHA256_ARM64=697c8b4239f9e53cba46296e114bcc02c726b5c7a45e1c464804aad56e5c7a86
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN --mount=type=bind,source=e/tests/antithesis/scripts/fetch_verify.sh,target=/fetch_verify.sh \
+
+RUN --mount=type=bind,source=e/tests/antithesis/preload/kubectl.sha256,target=/kubectl.sha256 \
     arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
-    && case "${arch}" in \
-         amd64) sha256="${KUBECTL_SHA256_AMD64}" ;; \
-         arm64) sha256="${KUBECTL_SHA256_ARM64}" ;; \
-         *) echo "error: no kubectl checksum for architecture ${arch}" >&2; exit 1 ;; \
-       esac \
-    && bash /fetch_verify.sh \
+    && curl -fsSL -o "kubectl-${arch}" \
          "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
-         "${sha256}" \
-         /usr/local/bin/kubectl \
-    && chmod 0755 /usr/local/bin/kubectl \
+    && grep " kubectl-${arch}$" /kubectl.sha256 | sha256sum -c --strict - \
+    && install -m 0755 "kubectl-${arch}" /usr/local/bin/kubectl \
+    && rm -f "kubectl-${arch}" \
     && kubectl version --client=true
 
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runtime

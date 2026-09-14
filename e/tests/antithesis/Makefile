@@ -100,6 +100,7 @@ build-nginx:
 		--file $(ANTITHESIS_DIR)/docker/Dockerfile.nginx \
 		$(ANTITHESIS_DIR)/docker
 
+# When updating K3S_VERSION, delete the k3s-airgap-images-amd64.tar.zst file to force a re-download of the new version.
 K3S_VERSION ?= v1.30.2-k3s1@sha256:0f499649d68b4528de51056e09197942a22dcc116779bea3a2709ebe5e3079c9
 K3S_RANCHER_IMAGE ?= $(IMAGE_PREFIX)antithesis/k3s-rancher:$(TAG)
 .PHONY: build-k3s-rancher
@@ -178,17 +179,27 @@ local-workload: build-workload
 
 K3S_PRELOAD_DIR ?= $(ANTITHESIS_DIR)/sut/$(SUT)/k3s/preload
 K3S_VERSION_TAG := $(firstword $(subst @, ,$(K3S_VERSION)))
-K3S_AIRGAP_BUNDLE := k3s-airgap-images-amd64.tar.zst
-K3S_AIRGAP_URL := https://github.com/k3s-io/k3s/releases/download/$(subst -k3s,%2Bk3s,$(K3S_VERSION_TAG))/$(K3S_AIRGAP_BUNDLE)
-K3S_AIRGAP_SHA256 ?= b2e8e18a1a3a285b466687f06ed80e862f2acca966a19372cf9bac48f6ba2a42
+$(K3S_PRELOAD_DIR)/k3s-airgap-images-amd64.tar.zst: $(K3S_PRELOAD_DIR)/k3s-airgap-images-amd64.tar.zst.sha256 $(ANTITHESIS_DIR)/scripts/fetch_verify.sh
+	$(ANTITHESIS_DIR)/scripts/fetch_verify.sh \
+		https://github.com/k3s-io/k3s/releases/download/$(subst -k3s,%2Bk3s,$(K3S_VERSION_TAG)) \
+		$(K3S_PRELOAD_DIR)/k3s-airgap-images-amd64.tar.zst.sha256 \
+		$(K3S_PRELOAD_DIR) \
+		k3s-airgap-images-amd64.tar.zst
+
+K3S_PRELOAD_NGINX := nginx:1.31.1-alpine
+K3S_PRELOAD_NGINX_DIGEST := sha256:8b1e78743a03dbb2c95171cc58639fef29abc8816598e27fb910ed2e621e589a
+$(K3S_PRELOAD_DIR)/nginx.tar: $(ANTITHESIS_DIR)/Makefile
+	if ! docker image inspect $(K3S_PRELOAD_NGINX)@$(K3S_PRELOAD_NGINX_DIGEST) >/dev/null 2>&1; then \
+		docker pull $(K3S_PRELOAD_NGINX)@$(K3S_PRELOAD_NGINX_DIGEST); \
+	fi
+	docker tag $(K3S_PRELOAD_NGINX)@$(K3S_PRELOAD_NGINX_DIGEST) $(K3S_PRELOAD_NGINX)
+	mkdir -p $(K3S_PRELOAD_DIR)
+	docker save $(K3S_PRELOAD_NGINX) -o $@
 
 # Locally k3s will be able to pull the images it needs. On Antithesis this is not the case, there is no network access
 # we preload the amd64 airgap bundle to able able to run it.
 .PHONY: build-k3s-preload
-build-k3s-preload:
-	$(ANTITHESIS_DIR)/scripts/fetch_verify.sh $(K3S_AIRGAP_URL) $(K3S_AIRGAP_SHA256) $(K3S_PRELOAD_DIR)/$(K3S_AIRGAP_BUNDLE)
-	if ! docker image inspect $(NGINX_IMAGE) >/dev/null 2>&1; then docker pull $(NGINX_IMAGE); fi
-	docker save $(NGINX_IMAGE) -o $(K3S_PRELOAD_DIR)/nginx.tar
+build-k3s-preload: $(K3S_PRELOAD_DIR)/k3s-airgap-images-amd64.tar.zst $(K3S_PRELOAD_DIR)/nginx.tar
 
 ## Write the env file copied into the Antithesis config image.
 .PHONY: write-env

@@ -279,12 +279,6 @@ services:
         condition: service_healthy
       pgtest:
         condition: service_healthy
-    environment:
-      # Pods created by the kube workloads must use an image already present in
-      # the k3s containerd store, k3s imports k3s/preload/nginx.tar at
-      # startup instead of pulling. Keep this in sync with NGINX_IMAGE in the
-      # Makefile.
-      KUBE_POD_IMAGE: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}
     volumes:
       - ./tbot:/etc/tbot:ro
       - machine-id:/opt/machine-id

@@ -7,7 +7,7 @@ export NO_COLOR=1
 
 KUBE_CLUSTER="${KUBE_CLUSTER:-default}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-antithesis}"
-KUBE_POD_IMAGE="${KUBE_POD_IMAGE:-nginx:latest}"
+KUBE_POD_IMAGE="${KUBE_POD_IMAGE:-nginx:1.31.1-alpine}"
 
 # Use a label for a selector to avoid deleting anything else in the namespace we have not created.
 KUBE_POD_LABEL_KEY="antithesis.teleport.local/workload"
