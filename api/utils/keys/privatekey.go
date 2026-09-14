@@ -455,7 +455,7 @@ func ParseKeyPair(privPEM, marshaledSSHPub []byte, opts ...ParsePrivateKeyOpt) (
 
 // LoadX509KeyPair parse a tls.Certificate from a private key file and certificate file.
 // This should be used instead of tls.LoadX509KeyPair to support non-raw private keys, like PIV keys.
-func LoadX509KeyPair(certFile, keyFile string) (tls.Certificate, error) {
+func LoadX509KeyPair(certFile, keyFile string, opts ...ParsePrivateKeyOpt) (tls.Certificate, error) {
 	keyPEMBlock, err := os.ReadFile(keyFile)
 	if err != nil {
 		return tls.Certificate{}, trace.ConvertSystemError(err)
@@ -466,7 +466,7 @@ func LoadX509KeyPair(certFile, keyFile string) (tls.Certificate, error) {
 		return tls.Certificate{}, trace.ConvertSystemError(err)
 	}
 
-	tlsCert, err := X509KeyPair(certPEMBlock, keyPEMBlock)
+	tlsCert, err := X509KeyPair(certPEMBlock, keyPEMBlock, opts...)
 	if err != nil {
 		// Treat malformed keys the same as missing keys.
 		if trace.IsBadParameter(err) {
@@ -480,8 +480,8 @@ func LoadX509KeyPair(certFile, keyFile string) (tls.Certificate, error) {
 
 // X509KeyPair parse a tls.Certificate from a private key PEM and certificate PEM.
 // This should be used instead of tls.X509KeyPair to support non-raw private keys, like PIV keys.
-func X509KeyPair(certPEMBlock, keyPEMBlock []byte) (tls.Certificate, error) {
-	priv, err := ParsePrivateKey(keyPEMBlock)
+func X509KeyPair(certPEMBlock, keyPEMBlock []byte, opts ...ParsePrivateKeyOpt) (tls.Certificate, error) {
+	priv, err := ParsePrivateKey(keyPEMBlock, opts...)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
