@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net/url"
 	"slices"
@@ -38,12 +39,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -811,11 +812,11 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 	return evts, next, nil
 }
 
-func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("pgevents backend does not support streaming export"))
 }
 
-func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("pgevents backend does not support streaming export"))
 }
 

@@ -21,6 +21,7 @@ package athena
 import (
 	"context"
 	"io"
+	"iter"
 	"log/slog"
 	"net/url"
 	"regexp"
@@ -37,7 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
@@ -536,11 +536,11 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	return evts, next, nil
 }
 
-func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	return l.querier.ExportUnstructuredEvents(ctx, req)
 }
 
-func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	return l.querier.GetEventExportChunks(ctx, req)
 }
 

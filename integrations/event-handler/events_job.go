@@ -25,9 +25,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/events/export"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // EventsJob incapsulates audit log event consumption logic

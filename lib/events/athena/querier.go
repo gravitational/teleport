@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -47,11 +48,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -228,7 +229,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
 // performance over ordering and filtering, and is intended for bulk export of events.
-func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	startTime := req.GetDate().AsTime()
 	if startTime.IsZero() {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'date'"))
@@ -311,7 +312,7 @@ func (c *athenaExportCursor) Decode(key string) error {
 
 // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
-func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	dt := req.GetDate().AsTime()
 	if dt.IsZero() {
 		return stream.Fail[*auditlogpb.EventExportChunk](trace.BadParameter("missing required parameter 'date'"))
@@ -395,30 +396,36 @@ func (q *querier) streamEventsFromChunk(ctx context.Context, date, chunk string)
 
 	reader := parquet.NewGenericReader[eventParquet](bytes.NewReader(data))
 
-	closer := func() {
-		reader.Close()
-	}
+	return func(yield func(eventParquet, error) bool) {
+		defer reader.Close()
 
-	var prevErr error
-
-	return stream.Func(func() (eventParquet, error) {
-		if prevErr != nil {
-			return eventParquet{}, prevErr
-		}
-		// conventional wisdom says that we should use a larger persistent buffer here
-		// but in loadtesting this API was abserved having almost twice the throughput
-		// with a single element local buf variable instead.
-		var buf [1]eventParquet
-		n, err := reader.Read(buf[:])
-		if n == 0 && err != nil {
-			if errors.Is(err, io.EOF) {
-				return eventParquet{}, io.EOF
+		for {
+			// conventional wisdom says that we should use a larger persistent buffer here
+			// but in loadtesting this API was abserved having almost twice the throughput
+			// with a single element local buf variable instead.
+			var buf [1]eventParquet
+			n, err := reader.Read(buf[:])
+			if n == 0 && err != nil {
+				if !errors.Is(err, io.EOF) {
+					yield(eventParquet{}, trace.Wrap(err))
+				}
+				return
 			}
-			return eventParquet{}, trace.Wrap(err)
+
+			if !yield(buf[0], nil) {
+				return
+			}
+
+			// a non-nil error alongside a successful read terminates the stream
+			// after the read items have been yielded.
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					yield(eventParquet{}, trace.Wrap(err))
+				}
+				return
+			}
 		}
-		prevErr = err
-		return buf[0], nil
-	}, closer)
+	}
 }
 
 func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byte, error) {

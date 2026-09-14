@@ -21,12 +21,13 @@ package events
 import (
 	"context"
 	"io"
+	"iter"
 
 	"github.com/gravitational/trace"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // NewMultiLog returns a new instance of a multi logger
@@ -98,14 +99,14 @@ func (m *MultiLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvent
 	return events, lastKey, err
 }
 
-func (m *MultiLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (m *MultiLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	var foundImplemented bool
 	var pos int
 	// model our iteration through sub-loggers as a stream of streams that terminates after the first stream
 	// is reached that results in something other than a not implemented error, then flatten the stream of streams
 	// to produce the effect of creating a single stream of events originating solely from the first logger that
 	// implements the ExportUnstructuredEvents method.
-	return stream.Flatten(stream.Func(func() (stream.Stream[*auditlogpb.ExportEventUnstructured], error) {
+	return stream.Flatten(stream.Func(func() (iter.Seq2[*auditlogpb.ExportEventUnstructured, error], error) {
 		if foundImplemented {
 			// an implementing stream has already been found and consumed.
 			return nil, io.EOF
@@ -126,14 +127,14 @@ func (m *MultiLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb
 	}))
 }
 
-func (m *MultiLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (m *MultiLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	var foundImplemented bool
 	var pos int
 	// model our iteration through sub-loggers as a stream of streams that terminates after the first stream
 	// is reached that results in something other than a not implemented error, then flatten the stream of streams
 	// to produce the effect of creating a single stream of chunks originating solely from the first logger that
 	// implements the GetEventExportChunks method.
-	return stream.Flatten(stream.Func(func() (stream.Stream[*auditlogpb.EventExportChunk], error) {
+	return stream.Flatten(stream.Func(func() (iter.Seq2[*auditlogpb.EventExportChunk, error], error) {
 		if foundImplemented {
 			// an implementing stream has already been found and consumed.
 			return nil, io.EOF

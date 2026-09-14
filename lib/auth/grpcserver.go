@@ -7038,16 +7038,17 @@ func (g *GRPCServer) ExportUnstructuredEvents(req *auditlogpb.ExportUnstructured
 		return trace.Wrap(err)
 	}
 
-	events := auth.ServerWithRoles.ExportUnstructuredEvents(stream.Context(), req)
+	for event, err := range auth.ServerWithRoles.ExportUnstructuredEvents(stream.Context(), req) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	for events.Next() {
-		if err := stream.Send(events.Item()); err != nil {
-			events.Done()
+		if err := stream.Send(event); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	return trace.Wrap(events.Done())
+	return nil
 }
 
 // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
@@ -7058,16 +7059,17 @@ func (g *GRPCServer) GetEventExportChunks(req *auditlogpb.GetEventExportChunksRe
 		return trace.Wrap(err)
 	}
 
-	chunks := auth.ServerWithRoles.GetEventExportChunks(stream.Context(), req)
+	for chunk, err := range auth.ServerWithRoles.GetEventExportChunks(stream.Context(), req) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	for chunks.Next() {
-		if err := stream.Send(chunks.Item()); err != nil {
-			chunks.Done()
+		if err := stream.Send(chunk); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	return trace.Wrap(chunks.Done())
+	return nil
 }
 
 // StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.

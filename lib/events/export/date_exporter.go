@@ -21,6 +21,7 @@ package export
 import (
 	"cmp"
 	"context"
+	"iter"
 	"log/slog"
 	"maps"
 	"sync"
@@ -33,15 +34,14 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // Client is the subset of the audit event client that is used by the date exporter.
 type Client interface {
-	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured]
-	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
+	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error]
+	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error]
 }
 
 // DateExporterConfig configures the date exporter.
@@ -368,11 +368,15 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 
 	var newChunks int
 
-	for chunks.Next() {
+	for chunk, err := range chunks {
+		if err != nil {
+			return newChunks, trace.Wrap(err)
+		}
+
 		// known chunks should be skipped
 		var skip bool
 		e.withLock(func() {
-			if _, ok := e.chunks[chunks.Item().GetChunk()]; ok {
+			if _, ok := e.chunks[chunk.GetChunk()]; ok {
 				skip = true
 				return
 			}
@@ -385,15 +389,11 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if ok := e.startProcessingChunk(ctx, chunks.Item().GetChunk(), "" /* cursor */); !ok {
+		if ok := e.startProcessingChunk(ctx, chunk.GetChunk(), "" /* cursor */); !ok {
 			return newChunks, trace.Wrap(ctx.Err())
 		}
 
 		newChunks++
-	}
-
-	if err := chunks.Done(); err != nil {
-		return newChunks, trace.Wrap(err)
 	}
 
 	return newChunks, nil
@@ -437,40 +437,43 @@ func (e *DateExporter) processChunk(ctx context.Context, chunk string, entry *ch
 	// note: this retry is never reset since we return on first successful stream consumption
 	retry := e.retry.Clone()
 	var failures int
-Outer:
 	for {
-
-		events := e.cfg.Client.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
-			Date:   timestamppb.New(e.cfg.Date),
-			Chunk:  chunk,
-			Cursor: entry.getCursor(),
-		}.Build())
-
-		var err error
-		if e.cfg.Export != nil {
-			err = e.exportEvents(ctx, events, entry)
-		} else {
-			err = e.batchExportEvents(ctx, events, entry, chunk)
-		}
-		if err != nil {
-			failures++
-
-			if e.chunkLogLimiter.Allow() {
-				e.log.WarnContext(ctx, "event chunk export failed", "chunk", chunk, "failures", failures, "error", err)
-			}
-			retry.Inc()
-
-			select {
-			case <-retry.After():
-			case <-ctx.Done():
-				return
-			}
-			continue Outer
+		err := e.exportChunk(ctx, chunk, entry)
+		if err == nil {
+			entry.done.Store(true)
+			return
 		}
 
-		entry.done.Store(true)
-		return
+		failures++
+		if e.chunkLogLimiter.Allow() {
+			e.log.WarnContext(ctx, "event chunk export failed", "chunk", chunk, "failures", failures, "error", err)
+		}
+		retry.Inc()
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return
+		}
 	}
+}
+
+func (e *DateExporter) exportChunk(ctx context.Context, chunk string, entry *chunkEntry) error {
+	// set up cancelable context so that the export stream is closed if consumption
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	events := e.cfg.Client.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
+		Date:   timestamppb.New(e.cfg.Date),
+		Chunk:  chunk,
+		Cursor: entry.getCursor(),
+	}.Build())
+
+	if e.cfg.Export != nil {
+		return trace.Wrap(e.exportEvents(ctx, events, entry))
+	}
+	return trace.Wrap(e.batchExportEvents(ctx, events, entry, chunk))
 }
 
 type batch struct {
@@ -510,13 +513,22 @@ func (b *batch) isEmpty() bool {
 // they reach the configured maximum size (MaxSize) or after the maximum delay
 // (MaxDelay) has passed with pending events. Processing continues until the
 // stream closes or an error occurs.
-func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
+func (e *DateExporter) batchExportEvents(ctx context.Context, stream iter.Seq2[*auditlogpb.ExportEventUnstructured, error], entry *chunkEntry, chunk string) error {
 	exportEventCh := make(chan *auditlogpb.ExportEventUnstructured, 1)
+	errCh := make(chan error, 1)
 	go func() {
-		for stream.Next() {
-			exportEventCh <- stream.Item()
+		defer close(exportEventCh)
+		for event, err := range stream {
+			if err != nil {
+				errCh <- err
+				return
+			}
+			select {
+			case exportEventCh <- event:
+			case <-ctx.Done():
+				return
+			}
 		}
-		close(exportEventCh)
 	}()
 
 	batch := &batch{
@@ -547,7 +559,6 @@ loop:
 		}
 		err := e.batchExport(ctx, batch, false /*completed*/)
 		if err != nil {
-			stream.Done()
 			return trace.Wrap(err)
 		}
 
@@ -559,8 +570,12 @@ loop:
 		}
 	}
 
-	if err := stream.Done(); err != nil {
+	// the event channel is closed after any terminal stream error has been
+	// recorded, so a non-blocking read is safe here.
+	select {
+	case err := <-errCh:
 		return trace.Wrap(err)
+	default:
 	}
 
 	// One final call back with completed set to true, even if batch is empty.
@@ -589,16 +604,19 @@ func (e *DateExporter) batchExport(ctx context.Context, batch *batch, completed 
 }
 
 // exportEvents exports all events from the provided stream, updating the supplied entry on each successful export.
-func (e *DateExporter) exportEvents(ctx context.Context, events stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry) error {
-	for events.Next() {
-		if err := e.cfg.Export(ctx, events.Item()); err != nil {
-			events.Done()
+func (e *DateExporter) exportEvents(ctx context.Context, events iter.Seq2[*auditlogpb.ExportEventUnstructured, error], entry *chunkEntry) error {
+	for event, err := range events {
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		entry.setCursor(events.Item().GetCursor())
+		if err := e.cfg.Export(ctx, event); err != nil {
+			return trace.Wrap(err)
+		}
+
+		entry.setCursor(event.GetCursor())
 	}
-	return trace.Wrap(events.Done())
+	return nil
 }
 
 func (e *DateExporter) withLock(fn func()) {

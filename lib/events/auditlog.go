@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -533,7 +532,7 @@ func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvent
 	return l.localLog.SearchUnstructuredEvents(ctx, req)
 }
 
-func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.GetDate(), "chunk", req.GetChunk(), "cursor", req.GetCursor())
 	if l.ExternalLog != nil {
 		return l.ExternalLog.ExportUnstructuredEvents(ctx, req)
@@ -541,7 +540,7 @@ func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb
 	return l.localLog.ExportUnstructuredEvents(ctx, req)
 }
 
-func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	l.log.DebugContext(ctx, "GetEventExportChunks", "date", req.GetDate())
 	if l.ExternalLog != nil {
 		return l.ExternalLog.GetEventExportChunks(ctx, req)

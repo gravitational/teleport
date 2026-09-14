@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -58,12 +57,12 @@ func (d *DiscardAuditLog) SearchUnstructuredEvents(ctx context.Context, req Sear
 	return make([]*auditlogpb.EventUnstructured, 0), "", nil
 }
 
-func (d *DiscardAuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	return stream.Empty[*auditlogpb.ExportEventUnstructured]()
+func (d *DiscardAuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
+	return func(yield func(*auditlogpb.ExportEventUnstructured, error) bool) {}
 }
 
-func (d *DiscardAuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	return stream.Empty[*auditlogpb.EventExportChunk]()
+func (d *DiscardAuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
+	return func(yield func(*auditlogpb.EventExportChunk, error) bool) {}
 }
 
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
