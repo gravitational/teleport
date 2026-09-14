@@ -941,6 +941,103 @@ type OIDCAuthRequest struct {
 	ClientRedirectURL string `json:"client_redirect_url"`
 }
 
+// ValidateOIDCAuthCallbackRequestToProto converts an OIDC provider callback
+// query to its proto representation.
+func ValidateOIDCAuthCallbackRequestToProto(q url.Values) *proto.ValidateOIDCAuthCallbackRequest {
+	query := make(map[string]*wrappers.StringValues, len(q))
+	for k, v := range q {
+		query[k] = &wrappers.StringValues{Values: v}
+	}
+	return &proto.ValidateOIDCAuthCallbackRequest{Query: query}
+}
+
+// ValidateOIDCAuthCallbackRequestFromProto converts the proto representation
+// of an OIDC provider callback query to its native representation.
+func ValidateOIDCAuthCallbackRequestFromProto(req *proto.ValidateOIDCAuthCallbackRequest) url.Values {
+	q := make(url.Values, len(req.Query))
+	for k, v := range req.Query {
+		if v != nil {
+			q[k] = v.Values
+		}
+	}
+	return q
+}
+
+// ToProto converts OIDCAuthResponse to its proto representation.
+func (r *OIDCAuthResponse) ToProto() (*proto.ValidateOIDCAuthCallbackResponse, error) {
+	resp := &proto.ValidateOIDCAuthCallbackResponse{
+		Username: r.Username,
+		Identity: &r.Identity,
+		Cert:     r.Cert,
+		TlsCert:  r.TLSCert,
+		Req: &proto.ValidateOIDCAuthCallbackResponse_RequestInfo{
+			ConnectorId:       r.Req.ConnectorID,
+			CsrfToken:         r.Req.CSRFToken,
+			SshPubKey:         r.Req.SSHPubKey,
+			TlsPubKey:         r.Req.TLSPubKey,
+			CreateWebSession:  r.Req.CreateWebSession,
+			ClientRedirectUrl: r.Req.ClientRedirectURL,
+		},
+		ClientOptions: &proto.LoginClientOptions{
+			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
+		},
+		MfaToken: r.MFAToken,
+	}
+	if r.Session != nil {
+		session, ok := r.Session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("expected web session to be of type types.WebSessionV2, got %T", r.Session)
+		}
+		resp.Session = session
+	}
+	resp.HostSigners = make([]*types.CertAuthorityV2, 0, len(r.HostSigners))
+	for _, certAuthority := range r.HostSigners {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter("expected certificate authority to be of type types.CertAuthorityV2, got %T", certAuthority)
+		}
+		resp.HostSigners = append(resp.HostSigners, cast)
+	}
+	return resp, nil
+}
+
+// OIDCAuthResponseFromProto converts the proto representation of
+// OIDCAuthResponse to its native representation.
+func OIDCAuthResponseFromProto(resp *proto.ValidateOIDCAuthCallbackResponse) *OIDCAuthResponse {
+	r := &OIDCAuthResponse{
+		Username: resp.Username,
+		Cert:     resp.Cert,
+		TLSCert:  resp.TlsCert,
+		MFAToken: resp.MfaToken,
+	}
+	if resp.Identity != nil {
+		r.Identity = *resp.Identity
+	}
+	if resp.Session != nil {
+		r.Session = resp.Session
+	}
+	if resp.Req != nil {
+		r.Req = OIDCAuthRequest{
+			ConnectorID:       resp.Req.ConnectorId,
+			CSRFToken:         resp.Req.CsrfToken,
+			SSHPubKey:         resp.Req.SshPubKey,
+			TLSPubKey:         resp.Req.TlsPubKey,
+			CreateWebSession:  resp.Req.CreateWebSession,
+			ClientRedirectURL: resp.Req.ClientRedirectUrl,
+		}
+	}
+	if resp.ClientOptions != nil {
+		r.ClientOptions = ClientOptions{
+			DefaultRelayAddr: resp.ClientOptions.DefaultRelayAddr,
+		}
+	}
+	r.HostSigners = make([]types.CertAuthority, 0, len(resp.HostSigners))
+	for _, certAuthority := range resp.HostSigners {
+		r.HostSigners = append(r.HostSigners, certAuthority)
+	}
+	return r
+}
+
 // SAMLAuthResponse is returned when auth server validated callback parameters
 // returned from SAML identity provider
 type SAMLAuthResponse struct {

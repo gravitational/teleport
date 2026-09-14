@@ -488,6 +488,7 @@ func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.
 	return resp, nil
 }
 
+// TODO(strideynet): DELETE IN v20.0.0 - this has been migrated to gRPC from v19.
 func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req *authclient.ValidateOIDCAuthCallbackReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

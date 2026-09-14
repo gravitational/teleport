@@ -199,6 +199,56 @@ func TestSAMLAuthResponseProto(t *testing.T) {
 	require.Empty(t, cmp.Diff(native, backToNative))
 }
 
+func TestValidateOIDCAuthCallbackRequestProto(t *testing.T) {
+	native := url.Values{
+		"code":  []string{"success"},
+		"state": []string{"fizz-buzz"},
+	}
+	backToNative := ValidateOIDCAuthCallbackRequestFromProto(ValidateOIDCAuthCallbackRequestToProto(native))
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestOIDCAuthResponseProto(t *testing.T) {
+	session, err := types.NewWebSession("test-session", types.KindWebSession, types.WebSessionSpecV2{
+		User:        "alice",
+		Priv:        []byte("priv"),
+		Pub:         []byte("pub"),
+		TLSCert:     []byte("session-tls-cert"),
+		BearerToken: "bearer",
+	})
+	require.NoError(t, err)
+
+	native := &OIDCAuthResponse{
+		Username: "alice",
+		Identity: types.ExternalIdentity{
+			ConnectorID: "oidc",
+			Username:    "alice@example.com",
+		},
+		Session: session,
+		Cert:    []byte("ssh-cert"),
+		TLSCert: []byte("tls-cert"),
+		Req: OIDCAuthRequest{
+			ConnectorID:       "oidc-connector",
+			CSRFToken:         "csrf-token",
+			SSHPubKey:         []byte("ssh-pub"),
+			TLSPubKey:         []byte("tls-pub"),
+			CreateWebSession:  true,
+			ClientRedirectURL: "https://localhost:3080/callback",
+		},
+		HostSigners: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+		},
+		MFAToken: "mfa-token",
+		ClientOptions: ClientOptions{
+			DefaultRelayAddr: "relay.example.com:443",
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := OIDCAuthResponseFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
 func TestAuthenticateUserRequestProto(t *testing.T) {
 	native := AuthenticateUserRequest{
 		Username:     "alice",

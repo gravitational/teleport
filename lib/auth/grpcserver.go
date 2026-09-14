@@ -3327,6 +3327,24 @@ func (g *GRPCServer) GetOIDCAuthRequest(ctx context.Context, req *authpb.GetOIDC
 	return request, nil
 }
 
+// ValidateOIDCAuthCallback is called by the Proxy to validate the OIDC
+// provider callback and issue the user's session and certificates.
+func (g *GRPCServer) ValidateOIDCAuthCallback(ctx context.Context, req *authpb.ValidateOIDCAuthCallbackRequest) (*authpb.ValidateOIDCAuthCallbackResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.ValidateOIDCAuthCallback(ctx, authclient.ValidateOIDCAuthCallbackRequestFromProto(req))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := response.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native OIDCAuthResponse to proto representation")
+	}
+	return protoResp, nil
+}
+
 // GetSAMLConnector retrieves a SAML connector by name.
 func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
 	auth, err := g.authenticate(ctx)

@@ -1267,6 +1267,7 @@ func (p *Plugin) RegisterAuthWebHandlers(handler any) error {
 
 	// TODO(strideynet): DELETE IN v20.0.0 - the SAML route has been migrated to gRPC from v19.
 	apiServer.POST("/:version/saml/requests/validate", apiServer.WithAuth(validateSAMLResponseWeb))
+	// TODO(strideynet): DELETE IN v20.0.0 - the OIDC route has been migrated to gRPC from v19.
 	apiServer.POST("/:version/oidc/requests/validate", apiServer.WithAuth(validateOIDCAuthCallbackWeb))
 
 	return nil
