@@ -509,19 +509,15 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	}
 
 	// Marshal values into a []types.CertAuthority slice.
-	cas := make([]types.CertAuthority, len(result.Items))
-	for i, item := range result.Items {
+	cas := make([]types.CertAuthority, 0, len(result.Items))
+	for _, item := range result.Items {
 		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			slog.WarnContext(ctx, "Failed to unmarshal cert authority", "key", item.Key, "error", err)
 			continue
 		}
-		if err := services.ValidateCertAuthority(ca); err != nil {
-			slog.WarnContext(ctx, "Failed to validate cert authority", "key", item.Key, "error", err)
-			continue
-		}
 		setSigningKeys(ca, loadSigningKeys)
-		cas[i] = ca
+		cas = append(cas, ca)
 	}
 
 	return cas, nil
