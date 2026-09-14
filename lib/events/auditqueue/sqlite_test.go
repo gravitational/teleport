@@ -362,7 +362,17 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
-	handler := func(_ context.Context, items []Item) []Item {
+	secondCall := make(chan struct{})
+	calls := 0
+	handler := func(ctx context.Context, items []Item) []Item {
+		calls++
+		if calls > 1 {
+			if calls == 2 {
+				close(secondCall)
+			}
+			<-ctx.Done()
+			return nil
+		}
 		var ack []Item
 		for _, it := range items {
 			if len(it.Events) == 1 && it.Events[0].GetIndex()%2 == 0 {
@@ -375,13 +385,17 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- q.Run(runCtx, handler) }()
 
-	require.Eventually(t, func() bool {
-		items, err := q.fetch(10)
-		if err != nil || len(items) != 1 || len(items[0].Events) != 1 {
-			return false
-		}
-		return items[0].Events[0].GetIndex() == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	select {
+	case <-secondCall:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for the second delivery attempt")
+	}
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Len(t, items[0].Events, 1)
+	require.Equal(t, int64(1), items[0].Events[0].GetIndex())
 
 	cancel()
 	require.ErrorIs(t, <-runErr, context.Canceled)
