@@ -210,6 +210,8 @@ services:
       - k3s-server:/var/lib/rancher/k3s
       - k3s-config:/etc/rancher/k3s
       - ./k3s/preload:/var/lib/rancher/k3s/agent/images:ro
+      # Override the builtin k3s containerd config. See config.toml.tmpl for details.
+      - ./k3s/config.toml.tmpl:/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl:ro
 
   k3s-configure:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/k3s-rancher:${TAG:-latest}
@@ -277,6 +279,12 @@ services:
         condition: service_healthy
       pgtest:
         condition: service_healthy
+    environment:
+      # Pods created by the kube workloads must use an image already present in
+      # the k3s containerd store, k3s imports k3s/preload/nginx.tar at
+      # startup instead of pulling. Keep this in sync with NGINX_IMAGE in the
+      # Makefile.
+      KUBE_POD_IMAGE: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}
     volumes:
       - ./tbot:/etc/tbot:ro
       - machine-id:/opt/machine-id

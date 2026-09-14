@@ -229,4 +229,9 @@ COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test
 COPY --from=builder /out/parallel_driver_app_access /opt/antithesis/test/v1/apps/parallel_driver_app_access
 COPY --from=builder /out/parallel_driver_db_access /opt/antithesis/test/v1/db/parallel_driver_db_access
 COPY e/tests/antithesis/workloads/cmd/first_db_configure.sh /opt/antithesis/test/v1/db/first_db_configure.sh
-COPY e/tests/antithesis/workloads/cmd/serial_driver_cli_kube_access.sh /opt/antithesis/test/v1/kube/serial_driver_cli_kube_access.sh
+
+COPY e/tests/antithesis/workloads/cmd/helper_kube_common.sh /opt/antithesis/test/v1/kube/helper_kube_common.sh
+COPY e/tests/antithesis/workloads/cmd/serial_driver_kube_get_nodes.sh /opt/antithesis/test/v1/kube/serial_driver_kube_get_nodes.sh
+COPY e/tests/antithesis/workloads/cmd/serial_driver_kube_pod_logs.sh /opt/antithesis/test/v1/kube/serial_driver_kube_pod_logs.sh
+COPY e/tests/antithesis/workloads/cmd/serial_driver_kube_pod_exec.sh /opt/antithesis/test/v1/kube/serial_driver_kube_pod_exec.sh
+COPY e/tests/antithesis/workloads/cmd/serial_driver_kube_port_forward.sh /opt/antithesis/test/v1/kube/serial_driver_kube_port_forward.sh
