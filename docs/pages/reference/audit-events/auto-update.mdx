@@ -1,0 +1,241 @@
+---
+title: Auto-Update Audit Events
+description: "Provides a list of Auto-Update audit events."
+sidebar_label: Auto-Update
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to automatic updates.
+
+
+
+## auto_update_agent_rollout.force_done
+
+Automatic Update Agent Rollout Forced Done.
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.force_done",
+  "code": "AUAR002I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "prod"
+  ],
+  "success": true
+}
+```
+
+## auto_update_agent_rollout.rollback
+
+Automatic Update Agent Rollout Rollback
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.rollback",
+  "code": "AUAR003I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "prod"
+  ],
+  "success": true
+}
+```
+
+## auto_update_agent_rollout.trigger
+
+Automatic Update Agent Rollout Triggered
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.trigger",
+  "code": "AUAR001I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "dev",
+    "prod"
+  ],
+  "success": true
+}
+```
+
+
+## auto_update_config.create
+
+Automatic Update Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:46790",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC001I",
+  "ei": 0,
+  "event": "auto_update_config.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:31.946Z",
+  "uid": "6fcbf7ed-b44c-4b83-bb70-02a574564e0b",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_config.delete
+
+Automatic Update Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:39518",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC003I",
+  "ei": 0,
+  "event": "auto_update_config.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "af17ab4a-d5a2-44a3-93ce-89390b50d52f",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_config.update
+
+Automatic Update Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:46798",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC002I",
+  "ei": 0,
+  "event": "auto_update_config.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:37.633Z",
+  "uid": "94c580a9-6f87-4a23-9fe5-f93de4390cff",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+
+## auto_update_version.create
+
+Automatic Update Version Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:41608",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV001I",
+  "ei": 0,
+  "event": "auto_update_version.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:41:24.433Z",
+  "uid": "3d677d2f-91d0-4b5a-966d-183a59cec888",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_version.delete
+
+Automatic Update Version Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:50316",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV003I",
+  "ei": 0,
+  "event": "auto_update_version.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:25:44.805Z",
+  "uid": "c4d0d165-3a17-46ac-baa7-c7f521629997",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_version.update
+
+Automatic Update Version Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:42540",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV002I",
+  "ei": 0,
+  "event": "auto_update_version.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:27:36.039Z",
+  "uid": "b7f9dde2-2899-46f1-bd4e-699d7b630e33",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+
+## upgradewindowstart.update
+
+Upgrade Window Start Updated
+
+Example:
+
+```json
+{
+  "code": "TUW01I",
+  "time": "2022-04-13T20:00:04.000Z",
+  "user": "alice@example.com",
+  "event": "upgradewindowstart.update",
+  "upgrade_window_start": "23:00"
+}
+```

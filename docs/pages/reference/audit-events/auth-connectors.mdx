@@ -1,0 +1,866 @@
+---
+title: Authentication Connectors Audit Events
+description: "Provides a list of Authentication Connectors audit events."
+sidebar_label: Authentication Connectors
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport Single-Sign On integrations.
+
+
+
+## aws_identity_center.resource_sync.failed
+
+AWS IAM Identity Center Resource Sync Failed
+
+Example:
+
+```json
+{
+  "code": "TAIC001E",
+  "event": "aws_identity_center.resource_sync.failed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## aws_identity_center.resource_sync.success
+
+AWS IAM Identity Center Resource Sync Completed
+
+Example:
+
+```json
+{
+  "code": "TAIC001I",
+  "event": "aws_identity_center.resource_sync.success",
+  "message": "Periodic account, permission set and account assignment sync",
+  "success": true,
+  "time": "2025-02-11T15:29:30.045Z",
+  "total_account_assignments": 12,
+  "total_accounts": 4,
+  "total_permission_sets": 3,
+  "total_user_groups": 5
+}
+```
+
+
+## github.created
+
+GitHub Auth Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8000I",
+  "event": "github.created",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:00Z",
+  "uid": "2b7bb323-35d1-4b9c-9a6d-00ab34c95fb8",
+  "user": "unimplemented"
+}
+```
+
+## github.deleted
+
+GitHub Auth Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8001I",
+  "event": "github.deleted",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:28Z",
+  "uid": "26f12a67-d593-40df-b3d3-965faee60143",
+  "user": "unimplemented"
+}
+```
+
+## github.updated
+
+GitHub Auth Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T80002I",
+  "event": "github.updated",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:28Z",
+  "uid": "26f12a67-d593-40df-b3d3-965faee60143",
+  "user": "unimplemented"
+}
+```
+
+
+## oidc.created
+
+OIDC Auth Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8100I",
+  "event": "oidc.created",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## oidc.deleted
+
+OIDC Auth Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8101I",
+  "event": "oidc.deleted",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## oidc.updated
+
+OIDC Auth Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T8102I",
+  "event": "oidc.updated",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+
+## okta.access_list.sync
+
+There are multiple events with the `okta.access_list.sync` type.
+
+### TOK006I
+
+Okta access list synchronization completed
+
+Example:
+
+```json
+{
+  "code": "TOK006I",
+  "event": "okta.access_list.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+### TOK006E
+
+Okta access list synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK006E",
+  "event": "okta.access_list.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+## okta.applications.update
+
+Okta applications have been updated
+
+Example:
+
+```json
+{
+  "code": "TOK002I",
+  "event": "okta.applications.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "added": 5,
+  "updated": 1,
+  "deleted": 7
+}
+```
+
+## okta.assignment.cleanup
+
+There are multiple events with the `okta.assignment.cleanup` type.
+
+### TOK005I
+
+Okta assignment has been cleaned up
+
+Example:
+
+```json
+{
+  "code": "TOK005I",
+  "event": "okta.assignment.cleanup",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+### TOK005E
+
+Okta assignment failed to clean up
+
+Example:
+
+```json
+{
+  "code": "TOK005E",
+  "event": "okta.assignment.cleanup",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+## okta.assignment.process
+
+There are multiple events with the `okta.assignment.process` type.
+
+### TOK004I
+
+Okta assignment has been processed
+
+Example:
+
+```json
+{
+  "code": "TOK004I",
+  "event": "okta.assignment.process",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+### TOK004E
+
+Okta assignment failed to process
+
+Example:
+
+```json
+{
+  "code": "TOK004E",
+  "event": "okta.assignment.process",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+## okta.groups.update
+
+Okta groups have been updated
+
+Example:
+
+```json
+{
+  "code": "TOK001I",
+  "event": "okta.groups.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "added": 5,
+  "updated": 1,
+  "deleted": 7
+}
+```
+
+## okta.sync.failure
+
+Okta synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK003E",
+  "event": "okta.sync.failure",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+## okta.user.sync
+
+There are multiple events with the `okta.user.sync` type.
+
+### TOK007I
+
+Okta user synchronization completed
+
+Example:
+
+```json
+{
+  "code": "TOK007I",
+  "event": "okta.user.sync",
+  "time": "2023-05-08T19:21:36.144Z",
+  "num_users_created": 5,
+  "num_users_deleted": 1,
+  "num_users_modified": 7
+}
+```
+
+### TOK007E
+
+Okta user synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK007E",
+  "event": "okta.user.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+
+## saml.created
+
+SAML Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8200I",
+  "event": "saml.created",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## saml.deleted
+
+SAML Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8201I",
+  "event": "saml.deleted",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## saml.idp.auth
+
+SAML IdP authentication
+
+Example:
+
+```json
+{
+  "code": "TSI000I",
+  "event": "saml.idp.auth",
+  "time": "2023-01-25T19:21:36.144Z",
+  "user": "mike",
+  "session_id": "123456",
+  "success": true,
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.idp.service.provider.create
+
+There are multiple events with the `saml.idp.service.provider.create` type.
+
+### TSI001I
+
+SAML IdP service provider created
+
+Example:
+
+```json
+{
+  "code": "TSI001I",
+  "event": "saml.idp.service.provider.create",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI001W
+
+SAML IdP service provider create failed
+
+Example:
+
+```json
+{
+  "code": "TSI001W",
+  "event": "saml.idp.service.provider.create",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.idp.service.provider.delete
+
+There are multiple events with the `saml.idp.service.provider.delete` type.
+
+### TSI003I
+
+SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI003I",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI003W
+
+SAML IdP service provider delete failed
+
+Example:
+
+```json
+{
+  "code": "TSI003W",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI004W
+
+SAML IdP service provider delete failed
+
+Example:
+
+```json
+{
+  "code": "TSI004W",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+## saml.idp.service.provider.delete_all
+
+All SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI004I",
+  "event": "saml.idp.service.provider.delete_all",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+## saml.idp.service.provider.update
+
+There are multiple events with the `saml.idp.service.provider.update` type.
+
+### TSI002I
+
+SAML IdP service provider updated
+
+Example:
+
+```json
+{
+  "code": "TSI002I",
+  "event": "saml.idp.service.provider.update",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI002W
+
+SAML IdP service provider update failed
+
+Example:
+
+```json
+{
+  "code": "TSI002W",
+  "event": "saml.idp.service.provider.update",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.updated
+
+SAML Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T8202I",
+  "event": "saml.updated",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+
+## scim.create
+
+There are multiple events with the `scim.create` type.
+
+### TSCIM001I
+
+SCIM Resource Creation Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM001I",
+  "event": "scim.create",
+  "success": true,
+  "request": {
+    "id": "ff5cea87-db00-4fa8-a30f-99f220f61075",
+    "source_address": "127.0.0.1",
+    "user_agent": "carrier pigeon",
+    "method": "PUT",
+    "path": "/scim/v2/Users",
+    "body": {
+      "active": true,
+      "id": "external-id-0987654321",
+      "nickName": "bofh",
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User"
+      ],
+      "userName": "root@localhost"
+    }
+  },
+  "integration": "okta",
+  "resource_type": "user",
+  "external_id": "external-id-0987654321",
+  "teleport_id": "root@localhost"
+}
+```
+
+### TSCIM001E
+
+SCIM Resource Creation Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM001E",
+  "event": "scim.create",
+  "success": false,
+  "error": "Too many candidates",
+  "integration": "okta",
+  "resource_type": "group",
+  "teleport_id": "access-list-guid",
+  "external_id": "0987654321",
+  "display": "Some group"
+}
+```
+
+## scim.delete
+
+There are multiple events with the `scim.delete` type.
+
+### TSCIM003I
+
+SCIM Delete Succeeded
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM003I",
+  "event": "scim.delete",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-00123456789",
+  "display": "test@example.com"
+}
+```
+
+### TSCIM003E
+
+SCIM Delete Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM003E",
+  "event": "scim.delete",
+  "resource_type": "group",
+  "success": false,
+  "error": "no such group",
+  "integration": "okta",
+  "teleport_id": "access-list-guid",
+  "external_id": "external-id-00123456789",
+  "display": "some group"
+}
+```
+
+## scim.get
+
+There are multiple events with the `scim.get` type.
+
+### TSCIM004I
+
+SCIM Resource Fetch Succeeded
+
+Example:
+
+```json
+{
+  "code": "TSCIM004I",
+  "event": "scim.get",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TSCIM004E
+
+SCIM Resource Fetch Failed
+
+Example:
+
+```json
+{
+  "code": "TSCIM004E",
+  "event": "scim.get",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## scim.list
+
+There are multiple events with the `scim.list` type.
+
+### TSCIM005I
+
+SCIM Resource Listing Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005I",
+  "event": "scim.list",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user"
+}
+```
+
+### TSCIM005E
+
+SCIM Resource Listing Failed
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005E",
+  "event": "scim.list",
+  "success": false,
+  "integration": "okta",
+  "resource_type": "vegetable",
+  "display": "no such resource type"
+}
+```
+
+## scim.patch
+
+There are multiple events with the `scim.patch` type.
+
+### TSCIM006I
+
+SCIM Patch Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM006I",
+  "event": "scim.patch",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
+}
+```
+
+### TSCIM006E
+
+SCIM Patch Failed
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM006E",
+  "event": "scim.patch",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
+}
+```
+
+## scim.update
+
+There are multiple events with the `scim.update` type.
+
+### TSCIM002I
+
+SCIM Update Succeeded
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM002I",
+  "event": "scim.update",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com"
+}
+```
+
+### TSCIM002E
+
+SCIM Update Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM002E",
+  "event": "scim.update",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com"
+}
+```

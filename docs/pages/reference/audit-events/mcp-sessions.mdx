@@ -1,0 +1,288 @@
+---
+title: MCP Servers Audit Events
+description: "Provides a list of MCP Servers audit events."
+sidebar_label: MCP Servers
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport-protected MCP servers.
+
+
+
+## mcp.session.end
+
+There are multiple events with the `mcp.session.end` type.
+
+### TMCP002I
+
+MCP Session Ended
+
+Example:
+
+```json
+{
+  "code": "TMCP002I",
+  "ei": 0,
+  "event": "mcp.session.end",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true
+}
+```
+
+### TMCP002E
+
+MCP Session End Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP002E",
+  "ei": 0,
+  "event": "mcp.session.end",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "error": "HTTP 405 Method Not Allowed"
+}
+```
+
+## mcp.session.invalid_http_request
+
+MCP Session Invalid Request
+
+Example:
+
+```json
+{
+  "code": "TMCP006E",
+  "ei": 0,
+  "event": "mcp.session.invalid_http_request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "method": "OPTIONS",
+  "path": "/"
+}
+```
+
+## mcp.session.listen_sse_stream
+
+There are multiple events with the `mcp.session.listen_sse_stream` type.
+
+### TMCP005I
+
+MCP Session Listen
+
+Example:
+
+```json
+{
+  "code": "TMCP005I",
+  "ei": 0,
+  "event": "mcp.session.listen_sse_stream",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true
+}
+```
+
+### TMCP005E
+
+MCP Session Listen Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP005E",
+  "ei": 0,
+  "event": "mcp.session.listen_sse_stream",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "error": "HTTP 405 Method Not Allowed"
+}
+```
+
+## mcp.session.notification
+
+There are multiple events with the `mcp.session.notification` type.
+
+### TMCP004I
+
+MCP Session Notification
+
+Example:
+
+```json
+{
+  "code": "TMCP004I",
+  "ei": 0,
+  "event": "mcp.session.notification",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.333Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "message": {
+    "method": "notifications/initialized",
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+### TMCP004E
+
+MCP Session Notification Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP004E",
+  "ei": 0,
+  "event": "mcp.session.notification",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.333Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "message": {
+    "method": "notifications/initialized",
+    "jsonrpc": "2.0"
+  },
+  "error": "HTTP 401 Unauthorized"
+}
+```
+
+## mcp.session.request
+
+There are multiple events with the `mcp.session.request` type.
+
+### TMCP003I
+
+MCP Session Request
+
+Example:
+
+```json
+{
+  "code": "TMCP003I",
+  "ei": 0,
+  "event": "mcp.session.request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "message": {
+    "id": 0,
+    "method": "initialize",
+    "params": {
+      "clientInfo": {
+        "name": "claude-ai",
+        "version": "0.1.0"
+      },
+      "protocolVersion": "2024-11-05"
+    },
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+### TMCP003E
+
+MCP Session Request Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP003E",
+  "ei": 0,
+  "event": "mcp.session.request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.555Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "error": "access denied",
+  "message": {
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "write_file",
+      "arguments": {
+        "path": "/etc/passwd"
+      }
+    },
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+## mcp.session.start
+
+MCP Session Started
+
+Example:
+
+```json
+{
+  "code": "TMCP001I",
+  "ei": 0,
+  "event": "mcp.session.start",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.111Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything"
+}
+```

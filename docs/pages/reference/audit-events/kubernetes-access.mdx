@@ -1,0 +1,116 @@
+---
+title: Kubernetes Clusters Audit Events
+description: "Provides a list of Kubernetes Clusters audit events."
+sidebar_label: Kubernetes Clusters
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport-protected Kubernetes clusters.
+
+
+
+## kube.create
+
+Kubernetes Created
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3010I",
+  "kube_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "ei": 0,
+  "event": "kube.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "9d37514f-aef5-426f-9fda-31fd35d070f5",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## kube.delete
+
+Kubernetes Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3012I",
+  "ei": 0,
+  "event": "kube.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "74f5e6b9-50c4-4195-bb26-d615641255bc",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## kube.request
+
+Kubernetes Request
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3027",
+  "addr.remote": "[::1]:43026",
+  "code": "T3009I",
+  "ei": 0,
+  "event": "kube.request",
+  "kubernetes_cluster": "gke_teleport-a",
+  "login": "awly",
+  "namespace": "default",
+  "proto": "kube",
+  "request_path": "/api/v1/namespaces/teletest/pods/test-pod",
+  "resource_api_group": "core/v1",
+  "resource_kind": "pods",
+  "resource_name": "test-pod",
+  "resource_namespace": "teletest",
+  "response_code": 200,
+  "server_id": "9b67377e-d61e-4865-96d6-fa71989fd9e9",
+  "time": "2020-11-12T20:35:44.978Z",
+  "uid": "8c1459a8-9199-4d25-bc5d-38e000ddd9ab",
+  "user": "alex",
+  "verb": "GET"
+}
+```
+
+## kube.update
+
+Kubernetes Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3011I",
+  "kube_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "ei": 0,
+  "event": "kube.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "fe631a5a-6418-49d6-99e7-5280654663ec",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
