@@ -421,6 +421,11 @@ func TestKubeSelection(t *testing.T) {
 			},
 			wantErr: `kubernetes cluster with query (labels["env"]=="nonexistent") not found`,
 		},
+		{
+			desc:    "all with labels and no name is an error",
+			args:    []string{"--all", "--labels", `env=prod`},
+			wantErr: "cannot use",
+		},
 		// cases specific to `tsh kube login` testing
 		{
 			desc:                    "login to all and set current context by full name",
@@ -483,6 +488,24 @@ func TestKubeSelection(t *testing.T) {
 			desc:          "proxy multiple with query resolving ambiguity",
 			wantProxied:   []string{kubeBarEKS, kubeBazEKS2},
 			args:          []string{kubeBarEKS, "baz", "--query", `labels.region == "us-west-2" || labels.env == "dev"`},
+			proxyTestOnly: true,
+		},
+		{
+			desc:          "proxy with all",
+			wantProxied:   allKubes,
+			args:          []string{"--all"},
+			proxyTestOnly: true,
+		},
+		{
+			desc:          "proxy all with full name is an error",
+			args:          []string{kubeBazEKS1, "--all"},
+			wantErr:       "cannot use",
+			proxyTestOnly: true,
+		},
+		{
+			desc:          "proxy all with discovered name is an error",
+			args:          []string{"bar", "--all"},
+			wantErr:       "cannot use",
 			proxyTestOnly: true,
 		},
 	}
