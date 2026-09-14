@@ -62,14 +62,10 @@ jobs:
     steps:
       # Setup
       - name: Checkout Teleport
-        uses: gravitational/core/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: enterprise
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          oss-fetch-depth: 0  # This is required by some of the commands in the makefiles
+          ref: ${{ inputs.oss-teleport-ref }}
+          fetch-depth: 0  # This is required by some of the commands in the makefiles
 
       - name: Assume env-loader secrets decryption AWS role
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
@@ -326,7 +322,6 @@ jobs:
     with:
       teleport-release: oss
       base-image: 'gcr.io/distroless/static-debian12:${{ matrix.image-type.base-image-tag }}'
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.teleport-version }}
       teleport-version: ${{ inputs.teleport-version }}
@@ -345,9 +340,6 @@ jobs:
       image-build-dockerfile: ${{ matrix.plugins.dockerfile-path }}
       allow-overwrites: false
       environment: ${{ inputs.environment }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
   smoke-test-linux-amd64:
     needs: [build-plugins, build-docker-images]

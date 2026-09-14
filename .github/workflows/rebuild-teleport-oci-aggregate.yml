@@ -42,9 +42,7 @@ jobs:
     uses: ./.github/workflows/rebuild-operator-oci-distroless.yml
     with:
       environment: ${{ inputs.environment }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       teleport-release-tag: ${{ inputs.teleport-release-tag }}
-    secrets: inherit
 
   rebuild-plugins:
     permissions:
@@ -54,9 +52,7 @@ jobs:
     uses: ./.github/workflows/rebuild-plugins-oci-distroless.yml
     with:
       environment: ${{ inputs.environment }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       teleport-release-tag: ${{ inputs.teleport-release-tag }}
-    secrets: inherit
 
   rebuild-tbot:
     permissions:
@@ -66,9 +62,7 @@ jobs:
     uses: ./.github/workflows/rebuild-tbot-oci-distroless.yml
     with:
       environment: ${{ inputs.environment }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       teleport-release-tag: ${{ inputs.teleport-release-tag }}
-    secrets: inherit
 
   rebuild-teleport-kube-agent-updater:
     permissions:
@@ -78,9 +72,7 @@ jobs:
     uses: ./.github/workflows/rebuild-teleport-kube-agent-updater-oci.yml
     with:
       environment: ${{ inputs.environment }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       teleport-release-tag: ${{ inputs.teleport-release-tag }}
-    secrets: inherit
 
   rebuild-teleport:
     permissions:
@@ -90,10 +82,8 @@ jobs:
     uses: ./.github/workflows/rebuild-teleport-oci-distroless.yml
     with:
       environment: ${{ inputs.environment }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       teleport-release-tag: ${{ inputs.teleport-release-tag }}
       slack-notify-channel: ${{ inputs.slack-notify-channel }}
-    secrets: inherit
 
   slack-on-fail:
     runs-on: ubuntu-latest

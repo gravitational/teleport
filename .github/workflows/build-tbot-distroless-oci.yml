@@ -81,7 +81,6 @@ jobs:
     with:
       teleport-release: ${{ matrix.release }}
       base-image: 'gcr.io/distroless/cc-debian12:latest'
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport-version }}
@@ -93,6 +92,3 @@ jobs:
       image-build-dockerfile: Dockerfile-tbot-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
       environment: ${{ inputs.environment }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

@@ -121,7 +121,6 @@ jobs:
     with:
       teleport-release: oss
       base-image: 'gcr.io/distroless/static-debian12:${{ matrix.image-type.base-image-tag }}'
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.teleport-release-tag }}
       source-tag: ${{ inputs.teleport-release-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport-version }}
@@ -140,6 +139,3 @@ jobs:
         teleport-plugins/tag/${{ needs.configure.outputs.teleport-version }}/teleport-${{ matrix.plugins.artifact-name }}-v${{ needs.configure.outputs.teleport-version }}-linux-{arch}-bin.tar.gz
       image-build-context: ./teleport/. # Teleport repo directory
       image-build-dockerfile: ${{ matrix.plugins.dockerfile-path }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

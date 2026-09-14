@@ -121,7 +121,6 @@ jobs:
     with:
       teleport-release: ${{ matrix.release }}
       base-image: ${{ matrix.base-image }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.teleport-release-tag }}
       source-tag: ${{ inputs.teleport-release-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
@@ -133,10 +132,6 @@ jobs:
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
       architectures: ${{ matrix.architectures }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-
   slack-on-fail:
     runs-on: ubuntu-latest
     permissions:

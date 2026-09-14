@@ -131,15 +131,13 @@ on:
     secrets:
       deploy-access-app-id:
         description: |
-          The ID of the GitHub app used to grant deployment access for repos
-          to the workflow.
-        required: true
+          Deprecated. This secret is no longer used.
+        required: false
 
       deploy-access-app-key:
         description: |
-          The private key used to authenticate against the deployment access
-          GitGub app.
-        required: true
+          Deprecated. This secret is no longer used.
+        required: false
 
 run-name: "Rebuilding ${{ inputs.dest-image-repo }}"
 
@@ -148,6 +146,9 @@ jobs:
     name: Build Multiarch OCI image
     runs-on: ubuntu-22.04-16core
     environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-built: ${{ steps.check.outputs.build_image }}
@@ -155,14 +156,10 @@ jobs:
       BASE_IMAGE: ${{ inputs.base-image }}
     steps:
       - name: Checkout Teleport
-        uses: gravitational/core/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: enterprise
+          ref: ${{ inputs.oss-teleport-ref }}
           path: ./teleport
-          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
-          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2

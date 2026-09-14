@@ -98,7 +98,6 @@ jobs:
     with:
       teleport-release: ${{ matrix.release }}
       base-image: ${{ matrix.base-image }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
@@ -110,9 +109,6 @@ jobs:
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
       allow-overwrites: false
       environment: ${{ inputs.environment }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
   smoke-tests:
     runs-on: ubuntu-latest
@@ -145,14 +141,10 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - name: Checkout Teleport
-        uses: gravitational/core/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: enterprise
+          ref: ${{ inputs.oss-teleport-ref }}
           path: ./teleport
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Load environment values
         uses: gravitational/shared-workflows/tools/env-loader@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/env-loader/v0.1.2

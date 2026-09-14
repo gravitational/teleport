@@ -62,13 +62,9 @@ jobs:
           VERSION=${TAG#v}
           echo "teleport_version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Checkout OSS Teleport
-        uses: gravitational/core/.github/actions/checkout-teleport@master
+        uses: actions/checkout@v6
         with:
-          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss
-          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          ref: ${{ inputs.oss-teleport-ref }}
       - name: Get buildbox image ref
         id: get-buildbox
         run: |
@@ -98,7 +94,6 @@ jobs:
       # Integrations don't have an enterprise version
       teleport-release: oss
       base-image: ${{ matrix.base-image }}
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
@@ -111,6 +106,3 @@ jobs:
       image-build-dockerfile: ./integrations/kube-agent-updater/Dockerfile
       should-download-teleport-packages: false
       environment: ${{ inputs.environment }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

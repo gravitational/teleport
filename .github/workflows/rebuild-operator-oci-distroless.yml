@@ -71,7 +71,6 @@ jobs:
     with:
       teleport-release: enterprise
       base-image: 'gcr.io/distroless/cc-debian12:latest'
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.teleport-release-tag }}
       source-tag: ${{ inputs.teleport-release-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport-version }}
@@ -89,6 +88,3 @@ jobs:
       image-build-dockerfile: ./integrations/operator/Dockerfile.gha
       should-download-teleport-packages: false
       environment: ${{ inputs.environment }}
-    secrets:
-      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
-      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
