@@ -40,7 +40,7 @@ teleport:
   join_params:
     # When `method` is set to "token", it is the equivalent to using `auth_token` above.
     # You should only use either auth_token or join_params.
-    method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"|"bound_keypair"
+    method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"|"bound_keypair"|"generic_oidc"
 
     # If method is not "token", token_name will be will be the name of
     # the joining token resource, e.g., "ec2-token" or "iam-token" as created
@@ -77,21 +77,47 @@ teleport:
     # method and should be omitted if any other join method is configured in the
     # `method` field above.
     generic_oidc:
+      # Configure exactly one of command, env, or http_request.
+      # The JWT will be fetched from the configured source.
+
       # A command used to fetch a JWT. This can call a platform tool, a custom
       # helper you write, or a tool like `curl` to fetch a JWT from an internal
       # issuer. The first parameter is the executable to run, followed by any
-      # arguments. Commands have a default timeout of 1m, which can be
-      # overridden. Cannot be used with `env`.
+      # arguments.
       command: ["example-command", "issue-jwt", "--audience=example.teleport.sh/token"]
 
-      # Overrides the default command timeout of 1m.
+      # Overrides the default command or HTTP request timeout of 1m.
       # timeout: 1m
 
       # env is the name of an environment variable containing a JWT. This can be
-      # used instead of `command` if the JWT you wish to authenticate with
-      # exists in an environment variable already. Cannot be used with
-      # `command`, and `timeout` is ignored if set.
+      # used instead of `command` or `http_request` if the JWT you wish to authenticate
+      # with exists in an environment variable already.
       # env: ENV_VAR_NAME
+
+      # http_request fetches a JWT directly from an HTTP endpoint.
+      # The endpoint must return a 2xx status.
+      # Redirects are not followed and HTTP proxy environment variables are ignored.
+      # http_request:
+      #   request:
+      #     # Required: the endpoint that returns the JWT.
+      #     url: https://issuer.example.com/token
+      #     # HTTP method, defaults to GET. Requests have no body.
+      #     method: GET
+      #     # Optional query parameters. Values are URL-encoded and override
+      #     # parameters with the same names in url.
+      #     query_params:
+      #       audience: example.teleport.sh/token
+      #     # Optional request headers, with string values.
+      #     headers:
+      #       Accept: application/json
+      #     # Defaults to false. HTTPS is allowed but plain HTTP is only allowed for 169.254.169.254 and 127.0.0.1.
+      #     # Set true to allow other plain HTTP hosts.
+      #     insecure_allow_http: false
+      #   result:
+      #     # Optional JSONPath expression to extract the JWT from a JSON response.
+      #     # Must select exactly one string.
+      #     # Omit result to use the response body directly as the JWT.
+      #     json_path: $.id_token
 
   # Optional CA pin of the Auth Service. Specifying a CA pin enables new
   # agents to trust a Teleport cluster when joining via the Auth Service
