@@ -184,6 +184,8 @@ type ProvisionToken interface {
 	GetGitLab() *ProvisionTokenSpecV2GitLab
 	// GetTPM returns the TPM-specific configuration for this token.
 	GetTPM() *ProvisionTokenSpecV2TPM
+	// GetCircleCI returns the circleci-specific configuration for this token.
+	GetCircleCI() *ProvisionTokenSpecV2CircleCI
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -640,6 +642,11 @@ func (p *ProvisionTokenV2) GetGitLab() *ProvisionTokenSpecV2GitLab {
 // GetTPM returns the TPM-specific configuration for this token.
 func (p *ProvisionTokenV2) GetTPM() *ProvisionTokenSpecV2TPM {
 	return p.Spec.TPM
+}
+
+// GetCircleCI returns the CircleCI-specific configuration for this token.
+func (p *ProvisionTokenV2) GetCircleCI() *ProvisionTokenSpecV2CircleCI {
+	return p.Spec.CircleCI
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

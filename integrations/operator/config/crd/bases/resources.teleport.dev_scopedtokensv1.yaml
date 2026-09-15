@@ -199,6 +199,27 @@ spec:
                     format: date-time
                     type: string
                 type: object
+              circleci:
+                description: Configuration specific to the "circleci" join method
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of TokenRules, nodes using this token
+                      must match one allow rule to use this token. At least one rule
+                      is required.
+                    items:
+                      properties:
+                        context_id:
+                          type: string
+                        project_id:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: The unique identifier of the organization. Required.
+                    type: string
+                type: object
               gcp:
                 description: The GCP-specific configuration used with the "gcp" join
                   method.

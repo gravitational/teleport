@@ -120,15 +120,12 @@ func CheckIDToken(
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("circleci join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
-	}
+	spec := params.ProvisionToken.GetCircleCI()
 
 	claims, err := params.Validator(
 		ctx,
-		issuerURL(token.Spec.CircleCI.OrganizationID),
-		token.Spec.CircleCI.OrganizationID,
+		issuerURL(spec.OrganizationID),
+		spec.OrganizationID,
 		string(params.IDToken),
 	)
 	if err != nil {
@@ -140,12 +137,12 @@ func CheckIDToken(
 		"token", params.ProvisionToken.GetName(),
 	)
 
-	return claims, trace.Wrap(checkCircleCIAllowRules(token, claims))
+	return claims, trace.Wrap(checkCircleCIAllowRules(spec, claims))
 }
 
-func checkCircleCIAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkCircleCIAllowRules(spec *types.ProvisionTokenSpecV2CircleCI, claims *IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.CircleCI.Allow {
+	for _, rule := range spec.Allow {
 		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
 			continue
 		}
