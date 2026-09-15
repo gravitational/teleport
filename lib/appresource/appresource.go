@@ -65,8 +65,8 @@ type Role struct {
 	Expressions []string
 }
 
-// hasAllowAll returns true when any app_resources entry sets allow_all.
-func (r Role) hasAllowAll() bool {
+// HasAllowAll returns true when any app_resources entry sets allow_all.
+func (r Role) HasAllowAll() bool {
 	return slices.ContainsFunc(r.Resources, func(rule types.AppResource) bool { return rule.AllowAll })
 }
 
@@ -88,10 +88,10 @@ type compiledRole struct {
 func CompileRoles(roles []Role) (RoleSet, error) {
 	sorted := slices.Clone(roles)
 	slices.SortStableFunc(sorted, func(a, b Role) int {
-		if a.hasAllowAll() && !b.hasAllowAll() {
+		if a.HasAllowAll() && !b.HasAllowAll() {
 			return -1
 		}
-		if b.hasAllowAll() && !a.hasAllowAll() {
+		if b.HasAllowAll() && !a.HasAllowAll() {
 			return 1
 		}
 		return strings.Compare(a.Name, b.Name)
@@ -104,7 +104,7 @@ func CompileRoles(roles []Role) (RoleSet, error) {
 		if err := checkPathSegments(role); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		compiled := compiledRole{name: role.Name, allowAll: role.hasAllowAll()}
+		compiled := compiledRole{name: role.Name, allowAll: role.HasAllowAll()}
 		for i, rule := range role.Resources {
 			c, err := newCompiledRule(rule)
 			if err != nil {
