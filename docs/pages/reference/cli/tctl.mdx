@@ -540,6 +540,63 @@ Flags:
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 |`-v`, `--[no-]verbose`|`false`|Show detailed alert info, including acknowledged alerts.|
 
+## tctl apps evaluate-request
+
+Evaluate one HTTP request against the app_resources and
+app_resources_expressions rules of v9 or newer roles and print the decision.
+
+URL is the app URL, the request path included. The request is evaluated against
+the cluster for the logged-in user.
+
+Usage:
+
+```code
+$ tctl apps evaluate-request [<flags>] <url>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`yaml` (one of: `yaml`, `json`)|Output format.|
+|`--method`|`GET`|Request method, in upper or lower case.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|url|*no default* (required)|App URL, request path included.|
+
+## tctl apps evaluate-resource
+
+Evaluate one request for an app resource against the app_resources and
+app_resources_expressions rules of v9 or newer roles and print the decision.
+
+PATH is the path an app resource is reached at, such as /api/v4/projects.
+The roles come from the --spec file and no cluster is contacted. Without a user
+resource in the file, every role in it is evaluated. The file holds no app,
+so app_labels are ignored and every role counts as granting the app.
+
+Usage:
+
+```code
+$ tctl apps evaluate-resource --spec=SPEC [<flags>] <path>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`yaml` (one of: `yaml`, `json`)|Output format.|
+|`--method`|`GET`|Request method, in upper or lower case.|
+|`--spec`|*no default*|YAML file with one or more role resources and an optional user resource. The request is evaluated against the user's roles without contacting a cluster, or against every role in the file when there is no user resource.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|path|*no default* (required)|Request path, such as /api/v4/projects.|
+
 ## tctl apps ls
 
 List all applications registered with the cluster.

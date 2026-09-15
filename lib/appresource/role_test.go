@@ -115,6 +115,8 @@ func TestNewRole(t *testing.T) {
 func TestNewRoleError(t *testing.T) {
 	denyRules := newRole("denier", types.V9)
 	denyRules.Spec.Deny.AppResources = []types.AppResource{{AllowAll: true}}
+	denyRulesNewer := newRole("denier", "v10")
+	denyRulesNewer.Spec.Deny.AppResources = []types.AppResource{{AllowAll: true}}
 	denyExpressions := newRole("denier", types.V9)
 	denyExpressions.Spec.Deny.AppResourcesExpressions = []string{`path.match(literal("health"))`}
 
@@ -135,15 +137,21 @@ func TestNewRoleError(t *testing.T) {
 			wantErr: ErrRoleNotEvaluable,
 		},
 		{
+			name:        "deny resources above v9",
+			role:        denyRulesNewer,
+			wantErr:     ErrRoleHasDenyRules,
+			wantMessage: `role "denier" sets app_resources under deny`,
+		},
+		{
 			name:        "deny resources",
 			role:        denyRules,
-			wantErr:     ErrRoleNotEvaluable,
+			wantErr:     ErrRoleHasDenyRules,
 			wantMessage: `role "denier" sets app_resources under deny`,
 		},
 		{
 			name:        "deny expressions",
 			role:        denyExpressions,
-			wantErr:     ErrRoleNotEvaluable,
+			wantErr:     ErrRoleHasDenyRules,
 			wantMessage: `role "denier" sets app_resources_expressions under deny`,
 		},
 		{
@@ -220,6 +228,72 @@ func TestRoleVersionPredatesV9(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(cmp.Or(tt.version, "empty"), func(t *testing.T) {
 			require.Equal(t, tt.want, RoleVersionPredatesV9(tt.version))
+		})
+	}
+}
+
+// TestErrRoleHasDenyRulesWrapsNotEvaluable checks that a caller matching
+// only ErrRoleNotEvaluable still matches a role with rules under deny.
+func TestErrRoleHasDenyRulesWrapsNotEvaluable(t *testing.T) {
+	require.ErrorIs(t, ErrRoleHasDenyRules, ErrRoleNotEvaluable)
+}
+
+func TestPartitionRoles(t *testing.T) {
+	opener := v9Role("opener", types.RoleConditions{AppResources: []types.AppResource{{AllowAll: true}}})
+	reader := v9Role("reader", types.RoleConditions{AppResources: []types.AppResource{{Paths: []string{"/x"}}}})
+	newer := newRole("newer", "v10")
+	older := newRole("older", types.V8)
+	oldest := newRole("oldest", types.V6)
+
+	tests := []struct {
+		name                 string
+		roles                []types.Role
+		wantNames            []string
+		wantIgnoredRoleNames []string
+		wantErrCount         int
+	}{
+		{
+			name:                 "v9 roles keep their order",
+			roles:                []types.Role{reader, opener},
+			wantNames:            []string{"reader", "opener"},
+			wantIgnoredRoleNames: nil,
+			wantErrCount:         0,
+		},
+		{
+			name:                 "pre-v9 names are sorted",
+			roles:                []types.Role{older, oldest},
+			wantNames:            nil,
+			wantIgnoredRoleNames: []string{"older", "oldest"},
+			wantErrCount:         0,
+		},
+		{
+			name:                 "unknown version becomes an error",
+			roles:                []types.Role{newer},
+			wantNames:            nil,
+			wantIgnoredRoleNames: nil,
+			wantErrCount:         1,
+		},
+		{
+			name:                 "all three at once",
+			roles:                []types.Role{opener, older, newer},
+			wantNames:            []string{"opener"},
+			wantIgnoredRoleNames: []string{"older"},
+			wantErrCount:         1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PartitionRoles(tt.roles)
+			var names []string
+			for _, role := range got.Roles {
+				names = append(names, role.Name)
+			}
+			require.Equal(t, tt.wantNames, names)
+			require.Equal(t, tt.wantIgnoredRoleNames, got.IgnoredRoleNames)
+			require.Len(t, got.Errors, tt.wantErrCount)
+			for _, err := range got.Errors {
+				require.ErrorIs(t, err, ErrRoleNotEvaluable)
+			}
 		})
 	}
 }

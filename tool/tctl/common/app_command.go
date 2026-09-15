@@ -56,6 +56,12 @@ type AppsCommand struct {
 
 	// appsList implements the "tctl apps ls" subcommand.
 	appsList *kingpin.CmdClause
+	// appsEvaluateRequest implements the "tctl apps evaluate-request"
+	// subcommand.
+	appsEvaluateRequest appsEvaluateRequestCommand
+	// appsEvaluateResource implements the "tctl apps evaluate-resource"
+	// subcommand.
+	appsEvaluateResource appsEvaluateResourceCommand
 }
 
 // Initialize allows AppsCommand to plug itself into the CLI parser
@@ -69,6 +75,9 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.appsList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.appsList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.appsList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+
+	c.appsEvaluateRequest.Initialize(apps)
+	c.appsEvaluateResource.Initialize(apps)
 }
 
 // TryRun attempts to run subcommands like "apps ls".
@@ -77,6 +86,12 @@ func (c *AppsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 	switch cmd {
 	case c.appsList.FullCommand():
 		commandFunc = c.ListApps
+	case c.appsEvaluateRequest.FullCommand():
+		commandFunc = c.appsEvaluateRequest.run
+	case c.appsEvaluateResource.FullCommand():
+		// Evaluating a resource reads its roles from a file, so it needs no
+		// client.
+		return true, trace.Wrap(c.appsEvaluateResource.run())
 	default:
 		return false, nil
 	}
