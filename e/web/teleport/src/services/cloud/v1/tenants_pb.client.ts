@@ -21,8 +21,6 @@ import type { CreateChildClusterRequest } from "./tenants_pb";
 import type { GetFileResponse } from "./tenants_pb";
 import type { GetFileRequest } from "./tenants_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
-import type { ChildClusterResponse } from "./tenants_pb";
-import type { ChildClusterRequest } from "./tenants_pb";
 import type { DeleteClientIPRestrictionResponse } from "./tenants_pb";
 import type { DeleteClientIPRestrictionRequest } from "./tenants_pb";
 import type { UpsertClientIPRestrictionResponse } from "./tenants_pb";
@@ -437,13 +435,6 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: DeleteClientIPRestriction
      */
     deleteClientIPRestriction(input: DeleteClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse>;
-    /**
-     * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
-     *
-     * @deprecated
-     * @generated from protobuf rpc: ChildCluster
-     */
-    childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse>;
     /**
      * GetFile gets static UI files to render on the Teleport UI.
      * The response is streamed in chunks. The first chunk carries only the
@@ -981,16 +972,6 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
         return stackIntercept<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
-     *
-     * @deprecated
-     * @generated from protobuf rpc: ChildCluster
-     */
-    childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse> {
-        const method = this.methods[51], opt = this._transport.mergeOptions(options);
-        return stackIntercept<ChildClusterRequest, ChildClusterResponse>("unary", this._transport, method, opt, input);
-    }
-    /**
      * GetFile gets static UI files to render on the Teleport UI.
      * The response is streamed in chunks. The first chunk carries only the
      * content_encoding field and no data; subsequent chunks carry data only.
@@ -998,7 +979,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetFile
      */
     getFile(input: GetFileRequest, options?: RpcOptions): ServerStreamingCall<GetFileRequest, GetFileResponse> {
-        const method = this.methods[52], opt = this._transport.mergeOptions(options);
+        const method = this.methods[51], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetFileRequest, GetFileResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
@@ -1007,7 +988,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateChildCluster
      */
     createChildCluster(input: CreateChildClusterRequest, options?: RpcOptions): UnaryCall<CreateChildClusterRequest, CreateChildClusterResponse> {
-        const method = this.methods[53], opt = this._transport.mergeOptions(options);
+        const method = this.methods[52], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateChildClusterRequest, CreateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -1016,7 +997,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetChildCluster
      */
     getChildCluster(input: GetChildClusterRequest, options?: RpcOptions): UnaryCall<GetChildClusterRequest, GetChildClusterResponse> {
-        const method = this.methods[54], opt = this._transport.mergeOptions(options);
+        const method = this.methods[53], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetChildClusterRequest, GetChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -1025,7 +1006,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateChildCluster
      */
     updateChildCluster(input: UpdateChildClusterRequest, options?: RpcOptions): UnaryCall<UpdateChildClusterRequest, UpdateChildClusterResponse> {
-        const method = this.methods[55], opt = this._transport.mergeOptions(options);
+        const method = this.methods[54], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateChildClusterRequest, UpdateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -1034,7 +1015,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpsertChildCluster
      */
     upsertChildCluster(input: UpsertChildClusterRequest, options?: RpcOptions): UnaryCall<UpsertChildClusterRequest, UpsertChildClusterResponse> {
-        const method = this.methods[56], opt = this._transport.mergeOptions(options);
+        const method = this.methods[55], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertChildClusterRequest, UpsertChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -1043,7 +1024,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SuspendChildCluster
      */
     suspendChildCluster(input: SuspendChildClusterRequest, options?: RpcOptions): UnaryCall<SuspendChildClusterRequest, SuspendChildClusterResponse> {
-        const method = this.methods[57], opt = this._transport.mergeOptions(options);
+        const method = this.methods[56], opt = this._transport.mergeOptions(options);
         return stackIntercept<SuspendChildClusterRequest, SuspendChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -1052,7 +1033,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ListChildClusters
      */
     listChildClusters(input: ListChildClustersRequest, options?: RpcOptions): UnaryCall<ListChildClustersRequest, ListChildClustersResponse> {
-        const method = this.methods[58], opt = this._transport.mergeOptions(options);
+        const method = this.methods[57], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListChildClustersRequest, ListChildClustersResponse>("unary", this._transport, method, opt, input);
     }
 }

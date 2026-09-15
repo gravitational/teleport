@@ -145,9 +145,6 @@ type TenantsServiceClient interface {
 	UpsertClientIPRestriction(ctx context.Context, in *UpsertClientIPRestrictionRequest, opts ...grpc.CallOption) (*UpsertClientIPRestrictionResponse, error)
 	// DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
 	DeleteClientIPRestriction(ctx context.Context, in *DeleteClientIPRestrictionRequest, opts ...grpc.CallOption) (*DeleteClientIPRestrictionResponse, error)
-	// Deprecated: Do not use.
-	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
-	ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error)
 	// GetFile gets static UI files to render on the Teleport UI.
 	// The response is streamed in chunks. The first chunk carries only the
 	// content_encoding field and no data; subsequent chunks carry data only.
@@ -643,16 +640,6 @@ func (c *tenantsServiceClient) DeleteClientIPRestriction(ctx context.Context, in
 	return out, nil
 }
 
-// Deprecated: Do not use.
-func (c *tenantsServiceClient) ChildCluster(ctx context.Context, in *ChildClusterRequest, opts ...grpc.CallOption) (*ChildClusterResponse, error) {
-	out := new(ChildClusterResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/ChildCluster", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *tenantsServiceClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (TenantsService_GetFileClient, error) {
 	stream, err := c.cc.NewStream(ctx, &TenantsService_ServiceDesc.Streams[0], "/gravitational.cloud.tenants.v1.TenantsService/GetFile", opts...)
 	if err != nil {
@@ -866,9 +853,6 @@ type TenantsServiceServer interface {
 	UpsertClientIPRestriction(context.Context, *UpsertClientIPRestrictionRequest) (*UpsertClientIPRestrictionResponse, error)
 	// DeleteClientIPRestriction removes the ClientIPRestriction for the authenticated tenant.
 	DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error)
-	// Deprecated: Do not use.
-	// ChildCluster is used for managing the lifecycle of a Teleport Cloud child cluster.
-	ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error)
 	// GetFile gets static UI files to render on the Teleport UI.
 	// The response is streamed in chunks. The first chunk carries only the
 	// content_encoding field and no data; subsequent chunks carry data only.
@@ -1044,9 +1028,6 @@ func (UnimplementedTenantsServiceServer) UpsertClientIPRestriction(context.Conte
 }
 func (UnimplementedTenantsServiceServer) DeleteClientIPRestriction(context.Context, *DeleteClientIPRestrictionRequest) (*DeleteClientIPRestrictionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClientIPRestriction not implemented")
-}
-func (UnimplementedTenantsServiceServer) ChildCluster(context.Context, *ChildClusterRequest) (*ChildClusterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ChildCluster not implemented")
 }
 func (UnimplementedTenantsServiceServer) GetFile(*GetFileRequest, TenantsService_GetFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetFile not implemented")
@@ -2000,24 +1981,6 @@ func _TenantsService_DeleteClientIPRestriction_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TenantsService_ChildCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ChildClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).ChildCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/ChildCluster",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).ChildCluster(ctx, req.(*ChildClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TenantsService_GetFile_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(GetFileRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -2357,10 +2320,6 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClientIPRestriction",
 			Handler:    _TenantsService_DeleteClientIPRestriction_Handler,
-		},
-		{
-			MethodName: "ChildCluster",
-			Handler:    _TenantsService_ChildCluster_Handler,
 		},
 		{
 			MethodName: "CreateChildCluster",
