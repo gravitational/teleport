@@ -410,34 +410,31 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			scope:             "/aa",
 		},
 	}
+	clock := clockwork.NewRealClock()
+	sa := newStandaloneScopedTeleport(t, clock, scopes.Features{Enabled: true})
+	username := sa.Username
+	password := sa.Password
+	webID := sa.WebAuthnID
+	device := sa.Device
+	otpKey := sa.OTPKey
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Start Teleport.
-			clock := clockwork.NewFakeClock()
-			sa := newStandaloneScopedTeleport(t, clock, scopes.Features{Enabled: true})
-			username := sa.Username
-			password := sa.Password
-			webID := sa.WebAuthnID
-			device := sa.Device
-			otpKey := sa.OTPKey
-
 			// Prepare client config.
-			cfg := &client.Config{}
-			cfg.ClientStore = client.NewFSClientStore(t.TempDir())
-			cfg.Stdout = io.Discard
-			cfg.Stderr = io.Discard
-			cfg.Stdin = &bytes.Buffer{}
-			cfg.Username = username
-			cfg.HostLogin = username
-			cfg.Scope = test.scope
-			cfg.AddKeysToAgent = client.AddKeysToAgentNo
-			// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
-			// for Webauthn requests, and Webauthn doesn't take IP addresses.
-			cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-			cfg.InsecureSkipVerify = true
-
+			cfg := &client.Config{
+				ClientStore:    client.NewFSClientStore(t.TempDir()),
+				Stdout:         io.Discard,
+				Stderr:         io.Discard,
+				Stdin:          &bytes.Buffer{},
+				Username:       username,
+				HostLogin:      username,
+				Scope:          test.scope,
+				AddKeysToAgent: client.AddKeysToAgentNo,
+				// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
+				// for Webauthn requests, and Webauthn doesn't take IP addresses.
+				WebProxyAddr:       strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */),
+				InsecureSkipVerify: true,
+			}
 			// Prepare the client proper.
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
@@ -455,11 +452,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				return resp, "", err
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 
 			// Test.
-			clock.Advance(30 * time.Second)
 			keyRing, err := tc.Login(ctx)
 			require.NoError(t, err)
 
