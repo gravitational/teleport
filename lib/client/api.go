@@ -4292,8 +4292,12 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 
 	tshApprove := fmt.Sprintf("tsh headless approve --user=%v --proxy=%v %v", tc.Username, tc.WebProxyAddr, headlessAuthenticationID)
 
-	fmt.Fprintf(tc.Stderr, "Complete headless authentication in your local web browser:\n\n%s\n"+
-		"\nor execute this command in your local terminal:\n\n%s\n", webUILink, tshApprove)
+	fmt.Fprint(tc.Stderr, formatHeadlessLoginInstructions(
+		headlessAuthenticationID,
+		webUILink,
+		tshApprove,
+		utils.IsTerminal(tc.Stderr),
+	))
 
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {
@@ -4316,6 +4320,25 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 		return nil, trace.Wrap(err)
 	}
 	return response, nil
+}
+
+func formatHeadlessLoginInstructions(headlessAuthenticationID, webUILink, tshApprove string, emphasizeRequestID bool) string {
+	requestIDLine := fmt.Sprintf("Request ID: %s", headlessAuthenticationID)
+	if emphasizeRequestID {
+		requestIDLine = utils.Color(utils.Bold, requestIDLine)
+	}
+
+	return fmt.Sprintf("Complete Headless Authentication\n\n"+
+		"%s\n\n"+
+		"Approve in any of these ways:\n\n"+
+		"- Web browser\n"+
+		"  %s\n\n"+
+		"- Local terminal\n"+
+		"  %s\n\n"+
+		"- Teleport Connect\n"+
+		"  If Connect is already running and signed in to this cluster, the request has appeared there automatically.\n\n"+
+		"Waiting for approval...\n\n",
+		requestIDLine, webUILink, tshApprove)
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.

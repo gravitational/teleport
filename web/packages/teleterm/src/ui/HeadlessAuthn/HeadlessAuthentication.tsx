@@ -22,7 +22,6 @@ import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
-import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -81,7 +80,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
   return (
     <HeadlessPrompt
       hidden={props.hidden}
-      rootClusterUri={rootClusterUri}
+      rootClusterUri={props.rootClusterUri}
       clientIp={props.clientIp}
       skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}

@@ -16,25 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-
 import {
   Box,
-  ButtonIcon,
   ButtonSecondary,
-  Flex,
-  H2,
-  Image,
-  Text,
-} from 'design';
-import * as Alerts from 'design/Alert';
-import DialogConfirmation, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-} from 'design/DialogConfirmation';
-import * as Icons from 'design/Icon';
-import { P, P3 } from 'design/Text/Text';
+  CloseButton,
+  Code,
+  ComposedAlert,
+  ComposedDialog,
+  Dialog,
+  P2,
+} from '@gravitational/design-system';
+import { useRef, useState } from 'react';
+
+import { Image } from 'design';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
@@ -76,109 +70,107 @@ export function HeadlessPrompt({
   // skipConfirm automatically attempts to approve a headless auth attempt,
   // so let's show waitForMfa from the very beginning in that case.
   const [waitForMfa, setWaitForMfa] = useState(skipConfirm);
+  const approveButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <DialogConfirmation
+    <ComposedDialog
       open={!hidden}
-      keepInDOMAfterClose
-      dialogCss={() => ({
-        maxWidth: '480px',
-        width: '100%',
-      })}
+      unmountOnExit={false}
+      onOpenChange={({ open }) => {
+        if (!open) {
+          abortApproval();
+          onCancel();
+        }
+      }}
+      skipAnimationOnMount
+      initialFocusEl={() => approveButtonRef.current}
+      closeOnInteractOutside={false}
+      contentProps={{ maxW: '540px', w: '100%' }}
     >
-      <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
-        <H2 mb={4}>
-          Headless command on <b>{routing.parseClusterName(rootClusterUri)}</b>
-        </H2>
-        <ButtonIcon
-          type="button"
-          title="Close"
-          color="text.slightlyMuted"
-          onClick={() => {
-            abortApproval();
-            onCancel();
-          }}
-        >
-          <Icons.Cross size="medium" />
-        </ButtonIcon>
-      </DialogHeader>
-      <DialogContent mb={1}>
+      <Dialog.Header>
+        <Dialog.Title>
+          {waitForMfa ? 'Verify your identity' : 'Headless authentication'}
+        </Dialog.Title>
+        <Dialog.CloseTrigger asChild>
+          <CloseButton />
+        </Dialog.CloseTrigger>
+      </Dialog.Header>
+      <Dialog.Body gap={4}>
         {updateHeadlessStateAttempt.status === 'error' && (
-          <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
-            Could not update the headless command state
-          </Alerts.Danger>
+          <ComposedAlert
+            title="Could not update the request"
+            description={updateHeadlessStateAttempt.statusText}
+          />
         )}
 
-        <P>
-          Someone initiated a headless command from <b>{clientIp}</b>.
-        </P>
-        <P>If it was not you, click Reject and contact your administrator.</P>
-        <P3 color="text.slightlyMuted">
-          Request ID: {headlessAuthenticationId}
-        </P3>
+        <P2 textWrap="pretty">
+          Someone initiated a one-time tsh command on{' '}
+          <strong>{routing.parseClusterName(rootClusterUri)}</strong> from{' '}
+          <strong>{clientIp}</strong>.
+        </P2>
+
+        <P2>Confirm the Request ID below matches the one shown by tsh:</P2>
+
+        <Code size="md" variant="outline" px={3} py={2}>
+          {headlessAuthenticationId}
+        </Code>
+
+        <P2 textWrap="pretty">
+          If you didn&#x27;t start this request or the ID doesn&#x27;t match,
+          click Reject and contact your administrator.
+        </P2>
         {waitForMfa && (
           <>
-            <P>Complete MFA verification to approve the Headless Login.</P>
-
-            <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
+            <Image width="200px" src={svgHardwareKey} mx="auto" my={2} />
             <Box textAlign="center" style={{ position: 'relative' }}>
-              <Text bold>Insert your security key and tap it</Text>
+              <P2 fontWeight="bold">Insert your security key and tap it.</P2>
               <LinearProgress />
             </Box>
-
-            <Flex justifyContent="flex-end" mt={4} gap={3}>
-              {/*
-                The Reject button is there so that if skipping confirmation is enabled (see
-                HeadlessAuthenticationService) then the user still has the ability to reject the
-                request from the screen that prompts for key touch.
-              */}
-              <ButtonSecondary
-                type="button"
-                onClick={() => {
-                  abortApproval();
-                  onReject();
-                }}
-              >
-                Reject
-              </ButtonSecondary>
-              <ButtonSecondary
-                type="button"
-                onClick={() => {
-                  abortApproval();
-                  onCancel();
-                }}
-              >
-                Cancel
-              </ButtonSecondary>
-            </Flex>
           </>
         )}
-      </DialogContent>
-      {!waitForMfa && (
-        <DialogFooter>
-          <ButtonSecondary
-            autoFocus
-            mr={3}
-            type="submit"
-            onClick={e => {
-              e.preventDefault();
-              setWaitForMfa(true);
-              onApprove();
-            }}
-          >
-            Approve
-          </ButtonSecondary>
-          <ButtonSecondary
-            type="button"
-            onClick={e => {
-              e.preventDefault();
-              onReject();
-            }}
-          >
-            Reject
-          </ButtonSecondary>
-        </DialogFooter>
-      )}
-    </DialogConfirmation>
+      </Dialog.Body>
+      <Dialog.Footer>
+        {waitForMfa ? (
+          <>
+            <Dialog.CloseTrigger asChild unstyled>
+              <ButtonSecondary>Cancel</ButtonSecondary>
+            </Dialog.CloseTrigger>
+            {/*
+              The Reject button is there so that if skipping confirmation is enabled (see
+              HeadlessAuthenticationService) then the user still has the ability to reject the
+              request from the screen that prompts for key touch.
+            */}
+            <ButtonSecondary
+              onClick={() => {
+                abortApproval();
+                onReject();
+              }}
+            >
+              Reject
+            </ButtonSecondary>
+          </>
+        ) : (
+          <>
+            <ButtonSecondary
+              onClick={e => {
+                e.preventDefault();
+                void onReject();
+              }}
+            >
+              Reject
+            </ButtonSecondary>
+            <ButtonSecondary
+              ref={approveButtonRef}
+              onClick={() => {
+                setWaitForMfa(true);
+                void onApprove();
+              }}
+            >
+              Approve
+            </ButtonSecondary>
+          </>
+        )}
+      </Dialog.Footer>
+    </ComposedDialog>
   );
 }

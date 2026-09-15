@@ -157,7 +157,7 @@ export const ReAuthenticate: FC<{
       keepInDOMAfterClose
       onClose={props.onCancel}
       dialogCss={() => ({
-        maxWidth: '400px',
+        maxWidth: '480px',
         width: '100%',
       })}
     >
