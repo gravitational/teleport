@@ -75,14 +75,14 @@ func TestProxyServiceConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "parsing listen",
 		},
 		{
-			name:   "scoped",
+			name:   "scoped with delegation",
 			scoped: true,
 			in: func() *ProxyServiceConfig {
 				return &ProxyServiceConfig{
-					Listen: "tcp://0.0.0.0:3621",
+					DelegationSessionID: "delegation-session-id",
 				}
 			},
-			wantErr: "is not supported in scoped mode",
+			wantErr: "delegation_session_id: not supported with scopes",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

@@ -215,7 +215,16 @@ func (s *ProxyService) issueCert(
 	ctx, span := tracer.Start(ctx, "ProxyService/issueCert")
 	defer span.End()
 
-	routedIdent, app, err := s.generateUnscopedIdentity(ctx, host)
+	var (
+		routedIdent *identity.Identity
+		app         types.Application
+		err         error
+	)
+	if s.scoped {
+		routedIdent, app, err = s.generateScopedIdentity(ctx, host)
+	} else {
+		routedIdent, app, err = s.generateUnscopedIdentity(ctx, host)
+	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -275,6 +284,32 @@ func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName str
 
 	routedIdent, err := s.identityGenerator.Generate(
 		ctx, append(identityOpts, identity.WithRouteToApp(routeToApp))...,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return routedIdent, app, nil
+}
+
+func (s *ProxyService) generateScopedIdentity(ctx context.Context, host string) (*identity.Identity, types.Application, error) {
+	// In the proxy service we only support connecting to scoped apps using their public address
+	// The public address of a scoped app is a hash of the scope and name
+	app, err := getAppByPublicAddrPrefix(ctx, s.botClient, host)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
+	}
+
+	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
+	routedIdent, err := s.identityGenerator.GenerateScoped(
+		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

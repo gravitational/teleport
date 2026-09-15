@@ -54,6 +54,52 @@ func (c *clientMock) GetResources(ctx context.Context, req *proto.ListResourcesR
 	return getResourcesResp, nil
 }
 
+func TestGetAppByPublicAddrPrefix(t *testing.T) {
+	testCases := map[string]struct {
+		prefix            string
+		validate          func(t *testing.T, app types.Application)
+		wantErr           string
+		wantPredicateExpr string
+		returnedApps      []*types.AppV3
+	}{
+		"returns the first app": {
+			prefix: "first",
+			returnedApps: []*types.AppV3{
+				{Metadata: types.Metadata{Name: "first"}, Spec: types.AppSpecV3{PublicAddr: "first.blackmesa.gov"}},
+				{Metadata: types.Metadata{Name: "second"}, Spec: types.AppSpecV3{PublicAddr: "second.blackmesa.gov"}},
+				{Metadata: types.Metadata{Name: "third"}, Spec: types.AppSpecV3{PublicAddr: "third.blackmesa.gov"}},
+			},
+			validate: func(t *testing.T, app types.Application) {
+				require.Equal(t, "first", app.GetName())
+			},
+			wantPredicateExpr: `hasPrefix(resource.spec.public_addr, "first.")`,
+		},
+		"return error when app is not found": {
+			returnedApps: []*types.AppV3{},
+			wantErr:      "matching app not found",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			client := &clientMock{returnedApps: tc.returnedApps}
+			app, err := getAppByPublicAddrPrefix(t.Context(), client, tc.prefix)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err), "trace.IsNotFound(err)")
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Nil(t, app)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.wantPredicateExpr, client.req.PredicateExpression)
+
+			tc.validate(t, app)
+		})
+	}
+}
+
 func TestGetApp(t *testing.T) {
 	testCases := map[string]struct {
 		sqn               scopes.QualifiedName

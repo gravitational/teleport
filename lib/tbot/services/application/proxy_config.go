@@ -90,7 +90,9 @@ func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 // rules and sets any default values.
 func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
 	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", ProxyServiceType)
+		if c.DelegationSessionID != "" {
+			return trace.BadParameter("delegation_session_id: not supported with scopes")
+		}
 	}
 
 	if c.Listen == "" && c.Listener == nil {
