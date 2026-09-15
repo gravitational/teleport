@@ -45,3 +45,7 @@ func strPtrToByteSlice(s *string) []byte {
 	}
 	return []byte(*s)
 }
+
+func isNilPtr[T any](ptr *T) bool {
+	return ptr == nil
+}
