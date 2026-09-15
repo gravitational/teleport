@@ -24,6 +24,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -76,8 +78,9 @@ type fakeAuth struct {
 	lastInstance    types.Instance
 	lastRawInstance []byte
 
-	lastServerExpiry time.Time
-	expectScope      string
+	lastServerExpiry          time.Time
+	lastWindowsDesktopService types.WindowsDesktopService
+	expectScope               string
 }
 
 func (a *fakeAuth) getLastServerExpiry() time.Time {
@@ -217,6 +220,38 @@ func (a *fakeAuth) UpsertLinuxDesktop(_ context.Context, desktop *linuxdesktopv1
 }
 
 func (a *fakeAuth) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
+}
+
+func (a *fakeAuth) UpsertWindowsDesktopService(_ context.Context, service types.WindowsDesktopService) (*types.KeepAlive, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	a.lastServerExpiry = service.Expiry()
+	a.lastWindowsDesktopService = service
+	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) getLastWindowsDesktopService() types.WindowsDesktopService {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastWindowsDesktopService
+}
+
+func (a *fakeAuth) DeleteWindowsDesktopService(ctx context.Context, name string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.deletes++
@@ -2491,6 +2526,519 @@ func testKubernetesServerBasics(t *testing.T) {
 	require.Zero(t, rc.count())
 }
 
+func newWindowsDesktopService(t *testing.T, name string, labels map[string]string) *types.WindowsDesktopServiceV3 {
+	t.Helper()
+	service, err := types.NewWindowsDesktopServiceV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.WindowsDesktopServiceSpecV3{
+			Addr:            "1.2.3.4:3028",
+			TeleportVersion: teleport.Version,
+			Hostname:        name,
+		},
+	)
+	require.NoError(t, err)
+	return service
+}
+
+func startWindowsDesktopControlStream(t *testing.T, controller *Controller, serverID string, services ...types.SystemRole) (client.DownstreamInventoryControlStream, UpstreamHandle) {
+	t.Helper()
+
+	ctx := t.Context()
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles(services).StringSlice(),
+	}.Build())
+
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+	return downstream, handle
+}
+
+// TestWindowsDesktopServiceAddrNormalization verifies that a wildcard or loopback
+// address is replaced with the peer address before the upsert. A directly reachable
+// service listening on 0.0.0.0 advertises that literal address, which nothing can dial.
+func TestWindowsDesktopServiceAddrNormalization(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+
+	tests := []struct {
+		name     string
+		addr     string
+		wantAddr string
+	}{
+		{
+			name:     "wildcard address is replaced with the peer host",
+			addr:     "0.0.0.0:3028",
+			wantAddr: "1.2.3.4:3028",
+		},
+		{
+			name:     "loopback address is replaced with the peer host",
+			addr:     "127.0.0.1:3028",
+			wantAddr: "1.2.3.4:3028",
+		},
+		{
+			name:     "routable address is left alone",
+			addr:     "5.6.7.8:3028",
+			wantAddr: "5.6.7.8:3028",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+				events := make(chan testEvent, 1024)
+
+				auth := &fakeAuth{}
+				controller := NewController(
+					auth,
+					usagereporter.DiscardUsageReporter{},
+					withServerKeepAlive(time.Millisecond*200),
+					withTestEventsChannel(events),
+				)
+				defer controller.Close()
+
+				upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+				t.Cleanup(func() {
+					downstream.Close()
+					upstream.Close()
+				})
+
+				controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+					ServerID: serverID,
+					Version:  teleport.Version,
+					Services: types.SystemRoles{types.RoleWindowsDesktop}.StringSlice(),
+				}.Build())
+
+				service := newWindowsDesktopService(t, serverID, nil)
+				service.Spec.Addr = test.addr
+
+				err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+					WindowsDesktopService: service,
+				}.Build())
+				require.NoError(t, err)
+
+				awaitEvents(t, events,
+					expect(winServiceUpsertOk),
+					deny(winServiceUpsertErr, handlerClose),
+				)
+
+				require.Equal(t, test.wantAddr, auth.getLastWindowsDesktopService().GetAddr())
+			})
+		})
+	}
+}
+
+// TestWindowsDesktopServiceBasics verifies basic expected behaviors for a single control stream
+// heartbeating a windows desktop service.
+func TestWindowsDesktopServiceBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testWindowsDesktopServiceBasics)
+}
+
+func testWindowsDesktopServiceBasics(t *testing.T) {
+	const serverID = "test-server"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	downstream, handle := startWindowsDesktopControlStream(t, controller, serverID, types.RoleWindowsDesktop)
+
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		WindowsDesktopService: newWindowsDesktopService(t, serverID, nil),
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(winServiceUpsertOk, winServiceKeepAliveOk),
+		deny(winServiceUpsertErr, winServiceKeepAliveErr, handlerClose),
+	)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.winServiceHBVariableDuration.Count())
+
+	// verify that the connected resource was registered under the windows desktop
+	// service keepalive type
+	require.Equal(t, 1, rc.countOf(constants.KeepAliveWindowsDesktopService))
+
+	// we will check that the expiration time will grow after keepalives and new
+	// service announces
+	expiry := auth.getLastServerExpiry()
+
+	// set up to induce some failures, but not enough to cause the control
+	// stream to be closed.
+	auth.mu.Lock()
+	auth.failUpserts = 2
+	auth.mu.Unlock()
+
+	// keepalive should fail twice, but since the upsert is already known
+	// to have succeeded, we should not see an upsert failure yet.
+	awaitEvents(t, events,
+		expect(winServiceKeepAliveErr, winServiceKeepAliveErr, winServiceKeepAliveOk),
+		deny(winServiceUpsertErr, handlerClose),
+	)
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		WindowsDesktopService: newWindowsDesktopService(t, serverID, nil),
+	}.Build())
+	require.NoError(t, err)
+
+	// this explicit upsert will not happen since the service is the same, but
+	// keepalives should work
+	awaitEvents(t, events,
+		expect(winServiceKeepAliveOk),
+		deny(winServiceKeepAliveErr, winServiceUpsertOk, winServiceUpsertErr, winServiceUpsertRetryOk, handlerClose),
+	)
+
+	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		WindowsDesktopService: newWindowsDesktopService(t, serverID, map[string]string{"changed": "changed"}),
+	}.Build())
+	require.NoError(t, err)
+
+	// we should now see an upsert failure, but no additional
+	// keepalive failures, and the upsert should succeed on retry.
+	awaitEvents(t, events,
+		expect(winServiceUpsertErr, winServiceUpsertRetryOk),
+		deny(winServiceKeepAliveErr, handlerClose),
+	)
+
+	oldExpiry, expiry = expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
+
+	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	_, err = handle.Ping(pingCtx, 1)
+	require.NoError(t, err)
+
+	// wait for a fresh keepalive cycle so that no keepalive can land between the
+	// failUpserts assignment and the heartbeat below and consume a failure. two
+	// ticks are needed because the first one is already queued: awaitEvents above
+	// returns on winServiceUpsertRetryOk, which the keepalive emits just before
+	// its tick.
+	awaitEvents(t, events,
+		expect(keepAliveWindowsServiceTick, keepAliveWindowsServiceTick),
+		deny(winServiceKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive errors to cause stream closure: the
+	// initial upsert and its retry.
+	auth.mu.Lock()
+	auth.failUpserts = 2
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		WindowsDesktopService: newWindowsDesktopService(t, serverID, map[string]string{"changed": "again"}),
+	}.Build())
+	require.NoError(t, err)
+
+	// both the initial upsert and the retry should fail, then the handle should
+	// close.
+	awaitEvents(t, events,
+		expect(winServiceUpsertErr, winServiceUpsertRetryErr, handlerClose),
+		deny(winServiceUpsertOk, winServiceKeepAliveErr),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify that hb counter has been decremented (counter is decremented concurrently, but
+	// always *before* closure is propagated to downstream handle, hence being safe to load
+	// here).
+	require.Equal(t, int64(0), controller.winServiceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
+}
+
+// TestWindowsDesktopServiceKeepAliveEscalation verifies that a windows desktop service heartbeat
+// that fails keepalive enough times will escalate to a stream closure.
+func TestWindowsDesktopServiceKeepAliveEscalation(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testWindowsDesktopServiceKeepAliveEscalation)
+}
+
+func testWindowsDesktopServiceKeepAliveEscalation(t *testing.T) {
+	const serverID = "test-server"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	downstream, _ := startWindowsDesktopControlStream(t, controller, serverID, types.RoleWindowsDesktop)
+
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		WindowsDesktopService: newWindowsDesktopService(t, serverID, nil),
+	}.Build())
+	require.NoError(t, err)
+
+	awaitEvents(t, events,
+		expect(winServiceUpsertOk, winServiceKeepAliveOk),
+		deny(winServiceUpsertErr, winServiceKeepAliveErr, handlerClose),
+	)
+
+	// the stream closes once the error count exceeds maxKeepAliveErrs, so one
+	// more failure than the limit is needed to escalate.
+	failedKeepAlives := controller.maxKeepAliveErrs + 1
+
+	auth.mu.Lock()
+	auth.failUpserts = failedKeepAlives
+	auth.mu.Unlock()
+
+	expectedEvents := slices.Repeat([]testEvent{winServiceKeepAliveErr}, failedKeepAlives)
+	expectedEvents = append(expectedEvents, handlerClose)
+
+	awaitEvents(t, events,
+		expect(expectedEvents...),
+		deny(winServiceUpsertErr),
+	)
+}
+
+// TestWindowsDesktopServiceHeartbeatRejected verifies that a windows desktop service heartbeat
+// that the control stream isn't entitled to send closes the stream.
+func TestWindowsDesktopServiceHeartbeatRejected(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-server"
+
+	tests := []struct {
+		name        string
+		services    []types.SystemRole
+		heartbeatID string
+	}{
+		{
+			name:        "stream not registered as a windows desktop service",
+			services:    []types.SystemRole{types.RoleNode},
+			heartbeatID: serverID,
+		},
+		{
+			name:        "heartbeat does not match the registered server ID",
+			services:    []types.SystemRole{types.RoleWindowsDesktop},
+			heartbeatID: "some-other-server",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				events := make(chan testEvent, 1024)
+
+				rc := &resourceCounter{}
+				controller := NewController(
+					&fakeAuth{},
+					usagereporter.DiscardUsageReporter{},
+					withServerKeepAlive(time.Millisecond*200),
+					withTestEventsChannel(events),
+					WithOnConnect(rc.onConnect),
+					WithOnDisconnect(rc.onDisconnect),
+				)
+				defer controller.Close()
+
+				downstream, handle := startWindowsDesktopControlStream(t, controller, serverID, test.services...)
+
+				err := downstream.Send(t.Context(), proto.InventoryHeartbeat_builder{
+					WindowsDesktopService: newWindowsDesktopService(t, test.heartbeatID, nil),
+				}.Build())
+				require.NoError(t, err)
+
+				awaitEvents(t, events,
+					expect(handlerClose),
+					deny(winServiceUpsertOk, winServiceKeepAliveOk),
+				)
+
+				select {
+				case <-handle.Done():
+				case <-time.After(time.Second * 10):
+					t.Fatal("timeout waiting for handle closure")
+				}
+
+				require.Zero(t, rc.count())
+			})
+		})
+	}
+}
+
+// windowsDesktopServiceDeleteAuth lets a test control the outcome of windows desktop
+// service deletion and observe which service was deleted.
+type windowsDesktopServiceDeleteAuth struct {
+	*fakeAuth
+	deleteErr error
+	deletedC  chan string
+}
+
+func (a *windowsDesktopServiceDeleteAuth) DeleteWindowsDesktopService(ctx context.Context, name string) error {
+	a.deletedC <- name
+	if a.deleteErr != nil {
+		return a.deleteErr
+	}
+	return a.fakeAuth.DeleteWindowsDesktopService(ctx, name)
+}
+
+// TestWindowsDesktopServiceCleanup verifies that the windows desktop service heartbeat is
+// removed when an instance says goodbye and asks for its resources to be deleted.
+func TestWindowsDesktopServiceCleanup(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-server"
+
+	tests := []struct {
+		name            string
+		deleteResources bool
+		deleteErr       error
+		expectEvents    []testEvent
+		denyEvents      []testEvent
+	}{
+		{
+			name:            "heartbeat is deleted",
+			deleteResources: true,
+			expectEvents:    []testEvent{winServiceDelOk},
+			denyEvents:      []testEvent{winServiceDelErr},
+		},
+		{
+			name:            "already expired heartbeat counts as deleted",
+			deleteResources: true,
+			deleteErr:       trace.NotFound("windows desktop service not found"),
+			expectEvents:    []testEvent{winServiceDelOk},
+			denyEvents:      []testEvent{winServiceDelErr},
+		},
+		{
+			name:            "delete failure is reported",
+			deleteResources: true,
+			deleteErr:       trace.Errorf("delete failed as test condition"),
+			expectEvents:    []testEvent{winServiceDelErr},
+			denyEvents:      []testEvent{winServiceDelOk},
+		},
+		{
+			name:       "heartbeat is left in place without delete_resources",
+			denyEvents: []testEvent{winServiceDelOk, winServiceDelErr},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+				events := make(chan testEvent, 1024)
+
+				auth := &windowsDesktopServiceDeleteAuth{
+					fakeAuth:  &fakeAuth{},
+					deleteErr: test.deleteErr,
+					deletedC:  make(chan string, 1),
+				}
+
+				controller := NewController(
+					auth,
+					usagereporter.DiscardUsageReporter{},
+					withServerKeepAlive(time.Millisecond*200),
+					withTestEventsChannel(events),
+				)
+				defer controller.Close()
+
+				downstream, _ := startWindowsDesktopControlStream(t, controller, serverID, types.RoleWindowsDesktop)
+
+				err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+					WindowsDesktopService: newWindowsDesktopService(t, serverID, nil),
+				}.Build())
+				require.NoError(t, err)
+
+				awaitEvents(t, events,
+					expect(winServiceUpsertOk),
+					deny(winServiceUpsertErr, handlerClose),
+				)
+
+				err = downstream.Send(ctx, proto.UpstreamInventoryGoodbye_builder{
+					DeleteResources: test.deleteResources,
+				}.Build())
+				require.NoError(t, err)
+				require.NoError(t, downstream.Close())
+
+				awaitEvents(t, events,
+					expect(append(test.expectEvents, handlerClose)...),
+					deny(test.denyEvents...),
+				)
+
+				select {
+				case name := <-auth.deletedC:
+					require.True(t, test.deleteResources, "windows desktop service deleted without delete_resources")
+					require.Equal(t, serverID, name)
+				default:
+					require.False(t, test.deleteResources, "windows desktop service was never deleted")
+				}
+			})
+		})
+	}
+}
+
 func TestGetSender(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, testGetSender)
@@ -2723,4 +3271,13 @@ func (r *resourceCounter) count() int {
 		count += v
 	}
 	return count
+}
+
+// countOf reports the count for a single keepalive type. count sums every type,
+// so it cannot catch a resource registered under the wrong one.
+func (r *resourceCounter) countOf(typ string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.c[typ]
 }

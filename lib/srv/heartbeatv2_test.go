@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type fakeHeartbeatDriver struct {
@@ -502,6 +504,242 @@ func makeMetadata(id string) *metadata.Metadata {
 			},
 		},
 	}
+}
+
+func newTestWindowsDesktopService(t *testing.T, labels map[string]string) *types.WindowsDesktopServiceV3 {
+	t.Helper()
+	service, err := types.NewWindowsDesktopServiceV3(
+		types.Metadata{
+			Name:   "test-desktop-service",
+			Labels: labels,
+		},
+		types.WindowsDesktopServiceSpecV3{
+			Addr:            "1.2.3.4:3028",
+			TeleportVersion: teleport.Version,
+			Hostname:        "test-desktop-service",
+		},
+	)
+	require.NoError(t, err)
+	return service
+}
+
+type fakeDownstreamSender struct {
+	hello   *proto.DownstreamInventoryHello
+	sendErr error
+	sent    []*proto.InventoryHeartbeat
+}
+
+func (s *fakeDownstreamSender) Send(_ context.Context, msg proto.UpstreamInventoryMessage) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
+	s.sent = append(s.sent, msg.(*proto.InventoryHeartbeat))
+	return nil
+}
+
+func (s *fakeDownstreamSender) Hello() *proto.DownstreamInventoryHello { return s.hello }
+
+func (s *fakeDownstreamSender) Done() <-chan struct{} { return nil }
+
+// TestWindowsDesktopServiceHeartbeatAnnounce verifies that windows desktop service heartbeats
+// only go over the inventory control stream if auth advertises support for them.
+func TestWindowsDesktopServiceHeartbeatAnnounce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		hello        *proto.DownstreamInventoryHello
+		wantFallback bool
+	}{
+		{
+			name: "auth supports windows desktop service heartbeats",
+			hello: proto.DownstreamInventoryHello_builder{
+				Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
+					WindowsDesktopServiceHeartbeats: true,
+				}.Build(),
+			}.Build(),
+		},
+		{
+			name:         "auth advertises no capabilities",
+			hello:        proto.DownstreamInventoryHello_builder{}.Build(),
+			wantFallback: true,
+		},
+		{
+			name: "auth does not support windows desktop service heartbeats",
+			hello: proto.DownstreamInventoryHello_builder{
+				Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
+					NodeHeartbeats: true,
+				}.Build(),
+			}.Build(),
+			wantFallback: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := newTestWindowsDesktopService(t, map[string]string{"env": "test"})
+			service.SetExpiry(time.Now().Add(time.Hour).UTC())
+
+			announcer := newFakeAnnouncer(t.Context())
+			hb := &windowsDesktopServiceHeartbeatV2{
+				announcer: announcer,
+				getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) {
+					return service, nil
+				},
+			}
+			sender := &fakeDownstreamSender{hello: test.hello}
+
+			require.True(t, hb.Announce(t.Context(), sender))
+			require.Same(t, service, hb.prev)
+
+			if test.wantFallback {
+				require.Empty(t, sender.sent)
+				require.Equal(t, 1, announcer.upsertCalls[HeartbeatModeWindowsDesktopService])
+				require.Same(t, service, announcer.lastWindowsDesktopService)
+				return
+			}
+
+			require.Zero(t, announcer.upsertCalls[HeartbeatModeWindowsDesktopService])
+			require.Len(t, sender.sent, 1)
+
+			got := sender.sent[0].GetWindowsDesktopService()
+			require.NotSame(t, service, got)
+			require.Equal(t, services.Equal, services.CompareServers(service, got))
+		})
+	}
+
+	t.Run("send failure does not record the service", func(t *testing.T) {
+		t.Parallel()
+
+		hb := &windowsDesktopServiceHeartbeatV2{
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) {
+				return newTestWindowsDesktopService(t, nil), nil
+			},
+		}
+		sender := &fakeDownstreamSender{
+			hello: proto.DownstreamInventoryHello_builder{
+				Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
+					WindowsDesktopServiceHeartbeats: true,
+				}.Build(),
+			}.Build(),
+			sendErr: trace.Errorf("send failed as test condition"),
+		}
+
+		require.False(t, hb.Announce(t.Context(), sender))
+		require.Nil(t, hb.prev)
+	})
+}
+
+// TestWindowsDesktopServiceHeartbeatPoll verifies that a windows desktop service is only
+// re-announced when something other than its expiry changed.
+func TestWindowsDesktopServiceHeartbeatPoll(t *testing.T) {
+	t.Parallel()
+
+	prev := newTestWindowsDesktopService(t, map[string]string{"env": "test"})
+
+	laterExpiry := newTestWindowsDesktopService(t, map[string]string{"env": "test"})
+	laterExpiry.SetExpiry(time.Now().Add(time.Hour).UTC())
+
+	tests := []struct {
+		name       string
+		prev       *types.WindowsDesktopServiceV3
+		getService func(context.Context) (*types.WindowsDesktopServiceV3, error)
+		want       bool
+	}{
+		{
+			name:       "first poll always announces",
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) { return prev, nil },
+			want:       true,
+		},
+		{
+			name:       "unchanged service",
+			prev:       prev,
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) { return prev, nil },
+		},
+		{
+			name:       "only the expiry changed",
+			prev:       prev,
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) { return laterExpiry, nil },
+		},
+		{
+			name: "labels changed",
+			prev: prev,
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) {
+				return newTestWindowsDesktopService(t, map[string]string{"env": "prod"}), nil
+			},
+			want: true,
+		},
+		{
+			name: "service is unavailable",
+			prev: prev,
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) {
+				return nil, trace.Errorf("failed to get service as test condition")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			hb := &windowsDesktopServiceHeartbeatV2{
+				prev:       test.prev,
+				getService: test.getService,
+			}
+			require.Equal(t, test.want, hb.Poll(t.Context()))
+		})
+	}
+}
+
+// TestWindowsDesktopServiceHeartbeatFallback verifies the direct upsert path used when the
+// inventory control stream is unavailable or auth is too old to accept the heartbeat.
+func TestWindowsDesktopServiceHeartbeatFallback(t *testing.T) {
+	t.Parallel()
+
+	service := newTestWindowsDesktopService(t, nil)
+	getService := func(context.Context) (*types.WindowsDesktopServiceV3, error) { return service, nil }
+
+	t.Run("no announcer configured", func(t *testing.T) {
+		hb := &windowsDesktopServiceHeartbeatV2{getService: getService}
+
+		require.False(t, hb.SupportsFallback())
+		require.False(t, hb.FallbackAnnounce(t.Context()))
+		require.Nil(t, hb.prev)
+	})
+
+	t.Run("announce succeeds", func(t *testing.T) {
+		announcer := newFakeAnnouncer(t.Context())
+		hb := &windowsDesktopServiceHeartbeatV2{announcer: announcer, getService: getService}
+
+		require.True(t, hb.SupportsFallback())
+		require.True(t, hb.FallbackAnnounce(t.Context()))
+		require.Same(t, service, announcer.lastWindowsDesktopService)
+		require.Same(t, service, hb.prev)
+	})
+
+	t.Run("announce fails", func(t *testing.T) {
+		announcer := newFakeAnnouncer(t.Context())
+		announcer.err = trace.Errorf("upsert failed as test condition")
+		hb := &windowsDesktopServiceHeartbeatV2{announcer: announcer, getService: getService}
+
+		require.False(t, hb.FallbackAnnounce(t.Context()))
+		require.Nil(t, hb.prev)
+	})
+
+	t.Run("service is unavailable", func(t *testing.T) {
+		announcer := newFakeAnnouncer(t.Context())
+		hb := &windowsDesktopServiceHeartbeatV2{
+			announcer: announcer,
+			getService: func(context.Context) (*types.WindowsDesktopServiceV3, error) {
+				return nil, trace.Errorf("failed to get service as test condition")
+			},
+		}
+
+		require.False(t, hb.FallbackAnnounce(t.Context()))
+		require.Zero(t, announcer.upsertCalls[HeartbeatModeWindowsDesktopService])
+	})
 }
 
 func TestNewHeartbeatFetchMetadata(t *testing.T) {

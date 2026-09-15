@@ -302,6 +302,8 @@ type fakeAnnouncer struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	keepAlivesC chan<- types.KeepAlive
+
+	lastWindowsDesktopService types.WindowsDesktopService
 }
 
 func (f *fakeAnnouncer) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
@@ -319,6 +321,7 @@ func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types
 	if f.err != nil {
 		return nil, f.err
 	}
+	f.lastWindowsDesktopService = s
 	return &types.KeepAlive{}, nil
 }
 

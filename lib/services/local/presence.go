@@ -1399,6 +1399,7 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		}
 	case constants.KeepAliveDatabase:
 		key = backend.NewKey(dbServersPrefix, h.Namespace, h.HostID, h.Name)
+	// TODO(wethreetrees): DELETE IN 20 - all supported agents will be using HeartbeatV2
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.NewKey(windowsDesktopServicesPrefix, h.Name)
 	case constants.KeepAliveKube:

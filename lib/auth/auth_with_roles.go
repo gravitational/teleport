@@ -1146,6 +1146,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	scopedServer := a.ScopedServerWithRoles()
 	switch handle.GetType() {
+	// TODO(wethreetrees): DELETE IN 20 - all supported agents will be using HeartbeatV2
 	case constants.KeepAliveWindowsDesktopService:
 		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleWindowsDesktop); err != nil {
 			return trace.Wrap(err)
@@ -8156,6 +8157,7 @@ func (a *ServerWithRoles) GetWindowsDesktopService(ctx context.Context, name str
 
 // UpsertWindowsDesktopService creates or updates a new windows desktop service.
 func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
+	// TODO(wethreetrees): DELETE IN 20 - all supported agents will be using HeartbeatV2
 	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", s.GetName(), types.RoleWindowsDesktop); err != nil {
 		if err := a.authorizeAction(types.KindWindowsDesktopService, types.VerbCreate, types.VerbUpdate); err != nil {
 			return nil, trace.Wrap(err)
