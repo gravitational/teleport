@@ -4,13 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	scimclient "github.com/gravitational/teleport/api/client/scim"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/patch"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
@@ -27,6 +35,21 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 	if !accessListPredicate(acl) {
 		return nil, trace.NotFound("access list %q not found", resourceID)
 	}
+
+	// Fast path: if the entire request is expressible as a single
+	// self-describing membership add/remove operation, apply it directly
+	// against the backend - O(1) - instead of fetching the group's full
+	// membership to compute a diff. Falls through to the existing
+	// full-state flow for anything else (multiple ops, bulk replace,
+	// displayName changes, malformed payloads, etc.).
+	if memberOps, ok := g.canFastPatch(ctx, req); ok {
+		resp, err := g.fastPatchResource(ctx, acl, memberOps)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resp, nil
+	}
+
 	members, err := libaccesslist.GetMembersFor(ctx, resourceID, g.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,6 +86,121 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 		return nil, trace.Wrap(err)
 	}
 	return conv.AccessListToResource(newACL, newMembers)
+}
+
+// disableSCIMFastPatchLabel opts an individual SCIM plugin out of the
+// membership PATCH fast path, as an escape hatch for a specific plugin
+// without having to disable the fast path cluster-wide - see
+// isSCIMFastPatchEnabled.
+const disableSCIMFastPatchLabel = types.TeleportNamespace + "/disable-scim-fast-patch"
+
+// isSCIMFastPatchEnabled reports whether the membership PATCH fast path is
+// enabled. It's on by default it can be turned off cluster-wide via
+// TELEPORT_UNSTABLE_DISABLE_SCIM_FAST_PATCH, or for a specific plugin via
+// the disableSCIMFastPatchLabel label.
+func isSCIMFastPatchEnabled(plugin *types.PluginV1) bool {
+	envDisabled, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_SCIM_FAST_PATCH"))
+	labelDisabled, _ := apiutils.ParseBool(plugin.GetMetadata().Labels[disableSCIMFastPatchLabel])
+	return !envDisabled && !labelDisabled
+}
+
+// canFastPatch is the prerequisite for the fast path: it reports whether
+// req's payload is expressible as a single self-describing membership
+// add/remove operation, which can be applied directly against the backend
+// - O(1) - instead of fetching the group's full membership to compute a
+// diff. Anything else (multiple ops, bulk replace, displayName changes,
+// a malformed payload, etc.) isn't eligible and must fall through to the
+// full-state flow, which marshals and applies the payload again itself.
+//
+// It also requires the fast path to have been enabled - see
+// isSCIMFastPatchEnabled - and the client to have declared it understands
+// scimclient.NoContentTrailer: during a rolling upgrade, an old client
+// talking to an already-upgraded auth wouldn't know to look for the
+// trailer, so it must keep going through the full-state flow and getting
+// the old, fully-populated response.
+func (g groupHandler) canFastPatch(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) ([]patch.MemberOp, bool) {
+	if !isSCIMFastPatchEnabled(g.Plugin) {
+		return nil, false
+	}
+	if !scimclient.ClientSupportsNoContent(ctx) {
+		return nil, false
+	}
+	patchJSON, err := req.GetPayload().MarshalJSON()
+	if err != nil {
+		return nil, false
+	}
+	memberOps, ok := patch.ExtractMemberOps(patchJSON)
+	return memberOps, ok && len(memberOps) == 1
+}
+
+// fastPatchResource applies a single self-describing membership op
+// directly against the backend and builds the response for it - see
+// fastPatch and scimclient.NoContentTrailer.
+func (g groupHandler) fastPatchResource(ctx context.Context, acl *accesslist.AccessList, memberOps []patch.MemberOp) (*scimpb.Resource, error) {
+	if err := g.fastPatch(ctx, acl, memberOps); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Flag on the trailer that the fast path applied the patch directly
+	// against the backend, so the client can translate this into a 204 HTTP code.
+	// allowing to skip the full response body, which is expensive to build and marshal in case
+	// of large amount of members in group.
+	if err := grpc.SetTrailer(ctx, metadata.Pairs(scimclient.NoContentTrailer, "true")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.AccessListToResource(acl, nil)
+}
+
+// fastPatch applies single operation membership changes directly against
+// the backend, without ever  need to fetch whole collection of members.
+// The add/remove member is O(1) instead of O(N) UpsertAccessListWithMembers call.
+// The Access List resource itself is untouched, since none of these
+// operations can change its title.
+func (g groupHandler) fastPatch(ctx context.Context, acl *accesslist.AccessList, ops []patch.MemberOp) error {
+	for _, op := range ops {
+		switch op.Action {
+		case patch.MemberAdd:
+			if err := g.addMember(ctx, acl.GetName(), op.Value); err != nil {
+				return trace.Wrap(err)
+			}
+		case patch.MemberRemove:
+			// When members is deleted the access list revision is not bumped up.
+			// This is acceptable since Revision is used in Update flow where SCIM clients
+			// either use Update or Patch approach.
+			if err := g.Backend.DeleteAccessListMember(ctx, acl.GetName(), op.Value); err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		g.Logger.With(
+			slog.String("op", "fastPatch"),
+			slog.String("action", op.Action.String()),
+			slog.String("access_list", acl.GetName()),
+			slog.String("member", op.Value),
+		).DebugContext(ctx, "SCIM fast patch applied.")
+	}
+	return nil
+}
+
+func (g groupHandler) addMember(ctx context.Context, accessListName, memberName string) error {
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{Name: memberName},
+		accesslist.AccessListMemberSpec{
+			AccessList:       accessListName,
+			Name:             memberName,
+			Joined:           g.Clock.Now(),
+			AddedBy:          "SCIM",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO(smallinsky): Ideally we should call CreateAccessListMember that
+	// is not yet supported.
+	// But in SCIM flow the client is fully owner of the resource.
+	// If PATCH member is called multiple on the same member the flow
+	// will just update the field. This is acceptable since only Joined filed.
+	_, err = g.Backend.UpsertAccessListMember(ctx, member)
+	return trace.Wrap(err)
 }
 
 // PatchResource patches an existing SCIM user resource using SCIM PATCH operations as per RFC 7644 Section 3.5.2.

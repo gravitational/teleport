@@ -568,7 +568,13 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 		return trace.Wrap(err)
 	}
 
-	updated, err := p.h.GetProxyClient().SCIMClient().PatchSCIMResource(r.Context(), scimpb.PatchSCIMResourceRequest_builder{
+	authClient, err := p.getAuthClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	scimClient := scimclient.NewClientFromConn(authClient.GetConnection())
+
+	resp, err := scimClient.PatchSCIMResourceV2(r.Context(), scimpb.PatchSCIMResourceRequest_builder{
 		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
@@ -580,10 +586,20 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditEvent.ExternalID = updated.GetExternalId()
-	auditEvent.Display = extractDisplayName(updated)
 
-	err = writeSCIMResourceUpdateResponse(w, http.StatusOK, updated, auditEvent)
+	code := http.StatusOK
+	// A fast-path patch applied without materializing a representation of
+	// the resource - respond 204 No Content, per RFC 7644 Section 3.5.2.
+	// The SCIM fast patch path leverage 204 No Content to avoid the overhead of handling
+	// large set of members in groups.
+	if resp.NoContent {
+		code = http.StatusNoContent
+	}
+
+	auditEvent.ExternalID = resp.Resource.GetExternalId()
+	auditEvent.Display = extractDisplayName(resp.Resource)
+
+	err = writeSCIMResourceUpdateResponse(w, code, resp.Resource, auditEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -639,6 +655,22 @@ func withETag(etag string) scimResponseOption {
 // writeSCIMResourceUpdateResponse records the updated resource in the supplied
 // audit event before writing the SCIM respinse as usual
 func writeSCIMResourceUpdateResponse(w http.ResponseWriter, statusCode int, resource *scimpb.Resource, auditEvent *apievents.SCIMResourceEvent) error {
+	// A 204 No Content response has no body, per RFC 7644 Section 3.5.2 -
+	// it's only returned when the resource wasn't materialized (the SCIM
+	// fast patch path builds `resource` as a placeholder, without fetching
+	// group membership, purely to carry metadata like the ETag). Recording
+	// it as the audit event's response body would fabricate state - e.g.
+	// falsely reporting an empty membership list for a group that still
+	// has many members - so leave both the audit event and the actual HTTP
+	// response bodyless instead of flattening the placeholder.
+	if statusCode == http.StatusNoContent {
+		auditEvent.Response = &apievents.SCIMResponse{
+			StatusCode: uint32(statusCode),
+		}
+		writeSCIMResponse(w, statusCode, nil, withETag(resource.GetMeta().GetVersion()))
+		return nil
+	}
+
 	resourceAttributes, err := scimsdk.FlattenResource(resource)
 	if err != nil {
 		return trace.Wrap(err)

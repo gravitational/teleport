@@ -27,11 +27,18 @@ import (
 
 type createSCIMPluginOptions struct {
 	scimSettings *types.PluginSCIMSettings
+	labels       map[string]string
 }
 
 func withSCIMSettings(settings *types.PluginSCIMSettings) createSCIMPluginOptionsFunc {
 	return func(o *createSCIMPluginOptions) {
 		o.scimSettings = settings
+	}
+}
+
+func withLabels(labels map[string]string) createSCIMPluginOptionsFunc {
+	return func(o *createSCIMPluginOptions) {
+		o.labels = labels
 	}
 }
 
@@ -48,14 +55,21 @@ func createGenericSCIMPlugin(t *testing.T, sut *common.SUT, opts ...createSCIMPl
 		opt(&options)
 	}
 
+	labels := map[string]string{
+		plugins.HostedPluginLabel: "true",
+		// The SCIM PATCH fast path is enabled by default in production,
+		// but tests default to the full-state flow unless they opt in via
+		// withLabels - see TestSCIMPatchFastPath.
+		apicommon.TeleportNamespace + "/disable-scim-fast-patch": "true",
+	}
+	maps.Copy(labels, options.labels)
+
 	var pluginClient = pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	plugin := &types.PluginV1{
 		SubKind: types.PluginSubkindAccess,
 		Metadata: types.Metadata{
-			Labels: map[string]string{
-				plugins.HostedPluginLabel: "true",
-			},
-			Name: "generic",
+			Labels: labels,
+			Name:   "generic",
 		},
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Scim{

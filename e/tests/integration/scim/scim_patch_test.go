@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
@@ -413,6 +414,99 @@ func TestAddMemberDoesNotRewriteExistingMembers(t *testing.T) {
 
 		requireMemberExists(t, groupName, newUser.UserName)
 		requireRevisionsUnchanged(t, groupName, revisionsBefore)
+	})
+}
+
+func TestSCIMPatchFastPath(t *testing.T) {
+	t.Parallel()
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	aclClient := sut.Teleport.Process.GetAuthServer().AccessListsInternal
+
+	scimToken := createGenericSCIMPlugin(t, sut, withLabels(map[string]string{
+		apicommon.TeleportNamespace + "/disable-scim-fast-patch": "false",
+	}))
+	baseURL := url.URL{
+		Scheme: "https",
+		Host:   sut.ProxyAddr,
+		Path:   "/v1/webapi/scim/generic",
+	}
+	httpClient := &http.Client{
+		Transport: &bearerAuthTransport{
+			Token: scimToken,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		},
+	}
+
+	t.Run("single member add returns 204 No Content", func(t *testing.T) {
+		t.Parallel()
+		groupName := "fast-patch-add"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		resp, err := doPatchResource(httpClient, baseURL.String(), "Groups", groupName, map[string]any{
+			"schemas": []string{scimsdk.PatchOpSchema},
+			"Operations": []map[string]any{
+				{
+					"op":    "add",
+					"path":  "members",
+					"value": []map[string]any{{"value": "user1"}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Empty(t, body)
+
+		members := getAllMembers(t, aclClient, groupName)
+		require.Len(t, members, 1)
+		require.Equal(t, "user1", members[0].GetName())
+	})
+
+	t.Run("single member remove returns 204 No Content", func(t *testing.T) {
+		t.Parallel()
+		groupName := "fast-patch-remove"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+			common.WithMembers("user-to-remove"),
+		)
+
+		resp, err := doPatchResource(httpClient, baseURL.String(), "Groups", groupName, map[string]any{
+			"schemas": []string{scimsdk.PatchOpSchema},
+			"Operations": []map[string]any{
+				{
+					"op":   "remove",
+					"path": `members[value eq "user-to-remove"]`,
+				},
+			},
+		})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Empty(t, body)
+
+		members := getAllMembers(t, aclClient, groupName)
+		require.Empty(t, members)
 	})
 }
 
