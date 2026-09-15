@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -38,6 +39,18 @@ const (
 	imdsURL = "http://169.254.169.254/metadata"
 	// minimumSupportedAPIVersion is the minimum supported version of the Azure instance metadata API.
 	minimumSupportedAPIVersion = "2019-06-04"
+
+	// identityEndpointEnv is the env var Azure sets on ACI containers with
+	// managed identity. On ACI with VNet injection, the standard IMDS address
+	// (169.254.169.254) is unreachable, so Azure exposes the MSI endpoint via
+	// this env var instead.
+	identityEndpointEnv = "IDENTITY_ENDPOINT"
+	// identityHeaderEnv holds the secret that must be sent as X-IDENTITY-HEADER
+	// when calling the container MSI endpoint. Azure verifies it to prevent
+	// SSRF-style token theft from other processes in the same container group.
+	identityHeaderEnv = "IDENTITY_HEADER"
+	// containerIdentityAPIVersion is the api-version for the container MSI endpoint.
+	containerIdentityAPIVersion = "2019-08-01"
 )
 
 // InstanceMetadataClient is a client for Azure instance metadata.
@@ -282,11 +295,62 @@ func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, client
 
 // GetAccessTokenForIdentity fetches an oauth2 access token from the managed
 // identity endpoint without requiring the standard IMDS version discovery to
-// succeed first. This is needed on compute types (e.g. Azure Container
-// Instances) where the /metadata/versions endpoint is unavailable but the
-// /metadata/identity/oauth2/token endpoint is still reachable.
+// succeed first. On ACI with VNet injection the standard IMDS address is
+// unreachable; Azure instead injects IDENTITY_ENDPOINT / IDENTITY_HEADER env
+// vars pointing to a container-local MSI proxy.
 func (client *InstanceMetadataClient) GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error) {
+	if endpoint := os.Getenv(identityEndpointEnv); endpoint != "" {
+		return client.getContainerAccessToken(ctx, endpoint, os.Getenv(identityHeaderEnv), clientID)
+	}
 	return client.getAccessTokenDirect(ctx, clientID)
+}
+
+// getContainerAccessToken fetches a token from the ACI container MSI endpoint
+// (IDENTITY_ENDPOINT). Unlike the standard IMDS endpoint, this one requires an
+// X-IDENTITY-HEADER header instead of Metadata: true.
+func (client *InstanceMetadataClient) getContainerAccessToken(ctx context.Context, endpoint, identityHeader, clientID string) (string, error) {
+	httpClient, err := defaults.HTTPClient(defaults.DisableProxyFromEnvironment())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	params := url.Values{
+		"resource":    []string{"https://management.azure.com/"},
+		"api-version": []string{containerIdentityAPIVersion},
+	}
+	if clientID != "" {
+		params.Set("client_id", clientID)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if identityHeader != "" {
+		req.Header.Set("X-IDENTITY-HEADER", identityHeader)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", parseMetadataClientError(resp.StatusCode, body)
+	}
+
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := utils.FastUnmarshal(body, &tokenResponse); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tokenResponse.AccessToken, nil
 }
 
 func (client *InstanceMetadataClient) getAccessTokenDirect(ctx context.Context, clientID string) (string, error) {
