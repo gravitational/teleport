@@ -172,7 +172,7 @@ func (s *OutputService) generateUnscopedIdentity(ctx context.Context) (*identity
 	}
 	defer impersonatedClient.Close()
 
-	app, err := getAppLegacy(ctx, impersonatedClient, s.cfg.AppName)
+	app, err := getApp(ctx, impersonatedClient, scopes.QualifiedName{Name: s.cfg.AppName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

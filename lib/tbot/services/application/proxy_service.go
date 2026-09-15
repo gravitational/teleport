@@ -34,6 +34,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -270,7 +271,7 @@ func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName str
 	// TODO(noah): Now that app session ids are no longer being retrieved,
 	// we can begin to cache the getUnscopedApp rather than regenerating this
 	// on each renew in the ProxyService
-	app, err := getAppLegacy(ctx, impersonatedClient, appName)
+	app, err := getApp(ctx, impersonatedClient, scopes.QualifiedName{Name: appName})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

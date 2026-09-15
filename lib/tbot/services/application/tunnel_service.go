@@ -338,7 +338,7 @@ func (s *TunnelService) generateUnscopedIdentity(ctx context.Context) (*identity
 	// TODO(noah): Now that app session ids are no longer being retrieved,
 	// we can begin to cache the getApp rather than regenerating this
 	// on each renew in the TunnelService
-	app, err := getAppLegacy(ctx, impersonatedClient, s.cfg.AppName)
+	app, err := getApp(ctx, impersonatedClient, scopes.QualifiedName{Name: s.cfg.AppName})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -145,63 +145,6 @@ func TestGetApp(t *testing.T) {
 	}
 }
 
-func TestGetAppLegacy(t *testing.T) {
-	testCases := map[string]struct {
-		name              string
-		wantErr           string
-		wantPredicateExpr string
-		validate          func(t *testing.T, app types.Application)
-		returnedApps      []*types.AppV3
-	}{
-		"returns the first app": {
-			name: "first",
-			returnedApps: []*types.AppV3{
-				{Metadata: types.Metadata{Name: "first"}},
-				{Metadata: types.Metadata{Name: "second"}},
-				{Metadata: types.Metadata{Name: "third"}},
-			},
-			wantPredicateExpr: `name == "first"`,
-			validate: func(t *testing.T, app types.Application) {
-				require.Equal(t, "first", app.GetName())
-			},
-		},
-		"return error when app is not found": {
-			returnedApps: []*types.AppV3{},
-			wantErr:      "matching app not found",
-		},
-		"filters out scoped apps": {
-			name: "first",
-			returnedApps: []*types.AppV3{
-				{Metadata: types.Metadata{Name: "first"}, Scope: "/scope"},
-				{Metadata: types.Metadata{Name: "first"}}},
-			validate: func(t *testing.T, app types.Application) {
-				require.Equal(t, "first", app.GetName())
-				require.Empty(t, app.GetScope(), "first")
-			},
-			wantPredicateExpr: `name == "first"`,
-		},
-	}
-
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			client := &clientMock{returnedApps: tc.returnedApps}
-			app, err := getAppLegacy(t.Context(), client, tc.name)
-			if tc.wantErr != "" {
-				require.Error(t, err)
-				require.True(t, trace.IsNotFound(err), "trace.IsNotFound(err)")
-				require.ErrorContains(t, err, tc.wantErr)
-				require.Nil(t, app)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tc.wantPredicateExpr, client.req.PredicateExpression)
-
-			tc.validate(t, app)
-		})
-	}
-}
-
 func TestGetMatchingApps(t *testing.T) {
 	testCases := map[string]struct {
 		predicate         string
