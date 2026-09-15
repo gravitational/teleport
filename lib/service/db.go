@@ -110,7 +110,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
