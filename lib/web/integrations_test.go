@@ -716,7 +716,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 		azureConfig := &discoveryconfig.DiscoveryConfig{
 			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
 				Integration: integrationName,
-				Types:       []string{types.AzureMatcherVM},
+				Types:       []string{types.AzureMatcherVM, types.AzureMatcherKubernetes},
 				Regions:     []string{"eastus", "westus"},
 			}}},
 			Status: discoveryconfig.Status{
@@ -731,6 +731,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 											Found:     5,
 											Enrolled:  3,
 											Failed:    1,
+											SyncStart: syncEnd,
+											SyncEnd:   syncEnd,
+										}.Build(),
+									}.Build(),
+									AzureAks: discoveryconfigv1.ResourceSummary_builder{
+										Previous: discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+											Found:     7,
+											Enrolled:  4,
+											Failed:    2,
 											SyncStart: syncEnd,
 											SyncEnd:   syncEnd,
 										}.Build(),
@@ -784,6 +793,15 @@ func TestCollectIntegrationStats(t *testing.T) {
 				SyncStart:                  &syncTime,
 				SyncEnd:                    &syncTime,
 				UnresolvedUserTasks:        10,
+			},
+			AzureAKS: ui.ResourceTypeSummary{
+				RulesCount:                 2,
+				ResourcesFound:             7,
+				ResourcesEnrollmentSuccess: 4,
+				ResourcesEnrollmentFailed:  2,
+				DiscoverLastSync:           &syncTime,
+				SyncStart:                  &syncTime,
+				SyncEnd:                    &syncTime,
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
@@ -1331,6 +1349,7 @@ func TestBuildBriefSummaries(t *testing.T) {
 				mockAwsInt.GetName(): {
 					IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
 						AzureVms: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 2, Enrolled: 1, Failed: 0}.Build(),
+						AzureAks: discoveryconfigv1.ResourcesDiscoveredSummary_builder{Found: 3, Enrolled: 1, Failed: 2}.Build(),
 					}.Build(),
 				},
 			},
@@ -1395,9 +1414,9 @@ func TestBuildBriefSummaries(t *testing.T) {
 				mockAwsInt.GetName(): {
 					UnresolvedUserTasks: []ui.UserTask{},
 					ResourcesCount: &ui.ResourcesCount{
-						Found:    12,
-						Enrolled: 4,
-						Failed:   3,
+						Found:    15,
+						Enrolled: 5,
+						Failed:   5,
 					},
 				},
 			},

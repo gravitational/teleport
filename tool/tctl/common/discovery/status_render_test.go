@@ -101,6 +101,9 @@ func TestRenderSummaryText(t *testing.T) {
       Azure VM:
         Previous sync: 2 minutes ago (took 30s)
         Result: 4 found, 4 enrolled, 0 failed
+      Azure AKS:
+        Previous sync: 1 minute ago (took 30s)
+        Result: 3 found, 2 enrolled, 1 failed
 `, out)
 		require.Contains(t, out, "\n  Last run: 2 minutes ago\n\n  Service (server-a):")
 		require.Contains(t, out, "\n        Result: 10 found, 8 enrolled, 2 failed")
@@ -156,6 +159,7 @@ func renderMultiServerSummary(t *testing.T, now time.Time) string {
 							Integration: "azure-prod",
 							Resources: []resourceResult{
 								testResourceResult(resourceKindAzureVM, 4, 4, 0, now.Add(-2*time.Minute-30*time.Second), now.Add(-2*time.Minute)),
+								testResourceResult(resourceKindAzureAKS, 3, 2, 1, now.Add(-time.Minute-30*time.Second), now.Add(-time.Minute)),
 							},
 						},
 					},

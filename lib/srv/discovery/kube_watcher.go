@@ -20,7 +20,6 @@ package discovery
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -41,25 +40,26 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	var (
+		// newResources contains a list of the resources discovered in the current iteration.
 		newResources []types.KubeCluster
 		// currentResources is the existing enrolled clusters. The watcher reads
 		// the set early so the eks access manager can maintain existing access
 		// metadata.
 		currentResources map[string]types.KubeCluster
-		mu               sync.Mutex
+		// failedResources is the set of resources that failed to be created or updated in the current iteration.
+		failedResources map[string]struct{}
+
+		// aksStatus contains the status of the AKS discovery fetchers for the current iteration.
+		aksStatus *discoveryStatus
 	)
 
 	reconciler, err := services.NewReconciler(
 		services.ReconcilerConfig[types.KubeCluster]{
 			Matcher: func(_ types.KubeCluster) bool { return true },
 			GetCurrentResources: func() map[string]types.KubeCluster {
-				mu.Lock()
-				defer mu.Unlock()
 				return currentResources
 			},
 			GetNewResources: func() map[string]types.KubeCluster {
-				mu.Lock()
-				defer mu.Unlock()
 				return utils.FromSlice(newResources, types.KubeCluster.GetName)
 			},
 			CompareResources: func(newCluster, oldCluster types.KubeCluster) int {
@@ -71,9 +71,21 @@ func (s *Server) startKubeWatchers() error {
 				}
 				return services.Different
 			},
-			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
-			OnCreate: s.onKubeCreate,
-			OnUpdate: s.onKubeUpdate,
+			Logger: s.Log.With("kind", types.KindKubernetesCluster),
+			OnCreate: func(ctx context.Context, kc types.KubeCluster) error {
+				err := s.onKubeCreate(ctx, kc)
+				if err != nil {
+					failedResources[kc.GetName()] = struct{}{}
+				}
+				return trace.Wrap(err)
+			},
+			OnUpdate: func(ctx context.Context, new, old types.KubeCluster) error {
+				err := s.onKubeUpdate(ctx, new, old)
+				if err != nil {
+					failedResources[new.GetName()] = struct{}{}
+				}
+				return trace.Wrap(err)
+			},
 			OnDelete: s.onKubeDelete,
 		},
 	)
@@ -85,6 +97,21 @@ func (s *Server) startKubeWatchers() error {
 		FetchersFn: func() []common.Fetcher {
 			kubeFetchersUsingKubernetesServiceAsProxy := s.getKubeFetchersUsingKubernetesServiceAsProxy()
 			s.submitFetchersEvent(kubeFetchersUsingKubernetesServiceAsProxy)
+
+			// Update DiscoveryConfigStatus for the current set of AKS Fetchers.
+			aksStatus = newStatusMap(types.AzureMatcherKubernetes, s.clock.Now())
+			for _, fetcher := range kubeFetchersUsingKubernetesServiceAsProxy {
+				if fetcher.FetcherType() != types.AzureMatcherKubernetes || fetcher.GetDiscoveryConfigName() == "" {
+					continue
+				}
+				aksStatus.add(discoveryGroupStatusKey{
+					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
+					integration:         fetcher.IntegrationName(),
+				})
+			}
+			s.azureAKSStatus.Store(aksStatus)
+			s.updateDiscoveryConfigStatus(aksStatus.discoveryConfigs()...)
+
 			return kubeFetchersUsingKubernetesServiceAsProxy
 		},
 		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
@@ -93,70 +120,98 @@ func (s *Server) startKubeWatchers() error {
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		Clock:          s.clock,
+		ProcessResourcesDiscoveredHookFn: func(fetchedResources types.ResourcesWithLabels) {
+			// Skip this cycle if the existing enrolled kube clusters can't be fetched for
+			// accurate reconciliation.
+			current, err := s.currentKubeClusters(s.ctx)
+			if err != nil {
+				s.Log.WarnContext(s.ctx, "Unable to get Kubernetes clusters from cache, skipping reconcile", "error", err)
+				return
+			}
+
+			clusters := make([]types.KubeCluster, 0, len(fetchedResources))
+			eksClusters := make([]*fetchers.DiscoveredEKSCluster, 0, len(fetchedResources))
+			for _, r := range fetchedResources {
+				if eksCluster, ok := r.(*fetchers.DiscoveredEKSCluster); ok {
+					eksClusters = append(eksClusters, eksCluster)
+					continue
+				}
+				if cluster, ok := r.(types.KubeCluster); ok {
+					clusters = append(clusters, cluster)
+				}
+			}
+
+			// Provision access for the clusters. When ProvisionAll returns
+			// nil for a cluster, keep its stored Status so a no-op cycle
+			// does not erase access metadata.
+			statuses := s.eksAccessManager.ProvisionAll(s.ctx, eksClusters)
+			for i, eksCluster := range eksClusters {
+				status := statuses[i]
+				if status == nil {
+					if existing, ok := current[eksCluster.GetName()]; ok {
+						status = existing.GetStatus()
+					}
+				}
+
+				eksCluster.SetStatus(status)
+				clusters = append(clusters, eksCluster.GetKubeCluster())
+			}
+			newResources = clusters
+			currentResources = current
+			failedResources = make(map[string]struct{})
+
+			if err := reconciler.Reconcile(s.ctx); err != nil {
+				s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
+			}
+
+			sm := newStatusMap(types.AzureMatcherKubernetes, *aksStatus.syncStart)
+			for key := range aksStatus.statuses {
+				sm.add(key)
+			}
+
+			for _, cluster := range newResources {
+				labels := cluster.GetStaticLabels()
+				if !cluster.IsAzure() || labels[types.TeleportInternalDiscoveryConfigName] == "" {
+					continue
+				}
+
+				// After reconcile, the failedResources contains the clusters that failed to enroll.
+				status := discoveryConfigStatusFromFailedResources(failedResources, cluster.GetName())
+				sm.updateConcurrently(
+					discoveryGroupStatusKey{
+						discoveryConfigName: labels[types.TeleportInternalDiscoveryConfigName],
+						integration:         labels[types.TeleportInternalDiscoveryIntegrationName],
+					},
+					status,
+				)
+			}
+			sm.syncEnded(s.clock.Now())
+			s.azureAKSStatus.Store(sm)
+			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+
+			if s.onKubernetesClusterReconcile != nil {
+				s.onKubernetesClusterReconcile()
+			}
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	go watcher.Start()
-
-	go func() {
-		for {
-			select {
-			case fetchedResources := <-watcher.ResourcesC():
-				// Skip this cycle if the existing enrolled kube clusters can't be fetched for
-				// accurate reconciliation.
-				current, err := s.currentKubeClusters(s.ctx)
-				if err != nil {
-					s.Log.WarnContext(s.ctx, "Unable to get Kubernetes clusters from cache, skipping reconcile", "error", err)
-					continue
-				}
-
-				clusters := make([]types.KubeCluster, 0, len(fetchedResources))
-				eksClusters := make([]*fetchers.DiscoveredEKSCluster, 0, len(fetchedResources))
-				for _, r := range fetchedResources {
-					if eksCluster, ok := r.(*fetchers.DiscoveredEKSCluster); ok {
-						eksClusters = append(eksClusters, eksCluster)
-						continue
-					}
-					if cluster, ok := r.(types.KubeCluster); ok {
-						clusters = append(clusters, cluster)
-					}
-				}
-
-				// Provision access for the clusters. When ProvisionAll returns
-				// nil for a cluster, keep its stored Status so a no-op cycle
-				// does not erase access metadata.
-				statuses := s.eksAccessManager.ProvisionAll(s.ctx, eksClusters)
-				for i, eksCluster := range eksClusters {
-					status := statuses[i]
-					if status == nil {
-						if existing, ok := current[eksCluster.GetName()]; ok {
-							status = existing.GetStatus()
-						}
-					}
-
-					eksCluster.SetStatus(status)
-					clusters = append(clusters, eksCluster.GetKubeCluster())
-				}
-				mu.Lock()
-				newResources = clusters
-				currentResources = current
-				mu.Unlock()
-
-				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
-				}
-
-				if s.onKubernetesClusterReconcile != nil {
-					s.onKubernetesClusterReconcile()
-				}
-
-			case <-s.ctx.Done():
-				return
-			}
-		}
-	}()
 	return nil
+}
+
+func discoveryConfigStatusFromFailedResources(failedResources map[string]struct{}, clusterName string) discoveryGroupStatus {
+	ret := discoveryGroupStatus{
+		found: 1,
+	}
+
+	if _, failed := failedResources[clusterName]; failed {
+		ret.failed = 1
+	} else {
+		ret.enrolled = 1
+	}
+	return ret
 }
 
 // currentKubeClusters reads this discovery group's cloud kube clusters from the

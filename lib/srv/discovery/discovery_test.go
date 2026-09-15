@@ -1053,6 +1053,9 @@ func TestDiscoveryServer(t *testing.T) {
 						if expectedValue.AzureVms != nil {
 							requireSyncTimesSet(t, gotResourcesSummary.AzureVms)
 						}
+						if expectedValue.AzureAks != nil {
+							requireSyncTimesSet(t, gotResourcesSummary.AzureAks)
+						}
 					}
 				}
 				if tc.userTasksDiscoverCheck != nil {
@@ -1728,6 +1731,40 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	noMatchAKSConfig := dynamicAKSConfig.Clone()
+	noMatchAKSConfig.Spec.Azure[0].ResourceTags = map[string]utils.Strings{"env": {"does-not-exist"}}
+
+	dynamicAKSCluster := func(index int, discoveryGroup string) types.KubeCluster {
+		t.Helper()
+		return mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][index], rewriteDiscoveryLabelsParams{
+			discoveryGroup:      discoveryGroup,
+			integration:         "dummy-azure-integration",
+			discoveryConfigName: dynamicAKSConfigName,
+		})
+	}
+
+	validateAKSStatus := func(found, enrolled, failed uint64) func(*testing.T, *auth.Server) {
+		return func(t *testing.T, authServer *auth.Server) {
+			t.Helper()
+			kubeClusters, err := authServer.GetKubernetesClusters(t.Context())
+			require.NoError(t, err)
+			require.Len(t, kubeClusters, int(found))
+
+			storedConfig, err := authServer.DiscoveryConfigs.GetDiscoveryConfig(t.Context(), dynamicAKSConfigName)
+			require.NoError(t, err)
+			require.Equal(t, found, storedConfig.Status.DiscoveredResources)
+
+			summary := storedConfig.Status.IntegrationDiscoveredResources["dummy-azure-integration"]
+			require.NotNil(t, summary)
+
+			aksSummary := summary.GetAzureAks()
+			requireSyncTimesSet(t, aksSummary)
+			require.Equal(t, found, aksSummary.GetFound())
+			require.Equal(t, enrolled, aksSummary.GetEnrolled())
+			require.Equal(t, failed, aksSummary.GetFailed())
+		}
+	}
+
 	tcs := []struct {
 		name                          string
 		existingKubeClusters          []types.KubeCluster
@@ -1735,6 +1772,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		azureMatchers                 []types.AzureMatcher
 		gcpMatchers                   []types.GCPMatcher
 		discoveryConfig               *discoveryconfig.DiscoveryConfig
+		validateStatus                func(*testing.T, *auth.Server)
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
 		expectedAssumedRoles          []string
@@ -1933,6 +1971,24 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			wantEvents: 2,
 		},
 		{
+			name:            "no AKS clusters match DiscoveryConfig",
+			discoveryConfig: noMatchAKSConfig,
+			validateStatus:  validateAKSStatus(0, 0, 0),
+		},
+		{
+			name:            "AKS cluster owned by another discovery group fails to enroll",
+			discoveryConfig: dynamicAKSConfig.Clone(),
+			validateStatus:  validateAKSStatus(2, 1, 1),
+			existingKubeClusters: []types.KubeCluster{
+				dynamicAKSCluster(0, otherDiscoveryGroup),
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				dynamicAKSCluster(0, otherDiscoveryGroup),
+				dynamicAKSCluster(1, mainDiscoveryGroup),
+			},
+			wantEvents: 1,
+		},
+		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
 			existingKubeClusters: []types.KubeCluster{},
 			gcpMatchers: []types.GCPMatcher{
@@ -2103,6 +2159,10 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			c2 := types.KubeClusters(kubeClusters).ToMap()
 			for k := range c1 {
 				require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
+			}
+
+			if tc.validateStatus != nil {
+				tc.validateStatus(t, tlsServer.Auth())
 			}
 
 			require.ElementsMatch(t, tc.expectedAssumedRoles, mockedClients.STSClient.GetAssumedRoleARNs(), "roles incorrectly assumed")

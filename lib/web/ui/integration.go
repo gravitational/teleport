@@ -160,6 +160,8 @@ type IntegrationWithSummary struct {
 	AWSEKS ResourceTypeSummary `json:"awseks"`
 	// AzureVM contains the summary for the AzureVM resources for this integration.
 	AzureVM ResourceTypeSummary `json:"azurevm"`
+	// AzureAKS contains the summary for the Azure AKS clusters for this integration.
+	AzureAKS ResourceTypeSummary `json:"azureaks"`
 
 	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
 	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`

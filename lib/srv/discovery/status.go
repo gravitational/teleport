@@ -71,6 +71,7 @@ func asFetcherStatusSlice[T FetcherStatus](slice []T) []FetcherStatus {
 // - AWS RDS Auto Discover status
 // - AWS EKS Auto Discover status
 // - Azure VMs Auto Discover status
+// - Azure AKS Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 	for _, discoveryConfigName := range discoveryConfigNames {
 		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
@@ -102,6 +103,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 
 		// Merge Azure VMs discovery status.
 		discoveryConfigStatus = s.azureVMStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
+		// Merge Azure AKS clusters discovery status.
+		discoveryConfigStatus = s.azureAKSStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 		// Ensure the error message is truncated to the maximum allowed size.
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
@@ -1287,6 +1291,8 @@ func integrationDiscoveredSummaryUpdate(summary *discoveryconfig.IntegrationDisc
 		summary.AwsEks = resourcesSummary
 	case types.AzureMatcherVM:
 		summary.AzureVms = resourcesSummary
+	case types.AzureMatcherKubernetes:
+		summary.AzureAks = resourcesSummary
 	default:
 		slog.WarnContext(context.Background(), "Unknown integration discovered summary resource type (this is a bug)", "resource_type", resourceType)
 	}

@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -315,23 +316,39 @@ func TestDiscoveryStatusUpdate(t *testing.T) {
 		discoveryConfigName: discoveryConfigName,
 		integration:         integrationName,
 	}
-	statuses := newStatusMap(types.AzureMatcherVM, time.Now())
-	statuses.add(key)
+	for _, tt := range []struct {
+		matcherType string
+		getSummary  func(*discoveryconfig.IntegrationDiscoveredSummary) *discoveryconfigv1.ResourcesDiscoveredSummary
+	}{
+		{
+			matcherType: types.AzureMatcherVM,
+			getSummary:  (*discoveryconfig.IntegrationDiscoveredSummary).GetAzureVms,
+		},
+		{
+			matcherType: types.AzureMatcherKubernetes,
+			getSummary:  (*discoveryconfig.IntegrationDiscoveredSummary).GetAzureAks,
+		},
+	} {
+		t.Run(tt.matcherType, func(t *testing.T) {
+			statuses := newStatusMap(tt.matcherType, time.Now())
+			statuses.add(key)
 
-	statuses.updateConcurrently(key, discoveryGroupStatus{
-		found:    4,
-		enrolled: 1,
-		failed:   1,
-	})
-	statuses.updateConcurrently(key, discoveryGroupStatus{
-		found: 1,
-	})
+			statuses.updateConcurrently(key, discoveryGroupStatus{
+				found:    4,
+				enrolled: 1,
+				failed:   1,
+			})
+			statuses.updateConcurrently(key, discoveryGroupStatus{
+				found: 1,
+			})
 
-	status := statuses.mergeIntoGlobalStatus(discoveryConfigName, discoveryconfig.Status{})
-	summary := status.IntegrationDiscoveredResources[integrationName].GetAzureVms()
-	require.Equal(t, uint64(5), summary.GetFound())
-	require.Equal(t, uint64(1), summary.GetEnrolled())
-	require.Equal(t, uint64(1), summary.GetFailed())
+			status := statuses.mergeIntoGlobalStatus(discoveryConfigName, discoveryconfig.Status{})
+			summary := tt.getSummary(status.IntegrationDiscoveredResources[integrationName])
+			require.Equal(t, uint64(5), summary.GetFound())
+			require.Equal(t, uint64(1), summary.GetEnrolled())
+			require.Equal(t, uint64(1), summary.GetFailed())
+		})
+	}
 }
 
 type mocktaskUpdaterAccessPoint struct {

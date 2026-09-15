@@ -47,6 +47,7 @@ func TestBuildDiscoverySummaryFromServerStatus(t *testing.T) {
 				),
 				"azure-prod": testDiscoverSummary(
 					withPreviousAzureVM(discoveryResourcesSummary(4, 4, 0, now.Add(-3*time.Minute), now.Add(-2*time.Minute))),
+					withPreviousAzureAKS(discoveryResourcesSummary(3, 2, 1, now.Add(-3*time.Minute), now.Add(-2*time.Minute))),
 				),
 			}),
 			"server-a": testServerStatus(now.Add(-time.Minute), 5*time.Minute, map[string]*discoveryconfigv1.DiscoverSummary{
@@ -116,7 +117,15 @@ func TestBuildDiscoverySummaryFromServerStatus(t *testing.T) {
 	require.Empty(t, serverB.Integrations[0].Integration)
 	require.Equal(t, "azure-prod", serverB.Integrations[1].Integration)
 	require.Equal(t, []string{resourceKindAWSRDS, resourceKindAzureVM}, resourceKinds(serverB.Integrations[0].Resources))
-	require.Equal(t, []string{resourceKindAzureVM}, resourceKinds(serverB.Integrations[1].Resources))
+	require.Equal(t, []string{resourceKindAzureVM, resourceKindAzureAKS}, resourceKinds(serverB.Integrations[1].Resources))
+	require.Equal(t, resourceResult{
+		Kind:      resourceKindAzureAKS,
+		Found:     3,
+		Enrolled:  2,
+		Failed:    1,
+		SyncStart: new(now.Add(-3 * time.Minute)),
+		SyncEnd:   new(now.Add(-2 * time.Minute)),
+	}, serverB.Integrations[1].Resources[1])
 }
 
 func TestBuildDiscoverySummaryCloudFilter(t *testing.T) {
@@ -131,6 +140,7 @@ func TestBuildDiscoverySummaryCloudFilter(t *testing.T) {
 				"": testDiscoverSummary(
 					withPreviousEC2(discoveryResourcesSummary(10, 8, 2, now.Add(-time.Minute), now)),
 					withPreviousAzureVM(discoveryResourcesSummary(7, 6, 1, now.Add(-time.Minute), now)),
+					withPreviousAzureAKS(discoveryResourcesSummary(3, 2, 1, now.Add(-time.Minute), now)),
 				),
 			}),
 		},
@@ -140,7 +150,7 @@ func TestBuildDiscoverySummaryCloudFilter(t *testing.T) {
 	require.Equal(t, []string{resourceKindAWSEC2}, resourceKinds(awsSummary[0].Servers[0].Integrations[0].Resources))
 
 	azureSummary := newDiscoverySummary([]*discoveryconfig.DiscoveryConfig{config}, cloudProviderConfig{azure: true})
-	require.Equal(t, []string{resourceKindAzureVM}, resourceKinds(azureSummary[0].Servers[0].Integrations[0].Resources))
+	require.Equal(t, []string{resourceKindAzureVM, resourceKindAzureAKS}, resourceKinds(azureSummary[0].Servers[0].Integrations[0].Resources))
 }
 
 func TestConfigSummaryStructuredOutputGolden(t *testing.T) {
@@ -336,6 +346,12 @@ func withPreviousRDS(summary *discoveryconfigv1.ResourcesDiscoveredSummary) disc
 func withPreviousAzureVM(summary *discoveryconfigv1.ResourcesDiscoveredSummary) discoverSummaryOption {
 	return func(builder *discoveryconfigv1.DiscoverSummary_builder) {
 		builder.AzureVms = testResourceSummary(summary, nil)
+	}
+}
+
+func withPreviousAzureAKS(summary *discoveryconfigv1.ResourcesDiscoveredSummary) discoverSummaryOption {
+	return func(builder *discoveryconfigv1.DiscoverSummary_builder) {
+		builder.AzureAks = testResourceSummary(summary, nil)
 	}
 }
 

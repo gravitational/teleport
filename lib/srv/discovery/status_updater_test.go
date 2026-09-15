@@ -105,6 +105,13 @@ func TestDiscoveryConfigStatusUpdater_merger(t *testing.T) {
 
 	syncEnd := timestamppb.New(fakeClock.Now())
 	lastSync := timestamppb.New(fakeClock.Now())
+	aksSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+		Found:     5,
+		Enrolled:  4,
+		Failed:    1,
+		SyncStart: timestamppb.New(fakeClock.Now().Add(-time.Minute)),
+		SyncEnd:   syncEnd,
+	}.Build()
 
 	for _, tc := range []struct {
 		name                    string
@@ -256,6 +263,43 @@ func TestDiscoveryConfigStatusUpdater_merger(t *testing.T) {
 				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
 					"server1": {
 						DiscoveryStatusServer: discoveryStatusServerFinished(10, syncEnd),
+					},
+				},
+			},
+		},
+		{
+			name:     "Azure AKS status is included in server iteration",
+			serverID: "server1",
+			newStatus: discoveryconfig.Status{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"my-integration": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AzureAks: aksSummary,
+						}.Build(),
+					},
+				},
+			},
+			expectedStatus: discoveryconfig.Status{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					"my-integration": {
+						IntegrationDiscoveredSummary: discoveryconfigv1.IntegrationDiscoveredSummary_builder{
+							AzureAks: aksSummary,
+						}.Build(),
+					},
+				},
+				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
+					"server1": {
+						DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
+								"my-integration": discoveryconfigv1.DiscoverSummary_builder{
+									AzureAks: discoveryconfigv1.ResourceSummary_builder{
+										Previous: aksSummary,
+									}.Build(),
+								}.Build(),
+							},
+							LastUpdate:   lastSync,
+							PollInterval: durationpb.New(5 * time.Minute),
+						}.Build(),
 					},
 				},
 			},
