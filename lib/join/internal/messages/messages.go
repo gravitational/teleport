@@ -530,10 +530,13 @@ type AzureChallengeSolution struct {
 
 	// AttestedData is a signed JSON document from an Azure VM's attested data
 	// metadata endpoint used to prove the identity of a joining node. It must
-	// include the challenge string as the nonce.
+	// include the challenge string as the nonce. This field is optional: compute
+	// types that do not expose the attested document endpoint (e.g. Azure Container
+	// Instances, AKS pods) may omit it and rely on the AccessToken JWT claims alone.
 	AttestedData []byte
 	// Intermediate encodes the intermediate CAs that issued the leaf certificate
-	// used to sign the attested data document, in x509 DER format.
+	// used to sign the attested data document, in x509 DER format. Only set when
+	// AttestedData is non-empty.
 	Intermediate []byte
 	// AccessToken is a JWT signed by Azure, used to prove the identity of a
 	// joining node.

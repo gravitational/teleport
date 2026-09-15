@@ -63,20 +63,65 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	if imds == nil {
 		imds = azure.NewInstanceMetadataClient()
 	}
-	if !imds.IsAvailable(ctx) {
-		return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
-	}
-	ad, err := imds.GetAttestedData(ctx, challenge.Challenge)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting attested data document")
-	}
-	intermediate, err := getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting intermediate CA for attested data")
-	}
-	accessToken, err := imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting access token")
+
+	var (
+		ad           []byte
+		intermediate []byte
+		accessToken  string
+	)
+
+	if imds.IsAvailable(ctx) {
+		// Standard path: full IMDS is available (VMs, VMSS).
+		// Attempt to get the attested data document for nonce-based replay protection.
+		ad, err = imds.GetAttestedData(ctx, challenge.Challenge)
+		switch {
+		case err == nil:
+			// Attested data retrieved; also fetch the intermediate CA chain.
+			intermediate, err = getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting intermediate CA for attested data")
+			}
+		case trace.IsNotFound(err):
+			// The attested document endpoint returned 404 — this compute type
+			// (e.g. VMSS with certain configurations) does not expose it.
+			// Fall back to token-only. Any other error is propagated so that
+			// transient IMDS failures or access-denied responses are not silently
+			// downgraded, preventing a potential downgrade attack.
+			slog.InfoContext(ctx, "Attested data endpoint returned 404; using token-only Azure join path",
+				"error", err)
+			ad = nil
+		default:
+			return nil, trace.Wrap(err, "getting attested data document")
+		}
+		accessToken, err = imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting access token")
+		}
+	} else {
+		// Token-only path: IMDS version discovery is not available (e.g. ACI,
+		// AKS) but the managed identity token endpoint may still be reachable.
+		slog.InfoContext(ctx, "Standard IMDS not available; attempting token-only Azure join (e.g. ACI, AKS)")
+		accessToken, err = imds.GetAccessTokenForIdentity(ctx, joinParams.AzureParams.ClientID)
+		if err != nil {
+			return nil, trace.AccessDenied("could not reach Azure instance metadata or managed identity endpoint. "+
+				"Is Teleport running on an Azure compute resource with a managed identity? error: %v", err)
+		}
+		// On some ACI configurations with VNet injection, the /versions endpoint
+		// is unreachable (causing IsAvailable=false) but the attested document
+		// endpoint IS accessible. Attempt to fetch attested data; if it succeeds,
+		// include it so the join works with servers that require it.
+		if adBytes, adErr := imds.GetAttestedDataUnchecked(ctx, challenge.Challenge); adErr == nil {
+			slog.InfoContext(ctx, "Attested data obtained in token-only path; including in join request")
+			ad = adBytes
+			intermediate, err = getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+			if err != nil {
+				slog.WarnContext(ctx, "Could not fetch intermediate CA for attested data; continuing without it", "error", err)
+				intermediate = nil
+				err = nil
+			}
+		} else {
+			slog.InfoContext(ctx, "Attested data not available; proceeding with token-only join", "error", adErr)
+		}
 	}
 
 	if err := stream.Send(&messages.AzureChallengeSolution{

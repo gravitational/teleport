@@ -94,6 +94,15 @@ type AzureIMDSClient interface {
 	IsAvailable(context.Context) bool
 	GetAttestedData(ctx context.Context, nonce string) ([]byte, error)
 	GetAccessToken(ctx context.Context, clientID string) (string, error)
+	// GetAccessTokenForIdentity fetches a managed identity token without
+	// requiring the standard IMDS version discovery to succeed first. Used on
+	// compute types where /metadata/versions is unreachable (e.g. ACI, AKS).
+	GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error)
+	// GetAttestedDataUnchecked attempts to fetch the attested data document
+	// without requiring IsAvailable() to return true first. Used in the
+	// token-only join path (e.g. ACI with VNet injection) where /versions is
+	// unreachable but the /attested/document endpoint may still be accessible.
+	GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error)
 }
 
 // GitlabParams is the parameters specific to the gitlab join method.
@@ -937,21 +946,48 @@ func registerUsingIAMMethod(
 func registerUsingAzureMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
+	log := params.Log
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		imds := params.AzureParams.IMDSClient
 		if imds == nil {
 			imds = azure.NewInstanceMetadataClient()
 		}
-		if !imds.IsAvailable(ctx) {
-			return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
-		}
-		ad, err := imds.GetAttestedData(ctx, challenge)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		accessToken, err := imds.GetAccessToken(ctx, params.AzureParams.ClientID)
-		if err != nil {
-			return nil, trace.Wrap(err)
+
+		var (
+			ad          []byte
+			accessToken string
+		)
+
+		if imds.IsAvailable(ctx) {
+			// Standard path: VMs and VMSS. Attempt attested data for nonce-based
+			// replay protection; fall back to token-only only on 404 (endpoint
+			// absent). Other errors are propagated to prevent silent downgrade.
+			var attestErr error
+			ad, attestErr = imds.GetAttestedData(ctx, challenge)
+			switch {
+			case attestErr == nil:
+				// ok
+			case trace.IsNotFound(attestErr):
+				log.InfoContext(ctx, "Attested data endpoint returned 404; using token-only Azure join path", "error", attestErr)
+				ad = nil
+			default:
+				return nil, trace.Wrap(attestErr, "getting attested data document")
+			}
+			var err error
+			accessToken, err = imds.GetAccessToken(ctx, params.AzureParams.ClientID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			// Token-only path: compute types where /metadata/versions is
+			// unreachable (e.g. ACI, AKS) but the identity endpoint still works.
+			log.InfoContext(ctx, "Standard IMDS not available; attempting token-only Azure join (e.g. ACI, AKS)")
+			var err error
+			accessToken, err = imds.GetAccessTokenForIdentity(ctx, params.AzureParams.ClientID)
+			if err != nil {
+				return nil, trace.AccessDenied("could not reach Azure instance metadata or managed identity endpoint. "+
+					"Is Teleport running on an Azure compute resource with a managed identity? error: %v", err)
+			}
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{

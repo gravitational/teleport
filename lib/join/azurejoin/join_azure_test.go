@@ -1508,6 +1508,109 @@ func (c *fakeIMDSClient) GetAccessToken(_ context.Context, clientID string) (str
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
 }
 
+func (c *fakeIMDSClient) GetAccessTokenForIdentity(_ context.Context, clientID string) (string, error) {
+	return c.accessToken, trace.Wrap(c.accessTokenErr)
+}
+
+func (c *fakeIMDSClient) GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error) {
+	return c.GetAttestedData(ctx, nonce)
+}
+
+// fakeACIIMDSClient simulates the Azure IMDS as seen from an Azure Container
+// Instance: standard IMDS (versions endpoint) is unreachable, but the managed
+// identity token endpoint is reachable via GetAccessTokenForIdentity.
+type fakeACIIMDSClient struct {
+	accessToken    string
+	accessTokenErr error
+}
+
+func (c *fakeACIIMDSClient) IsAvailable(_ context.Context) bool { return false }
+
+func (c *fakeACIIMDSClient) GetAttestedData(_ context.Context, _ string) ([]byte, error) {
+	return nil, trace.NotFound("attested document endpoint not available on ACI")
+}
+
+func (c *fakeACIIMDSClient) GetAccessToken(_ context.Context, _ string) (string, error) {
+	return "", trace.NotFound("IMDS not available")
+}
+
+func (c *fakeACIIMDSClient) GetAccessTokenForIdentity(_ context.Context, _ string) (string, error) {
+	return c.accessToken, trace.Wrap(c.accessTokenErr)
+}
+
+func (c *fakeACIIMDSClient) GetAttestedDataUnchecked(_ context.Context, _ string) ([]byte, error) {
+	return nil, trace.NotFound("attested document endpoint not available on ACI")
+}
+
+func aciResourceID(subscription, resourceGroup, name string) string {
+	return resourceID("Microsoft.ContainerInstance/containerGroups", subscription, resourceGroup, name)
+}
+
+func aksResourceID(subscription, resourceGroup, name string) string {
+	return resourceID("Microsoft.ContainerService/managedClusters", subscription, resourceGroup, name)
+}
+
+func TestVerifyTokenOnlyIssuedAt(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+
+	makeRawToken := func(issuedAt time.Time) string {
+		tok, err := makeToken("tenant", "tenant", "mirID", "", issuedAt)
+		require.NoError(t, err)
+		return tok
+	}
+
+	tests := []struct {
+		name        string
+		issuedAt    time.Time
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "token issued 1 second ago is accepted",
+			issuedAt:    now.Add(-1 * time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:        "token issued just within max age boundary is accepted",
+			issuedAt:    now.Add(-azurejoin.TokenOnlyMaxAge + 2*time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:     "token issued just beyond max age is rejected",
+			issuedAt: now.Add(-azurejoin.TokenOnlyMaxAge - time.Second),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+		{
+			name:     "token issued in the far past is rejected",
+			issuedAt: now.Add(-2 * time.Hour),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+		{
+			name:        "token with slight future IssuedAt (clock skew) is accepted",
+			issuedAt:    now.Add(10 * time.Second),
+			assertError: require.NoError,
+		},
+		{
+			name:     "token with large future IssuedAt is rejected",
+			issuedAt: now.Add(time.Minute),
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got: %v", err)
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tok := makeRawToken(tc.issuedAt)
+			err := azurejoin.VerifyTokenOnlyIssuedAt(tok, now)
+			tc.assertError(t, err)
+		})
+	}
+}
+
 type keypair struct {
 	key  crypto.Signer
 	cert *x509.Certificate
@@ -1628,4 +1731,163 @@ func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(issuerCertDER)),
 	}, nil
+}
+
+// TestJoinAzureACI verifies that the Azure join method works on Azure Container
+// Instances (ACI) where the attested document endpoint is unavailable and only
+// the managed identity token endpoint is reachable.
+func TestJoinAzureACI(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	defaultSubscription := uuid.NewString()
+	defaultResourceGroup := "my-resource-group"
+	defaultContainerGroupName := "test-aci"
+	defaultIdentityName := "test-id"
+
+	aciResID := aciResourceID(defaultSubscription, defaultResourceGroup, defaultContainerGroupName)
+	identResID := identityResourceID(defaultSubscription, defaultResourceGroup, defaultIdentityName)
+
+	const (
+		tenantID = "test-tenant-id"
+		issuer   = tenantID
+	)
+
+	tests := []struct {
+		name                           string
+		tokenManagedIdentityResourceID string
+		tokenAzureResourceID           string
+		tokenSpec                      types.ProvisionTokenSpecV2
+		assertError                    require.ErrorAssertionFunc
+	}{
+		{
+			name: "ACI with user-assigned identity: xms_az_rid is container group, xms_mirid is identity",
+			// user-assigned identity: xms_az_rid = ACI resource, xms_mirid = identity resource
+			tokenAzureResourceID:           aciResID,
+			tokenManagedIdentityResourceID: identResID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "ACI with system-assigned identity: xms_mirid is container group",
+			// system-assigned identity: xms_az_rid is absent, xms_mirid = ACI resource
+			tokenManagedIdentityResourceID: aciResID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "AKS pod with user-assigned identity",
+			tokenAzureResourceID:           aksResourceID(defaultSubscription, defaultResourceGroup, "test-cluster"),
+			tokenManagedIdentityResourceID: identResID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   defaultSubscription,
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "ACI token subscription does not match allow rule",
+			tokenAzureResourceID:           aciResID,
+			tokenManagedIdentityResourceID: identResID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription: "different-subscription",
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			assertError: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected Access Denied, got: %v", err)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+				CertificateAuthorities: []*x509.Certificate{},
+				Verify:                 mockVerifyToken(nil),
+				GetVMClient:            makeVMClientGetter(map[string]*mockAzureVMClient{}),
+			})
+
+			token, err := types.NewProvisionTokenFromSpec(
+				"test-token",
+				time.Now().Add(time.Minute),
+				tc.tokenSpec)
+			require.NoError(t, err)
+			require.NoError(t, a.UpsertToken(ctx, token))
+			t.Cleanup(func() {
+				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
+			})
+
+			mirID := tc.tokenManagedIdentityResourceID
+			azRID := tc.tokenAzureResourceID
+			accessToken, err := makeToken(issuer, tenantID, mirID, azRID, a.GetClock().Now())
+			require.NoError(t, err)
+
+			imdsClient := &fakeACIIMDSClient{
+				accessToken: accessToken,
+			}
+
+			t.Run("new", func(t *testing.T) {
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "test-token",
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+		})
+	}
 }

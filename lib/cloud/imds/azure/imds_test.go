@@ -410,6 +410,99 @@ func TestGetInstanceID(t *testing.T) {
 	}
 }
 
+func TestGetAccessTokenForIdentity(t *testing.T) {
+	// No t.Parallel() — subtests use t.Setenv which modifies process-level env vars.
+
+	tests := []struct {
+		name            string
+		envVars         map[string]string
+		handler         http.HandlerFunc
+		wantToken       string
+		wantErrContains string
+		// wantHeader is the header the mock server should receive.
+		wantHeader map[string]string
+		// wantAPIVersion is the api-version query param the server should receive.
+		wantAPIVersion string
+	}{
+		{
+			name: "IDENTITY_ENDPOINT path uses X-IDENTITY-HEADER and api-version 2019-08-01",
+			envVars: map[string]string{
+				"IDENTITY_ENDPOINT": "", // will be replaced with server URL
+				"IDENTITY_HEADER":   "test-identity-secret",
+			},
+			wantToken:      "identity-token",
+			wantHeader:     map[string]string{"X-Identity-Header": "test-identity-secret"},
+			wantAPIVersion: containerIdentityAPIVersion,
+		},
+		{
+			name: "MSI_ENDPOINT path uses Secret header and api-version 2017-09-01",
+			envVars: map[string]string{
+				"MSI_ENDPOINT": "", // will be replaced with server URL
+				"MSI_SECRET":   "test-msi-secret",
+			},
+			wantToken:      "msi-token",
+			wantHeader:     map[string]string{"Secret": "test-msi-secret"},
+			wantAPIVersion: legacyMSIAPIVersion,
+		},
+		{
+			name:            "no env vars falls back to direct IMDS (standard path fails when IMDS unavailable)",
+			envVars:         map[string]string{},
+			wantErrContains: "", // success via direct IMDS mock
+			wantToken:       "direct-token",
+			wantAPIVersion:  minimumSupportedAPIVersion,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Cannot use t.Parallel() here because subtests use t.Setenv.
+
+			receivedHeaders := make(map[string]string)
+			receivedAPIVersion := ""
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedAPIVersion = r.URL.Query().Get("api-version")
+				for k := range tc.wantHeader {
+					receivedHeaders[k] = r.Header.Get(k)
+				}
+				token := tc.wantToken
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"access_token":"` + token + `"}`))
+			}))
+			defer srv.Close()
+
+			// Set env vars, replacing placeholder with actual server URL.
+			for k, v := range tc.envVars {
+				if v == "" && (k == "IDENTITY_ENDPOINT" || k == "MSI_ENDPOINT") {
+					t.Setenv(k, srv.URL)
+				} else {
+					t.Setenv(k, v)
+				}
+			}
+			// Clear any env vars not in this test case.
+			for _, k := range []string{"IDENTITY_ENDPOINT", "IDENTITY_HEADER", "MSI_ENDPOINT", "MSI_SECRET"} {
+				if _, ok := tc.envVars[k]; !ok {
+					t.Setenv(k, "")
+				}
+			}
+
+			client := NewInstanceMetadataClient(WithBaseURL(srv.URL))
+			token, err := client.GetAccessTokenForIdentity(t.Context(), "")
+
+			if tc.wantErrContains != "" {
+				require.ErrorContains(t, err, tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantToken, token)
+			require.Equal(t, tc.wantAPIVersion, receivedAPIVersion, "api-version query param")
+			for k, want := range tc.wantHeader {
+				require.Equal(t, want, receivedHeaders[k], "header %s", k)
+			}
+		})
+	}
+}
+
 func TestMethodsEnsureInitialization(t *testing.T) {
 	t.Parallel()
 

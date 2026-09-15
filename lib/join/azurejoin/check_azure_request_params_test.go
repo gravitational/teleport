@@ -81,16 +81,17 @@ func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
 			assert:      func(*testing.T, *CheckAzureRequestParams) {},
 		},
 		{
-			name: "missing attested data",
+			name: "missing attested data is allowed (token-only path for ACI/AKS)",
 			params: CheckAzureRequestParams{
 				Token:       fakeProvisionToken{},
 				Challenge:   "challenge",
 				AccessToken: "access-token",
 				Logger:      logger,
 			},
-			assertError: require.Error,
-			errorText:   "AttestedData is required",
-			assert:      func(*testing.T, *CheckAzureRequestParams) {},
+			assertError: require.NoError,
+			assert: func(t *testing.T, params *CheckAzureRequestParams) {
+				require.Empty(t, params.AttestedData)
+			},
 		},
 		{
 			name: "missing access token",

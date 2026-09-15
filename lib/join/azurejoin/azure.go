@@ -55,6 +55,17 @@ const (
 	azureVirtualMachine = "virtualMachines"
 	// azureVirtualMachineScaleSet specifies the Azure virtual machine scale set resource type.
 	azureVirtualMachineScaleSet = "virtualMachineScaleSets"
+	// azureContainerGroup specifies the Azure Container Instances resource type.
+	azureContainerGroup = "containerGroups"
+	// azureManagedCluster specifies the Azure Kubernetes Service resource type.
+	azureManagedCluster = "managedClusters"
+
+	// TokenOnlyMaxAge is the maximum age of a JWT token accepted in the
+	// token-only join path (ACI, AKS). Without a server-issued nonce in the
+	// attested document, a captured token is theoretically replayable until it
+	// expires. Enforcing recency limits the replay window significantly below
+	// the typical Azure managed-identity token lifetime of ~1 hour.
+	TokenOnlyMaxAge = 10 * time.Minute
 )
 
 // Structs for unmarshaling attested data. Schema can be found at
@@ -333,12 +344,20 @@ func verifyVMIdentity(
 	// fallback to the original method of listing VMs and parsing the VM identifiers
 	// from the VM resource.
 	if vmSubscription, vmResourceGroup, err := claimsToIdentifiers(tokenClaims); err == nil {
-		if subscriptionID != vmSubscription {
+		// When subscriptionID is non-empty it came from the attested data document
+		// and must match the token claims. When it is empty (token-only path, e.g.
+		// ACI) we trust the subscription from the JWT directly.
+		if subscriptionID != "" && subscriptionID != vmSubscription {
 			return nil, trace.AccessDenied("subscription ID mismatch between attested data and access token")
 		}
 		return azureJoinToAttrs(tokenClaims.TenantID, vmSubscription, vmResourceGroup), nil
+	} else if vmID == "" {
+		// Token-only path (no attested data): we have no VM ID to look up, so
+		// the VM API fallback is not applicable. Surface the claims error directly
+		// rather than producing a confusing "no VM found" error.
+		return nil, trace.AccessDenied("could not determine Azure identity from token claims: %v", err)
 	}
-	logger.WarnContext(ctx, "Failed to parse VM identifiers from claims. Retrying with Azure VM API.",
+	logger.WarnContext(ctx, "Failed to parse compute identifiers from claims. Retrying with Azure VM API.",
 		"error", err)
 
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
@@ -384,7 +403,10 @@ func verifyVMIdentity(
 	return azureJoinToAttrs(tokenClaims.TenantID, vm.Subscription, vm.ResourceGroup), nil
 }
 
-// claimsToIdentifiers returns the vm identifiers from the provided claims.
+// claimsToIdentifiers returns the Azure identifiers from the provided claims.
+// It accepts VM, VMSS, ACI (containerGroups), and AKS (managedClusters) resource
+// types. Any resource type with a valid subscription and resource group is accepted
+// to support future Azure compute types that expose managed identities.
 func claimsToIdentifiers(tokenClaims *AccessTokenClaims) (subscriptionID, resourceGroupID string, err error) {
 	// xms_az_rid claim is omitted when the VM is assigned a System-Assigned Identity.
 	// The xms_mirid claim should be used instead.
@@ -396,11 +418,12 @@ func claimsToIdentifiers(tokenClaims *AccessTokenClaims) (subscriptionID, resour
 
 	for _, resourceType := range resourceID.ResourceType.Types {
 		switch resourceType {
-		case azureVirtualMachine, azureVirtualMachineScaleSet:
+		case azureVirtualMachine, azureVirtualMachineScaleSet,
+			azureContainerGroup, azureManagedCluster:
 			return resourceID.SubscriptionID, resourceID.ResourceGroupName, nil
 		}
 	}
-	return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
+	return "", "", trace.BadParameter("unsupported resource type %q: azure join supports VMs, VMSS, ACI (containerGroups), and AKS (managedClusters)", resourceID.ResourceType.Type)
 }
 
 func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token provision.Token) error {
@@ -484,33 +507,87 @@ func (p *CheckAzureRequestParams) checkAndSetDefaults() error {
 		return trace.BadParameter("Token is required")
 	case len(p.Challenge) == 0:
 		return trace.BadParameter("Challenge is required")
-	case len(p.AttestedData) == 0:
-		return trace.BadParameter("AttestedData is required")
 	case len(p.AccessToken) == 0:
 		return trace.BadParameter("AccessToken is required")
 	case p.Logger == nil:
 		return trace.BadParameter("Logger is required")
 	}
+	// AttestedData is optional: compute types that do not expose the IMDS
+	// attested document endpoint (e.g. Azure Container Instances) may omit it
+	// and rely solely on the access token for attestation.
 	return trace.Wrap(p.AzureJoinConfig.checkAndSetDefaults())
 }
 
-// CheckAzureRequest checks an azure join request by verifying the VMs claims
-// and checking that they match an allow rule from the join token.
+// verifyTokenOnlyIssuedAt checks that the JWT in rawToken was issued within
+// TokenOnlyMaxAge of now. This provides a partial replay mitigation for the
+// token-only join path where no nonce is available.
+func VerifyTokenOnlyIssuedAt(rawToken string, now time.Time) error {
+	tok, err := jwt.ParseSigned(rawToken)
+	if err != nil {
+		return trace.Wrap(err, "parsing access token for IssuedAt check")
+	}
+	var claims AccessTokenClaims
+	if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return trace.Wrap(err, "extracting claims for IssuedAt check")
+	}
+	issuedAt := claims.IssuedAt.AsTime()
+	age := now.Sub(issuedAt)
+	if age > TokenOnlyMaxAge {
+		return trace.AccessDenied(
+			"token-only Azure join rejected: access token was issued %v ago (max allowed %v); "+
+				"ensure the managed identity token is freshly fetched before joining",
+			age.Round(time.Second), TokenOnlyMaxAge,
+		)
+	}
+	if age < -30*time.Second {
+		// Token issued in the future (beyond clock skew tolerance).
+		return trace.AccessDenied("token-only Azure join rejected: access token has a future IssuedAt claim")
+	}
+	return nil
+}
+
+// CheckAzureRequest checks an azure join request by verifying the compute
+// identity claims and checking that they match an allow rule from the join token.
+//
+// When AttestedData is provided (VMs, VMSS) the request is verified using the
+// PKCS7-signed attested document from IMDS, which includes the server-issued
+// nonce for replay protection. When AttestedData is empty (e.g. ACI, AKS) the
+// request is verified using the access token JWT claims alone — the security
+// model is equivalent to other JWT-based join methods (GCP, GitHub Actions).
 func CheckAzureRequest(ctx context.Context, params CheckAzureRequestParams) (*workloadidentityv1pb.JoinAttrsAzure, error) {
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	requestStart := params.Clock.Now()
 
-	subID, vmID, err := parseAndVerifyAttestedData(
-		ctx,
-		params.AzureJoinConfig,
-		params.AttestedData,
-		params.Intermediate,
-		params.Challenge,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var subID, vmID string
+	if len(params.AttestedData) > 0 {
+		// Full attested-document path: available on Azure VMs and VMSS.
+		// The PKCS7 nonce (server-issued challenge) provides strong replay protection.
+		var err error
+		subID, vmID, err = parseAndVerifyAttestedData(
+			ctx,
+			params.AzureJoinConfig,
+			params.AttestedData,
+			params.Intermediate,
+			params.Challenge,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Token-only path: compute types that do not expose the attested document
+		// endpoint (e.g. Azure Container Instances, AKS pods).
+		//
+		// Security note: without the PKCS7 nonce, a captured access token is
+		// theoretically replayable until it expires. We mitigate this by
+		// enforcing that the token was issued within TokenOnlyMaxAge of the
+		// request. Azure managed-identity tokens are short-lived (~1hr), so
+		// this window is conservative relative to the token's own expiry.
+		params.Logger.InfoContext(ctx, "No attested data provided; using token-only Azure join path (e.g. ACI, AKS)")
+		if err := VerifyTokenOnlyIssuedAt(params.AccessToken, params.Clock.Now()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	attrs, err := verifyVMIdentity(ctx, params.AzureJoinConfig, params.AccessToken, subID, vmID, requestStart, params.Logger)

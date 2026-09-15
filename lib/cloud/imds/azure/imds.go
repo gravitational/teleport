@@ -21,8 +21,10 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -38,6 +40,25 @@ const (
 	imdsURL = "http://169.254.169.254/metadata"
 	// minimumSupportedAPIVersion is the minimum supported version of the Azure instance metadata API.
 	minimumSupportedAPIVersion = "2019-06-04"
+
+	// identityEndpointEnv is the env var Azure sets on newer container runtimes
+	// (App Service, Functions) with managed identity.
+	identityEndpointEnv = "IDENTITY_ENDPOINT"
+	// identityHeaderEnv holds the secret that must be sent as X-IDENTITY-HEADER
+	// when calling the IDENTITY_ENDPOINT MSI proxy.
+	identityHeaderEnv = "IDENTITY_HEADER"
+	// containerIdentityAPIVersion is the api-version for the IDENTITY_ENDPOINT MSI proxy.
+	containerIdentityAPIVersion = "2019-08-01"
+
+	// msiEndpointEnv is the env var Azure Container Instances injects with the
+	// legacy MSI token endpoint URL. ACI uses this older naming convention
+	// instead of IDENTITY_ENDPOINT.
+	msiEndpointEnv = "MSI_ENDPOINT"
+	// msiSecretEnv holds the secret sent in the "Secret" header when calling
+	// the legacy MSI endpoint.
+	msiSecretEnv = "MSI_SECRET"
+	// legacyMSIAPIVersion is the api-version required by the legacy MSI endpoint.
+	legacyMSIAPIVersion = "2017-09-01"
 )
 
 // InstanceMetadataClient is a client for Azure instance metadata.
@@ -118,7 +139,8 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 		return nil, trace.Wrap(err)
 	}
 
-	req.Header.Add("Metadata", "True")
+	// Azure IMDS requires the header value to be exactly "true" (case-sensitive).
+	req.Header.Add("Metadata", "true")
 	apiVersion := client.GetAPIVersion()
 	if apiVersion != "" {
 		queryParams.Add("api-version", apiVersion)
@@ -272,16 +294,167 @@ func (client *InstanceMetadataClient) GetAttestedData(ctx context.Context, nonce
 	return body, trace.Wrap(err)
 }
 
+// GetAttestedDataUnchecked attempts to fetch attested data without requiring
+// IMDS version discovery to have succeeded first. On some ACI configurations
+// with VNet injection, the /versions endpoint is unreachable but the attested
+// document endpoint is still accessible. Uses minimumSupportedAPIVersion when
+// no api-version has been negotiated. Returns an error if the endpoint is
+// unreachable or the response is not valid attested data.
+func (client *InstanceMetadataClient) GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error) {
+	params := url.Values{
+		"nonce":  []string{nonce},
+		"format": []string{"json"},
+	}
+	if client.GetAPIVersion() == "" {
+		params.Set("api-version", minimumSupportedAPIVersion)
+	}
+	body, err := client.getRawMetadata(ctx, "/attested/document", params)
+	return body, trace.Wrap(err)
+}
+
 // GetAccessToken gets an oauth2 access token from the instance.
 func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, clientID string) (string, error) {
 	if !client.IsAvailable(ctx) {
 		return "", trace.NotFound("Instance metadata is not available")
 	}
+	return client.getAccessTokenDirect(ctx, clientID)
+}
 
+// GetAccessTokenForIdentity fetches an oauth2 access token from the managed
+// identity endpoint without requiring the standard IMDS version discovery to
+// succeed first. On ACI with VNet injection the standard IMDS address is
+// unreachable; Azure injects either IDENTITY_ENDPOINT/IDENTITY_HEADER (newer
+// runtimes) or MSI_ENDPOINT/MSI_SECRET (ACI legacy) env vars pointing to a
+// container-local MSI proxy.
+func (client *InstanceMetadataClient) GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error) {
+	identityEndpoint := os.Getenv(identityEndpointEnv)
+	msiEndpoint := os.Getenv(msiEndpointEnv)
+	slog.InfoContext(ctx, "Azure join: managed identity env var check",
+		"IDENTITY_ENDPOINT_set", identityEndpoint != "",
+		"MSI_ENDPOINT_set", msiEndpoint != "",
+	)
+	if identityEndpoint != "" {
+		return client.getContainerAccessToken(ctx, identityEndpoint, os.Getenv(identityHeaderEnv), clientID)
+	}
+	if msiEndpoint != "" {
+		return client.getLegacyMSIAccessToken(ctx, msiEndpoint, os.Getenv(msiSecretEnv), clientID)
+	}
+	slog.InfoContext(ctx, "Azure join: no container MSI env vars found, falling back to direct IMDS token endpoint")
+	return client.getAccessTokenDirect(ctx, clientID)
+}
+
+// getContainerAccessToken fetches a token from the ACI container MSI endpoint
+// (IDENTITY_ENDPOINT). Unlike the standard IMDS endpoint, this one requires an
+// X-IDENTITY-HEADER header instead of Metadata: true.
+func (client *InstanceMetadataClient) getContainerAccessToken(ctx context.Context, endpoint, identityHeader, clientID string) (string, error) {
+	httpClient, err := defaults.HTTPClient(defaults.DisableProxyFromEnvironment())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	params := url.Values{
+		"resource":    []string{"https://management.azure.com/"},
+		"api-version": []string{containerIdentityAPIVersion},
+	}
+	if clientID != "" {
+		params.Set("client_id", clientID)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if identityHeader != "" {
+		req.Header.Set("X-IDENTITY-HEADER", identityHeader)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", parseMetadataClientError(resp.StatusCode, body)
+	}
+
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := utils.FastUnmarshal(body, &tokenResponse); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tokenResponse.AccessToken, nil
+}
+
+// getLegacyMSIAccessToken fetches a token from the legacy ACI MSI endpoint
+// (MSI_ENDPOINT). Unlike the standard IMDS endpoint, this one requires a
+// "Secret" header instead of "Metadata: true".
+func (client *InstanceMetadataClient) getLegacyMSIAccessToken(ctx context.Context, endpoint, msiSecret, clientID string) (string, error) {
+	httpClient, err := defaults.HTTPClient(defaults.DisableProxyFromEnvironment())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	params := url.Values{
+		"resource":    []string{"https://management.azure.com/"},
+		"api-version": []string{legacyMSIAPIVersion},
+	}
+	if clientID != "" {
+		params.Set("client_id", clientID)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if msiSecret != "" {
+		req.Header.Set("Secret", msiSecret)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", parseMetadataClientError(resp.StatusCode, body)
+	}
+
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := utils.FastUnmarshal(body, &tokenResponse); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tokenResponse.AccessToken, nil
+}
+
+func (client *InstanceMetadataClient) getAccessTokenDirect(ctx context.Context, clientID string) (string, error) {
 	params := url.Values{"resource": []string{"https://management.azure.com/"}}
 	if clientID != "" {
 		params["client_id"] = []string{clientID}
 	}
+	// getRawMetadata only appends api-version when GetAPIVersion() is non-empty.
+	// On ACI with VNet injection the /versions endpoint is unreachable so
+	// GetAPIVersion() stays empty, but the managed identity endpoint still
+	// requires api-version. Pre-set a known minimum so the request is valid.
+	if client.GetAPIVersion() == "" {
+		params.Set("api-version", minimumSupportedAPIVersion)
+	}
+	slog.InfoContext(ctx, "Azure join: calling IMDS managed identity token endpoint",
+		"url", client.baseURL+"/identity/oauth2/token",
+		"api_version", params.Get("api-version"),
+	)
 	body, err := client.getRawMetadata(ctx, "/identity/oauth2/token", params)
 	if err != nil {
 		return "", trace.Wrap(err)

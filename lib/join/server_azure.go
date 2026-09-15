@@ -72,13 +72,15 @@ func (s *Server) handleAzureJoin(
 	}
 
 	switch {
-	case len(solution.AttestedData) == 0:
-		return nil, trace.BadParameter("client did not send attested data")
-	case len(solution.Intermediate) == 0:
-		return nil, trace.BadParameter("client did not send intermediate CAs")
 	case len(solution.AccessToken) == 0:
 		return nil, trace.BadParameter("client did not send access token")
+	case len(solution.AttestedData) == 0 && len(solution.Intermediate) != 0:
+		// Intermediate CAs are only meaningful alongside attested data.
+		return nil, trace.BadParameter("client sent intermediate CAs without attested data")
 	}
+	// AttestedData and Intermediate are optional: compute types that do not
+	// expose the IMDS attested document endpoint (e.g. ACI, AKS) omit them
+	// and rely on the access token JWT claims for attestation.
 
 	// Verify the client's identity and make sure it matches an allow rule in the provision token.
 	claims, err := azurejoin.CheckAzureRequest(stream.Context(), azurejoin.CheckAzureRequestParams{
