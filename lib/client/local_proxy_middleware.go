@@ -401,11 +401,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 
-	keyPEM, err := keys.MarshalPrivateKey(certKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := tls.X509KeyPair(certPem, keyPEM)
+	cert, err := keys.TLSCertificateForSigner(certKey, certPem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -508,12 +504,11 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Cert
 		return tls.Certificate{}, trace.ConvertSystemError(err)
 	}
 
-	keyPem, err := keys.MarshalPrivateKey(signer)
+	caCert, err := keys.TLSCertificateForSigner(signer, certPem)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	caCert, err := tls.X509KeyPair(certPem, keyPem)
 	return caCert, trace.Wrap(err)
 }
 
