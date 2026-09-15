@@ -1525,6 +1525,7 @@ Flags:
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
 |`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--namespace`|*no default*|Configure the default Kubernetes namespace.|
+|`--[no-]all`|`false`|Proxy every Kubernetes cluster the user has access to. Mutually exclusive with --labels, --query, or kube cluster names.|
 |`--[no-]exec`|`false`|Run the proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to our config file.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
