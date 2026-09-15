@@ -65,7 +65,7 @@ export const Story = (props: StoryProps) => {
       rootClusterUri={routing.ensureRootClusterUri(
         `/clusters/${props.clusterName}`
       )}
-      clientIp="localhost"
+      clientIp="192.0.2.1"
       skipConfirm={false}
       onApprove={async () => {
         if (props.approve === 'succeed') {

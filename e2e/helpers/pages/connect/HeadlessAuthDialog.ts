@@ -7,7 +7,7 @@ export class HeadlessAuthDialogPage {
   constructor(page: Page) {
     this.dialog = page
       .getByRole('dialog')
-      .filter({ hasText: 'Headless command on' });
+      .filter({ hasText: 'Headless authentication' });
   }
 
   async waitForVisible() {

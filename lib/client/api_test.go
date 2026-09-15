@@ -1936,3 +1936,35 @@ func TestKeyRing_accessGraphHelpers(t *testing.T) {
 		require.GreaterOrEqual(t, tlsConfig.MinVersion, uint16(tls.VersionTLS12))
 	})
 }
+
+func TestFormatHeadlessLoginInstructions(t *testing.T) {
+	const (
+		requestID  = "85fa45fa-57f4-5a9d-9ba8-b3cbf76d5ea2"
+		webUILink  = "https://proxy.example.com/web/headless/" + requestID
+		tshApprove = "tsh headless approve --user=alice --proxy=proxy.example.com " + requestID
+	)
+
+	require.Equal(t, `Complete Headless Authentication
+
+Request ID: 85fa45fa-57f4-5a9d-9ba8-b3cbf76d5ea2
+
+Approve in any of these ways:
+
+- Web browser
+  https://proxy.example.com/web/headless/85fa45fa-57f4-5a9d-9ba8-b3cbf76d5ea2
+
+- Local terminal
+  tsh headless approve --user=alice --proxy=proxy.example.com 85fa45fa-57f4-5a9d-9ba8-b3cbf76d5ea2
+
+- Teleport Connect
+  If Connect is already running and signed in to this cluster, the request has appeared there automatically.
+
+Waiting for approval...
+
+`, formatHeadlessLoginInstructions(requestID, webUILink, tshApprove, false))
+
+	require.Contains(t,
+		formatHeadlessLoginInstructions(requestID, webUILink, tshApprove, true),
+		"\x1b[1mRequest ID: "+requestID+"\x1b[0m",
+	)
+}
