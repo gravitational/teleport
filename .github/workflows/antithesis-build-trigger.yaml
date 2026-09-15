@@ -26,7 +26,8 @@ on:
       antithesis_duration:
         description: "Antithesis simulation duration in minutes"
         required: false
-        default: 60
+        type: number
+        default: 180
 
   schedule:
     # At 21:00 UTC on every day-of-week from Monday through Friday.
@@ -172,5 +173,5 @@ jobs:
           email_recipients: ${{ inputs.email_recipients }}
           test_name: teleport-${{ matrix.sut }}-${{ matrix.teleport-ref }}
           additional_parameters: |
-            antithesis.duration=${{ inputs.antithesis_duration || 60 }}
+            antithesis.duration=${{ inputs.antithesis_duration || 180 }}
             ${{ steps.params.outputs.params  }}
