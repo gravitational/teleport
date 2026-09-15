@@ -289,9 +289,13 @@ func onSFTP() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = os.Stat(currentUser.HomeDir)
-	if err != nil {
-		return trace.Wrap(err)
+
+	if _, err := os.Stat(currentUser.HomeDir); err != nil {
+		// Don't exit early if the home dir does not exist. [sftp.WithStartDirectory] does not actually resolve
+		// any paths until the request comes in. Relative paths still resolve to the home dir and fail
+		// per-request with ENOENT over the protocol, which is correct. Absolute paths will not require
+		// home to exist. We warn so the admin is aware.
+		logger.WithError(err).Warnf("Could not stat home directory %q, SFTP operations against home dir may fail.", currentUser.HomeDir)
 	}
 
 	// Read the file transfer request for this session if one exists
