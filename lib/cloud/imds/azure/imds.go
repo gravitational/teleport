@@ -21,6 +21,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -138,7 +139,8 @@ func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route 
 		return nil, trace.Wrap(err)
 	}
 
-	req.Header.Add("Metadata", "True")
+	// Azure IMDS requires the header value to be exactly "true" (case-sensitive).
+	req.Header.Add("Metadata", "true")
 	apiVersion := client.GetAPIVersion()
 	if apiVersion != "" {
 		queryParams.Add("api-version", apiVersion)
@@ -292,6 +294,24 @@ func (client *InstanceMetadataClient) GetAttestedData(ctx context.Context, nonce
 	return body, trace.Wrap(err)
 }
 
+// GetAttestedDataUnchecked attempts to fetch attested data without requiring
+// IMDS version discovery to have succeeded first. On some ACI configurations
+// with VNet injection, the /versions endpoint is unreachable but the attested
+// document endpoint is still accessible. Uses minimumSupportedAPIVersion when
+// no api-version has been negotiated. Returns an error if the endpoint is
+// unreachable or the response is not valid attested data.
+func (client *InstanceMetadataClient) GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error) {
+	params := url.Values{
+		"nonce":  []string{nonce},
+		"format": []string{"json"},
+	}
+	if client.GetAPIVersion() == "" {
+		params.Set("api-version", minimumSupportedAPIVersion)
+	}
+	body, err := client.getRawMetadata(ctx, "/attested/document", params)
+	return body, trace.Wrap(err)
+}
+
 // GetAccessToken gets an oauth2 access token from the instance.
 func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, clientID string) (string, error) {
 	if !client.IsAvailable(ctx) {
@@ -307,12 +327,19 @@ func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, client
 // runtimes) or MSI_ENDPOINT/MSI_SECRET (ACI legacy) env vars pointing to a
 // container-local MSI proxy.
 func (client *InstanceMetadataClient) GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error) {
-	if endpoint := os.Getenv(identityEndpointEnv); endpoint != "" {
-		return client.getContainerAccessToken(ctx, endpoint, os.Getenv(identityHeaderEnv), clientID)
+	identityEndpoint := os.Getenv(identityEndpointEnv)
+	msiEndpoint := os.Getenv(msiEndpointEnv)
+	slog.InfoContext(ctx, "Azure join: managed identity env var check",
+		"IDENTITY_ENDPOINT_set", identityEndpoint != "",
+		"MSI_ENDPOINT_set", msiEndpoint != "",
+	)
+	if identityEndpoint != "" {
+		return client.getContainerAccessToken(ctx, identityEndpoint, os.Getenv(identityHeaderEnv), clientID)
 	}
-	if endpoint := os.Getenv(msiEndpointEnv); endpoint != "" {
-		return client.getLegacyMSIAccessToken(ctx, endpoint, os.Getenv(msiSecretEnv), clientID)
+	if msiEndpoint != "" {
+		return client.getLegacyMSIAccessToken(ctx, msiEndpoint, os.Getenv(msiSecretEnv), clientID)
 	}
+	slog.InfoContext(ctx, "Azure join: no container MSI env vars found, falling back to direct IMDS token endpoint")
 	return client.getAccessTokenDirect(ctx, clientID)
 }
 
@@ -424,6 +451,10 @@ func (client *InstanceMetadataClient) getAccessTokenDirect(ctx context.Context, 
 	if client.GetAPIVersion() == "" {
 		params.Set("api-version", minimumSupportedAPIVersion)
 	}
+	slog.InfoContext(ctx, "Azure join: calling IMDS managed identity token endpoint",
+		"url", client.baseURL+"/identity/oauth2/token",
+		"api_version", params.Get("api-version"),
+	)
 	body, err := client.getRawMetadata(ctx, "/identity/oauth2/token", params)
 	if err != nil {
 		return "", trace.Wrap(err)

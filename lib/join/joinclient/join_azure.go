@@ -106,6 +106,22 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 			return nil, trace.AccessDenied("could not reach Azure instance metadata or managed identity endpoint. "+
 				"Is Teleport running on an Azure compute resource with a managed identity? error: %v", err)
 		}
+		// On some ACI configurations with VNet injection, the /versions endpoint
+		// is unreachable (causing IsAvailable=false) but the attested document
+		// endpoint IS accessible. Attempt to fetch attested data; if it succeeds,
+		// include it so the join works with servers that require it.
+		if adBytes, adErr := imds.GetAttestedDataUnchecked(ctx, challenge.Challenge); adErr == nil {
+			slog.InfoContext(ctx, "Attested data obtained in token-only path; including in join request")
+			ad = adBytes
+			intermediate, err = getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+			if err != nil {
+				slog.WarnContext(ctx, "Could not fetch intermediate CA for attested data; continuing without it", "error", err)
+				intermediate = nil
+				err = nil
+			}
+		} else {
+			slog.InfoContext(ctx, "Attested data not available; proceeding with token-only join", "error", adErr)
+		}
 	}
 
 	if err := stream.Send(&messages.AzureChallengeSolution{

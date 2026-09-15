@@ -1512,6 +1512,10 @@ func (c *fakeIMDSClient) GetAccessTokenForIdentity(_ context.Context, clientID s
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
 }
 
+func (c *fakeIMDSClient) GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error) {
+	return c.GetAttestedData(ctx, nonce)
+}
+
 // fakeACIIMDSClient simulates the Azure IMDS as seen from an Azure Container
 // Instance: standard IMDS (versions endpoint) is unreachable, but the managed
 // identity token endpoint is reachable via GetAccessTokenForIdentity.
@@ -1532,6 +1536,10 @@ func (c *fakeACIIMDSClient) GetAccessToken(_ context.Context, _ string) (string,
 
 func (c *fakeACIIMDSClient) GetAccessTokenForIdentity(_ context.Context, _ string) (string, error) {
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
+}
+
+func (c *fakeACIIMDSClient) GetAttestedDataUnchecked(_ context.Context, _ string) ([]byte, error) {
+	return nil, trace.NotFound("attested document endpoint not available on ACI")
 }
 
 func aciResourceID(subscription, resourceGroup, name string) string {

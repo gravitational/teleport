@@ -98,6 +98,11 @@ type AzureIMDSClient interface {
 	// requiring the standard IMDS version discovery to succeed first. Used on
 	// compute types where /metadata/versions is unreachable (e.g. ACI, AKS).
 	GetAccessTokenForIdentity(ctx context.Context, clientID string) (string, error)
+	// GetAttestedDataUnchecked attempts to fetch the attested data document
+	// without requiring IsAvailable() to return true first. Used in the
+	// token-only join path (e.g. ACI with VNet injection) where /versions is
+	// unreachable but the /attested/document endpoint may still be accessible.
+	GetAttestedDataUnchecked(ctx context.Context, nonce string) ([]byte, error)
 }
 
 // GitlabParams is the parameters specific to the gitlab join method.
