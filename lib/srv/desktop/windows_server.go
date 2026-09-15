@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -163,6 +164,8 @@ type WindowsService struct {
 
 	closeCtx context.Context
 	close    func()
+
+	heartbeat *srv.HeartbeatV2
 }
 
 // WindowsServiceConfig contains all necessary configuration values for a
@@ -190,6 +193,9 @@ type WindowsServiceConfig struct {
 	ConnLimiter *limiter.ConnectionsLimiter
 	// Heartbeat contains configuration for service heartbeats.
 	Heartbeat HeartbeatConfig
+	// InventoryHandle is used to send the windows_desktop_service heartbeat via
+	// the inventory control stream.
+	InventoryHandle inventory.DownstreamHandle
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
@@ -290,6 +296,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if err := cfg.Heartbeat.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if cfg.InventoryHandle == nil {
+		return trace.BadParameter("WindowsServiceConfig is missing InventoryHandle")
 	}
 	if cfg.LDAPConfig.Enabled() {
 		if err := cfg.LDAPConfig.CheckAndSetDefaults(); err != nil {
@@ -548,25 +557,32 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 func (s *WindowsService) Close() error {
 	s.close()
 
+	if s.heartbeat != nil {
+		s.heartbeat.Close()
+	}
+
 	return nil
 }
 
 func (s *WindowsService) startServiceHeartbeat() error {
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Context:         s.closeCtx,
-		Component:       teleport.ComponentWindowsDesktop,
-		Mode:            srv.HeartbeatModeWindowsDesktopService,
-		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   s.getServiceHeartbeatInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
+	heartbeat, err := srv.NewWindowsDesktopServiceHeartbeat(srv.HeartbeatV2Config[*types.WindowsDesktopServiceV3]{
+		InventoryHandle: s.cfg.InventoryHandle,
+		// TODO(wethreetrees): DELETE IN 20 - fallback for older auth servers
+		// that don't yet accept this heartbeat over the control stream.
+		Announcer: s.cfg.AccessPoint,
+		GetResource: func(ctx context.Context) (*types.WindowsDesktopServiceV3, error) {
+			return s.getServiceHeartbeatInfo()
+		},
+		AnnounceInterval: apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		PollInterval:     defaults.HeartbeatCheckPeriod,
+		OnHeartbeat:      s.cfg.Heartbeat.OnHeartbeat,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	s.heartbeat = heartbeat
+
 	go func() {
 		if err := heartbeat.Run(); err != nil {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "service heartbeat ended", "error", err)
@@ -1082,7 +1098,7 @@ func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x50
 	metadata.EnhancedKeyUsage = enhancedKeyUsages
 }
 
-func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
+func (s *WindowsService) getServiceHeartbeatInfo() (*types.WindowsDesktopServiceV3, error) {
 	srv, err := types.NewWindowsDesktopServiceV3(
 		types.Metadata{
 			Name:   s.cfg.Heartbeat.HostUUID,

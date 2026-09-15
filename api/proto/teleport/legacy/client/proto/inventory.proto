@@ -172,9 +172,9 @@ message DownstreamInventoryHello {
     bool WindowsDesktopHeartbeats = 13;
     // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
     bool WindowsDesktopCleanup = 14;
-    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    // WindowsDesktopServiceHeartbeats indicates the ICS supports heartbeating windows desktop services.
     bool WindowsDesktopServiceHeartbeats = 15;
-    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    // WindowsDesktopServiceCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
     bool WindowsDesktopServiceCleanup = 16;
     // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
     bool KubernetesHeartbeats = 17;
@@ -245,6 +245,8 @@ message InventoryHeartbeat {
   teleport.presence.v1.RelayServer relay_server = 5;
   // LinuxDesktop is a complete linux desktop spec to be heartbeated.
   teleport.linuxdesktop.v1.LinuxDesktop linux_desktop = 6;
+  // WindowsDesktopService is a complete windows desktop service spec to be heartbeated.
+  types.WindowsDesktopServiceV3 windows_desktop_service = 7;
 }
 
 // InstanceStatus reports periodic status about an instance.

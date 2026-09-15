@@ -1642,9 +1642,11 @@ type InventoryHeartbeat struct {
 	// A relay_server to be heartbeated.
 	RelayServer *v11.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
 	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
-	LinuxDesktop  *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	LinuxDesktop *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
+	// WindowsDesktopService is a complete windows desktop service spec to be heartbeated.
+	WindowsDesktopService *types.WindowsDesktopServiceV3 `protobuf:"bytes,7,opt,name=windows_desktop_service,json=windowsDesktopService,proto3" json:"windows_desktop_service,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *InventoryHeartbeat) Reset() {
@@ -1714,6 +1716,13 @@ func (x *InventoryHeartbeat) GetLinuxDesktop() *v12.LinuxDesktop {
 	return nil
 }
 
+func (x *InventoryHeartbeat) GetWindowsDesktopService() *types.WindowsDesktopServiceV3 {
+	if x != nil {
+		return x.WindowsDesktopService
+	}
+	return nil
+}
+
 func (x *InventoryHeartbeat) SetSSHServer(v *types.ServerV2) {
 	x.SSHServer = v
 }
@@ -1736,6 +1745,10 @@ func (x *InventoryHeartbeat) SetRelayServer(v *v11.RelayServer) {
 
 func (x *InventoryHeartbeat) SetLinuxDesktop(v *v12.LinuxDesktop) {
 	x.LinuxDesktop = v
+}
+
+func (x *InventoryHeartbeat) SetWindowsDesktopService(v *types.WindowsDesktopServiceV3) {
+	x.WindowsDesktopService = v
 }
 
 func (x *InventoryHeartbeat) HasSSHServer() bool {
@@ -1780,6 +1793,13 @@ func (x *InventoryHeartbeat) HasLinuxDesktop() bool {
 	return x.LinuxDesktop != nil
 }
 
+func (x *InventoryHeartbeat) HasWindowsDesktopService() bool {
+	if x == nil {
+		return false
+	}
+	return x.WindowsDesktopService != nil
+}
+
 func (x *InventoryHeartbeat) ClearSSHServer() {
 	x.SSHServer = nil
 }
@@ -1804,6 +1824,10 @@ func (x *InventoryHeartbeat) ClearLinuxDesktop() {
 	x.LinuxDesktop = nil
 }
 
+func (x *InventoryHeartbeat) ClearWindowsDesktopService() {
+	x.WindowsDesktopService = nil
+}
+
 type InventoryHeartbeat_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1822,6 +1846,8 @@ type InventoryHeartbeat_builder struct {
 	RelayServer *v11.RelayServer
 	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
 	LinuxDesktop *v12.LinuxDesktop
+	// WindowsDesktopService is a complete windows desktop service spec to be heartbeated.
+	WindowsDesktopService *types.WindowsDesktopServiceV3
 }
 
 func (b0 InventoryHeartbeat_builder) Build() *InventoryHeartbeat {
@@ -1834,6 +1860,7 @@ func (b0 InventoryHeartbeat_builder) Build() *InventoryHeartbeat {
 	x.KubernetesServer = b.KubernetesServer
 	x.RelayServer = b.RelayServer
 	x.LinuxDesktop = b.LinuxDesktop
+	x.WindowsDesktopService = b.WindowsDesktopService
 	return m0
 }
 
@@ -2287,9 +2314,9 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 	WindowsDesktopHeartbeats bool `protobuf:"varint,13,opt,name=WindowsDesktopHeartbeats,proto3" json:"WindowsDesktopHeartbeats,omitempty"`
 	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
 	WindowsDesktopCleanup bool `protobuf:"varint,14,opt,name=WindowsDesktopCleanup,proto3" json:"WindowsDesktopCleanup,omitempty"`
-	// WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+	// WindowsDesktopServiceHeartbeats indicates the ICS supports heartbeating windows desktop services.
 	WindowsDesktopServiceHeartbeats bool `protobuf:"varint,15,opt,name=WindowsDesktopServiceHeartbeats,proto3" json:"WindowsDesktopServiceHeartbeats,omitempty"`
-	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+	// WindowsDesktopServiceCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
 	WindowsDesktopServiceCleanup bool `protobuf:"varint,16,opt,name=WindowsDesktopServiceCleanup,proto3" json:"WindowsDesktopServiceCleanup,omitempty"`
 	// KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
 	KubernetesHeartbeats bool `protobuf:"varint,17,opt,name=KubernetesHeartbeats,proto3" json:"KubernetesHeartbeats,omitempty"`
@@ -2618,9 +2645,9 @@ type DownstreamInventoryHello_SupportedCapabilities_builder struct {
 	WindowsDesktopHeartbeats bool
 	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
 	WindowsDesktopCleanup bool
-	// WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+	// WindowsDesktopServiceHeartbeats indicates the ICS supports heartbeating windows desktop services.
 	WindowsDesktopServiceHeartbeats bool
-	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+	// WindowsDesktopServiceCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
 	WindowsDesktopServiceCleanup bool
 	// KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
 	KubernetesHeartbeats bool
@@ -2756,14 +2783,15 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x06Labels\x18\x02 \x03(\v22.proto.DownstreamInventoryUpdateLabels.LabelsEntryR\x06Labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe8\x03\n" +
 	"\x12InventoryHeartbeat\x12-\n" +
 	"\tSSHServer\x18\x01 \x01(\v2\x0f.types.ServerV2R\tSSHServer\x120\n" +
 	"\tAppServer\x18\x02 \x01(\v2\x12.types.AppServerV3R\tAppServer\x12?\n" +
 	"\x0eDatabaseServer\x18\x03 \x01(\v2\x17.types.DatabaseServerV3R\x0eDatabaseServer\x12E\n" +
 	"\x10KubernetesServer\x18\x04 \x01(\v2\x19.types.KubernetesServerV3R\x10KubernetesServer\x12D\n" +
 	"\frelay_server\x18\x05 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\x12K\n" +
-	"\rlinux_desktop\x18\x06 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\flinuxDesktop\"J\n" +
+	"\rlinux_desktop\x18\x06 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\flinuxDesktop\x12V\n" +
+	"\x17windows_desktop_service\x18\a \x01(\v2\x1e.types.WindowsDesktopServiceV3R\x15windowsDesktopService\"J\n" +
 	"\x0eInstanceStatus\x128\n" +
 	"\vaudit_queue\x18\x01 \x01(\v2\x17.types.AuditQueueStatusR\n" +
 	"auditQueue\"d\n" +
@@ -2820,21 +2848,22 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(*InventoryStatusSummary)(nil),                         // 15: proto.InventoryStatusSummary
 	(*UpstreamInventoryStopHeartbeat)(nil),                 // 16: proto.UpstreamInventoryStopHeartbeat
 	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 17: proto.DownstreamInventoryHello.SupportedCapabilities
-	nil,                              // 18: proto.InventoryUpdateLabelsRequest.LabelsEntry
-	nil,                              // 19: proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	nil,                              // 20: proto.InventoryStatusSummary.VersionCountsEntry
-	nil,                              // 21: proto.InventoryStatusSummary.UpgraderCountsEntry
-	nil,                              // 22: proto.InventoryStatusSummary.ServiceCountsEntry
-	(*timestamppb.Timestamp)(nil),    // 23: google.protobuf.Timestamp
-	(*types.UpdaterV2Info)(nil),      // 24: types.UpdaterV2Info
-	(*v1.ImmutableLabels)(nil),       // 25: teleport.scopes.joining.v1.ImmutableLabels
-	(*types.ServerV2)(nil),           // 26: types.ServerV2
-	(*types.AppServerV3)(nil),        // 27: types.AppServerV3
-	(*types.DatabaseServerV3)(nil),   // 28: types.DatabaseServerV3
-	(*types.KubernetesServerV3)(nil), // 29: types.KubernetesServerV3
-	(*v11.RelayServer)(nil),          // 30: teleport.presence.v1.RelayServer
-	(*v12.LinuxDesktop)(nil),         // 31: teleport.linuxdesktop.v1.LinuxDesktop
-	(*types.AuditQueueStatus)(nil),   // 32: types.AuditQueueStatus
+	nil,                                   // 18: proto.InventoryUpdateLabelsRequest.LabelsEntry
+	nil,                                   // 19: proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	nil,                                   // 20: proto.InventoryStatusSummary.VersionCountsEntry
+	nil,                                   // 21: proto.InventoryStatusSummary.UpgraderCountsEntry
+	nil,                                   // 22: proto.InventoryStatusSummary.ServiceCountsEntry
+	(*timestamppb.Timestamp)(nil),         // 23: google.protobuf.Timestamp
+	(*types.UpdaterV2Info)(nil),           // 24: types.UpdaterV2Info
+	(*v1.ImmutableLabels)(nil),            // 25: teleport.scopes.joining.v1.ImmutableLabels
+	(*types.ServerV2)(nil),                // 26: types.ServerV2
+	(*types.AppServerV3)(nil),             // 27: types.AppServerV3
+	(*types.DatabaseServerV3)(nil),        // 28: types.DatabaseServerV3
+	(*types.KubernetesServerV3)(nil),      // 29: types.KubernetesServerV3
+	(*v11.RelayServer)(nil),               // 30: teleport.presence.v1.RelayServer
+	(*v12.LinuxDesktop)(nil),              // 31: teleport.linuxdesktop.v1.LinuxDesktop
+	(*types.WindowsDesktopServiceV3)(nil), // 32: types.WindowsDesktopServiceV3
+	(*types.AuditQueueStatus)(nil),        // 33: types.AuditQueueStatus
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
@@ -2861,17 +2890,18 @@ var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	29, // 21: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
 	30, // 22: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
 	31, // 23: proto.InventoryHeartbeat.linux_desktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
-	32, // 24: proto.InstanceStatus.audit_queue:type_name -> types.AuditQueueStatus
-	6,  // 25: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	20, // 26: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	21, // 27: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	22, // 28: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 29: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	32, // 24: proto.InventoryHeartbeat.windows_desktop_service:type_name -> types.WindowsDesktopServiceV3
+	33, // 25: proto.InstanceStatus.audit_queue:type_name -> types.AuditQueueStatus
+	6,  // 26: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	20, // 27: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	21, // 28: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	22, // 29: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 30: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }
