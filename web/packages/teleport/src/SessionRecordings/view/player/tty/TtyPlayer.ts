@@ -17,6 +17,7 @@
  */
 
 import { ImageAddon } from '@xterm/addon-image';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITerminalAddon, ITheme, Terminal } from '@xterm/xterm';
@@ -64,11 +65,14 @@ export class TtyPlayer extends Player<TtyEvent> {
       cols: this.size.cols,
       rows: this.size.rows,
       theme: this.xtermTheme,
+      allowProposedApi: true, // required for the Unicode API
     });
 
     const linksAddon = new WebLinksAddon();
 
-    this.addons.push(this.aspectFitAddon, linksAddon);
+    const unicodeGraphemesAddon = new UnicodeGraphemesAddon();
+
+    this.addons.push(this.aspectFitAddon, linksAddon, unicodeGraphemesAddon);
 
     this.aspectFitAddon.activate(this.terminal);
 
