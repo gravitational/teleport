@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -54,20 +55,21 @@ func TunnelServiceBuilder(
 		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		svc := &TunnelService{
-			connCfg:                   connCfg,
-			defaultCredentialLifetime: defaultCredentialLifetime,
-			leeway:                    leeway,
-			getBotIdentity:            deps.BotIdentity,
-			botIdentityReadyCh:        deps.BotIdentityReadyCh,
-			proxyPinger:               deps.ProxyPinger,
-			botClient:                 deps.Client,
-			cfg:                       cfg,
-			identityGenerator:         deps.IdentityGenerator,
-			clientBuilder:             deps.ClientBuilder,
-			log:                       deps.Logger,
-			statusReporter:            deps.GetStatusReporter(),
-			scoped:                    deps.Scoped,
+			connCfg:            connCfg,
+			leeway:             leeway,
+			effectiveLifetime:  cmp.Or(cfg.CredentialLifetime, defaultCredentialLifetime),
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			cfg:                cfg,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
+			scoped:             deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -79,19 +81,19 @@ func TunnelServiceBuilder(
 // an authenticating tunnel and will automatically issue and renew certificates
 // as needed.
 type TunnelService struct {
-	connCfg                   connection.Config
-	defaultCredentialLifetime bot.CredentialLifetime
-	leeway                    time.Duration
-	cfg                       *TunnelConfig
-	proxyPinger               connection.ProxyPinger
-	log                       *slog.Logger
-	botClient                 *apiclient.Client
-	getBotIdentity            func() *identity.Identity
-	botIdentityReadyCh        <-chan struct{}
-	statusReporter            readyz.Reporter
-	identityGenerator         *identity.Generator
-	clientBuilder             *client.Builder
-	scoped                    bool
+	connCfg            connection.Config
+	leeway             time.Duration
+	effectiveLifetime  bot.CredentialLifetime
+	cfg                *TunnelConfig
+	proxyPinger        connection.ProxyPinger
+	log                *slog.Logger
+	botClient          *apiclient.Client
+	getBotIdentity     func() *identity.Identity
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
+	scoped             bool
 }
 
 func (s *TunnelService) Run(ctx context.Context) error {
@@ -217,15 +219,14 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	// drift) and do not want to be in the business of calculating leeway-leeway
 	// so we'll keep the check somewhat simple.
 	issuedCertLifetime := appCert.Leaf.NotAfter.Sub(appCert.Leaf.NotBefore)
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	effectiveTTL := min(issuedCertLifetime, effectiveLifetime.TTL)
+	effectiveTTL := min(issuedCertLifetime, s.effectiveLifetime.TTL)
 
 	leeway := s.leeway
 	if leeway >= effectiveTTL {
 		s.log.WarnContext(ctx,
 			"leeway is greater than the credential lifetime and will be "+
 				"ignored, be aware of potential failures due to clock drift",
-			"configured_ttl", effectiveLifetime.TTL,
+			"configured_ttl", s.effectiveLifetime.TTL,
 			"configured_leeway", leeway,
 			"issued_cert_ttl", issuedCertLifetime,
 		)
@@ -282,11 +283,6 @@ func (s *TunnelService) issueCert(
 	ctx, span := tracer.Start(ctx, "TunnelService/issueCert")
 	defer span.End()
 
-	var qn scopes.QualifiedName
-	if err := qn.Set(s.cfg.AppName); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	var (
 		routedIdent *identity.Identity
 		app         types.Application
@@ -294,15 +290,15 @@ func (s *TunnelService) issueCert(
 	)
 
 	if s.scoped {
-		routedIdent, app, err = s.routedIdentityScoped(ctx, qn)
+		routedIdent, app, err = s.generateScopedIdentity(ctx)
 	} else {
-		routedIdent, app, err = s.routedIdentityUnscoped(ctx, qn)
+		routedIdent, app, err = s.generateUnscopedIdentity(ctx)
 	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
+	s.log.InfoContext(ctx, "Certificate issued for application tunnel.")
 
 	// In tests, notify the test that a cert has been issued.
 	if s.cfg.certIssuedHook != nil {
@@ -317,10 +313,9 @@ func (s *TunnelService) issueCert(
 	return cert, app, nil
 }
 
-func (s *TunnelService) routedIdentityUnscoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, types.Application, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+func (s *TunnelService) generateUnscopedIdentity(ctx context.Context) (*identity.Identity, types.Application, error) {
 	identityOpts := []identity.GenerateOption{
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
@@ -340,13 +335,23 @@ func (s *TunnelService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 		}
 	}()
 
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, qn)
+	// TODO(noah): Now that app session ids are no longer being retrieved,
+	// we can begin to cache the getApp rather than regenerating this
+	// on each renew in the TunnelService
+	app, err := getAppLegacy(ctx, impersonatedClient, s.cfg.AppName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(route))...)
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
+	}
+
+	s.log.DebugContext(ctx, "Requesting issuance of certificate for application tunnel.")
+	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(routeToApp))...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -354,17 +359,34 @@ func (s *TunnelService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 	return routedIdent, app, nil
 }
 
-func (s *TunnelService) routedIdentityScoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, types.Application, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), s.botClient, qn)
+func (s *TunnelService) generateScopedIdentity(ctx context.Context) (*identity.Identity, types.Application, error) {
+	qn, err := scopes.ParseQualifiedName(s.cfg.AppName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
+	if err := qn.StrongValidate(); err != nil {
+		return nil, nil, err
+	}
+
+	// TODO(noah): Now that app session ids are no longer being retrieved,
+	// we can begin to cache the getApp rather than regenerating this
+	// on each renew in the TunnelService
+	app, err := getApp(ctx, s.botClient, qn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
+	}
+
+	s.log.DebugContext(ctx, "Requesting issuance of certificate for application tunnel.")
 	routedIdent, err := s.identityGenerator.GenerateScoped(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageApp(route),
+		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

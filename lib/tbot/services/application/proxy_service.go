@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -59,18 +59,19 @@ func ProxyServiceBuilder(
 			return nil, trace.Wrap(err)
 		}
 		svc := &ProxyService{
-			connCfg:                   connCfg,
-			defaultCredentialLifetime: defaultCredentialLifetime,
-			getBotIdentity:            deps.BotIdentity,
-			botIdentityReadyCh:        deps.BotIdentityReadyCh,
-			proxyPinger:               deps.ProxyPinger,
-			botClient:                 deps.Client,
-			cfg:                       cfg,
-			identityGenerator:         deps.IdentityGenerator,
-			clientBuilder:             deps.ClientBuilder,
-			alpnUpgradeCache:          alpnUpgradeCache,
-			log:                       deps.Logger,
-			statusReporter:            deps.GetStatusReporter(),
+			connCfg:            connCfg,
+			effectiveLifetime:  cmp.Or(cfg.CredentialLifetime, defaultCredentialLifetime),
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			proxyPinger:        deps.ProxyPinger,
+			botClient:          deps.Client,
+			cfg:                cfg,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+			scoped:             deps.Scoped,
+			alpnUpgradeCache:   alpnUpgradeCache,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}
@@ -81,18 +82,19 @@ func ProxyServiceBuilder(
 // forward traffic to applications through Teleport. Unlike the TunnelService
 // it is protocol aware and does not support TCP applications.
 type ProxyService struct {
-	connCfg                   connection.Config
-	defaultCredentialLifetime bot.CredentialLifetime
-	cfg                       *ProxyServiceConfig
-	proxyPinger               connection.ProxyPinger
-	log                       *slog.Logger
-	botClient                 *apiclient.Client
-	getBotIdentity            func() *identity.Identity
-	botIdentityReadyCh        <-chan struct{}
-	statusReporter            readyz.Reporter
-	identityGenerator         *identity.Generator
-	clientBuilder             *client.Builder
-	alpnUpgradeCache          *internal.ALPNUpgradeCache
+	connCfg            connection.Config
+	effectiveLifetime  bot.CredentialLifetime
+	cfg                *ProxyServiceConfig
+	proxyPinger        connection.ProxyPinger
+	log                *slog.Logger
+	botClient          *apiclient.Client
+	getBotIdentity     func() *identity.Identity
+	botIdentityReadyCh <-chan struct{}
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
+	scoped             bool
+	alpnUpgradeCache   *internal.ALPNUpgradeCache
 
 	cache               *utils.FnCache
 	proxyAddr           string
@@ -123,9 +125,8 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	}
 
 	// Initialize the fnCache
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: effectiveLifetime.RenewalInterval,
+		TTL: s.effectiveLifetime.RenewalInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err, "initializing cache")
@@ -164,18 +165,18 @@ func (s *ProxyService) Run(ctx context.Context) error {
 			// the base context for all incoming requests.
 			return ctx
 		},
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			err := s.handleProxyRequest(w, req)
+			if err != nil {
+				trace.WriteError(w, err)
+				s.log.ErrorContext(
+					req.Context(), "Encountered an error while proxying request",
+					"error", err,
+				)
+				return
+			}
+		}),
 	}
-	httpSrv.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		err := s.handleProxyRequest(w, req)
-		if err != nil {
-			trace.WriteError(w, err)
-			s.log.ErrorContext(
-				req.Context(), "Encountered an error while proxying request",
-				"error", err,
-			)
-			return
-		}
-	})
 	s.log.InfoContext(ctx, "Finished initializing")
 
 	errCh := make(chan error, 1)
@@ -209,11 +210,20 @@ func (s *ProxyService) String() string {
 // issueCert issues a role-impersonated app-routed X509 certificate
 func (s *ProxyService) issueCert(
 	ctx context.Context,
-	appName string,
+	host string,
 ) (*tls.Certificate, types.Application, error) {
 	ctx, span := tracer.Start(ctx, "ProxyService/issueCert")
 	defer span.End()
 
+	routedIdent, app, err := s.generateUnscopedIdentity(ctx, host)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return routedIdent.TLSCert, app, nil
+}
+
+func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName string) (*identity.Identity, types.Application, error) {
 	// TODO(noah): At a later date, we should consider running a background
 	// goroutine that maintains a role-impersonated client. We should probably
 	// make this a generic helper since we have a few services that do this now.
@@ -224,9 +234,8 @@ func (s *ProxyService) issueCert(
 	// session ID may need to change. Once v17 hits, this will be automagically
 	// calculated by the auth server on cert generation, and we can fetch the
 	// routeToApp once.
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
@@ -249,23 +258,29 @@ func (s *ProxyService) issueCert(
 		}
 	}()
 
-	// ProxyService does not support scopes yet, so we give it an SQN without scope set
-	// to signal to the getRouteToApp internals that this is an unscoped request.
-	route, app, err := getRouteToApp(
-		ctx, s.getBotIdentity(), impersonatedClient, scopes.QualifiedName{Name: appName},
-	)
+	// TODO(noah): Now that app session ids are no longer being retrieved,
+	// we can begin to cache the getUnscopedApp rather than regenerating this
+	// on each renew in the ProxyService
+	app, err := getAppLegacy(ctx, impersonatedClient, appName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
 	}
 
 	routedIdent, err := s.identityGenerator.Generate(
-		ctx, append(identityOpts, identity.WithRouteToApp(route))...,
+		ctx, append(identityOpts, identity.WithRouteToApp(routeToApp))...,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return routedIdent.TLSCert, app, nil
+	return routedIdent, app, nil
 }
 
 // handleProxyRequest handles incoming HTTP requests to the server.
@@ -303,13 +318,12 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// net/http implements RFC7230 5.3 correctly, and will prefer the host
 	// specified within an absolute-form request-target over the Host header
 	// when setting req.Host - which means we can safely use req.Host here.
-	appName := req.Host
-	appCert, err := s.cache.Get(ctx, appName, func(ctx context.Context) (*tls.Certificate, error) {
+	appCert, err := s.cache.Get(ctx, req.Host, func(ctx context.Context) (*tls.Certificate, error) {
 		s.log.InfoContext(
 			ctx, "Issuing app cert",
-			"app", appName,
+			"app", req.Host,
 		)
-		cert, _, err := s.issueCert(ctx, appName)
+		cert, _, err := s.issueCert(ctx, req.Host)
 		return cert, err
 	})
 	if err != nil {

@@ -28,7 +28,6 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -44,17 +43,17 @@ func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.Crede
 			return nil, trace.Wrap(err)
 		}
 		svc := &OutputService{
-			botAuthClient:             deps.Client,
-			getBotIdentity:            deps.BotIdentity,
-			botIdentityReadyCh:        deps.BotIdentityReadyCh,
-			defaultCredentialLifetime: defaultCredentialLifetime,
-			cfg:                       cfg,
-			reloadCh:                  deps.ReloadCh,
-			identityGenerator:         deps.IdentityGenerator,
-			clientBuilder:             deps.ClientBuilder,
-			log:                       deps.Logger,
-			statusReporter:            deps.GetStatusReporter(),
-			scoped:                    deps.Scoped,
+			botAuthClient:      deps.Client,
+			getBotIdentity:     deps.BotIdentity,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			effectiveLifetime:  cmp.Or(cfg.CredentialLifetime, defaultCredentialLifetime),
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			clientBuilder:      deps.ClientBuilder,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
+			scoped:             deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -64,17 +63,17 @@ func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.Crede
 // OutputService generates the artifacts necessary to connect to a
 // HTTP or TCP application using Teleport.
 type OutputService struct {
-	botAuthClient             *apiclient.Client
-	botIdentityReadyCh        <-chan struct{}
-	defaultCredentialLifetime bot.CredentialLifetime
-	cfg                       *OutputConfig
-	getBotIdentity            func() *identity.Identity
-	log                       *slog.Logger
-	reloadCh                  <-chan struct{}
-	statusReporter            readyz.Reporter
-	identityGenerator         *identity.Generator
-	clientBuilder             *client.Builder
-	scoped                    bool
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	effectiveLifetime  bot.CredentialLifetime
+	cfg                *OutputConfig
+	getBotIdentity     func() *identity.Identity
+	log                *slog.Logger
+	reloadCh           <-chan struct{}
+	statusReporter     readyz.Reporter
+	identityGenerator  *identity.Generator
+	clientBuilder      *client.Builder
+	scoped             bool
 }
 
 func (s *OutputService) String() string {
@@ -93,7 +92,7 @@ func (s *OutputService) Run(ctx context.Context) error {
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
-		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
+		Interval:        s.effectiveLifetime.RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
 		ReloadCh:        s.reloadCh,
@@ -123,18 +122,13 @@ func (s *OutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	var qn scopes.QualifiedName
-	if err := qn.Set(s.cfg.AppName); err != nil {
-		return trace.Wrap(err)
-	}
-
 	var routedIdentity *identity.Identity
 	var err error
 
 	if s.scoped {
-		routedIdentity, err = s.routedIdentityScoped(ctx, qn)
+		routedIdentity, err = s.generateScopedIdentity(ctx)
 	} else {
-		routedIdentity, err = s.routedIdentityUnscoped(ctx, qn)
+		routedIdentity, err = s.generateUnscopedIdentity(ctx)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -159,10 +153,9 @@ func (s *OutputService) generate(ctx context.Context) error {
 	return trace.Wrap(s.render(ctx, routedIdentity, hostCAs, userCAs, databaseCAs), "rendering")
 }
 
-func (s *OutputService) routedIdentityUnscoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+func (s *OutputService) generateUnscopedIdentity(ctx context.Context) (*identity.Identity, error) {
 	identityOpts := []identity.GenerateOption{
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
@@ -179,14 +172,16 @@ func (s *OutputService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 	}
 	defer impersonatedClient.Close()
 
-	routeToApp, _, err := getRouteToApp(
-		ctx,
-		s.getBotIdentity(),
-		impersonatedClient,
-		qn,
-	)
+	app, err := getAppLegacy(ctx, impersonatedClient, s.cfg.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
 	}
 
 	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
@@ -206,16 +201,30 @@ func (s *OutputService) routedIdentityUnscoped(ctx context.Context, qn scopes.Qu
 	return routedIdentity, nil
 }
 
-func (s *OutputService) routedIdentityScoped(ctx context.Context, qn scopes.QualifiedName) (*identity.Identity, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-
-	routeToApp, _, err := getRouteToApp(ctx, s.getBotIdentity(), s.botAuthClient, qn)
+func (s *OutputService) generateScopedIdentity(ctx context.Context) (*identity.Identity, error) {
+	qn, err := scopes.ParseQualifiedName(s.cfg.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := qn.StrongValidate(); err != nil {
+		return nil, err
+	}
+
+	app, err := getApp(ctx, s.botAuthClient, qn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	routeToApp := proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: s.getBotIdentity().ClusterName,
+		Scope:       app.GetScope(),
+	}
+
 	routedIdentity, err := s.identityGenerator.GenerateScoped(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
+		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -262,72 +271,4 @@ func (s *OutputService) render(
 	}
 
 	return trace.Wrap(internal.WriteTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
-}
-
-func getRouteToApp(
-	ctx context.Context,
-	botIdentity *identity.Identity,
-	client *apiclient.Client,
-	qn scopes.QualifiedName,
-) (proto.RouteToApp, types.Application, error) {
-	ctx, span := tracer.Start(ctx, "getRouteToApp")
-	defer span.End()
-
-	app, err := getApp(ctx, client, qn)
-	if err != nil {
-		return proto.RouteToApp{}, nil, trace.Wrap(err)
-	}
-
-	// TODO(noah): Now that app session ids are no longer being retrieved,
-	// we can begin to cache the routeToApp rather than regenerating this
-	// on each renew in the ApplicationTunnelSvc
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: botIdentity.ClusterName,
-		Scope:       app.GetScope(),
-	}
-
-	return routeToApp, app, nil
-}
-
-func getApp(ctx context.Context, clt apiclient.GetResourcesClient, qn scopes.QualifiedName) (types.Application, error) {
-	ctx, span := tracer.Start(ctx, "getApp")
-	defer span.End()
-
-	// TODO (tscolari): DELETE IN v20: always perform the scope filtering.
-	predicate := fmt.Sprintf(`name == %q`, qn.Name)
-	if qn.Scope != "" {
-		predicate += fmt.Sprintf(" && resource.scope == %q", qn.Scope)
-	}
-
-	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: predicate,
-		Limit:               1,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var apps []types.Application
-	for _, server := range servers {
-		app := server.GetApp()
-		// Make sure that no scoped apps are picked by unscoped bots.
-		// TODO (tscolari): Once we always enforce the resource.scope
-		// predicate we can remove this check
-		if qn.Scope == "" && app.GetScope() != "" {
-			continue
-		}
-
-		apps = append(apps, app)
-	}
-	apps = types.DeduplicateApps(apps)
-
-	if len(apps) == 0 {
-		return nil, trace.BadParameter("app %q not found", qn.String())
-	}
-
-	return apps[0], nil
 }
