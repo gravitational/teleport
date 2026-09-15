@@ -544,6 +544,10 @@ func (m *BillingInformationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *BillingSubscriptionCancel) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *UserTokenCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

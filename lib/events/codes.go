@@ -99,6 +99,8 @@ const (
 	BillingCardUpdateCode = "TBL02I"
 	// BillingInformationUpdateCode is an event code for when a user updates their billing info.
 	BillingInformationUpdateCode = "TBL03I"
+	// BillingSubscriptionCancelCode is an event code for when a user cancels their billing subscription.
+	BillingSubscriptionCancelCode = "TBL04I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.
