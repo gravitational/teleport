@@ -341,6 +341,13 @@ const (
 	// if the proxy is recording sessions or not and if FIPS is enabled.
 	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
+	// KeyboardInteractiveAuthPromptName is the name field sent in
+	// SSH_MSG_USERAUTH_INFO_REQUEST (RFC 4256) when every prompt in the request
+	// is a protojson-encoded teleport.ssh.v1.AuthPrompt. Clients use it to tell
+	// Teleport prompts apart from any other keyboard-interactive prompt. This
+	// is a wire constant; do not change it after release.
+	KeyboardInteractiveAuthPromptName = "teleport-auth-prompt"
+
 	// JSON means JSON serialization format
 	JSON = "json"
 

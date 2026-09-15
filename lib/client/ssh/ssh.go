@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/gravitational/teleport"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
@@ -66,37 +67,47 @@ func AuthCallback(ctx context.Context, config AuthCallbackConfig) ssh.ClientAuth
 // the keyboard-interactive authentication method.
 func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) ssh.AuthMethod {
 	return ssh.KeyboardInteractive(
-		func(_ string, _ string, questions []string, _ []bool) ([]string, error) {
-			answers := make([]string, 0, len(questions))
-
-			// Handle each question from the server before returning all answers.
-			for _, question := range questions {
-				pr := &sshpb.AuthPrompt{}
-
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(question), pr); err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if pr.GetPrompt() == nil {
-					return nil, trace.BadParameter("received sshpb.AuthPrompt with nil Prompt field")
-				}
-
-				switch pr.WhichPrompt() {
-				case sshpb.AuthPrompt_MfaPrompt_case:
-					answer, err := handleMFAPrompt(ctx, p, m)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					answers = append(answers, answer)
-
-				default:
-					return nil, trace.BadParameter("invalid or unsupported auth prompt type: %T", pr)
-				}
+		func(name string, _ string, questions []string, _ []bool) ([]string, error) {
+			switch name {
+			case teleport.KeyboardInteractiveAuthPromptName:
+				answers, err := handleTeleportAuthPrompt(ctx, p, m, questions)
+				return answers, trace.Wrap(err)
+			default:
+				return nil, trace.BadParameter("unrecognized keyboard auth challenge: %q", name)
 			}
-
-			return answers, nil
 		},
 	)
+}
+
+func handleTeleportAuthPrompt(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata, questions []string) ([]string, error) {
+	answers := make([]string, 0, len(questions))
+
+	// Handle each question from the server before returning all answers.
+	for _, question := range questions {
+		pr := &sshpb.AuthPrompt{}
+
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(question), pr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if pr.GetPrompt() == nil {
+			return nil, trace.BadParameter("received sshpb.AuthPrompt with nil Prompt field")
+		}
+
+		switch pr.WhichPrompt() {
+		case sshpb.AuthPrompt_MfaPrompt_case:
+			answer, err := handleMFAPrompt(ctx, p, m)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			answers = append(answers, answer)
+
+		default:
+			return nil, trace.BadParameter("invalid or unsupported auth prompt type: %T", pr)
+		}
+	}
+
+	return answers, nil
 }
 
 // handleMFAPrompt returns an answer to a keyboard-interactive question requiring MFA by performing a session-bound MFA

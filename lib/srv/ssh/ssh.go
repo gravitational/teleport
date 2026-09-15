@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,7 +82,7 @@ func KeyboardInteractiveCallback(
 	}
 
 	// Send the questions to the client and collect answers.
-	answers, err := params.Challenge(params.Metadata.User(), "", questions, echos)
+	answers, err := params.Challenge(teleport.KeyboardInteractiveAuthPromptName, "", questions, echos)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
