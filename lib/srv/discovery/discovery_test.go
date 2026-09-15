@@ -688,7 +688,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:  Matchers{},
 			discoveryConfig: defaultDiscoveryConfig,
 			wantDiscoveryConfigStatus: &discoveryconfig.Status{
-				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				State:               "DISCOVERY_CONFIG_STATE_RUNNING",
 				ErrorMessage:        nil,
 				DiscoveredResources: 1,
 				LastSyncTime:        time.Now().UTC(),
@@ -752,7 +752,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:  Matchers{},
 			discoveryConfig: dcForEC2SSMWithIntegration,
 			wantDiscoveryConfigStatus: &discoveryconfig.Status{
-				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				State:               "DISCOVERY_CONFIG_STATE_RUNNING",
 				ErrorMessage:        nil,
 				DiscoveredResources: 1,
 				LastSyncTime:        time.Now().UTC(),
@@ -779,7 +779,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:    Matchers{},
 			discoveryConfig:   dcForEC2StatusWithoutMatch,
 			wantDiscoveryConfigStatus: &discoveryconfig.Status{
-				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				State:               "DISCOVERY_CONFIG_STATE_RUNNING",
 				ErrorMessage:        nil,
 				DiscoveredResources: 0,
 				LastSyncTime:        time.Now().UTC(),
@@ -806,7 +806,7 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:    Matchers{},
 			discoveryConfig:   dcForEC2StatusWithoutIntegration,
 			wantDiscoveryConfigStatus: &discoveryconfig.Status{
-				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				State:               "DISCOVERY_CONFIG_STATE_RUNNING",
 				ErrorMessage:        nil,
 				DiscoveredResources: 0,
 				LastSyncTime:        time.Now().UTC(),
@@ -3053,7 +3053,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{},
 			wantEvents:      0,
 			discoveryConfigStatusCheck: func(t *testing.T, s discoveryconfig.Status) {
-				require.Equal(t, "DISCOVERY_CONFIG_STATE_SYNCING", s.State)
+				require.Equal(t, "DISCOVERY_CONFIG_STATE_RUNNING", s.State)
 			},
 			discoveryConfigStatusExpectedResources: 0,
 		},
