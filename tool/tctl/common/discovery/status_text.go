@@ -27,10 +27,11 @@ import (
 const (
 	summaryStatusNotReporting = "not reporting yet"
 
-	resourceKindAWSEC2  = "AWS EC2"
-	resourceKindAWSRDS  = "AWS RDS"
-	resourceKindAWSEKS  = "AWS EKS"
-	resourceKindAzureVM = "Azure VM"
+	resourceKindAWSEC2   = "AWS EC2"
+	resourceKindAWSRDS   = "AWS RDS"
+	resourceKindAWSEKS   = "AWS EKS"
+	resourceKindAzureVM  = "Azure VM"
+	resourceKindAzureAKS = "Azure AKS"
 )
 
 func newDiscoverySummary(configs []*discoveryconfig.DiscoveryConfig, cloudProviders cloudProviderConfig) discoverySummary {
@@ -106,6 +107,7 @@ func buildResourceResults(summary *discoveryconfigv1.DiscoverSummary, cloudProvi
 	}
 	if cloudProviders.azure {
 		addResourceResult(&resources, resourceKindAzureVM, summary.GetAzureVms())
+		addResourceResult(&resources, resourceKindAzureAKS, summary.GetAzureAks())
 	}
 	return resources
 }

@@ -151,6 +151,7 @@ func (s *discoveryConfigStatusUpdater) updateServerStatus(status discoveryconfig
 			AwsRds:   mergeResourceSummary(currentDiscoverSummary.GetAwsRds(), previousSummary.GetAwsRds()),
 			AwsEks:   mergeResourceSummary(currentDiscoverSummary.GetAwsEks(), previousSummary.GetAwsEks()),
 			AzureVms: mergeResourceSummary(currentDiscoverSummary.GetAzureVms(), previousSummary.GetAzureVms()),
+			AzureAks: mergeResourceSummary(currentDiscoverSummary.GetAzureAks(), previousSummary.GetAzureAks()),
 		}.Build()
 	}
 

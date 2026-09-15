@@ -474,6 +474,7 @@ type Server struct {
 	awsEKSTasks           awsEKSTasks
 	awsRDSTasks           awsRDSTasks
 	azureVMStatus         atomic.Pointer[discoveryStatus]
+	azureAKSStatus        atomic.Pointer[discoveryStatus]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
