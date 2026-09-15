@@ -79,7 +79,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 
 	if !rg.ReadCache() {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		servers, err := c.Config.Presence.GetAuthServers()
+		servers, err := c.Config.Presence.GetProxies()
 		return servers, trace.Wrap(err)
 	}
 
