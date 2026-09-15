@@ -358,6 +358,13 @@ func (client *InstanceMetadataClient) getAccessTokenDirect(ctx context.Context, 
 	if clientID != "" {
 		params["client_id"] = []string{clientID}
 	}
+	// getRawMetadata only appends api-version when GetAPIVersion() is non-empty.
+	// On ACI with VNet injection the /versions endpoint is unreachable so
+	// GetAPIVersion() stays empty, but the managed identity endpoint still
+	// requires api-version. Pre-set a known minimum so the request is valid.
+	if client.GetAPIVersion() == "" {
+		params.Set("api-version", minimumSupportedAPIVersion)
+	}
 	body, err := client.getRawMetadata(ctx, "/identity/oauth2/token", params)
 	if err != nil {
 		return "", trace.Wrap(err)
