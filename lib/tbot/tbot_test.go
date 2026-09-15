@@ -2169,7 +2169,7 @@ func TestScopedBotApp(t *testing.T) {
 		unscopedBot := New(unscopedBotConfig, log)
 		err = unscopedBot.Run(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, `app "/test-scope::unscoped-app" not found`)
+		require.ErrorContains(t, err, "name: \"/test-scope::unscoped-app\"\n\t\tmatching app not found")
 	})
 }
 

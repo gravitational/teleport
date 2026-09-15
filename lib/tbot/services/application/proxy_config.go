@@ -92,8 +92,8 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", ProxyServiceType)
 	}
-	switch {
-	case c.Listen == "" && c.Listener == nil:
+
+	if c.Listen == "" && c.Listener == nil {
 		return trace.BadParameter("listen: should not be empty")
 	}
 
