@@ -20,6 +20,8 @@ package aws_sync
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,7 +36,14 @@ import (
 )
 
 // pollAWSRoles is a function that returns a function that fetches
-// AWS roles and their inline and attached policies.
+// AWS roles and their inline and attached policies. The function handles
+// errors by keeping the last polled result (from a.lastResult) rather
+// than omitting roles or policies from the result, because omitting
+// them would make it appear that the roles or policies have been deleted.
+// The errors are still surfaced via the collectErr function.
+//
+// A role that is deleted from AWS while polling is not a failure. It is a
+// change in state, and is reflected by dropping the role from the result.
 func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
@@ -43,8 +52,8 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch roles"))
 			result.Roles = existing.Roles
-			result.GroupAttachedPolicies = existing.GroupAttachedPolicies
-			result.GroupInlinePolicies = existing.GroupInlinePolicies
+			result.RoleAttachedPolicies = existing.RoleAttachedPolicies
+			result.RoleInlinePolicies = existing.RoleInlinePolicies
 			return nil
 		}
 
@@ -55,15 +64,44 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		// and roles.
 		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
-		for _, role := range result.Roles {
+		for i, role := range result.Roles {
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
+					var noSuchEntityErr *iamtypes.NoSuchEntityException
+					if errors.As(err, &noSuchEntityErr) {
+						// The role was removed while we are polling. Remove this role
+						// from the list of discovered roles.
+						result.Roles[i] = nil
+						return nil
+					}
+					// On other errors retrieving the inline policies, use the policies from the last poll
+					// (existing) so it does not appear that the inline policies have been deleted. Extract
+					// just the inline policies for this role from the last poll. roleInlinePolicies is a
+					// slice of all the inline policies for the role, so extract all of them from the last poll.
+					roleInlinePolicies = sliceFilter(existing.RoleInlinePolicies, func(inline *accessgraphv1alpha.AWSRoleInlinePolicyV1) bool {
+						return inline.GetAwsRole().GetName() == role.GetName() && inline.GetAwsRole().GetAccountId() == role.GetAccountId()
+					})
 					collectErr(trace.Wrap(err, "failed to fetch role %q inline policies", role.GetName()))
 				}
 
 				roleAttachedPolicies, err := a.fetchRoleAttachedPolicies(ctx, role)
 				if err != nil {
+					var noSuchEntityErr *iamtypes.NoSuchEntityException
+					if errors.As(err, &noSuchEntityErr) {
+						// The role was removed while we are polling. Remove this role
+						// from the list of discovered roles.
+						result.Roles[i] = nil
+						return nil
+					}
+					// On other errors retrieving the attached policies, use the policies from the last poll
+					// (existing) so it does not appear that the attached policies have been deleted. Extract
+					// just the attached policies for this role from the last poll. roleAttachedPolicies is a
+					// singular value that contains multiple attached policies, so extract just the first from
+					// the last poll - there should be only one for each role.
+					roleAttachedPolicies = sliceFilterPickFirst(existing.RoleAttachedPolicies, func(attached *accessgraphv1alpha.AWSRoleAttachedPolicies) bool {
+						return attached.GetAwsRole().GetName() == role.GetName() && attached.GetAwsRole().GetAccountId() == role.GetAccountId()
+					})
 					collectErr(trace.Wrap(err, "failed to fetch role %q attached policies", role.GetName()))
 				}
 
@@ -78,6 +116,8 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		}
 		// always discard the error
 		_ = eG.Wait()
+		// Remove any nils from roles being deleted in AWS while iterating
+		result.Roles = slices.DeleteFunc(result.Roles, isNilPtr)
 		return nil
 	}
 }
@@ -149,6 +189,9 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
+			// This may return a NoSuchEntityException error, which can refer only to
+			// the role, not any inline policies. That is handled by the caller by
+			// removing the role from the polling results.
 			return policies, trace.NewAggregate(append(errs, err)...)
 		}
 		for _, policyName := range page.PolicyNames {
@@ -156,6 +199,16 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 				RoleName:   aws.String(role.GetName()),
 				PolicyName: aws.String(policyName),
 			})
+			// A NoSuchEntityException error means either the role or the policy no longer
+			// exists. In both cases, just continue. If it was the policy that was deleted
+			// concurrently, continuing is correct. If it was the role that was deleted
+			// concurrently, the caller will find out when they fetch attached policies
+			// next. The alternative is a fragile error string comparison, which if
+			// changed could cause the role to flap.
+			var noSuchEntityErr *iamtypes.NoSuchEntityException
+			if errors.As(err, &noSuchEntityErr) {
+				continue
+			}
 			if err != nil {
 				errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.GetName(), policyName))
 				continue
@@ -197,6 +250,9 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
+			// This may return a NoSuchEntityException error, which can refer only to
+			// the role, not any attached policies. That is handled by the caller by
+			// removing the role from the polling results.
 			return rsp, trace.Wrap(err)
 		}
 		for _, policy := range page.AttachedPolicies {
