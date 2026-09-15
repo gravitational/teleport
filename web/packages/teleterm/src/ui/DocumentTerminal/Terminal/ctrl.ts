@@ -17,6 +17,7 @@
  */
 
 import { FitAddon } from '@xterm/addon-fit';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
@@ -105,7 +106,7 @@ export default class TtyTerminal implements TerminalSearcher {
       windowOptions: {
         setWinSizeChars: true,
       },
-      allowProposedApi: true, // required for customizing SearchAddon properties
+      allowProposedApi: true, // required for customizing SearchAddon properties and for the Unicode API
     });
 
     this.term.onSelectionChange(() => {
@@ -116,6 +117,7 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.loadAddon(this.fitAddon);
     this.term.loadAddon(this.searchAddon);
+    this.term.loadAddon(new UnicodeGraphemesAddon());
 
     this.registerResizeHandler();
 

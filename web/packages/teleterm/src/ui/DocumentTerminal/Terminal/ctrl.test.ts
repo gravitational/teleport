@@ -53,6 +53,31 @@ describe('Alt+Arrow sends escape sequences for word navigation', () => {
   });
 });
 
+// Without the Unicode graphemes addon, xterm.js measures these with Unicode 6
+// width tables: ⚡, 🤖 and ❤️ advance the cursor one cell and the ZWJ family
+// advances three. The addon clusters each of them into a single two-cell
+// grapheme, matching what modern terminals draw, so the rest of the frame
+// stops shifting.
+describe('graphemes rendering', () => {
+  it.each([
+    ['⚡', 'U+26A1'],
+    ['🤖', 'U+1F916'],
+    ['❤️', 'U+2764 U+FE0F'],
+    ['👨‍👩‍👧', 'ZWJ sequence'],
+  ])('%s (%s) is two cells wide', async text => {
+    const { tty } = createTerminal();
+
+    await write(tty, text);
+
+    expect(tty.term.buffer.active.cursorX).toBe(2);
+    tty.destroy();
+  });
+});
+
+function write(tty: TtyTerminal, data: string) {
+  return new Promise<void>(resolve => tty.term.write(data, resolve));
+}
+
 function createTerminal() {
   const el = document.createElement('div');
   document.body.appendChild(el);

@@ -21,6 +21,16 @@ import Tty from './tty';
 
 jest.mock('./tty');
 
+// WebglAddon throws "WebGL2 not supported" from a jsdom timer, which fails whichever test is running when it fires.
+// It renders nothing under jsdom anyway, so stub it out to let these tests await a write to the terminal.
+jest.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    onContextLoss() {}
+    activate() {}
+    dispose() {}
+  },
+}));
+
 describe('Alt+Arrow sends escape sequences for word navigation', () => {
   it.each([
     // Escape codes don't render well in the terminal when running tests, hence we use arrays
@@ -86,6 +96,26 @@ describe('copy blocking', () => {
     expect(dispatchCopy(el).defaultPrevented).toBe(false);
   });
 });
+
+describe('graphemes rendering', () => {
+  it.each([
+    ['⚡', 'U+26A1'],
+    ['🤖', 'U+1F916'],
+    ['❤️', 'U+2764 U+FE0F'],
+    ['👨‍👩‍👧', 'ZWJ sequence'],
+  ])('%s (%s) is two cells wide', async text => {
+    const { terminal } = createTerminal();
+
+    await write(terminal, text);
+
+    expect(terminal.term.buffer.active.cursorX).toBe(2);
+    terminal.destroy();
+  });
+});
+
+function write(terminal: TtyTerminal, data: string) {
+  return new Promise<void>(resolve => terminal.term.write(data, resolve));
+}
 
 function createTerminal(options: { disableCopy?: boolean } = {}) {
   const el = document.createElement('div');
