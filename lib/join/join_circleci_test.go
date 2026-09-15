@@ -114,11 +114,11 @@ func TestJoinCircleCI(t *testing.T) {
 	}
 
 	// helpers for error assertions
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := func(t require.TestingT, err error, i ...any) {
 		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
 		require.True(t, messageMatch && typeMatch)
-	})
+	}
 	tokenNotMatched := func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "invalid token")
 	}

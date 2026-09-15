@@ -19,7 +19,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/mailgun/errors v0.6.0
 	github.com/mailgun/mailgun-go/v4 v4.23.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc

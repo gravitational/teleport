@@ -12,7 +12,7 @@ require (
 	github.com/gravitational/trace v1.5.4
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.22.0
 	google.golang.org/protobuf v1.36.12
 	rsc.io/ordered v1.1.1

@@ -129,10 +129,10 @@ func TestJoinTerraformCloud(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
-	})
+	}
 	tests := []struct {
 		name          string
 		setEnterprise bool

@@ -171,10 +171,10 @@ func TestJoinGHA(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
-	})
+	}
 	tests := []struct {
 		name          string
 		request       *types.RegisterUsingTokenRequest
@@ -271,11 +271,11 @@ func TestJoinGHA(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				// Note: testing over the network does not perfectly map errors
 				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
 				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
-			}),
+			},
 		},
 		{
 			name: "enterprise-slug-requires-enterprise-license",
@@ -290,11 +290,11 @@ func TestJoinGHA(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				// Note: testing over the network does not perfectly map errors
 				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
 				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
-			}),
+			},
 		},
 		{
 			name: "multiple-allow-rules",

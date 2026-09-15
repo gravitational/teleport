@@ -799,9 +799,9 @@ func TestUserInfoBadStatus(t *testing.T) {
 	t.Parallel()
 
 	// When userinfo requests fail, we do not enrich the user and appropriate error is returned.
-	userinfoError := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	userinfoError := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, eauth.ErrOIDCNoRoles, i...)
-	})
+	}
 
 	tests := []struct {
 		name           string
