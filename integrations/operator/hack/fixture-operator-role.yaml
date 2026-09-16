@@ -190,6 +190,14 @@ spec:
           - update
           - delete
       - resources:
+          - crown_jewel
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
           - scoped_token
         verbs:
           - list
