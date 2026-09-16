@@ -17,6 +17,7 @@ RUN go mod download
 # Copy in code
 COPY tool/tbot tool/tbot
 COPY lib/ lib/
+COPY session/ session/
 COPY api/ api/
 COPY gen/ gen/
 COPY build.assets/ build.assets/
