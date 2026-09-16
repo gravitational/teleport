@@ -155,6 +155,39 @@ spec:
                       field.
                     type: string
                 type: object
+              bitbucket:
+                description: Configuration specific to the "bitbucket" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of rules. Workloads trying to join must match
+                      at least one allow rule for the join attempt to be allowed.
+                    items:
+                      properties:
+                        branch_name:
+                          type: string
+                        deployment_environment_uuid:
+                          type: string
+                        repository_uuid:
+                          type: string
+                        workspace_uuid:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: The Bitbucket-specified audience value for this token.
+                      It is unique to each Bitbucket repository, and must be set to
+                      the value as written in the "Pipelines -> OpenID Connect" section
+                      of the repository settings.
+                    type: string
+                  identity_provider_url:
+                    description: A Bitbucket-specified issuer URL for the incoming
+                      OIDC tokens. It is unique to each Bitbucket repository, and
+                      must be set to the value as written in the "Pipelines -> OpenID
+                      Connect" section of the repository settings.
+                    type: string
+                type: object
               bot:
                 description: The bot associated with this join token, if any, as a
                   scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").

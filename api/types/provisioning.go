@@ -186,6 +186,8 @@ type ProvisionToken interface {
 	GetTPM() *ProvisionTokenSpecV2TPM
 	// GetCircleCI returns the circleci-specific configuration for this token.
 	GetCircleCI() *ProvisionTokenSpecV2CircleCI
+	// GetBitbucket returns the bitbucket-specific configuration for this token.
+	GetBitbucket() *ProvisionTokenSpecV2Bitbucket
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -647,6 +649,11 @@ func (p *ProvisionTokenV2) GetTPM() *ProvisionTokenSpecV2TPM {
 // GetCircleCI returns the CircleCI-specific configuration for this token.
 func (p *ProvisionTokenV2) GetCircleCI() *ProvisionTokenSpecV2CircleCI {
 	return p.Spec.CircleCI
+}
+
+// GetBitbucket returns the Bitbucket-specific configuration for this token.
+func (p *ProvisionTokenV2) GetBitbucket() *ProvisionTokenSpecV2Bitbucket {
+	return p.Spec.Bitbucket
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
