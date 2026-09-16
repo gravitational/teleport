@@ -184,22 +184,6 @@ func (f *azureFetcher[DBType, ListClient]) rewriteDatabases(databases types.Data
 	}
 }
 
-// getSubscriptions returns the subscriptions that this fetcher is configured to query.
-// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
-// in order to discover and query new subscriptions.
-// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
-func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context) ([]string, error) {
-	if f.cfg.Subscription != types.Wildcard {
-		return []string{f.cfg.Subscription}, nil
-	}
-	client, err := f.cfg.AzureClients.GetSubscriptionClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subIDs, err := client.ListSubscriptionIDs(ctx)
-	return subIDs, trace.Wrap(err)
-}
-
 // getDBServersInSubscription fetches Azure DB servers within a given subscription.
 func (f *azureFetcher[DBType, ListClient]) getDBServersInSubscription(ctx context.Context, subID string) ([]DBType, error) {
 	client, err := f.GetListClient(ctx, &f.cfg, subID)
@@ -217,7 +201,7 @@ func (f *azureFetcher[DBType, ListClient]) getDBServersInSubscription(ctx contex
 // getAllDBServers fetches Azure DB servers from all subscriptions that this fetcher is configured to query.
 func (f *azureFetcher[DBType, ListClient]) getAllDBServers(ctx context.Context) ([]DBType, error) {
 	var result []DBType
-	subIDs, err := f.getSubscriptions(ctx)
+	subIDs, err := azure.ExpandSubscriptionIDs(ctx, f.cfg.AzureClients, []string{f.cfg.Subscription})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -377,7 +377,7 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	// If any are scanning, we set SyncEnd to nil after all iterations.
 	// TODO (avatus) might need to make this a bit more scalable in the
 	// future if we have a bunch of types but this is ok for now
-	var ec2Scanning, rdsScanning, eksScanning, azureVMScanning bool
+	var ec2Scanning, rdsScanning, eksScanning, azureVMScanning, azureAKSScanning bool
 
 	for cfg, err := range allDiscoveryConfigs(ctx, req.discoveryConfigLister) {
 		if err != nil {
@@ -393,11 +393,13 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		rdsMatchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName())
 		eksMatchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName())
 		azureVMMatchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName())
+		azureAKSMatchers := rulesWithIntegration(cfg, types.AzureMatcherKubernetes, req.integration.GetName())
 
 		ret.AWSEC2.RulesCount += ec2Matchers
 		ret.AWSRDS.RulesCount += rdsMatchers
 		ret.AWSEKS.RulesCount += eksMatchers
 		ret.AzureVM.RulesCount += azureVMMatchers
+		ret.AzureAKS.RulesCount += azureAKSMatchers
 
 		if ec2Matchers != 0 {
 			ec2Scanning = mergeResourceTypeSummary(&ret.AWSEC2, summary.summary.GetAwsEc2(), summary.pollInterval) || ec2Scanning
@@ -410,6 +412,9 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 		if azureVMMatchers != 0 {
 			azureVMScanning = mergeResourceTypeSummary(&ret.AzureVM, summary.summary.GetAzureVms(), summary.pollInterval) || azureVMScanning
+		}
+		if azureAKSMatchers != 0 {
+			azureAKSScanning = mergeResourceTypeSummary(&ret.AzureAKS, summary.summary.GetAzureAks(), summary.pollInterval) || azureAKSScanning
 		}
 	}
 
@@ -425,6 +430,9 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 	if azureVMScanning {
 		ret.AzureVM.SyncEnd = nil
+	}
+	if azureAKSScanning {
+		ret.AzureAKS.SyncEnd = nil
 	}
 
 	switch req.integration.GetSubKind() {
@@ -503,6 +511,7 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEks)
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsRds)
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureVms)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureAks)
 		}
 	}
 

@@ -20,10 +20,15 @@ package azure
 
 import (
 	"context"
+	"slices"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ARMSubscriptions provides an interface for armsubscription.SubscriptionsClient.
@@ -36,16 +41,35 @@ var _ ARMSubscriptions = (*armsubscription.SubscriptionsClient)(nil)
 
 // SubscriptionClient wraps the Azure SubscriptionsAPI to fetch subscription IDs.
 type SubscriptionClient struct {
-	api ARMSubscriptions
+	api   ARMSubscriptions
+	cache *utils.FnCache
 }
 
 // NewSubscriptionClient returns a SubscriptionsClient.
-func NewSubscriptionClient(api ARMSubscriptions) *SubscriptionClient {
-	return &SubscriptionClient{api: api}
+func NewSubscriptionClient(api ARMSubscriptions) (*SubscriptionClient, error) {
+	azureSubscriptionCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		// Making an API call to list subscriptions at most once per
+		// minute is fine and limits the delay before changes to Azure
+		// permissions or subscriptions are seen by discovery services.
+		TTL: time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &SubscriptionClient{
+		api:   api,
+		cache: azureSubscriptionCache,
+	}, nil
 }
 
 // ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
 func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
+	ids, err := utils.FnCacheGet(ctx, c.cache, struct{}{}, c.listSubscriptionIDsWithoutCache)
+	return slices.Clone(ids), trace.Wrap(err)
+}
+
+func (c *SubscriptionClient) listSubscriptionIDsWithoutCache(ctx context.Context) ([]string, error) {
 	pagerOpts := &armsubscription.SubscriptionsClientListOptions{}
 	pager := c.api.NewListPager(pagerOpts)
 	subIDs := []string{}
@@ -75,4 +99,20 @@ func isValidSubscription(subscription *armsubscription.Subscription) bool {
 	//
 	// https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/subscription-states
 	return *subscription.State != armsubscription.SubscriptionStateDeleted
+}
+
+// ExpandSubscriptionIDs expands the provided subscription IDs.
+// If the list contains a wildcard, it will fetch all accessible subscription IDs from Azure.
+func ExpandSubscriptionIDs(ctx context.Context, azureClients Clients, subs []string) ([]string, error) {
+	if !slices.Contains(subs, types.Wildcard) {
+		return subs, nil
+	}
+
+	subscriptionsClient, err := azureClients.GetSubscriptionClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subscriptionIds, err := subscriptionsClient.ListSubscriptionIDs(ctx)
+	return subscriptionIds, trace.Wrap(err)
 }
