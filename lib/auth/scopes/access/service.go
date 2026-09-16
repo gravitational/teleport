@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -179,7 +180,7 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 	// perform an early check for root scope delete permission to allow us to short-circuit
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting roles that are so malformed that they cannot be read.
-	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+	if err := authzContext.CheckerContext.Decision(ctx, apiscopes.Root, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, scopedaccess.Delete)
 	}); err == nil {
 		return s.cfg.Writer.DeleteScopedRole(ctx, req)
@@ -234,7 +235,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// perform an early check for root scope delete permission to allow us to short-circuit
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting assignments that are so malformed that they cannot be read.
-	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+	if err := authzContext.CheckerContext.Decision(ctx, apiscopes.Root, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, scopedaccess.Delete)
 	}); err == nil {
 		return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)

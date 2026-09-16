@@ -25,11 +25,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/join/provision"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // JoinState is a signed JWT stored on joining clients alongside their usual

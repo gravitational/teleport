@@ -24,6 +24,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -75,7 +76,7 @@ func (b *WorkloadIdentityService) CreateWorkloadIdentity(
 func (b *WorkloadIdentityService) GetWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	resource, err := b.service.GetResource(ctx, scopes.QualifiedName{
+	resource, err := b.service.GetResource(ctx, apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	})
@@ -106,7 +107,7 @@ func (b *WorkloadIdentityService) RangeWorkloadIdentities(
 func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
 	ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest,
 ) error {
-	return trace.Wrap(b.service.DeleteResource(ctx, scopes.QualifiedName{
+	return trace.Wrap(b.service.DeleteResource(ctx, apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}))
@@ -165,7 +166,7 @@ func (b *WorkloadIdentityService) AppendPutWorkloadIdentityActions(
 // write to delete a WorkloadIdentity given its scope-qualified name.
 func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
 	actions []backend.ConditionalAction,
-	name scopes.QualifiedName,
+	name apiscopes.QualifiedName,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
 	key, err := b.service.BackendKey(name)
@@ -191,12 +192,12 @@ func workloadIdentityScopedWatchPrefix() backend.Key {
 // WorkloadIdentity from its backend key. It handles both the unscoped key
 // range (<workload_identity>/<name>) and the scope-namespaced range
 // (<scoped>/<workload_identity>/<encoded-scope>/<name>).
-func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+func workloadIdentityNameFromKey(key backend.Key) (apiscopes.QualifiedName, error) {
 	switch {
 	case key.HasPrefix(workloadIdentityScopedWatchPrefix()):
 		components := key.TrimPrefix(workloadIdentityScopedWatchPrefix()).Components()
 		if len(components) != 2 {
-			return scopes.QualifiedName{}, trace.NotFound(
+			return apiscopes.QualifiedName{}, trace.NotFound(
 				"expected 2 components, got %d parsing backend key %v",
 				len(components),
 				key.String(),
@@ -205,26 +206,26 @@ func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) 
 		encodedScope, name := components[0], components[1]
 		scope, err := scopes.DecodeFromKey(encodedScope)
 		if err != nil {
-			return scopes.QualifiedName{}, trace.Wrap(err)
+			return apiscopes.QualifiedName{}, trace.Wrap(err)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Scope: scope,
 			Name:  name,
 		}, nil
 	case key.HasPrefix(workloadIdentityUnscopedWatchPrefix()):
 		components := key.TrimPrefix(workloadIdentityUnscopedWatchPrefix()).Components()
 		if len(components) != 1 {
-			return scopes.QualifiedName{}, trace.NotFound(
+			return apiscopes.QualifiedName{}, trace.NotFound(
 				"expected 1 component, got %d parsing backend key %v",
 				len(components),
 				key.String(),
 			)
 		}
-		return scopes.QualifiedName{
+		return apiscopes.QualifiedName{
 			Name: components[0],
 		}, nil
 	default:
-		return scopes.QualifiedName{}, trace.NotFound(
+		return apiscopes.QualifiedName{}, trace.NotFound(
 			"unexpected prefix parsing backend key %v", key.String(),
 		)
 	}
@@ -288,7 +289,7 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 		// A failure drops just this event: the watcher logs it and stays
 		// healthy.
 		if scope := resource.GetScope(); scope != "" {
-			if err := scopes.WeakValidate(scope); err != nil {
+			if err := apiscopes.WeakValidate(scope); err != nil {
 				return nil, trace.Wrap(err, "validating scope of workload identity %q from event", resource.GetMetadata().GetName())
 			}
 		}

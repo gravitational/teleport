@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -201,7 +202,7 @@ func (s *ScopeAwareServiceWrapper[T]) WithScopePrefix(scope string) (*ServiceWra
 //
 // This may be appropriate for dependent resources keyed by a unique scoped
 // resource, i.e. the instances of a scoped bot.
-func (s *ScopeAwareServiceWrapper[T]) WithScopedResourcePrefix(scopedName scopes.QualifiedName) (*ServiceWrapper[T], error) {
+func (s *ScopeAwareServiceWrapper[T]) WithScopedResourcePrefix(scopedName apiscopes.QualifiedName) (*ServiceWrapper[T], error) {
 	service, err := s.WithScopePrefix(scopedName.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -232,14 +233,14 @@ func (s *ScopeAwareServiceWrapper[T]) ConditionalUpdateResource(ctx context.Cont
 
 // GetResource returns the resource for the given scope-qualified name. An empty
 // scope reads from the unscoped key range.
-func (s *ScopeAwareServiceWrapper[T]) GetResource(ctx context.Context, name scopes.QualifiedName) (T, error) {
+func (s *ScopeAwareServiceWrapper[T]) GetResource(ctx context.Context, name apiscopes.QualifiedName) (T, error) {
 	adapter, err := s.service.GetResource(ctx, name)
 	return adapter.resource, trace.Wrap(err)
 }
 
 // DeleteResource deletes the resource for the given scope-qualified name. An
 // empty scope deletes from the unscoped key range.
-func (s *ScopeAwareServiceWrapper[T]) DeleteResource(ctx context.Context, name scopes.QualifiedName) error {
+func (s *ScopeAwareServiceWrapper[T]) DeleteResource(ctx context.Context, name apiscopes.QualifiedName) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
@@ -305,7 +306,7 @@ func (s *ScopeAwareServiceWrapper[T]) MakeBackendItem(resource T) (backend.Item,
 // BackendKey returns the backend.Key for the resource with the given
 // scope-qualified name, within the unscoped or scope-namespaced range according
 // to its scope.
-func (s *ScopeAwareServiceWrapper[T]) BackendKey(name scopes.QualifiedName) (backend.Key, error) {
+func (s *ScopeAwareServiceWrapper[T]) BackendKey(name apiscopes.QualifiedName) (backend.Key, error) {
 	svc, err := s.service.WithScopePrefix(name.Scope)
 	if err != nil {
 		return backend.Key{}, trace.Wrap(err)

@@ -35,10 +35,10 @@ import (
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )

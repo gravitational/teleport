@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/sortmap"
 )
@@ -166,7 +167,7 @@ func (c *Cache[T, K]) Get(sk ScopedKey[K]) (T, bool) {
 
 	// navigate to the node for the requested scope.
 	current := c.root
-	for segment := range scopes.DescendingSegments(sk.Scope) {
+	for segment := range apiscopes.DescendingSegments(sk.Scope) {
 		var ok bool
 		current, ok = current.children.Get(segment)
 		if !ok {
@@ -203,7 +204,7 @@ func (c *Cache[T, K]) ResourcesMatchingScopeFilter(filter *scopesv1.Filter, opts
 	switch filter.GetMode() {
 	case scopesv1.Mode_MODE_UNSPECIFIED, scopesv1.Mode_MODE_ALL:
 		// wildcard: yield everything (an exhaustive iteration from root).
-		return c.ScopeAndDescendants(scopes.Root, opts...), nil
+		return c.ScopeAndDescendants(apiscopes.Root, opts...), nil
 	case scopesv1.Mode_MODE_EXACT:
 		return c.ExactScope(scope, opts...), nil
 	case scopesv1.Mode_MODE_DESCENDANTS:
@@ -245,7 +246,7 @@ func (c *Cache[T, K]) ExactScope(scope string, opts ...Option[T, K]) iter.Seq[Sc
 		descender := newDescender(options.cursor)
 		defer descender.Stop()
 
-		for segment := range scopes.DescendingSegments(scope) {
+		for segment := range apiscopes.DescendingSegments(scope) {
 			// get next scope if it exists
 			var ok bool
 			current, ok = current.children.Get(segment)
@@ -294,7 +295,7 @@ func (c *Cache[T, K]) ScopeAndAncestors(scope string, opts ...Option[T, K]) iter
 		descender := newDescender(options.cursor)
 		defer descender.Stop()
 
-		for segment := range scopes.DescendingSegments(scope) {
+		for segment := range apiscopes.DescendingSegments(scope) {
 			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 				return
 			}
@@ -346,7 +347,7 @@ func (c *Cache[T, K]) ScopeAndDescendants(scope string, opts ...Option[T, K]) it
 		descender := newDescender(options.cursor)
 		defer descender.Stop()
 
-		for segment := range scopes.DescendingSegments(scope) {
+		for segment := range apiscopes.DescendingSegments(scope) {
 			// get next scope if it exists
 			var ok bool
 			current, ok = current.children.Get(segment)
@@ -399,7 +400,7 @@ func (c *Cache[T, K]) ScopeAndRelatives(scope string, opts ...Option[T, K]) iter
 		descender := newDescender(options.cursor)
 		defer descender.Stop()
 
-		for segment := range scopes.DescendingSegments(scope) {
+		for segment := range apiscopes.DescendingSegments(scope) {
 			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 				return
 			}
@@ -478,7 +479,7 @@ func (c *Cache[T, K]) Put(value T) {
 
 	// find the node for this scope
 	current := c.root
-	for segment := range scopes.DescendingSegments(scope) {
+	for segment := range apiscopes.DescendingSegments(scope) {
 		current = current.children.GetOrCreate(segment, newNode[K, T])
 	}
 
@@ -497,7 +498,7 @@ func (c *Cache[T, K]) Del(sk ScopedKey[K]) {
 
 	// navigate to the node for the requested scope.
 	current := c.root
-	for segment := range scopes.DescendingSegments(sk.Scope) {
+	for segment := range apiscopes.DescendingSegments(sk.Scope) {
 		var ok bool
 		current, ok = current.children.Get(segment)
 		if !ok {
@@ -529,7 +530,7 @@ type ScopedItems[T any] struct {
 // value is lazily constructed. Note that it is theoretically possible for the returned value to be
 // different than the scope value of any particular item in the iterator.
 func (s *ScopedItems[T]) Scope() string {
-	return scopes.Join(s.segments...)
+	return apiscopes.Join(s.segments...)
 }
 
 // Items returns an iterator over the items within the associated scope. Note that within an iterator of
@@ -668,7 +669,7 @@ func newDescender[K cmp.Ordered](cursor Cursor[K]) descender[K] {
 		return descender[K]{}
 	}
 
-	next, stop := iter.Pull(scopes.DescendingSegments(cursor.Scope))
+	next, stop := iter.Pull(apiscopes.DescendingSegments(cursor.Scope))
 
 	segment, descending := next()
 

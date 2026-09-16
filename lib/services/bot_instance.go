@@ -26,6 +26,7 @@ import (
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -71,7 +72,7 @@ type BotInstance interface {
 type PatchBotInstanceOpts struct {
 	// Bot is the scope-qualified name of the bot that owns the instance. The
 	// scope must be empty if the bot is unscoped.
-	Bot scopes.QualifiedName
+	Bot apiscopes.QualifiedName
 	// InstanceID is the ID of the instance to patch.
 	InstanceID string
 	// UpdateFn is applied to the fetched instance to produce the instance to
@@ -266,7 +267,7 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // keeps the two apart and two different scopes cannot yield the same name. Scoped bots are
 // reconstructed from User labels rather than by parsing this name, so it serves
 // only as an identity key.
-func BotResourceName(bot scopes.QualifiedName) (string, error) {
+func BotResourceName(bot apiscopes.QualifiedName) (string, error) {
 	name := bot.Name
 	if bot.Scope != "" {
 		encodedScope, err := scopes.EncodeForKey(bot.Scope)

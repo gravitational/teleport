@@ -20,7 +20,7 @@ import (
 	"context"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 // ScopedTokenService handles CRUD operations for the ScopedToken resource.

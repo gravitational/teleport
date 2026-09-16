@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1131,8 +1132,8 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 
 	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
-		if nodeScope != agentScope {
-			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
+		if apiscopes.Compare(nodeScope, agentScope) != apiscopes.Equivalent {
+			return nil, trace.AccessDenied("node scope %+q does not match agent identity scope %+q", nodeScope, agentScope)
 		}
 	}
 
@@ -1508,7 +1509,7 @@ func (a *ScopedServerWithRoles) authorizeWatchKindCore(ctx context.Context, kind
 		if _, ok := a.scopedContext.UnscopedContext(); !ok {
 			return filter, trace.Wrap(a.authorizeUnscopedWatchKindException(ctx, kind))
 		}
-		decisionScope = scopes.Unscoped
+		decisionScope = apiscopes.Unscoped
 	case scopesv1.Mode_MODE_ANCESTORS, scopesv1.Mode_MODE_RELATIVES:
 		// modes that "reach up" the scope hierarchy are only permitted for specific kinds.
 		// NOTE: per the scoped security model, it would be permissible to allow unscoped callers to use these
@@ -1517,7 +1518,7 @@ func (a *ScopedServerWithRoles) authorizeWatchKindCore(ctx context.Context, kind
 		if _, ok := a.scopedContext.UnscopedContext(); !ok {
 			return filter, trace.Wrap(a.authorizeAncestralWatchException(ctx, kind, filter))
 		}
-		decisionScope = scopes.Unscoped
+		decisionScope = apiscopes.Unscoped
 	default:
 		return nil, trace.BadParameter("cannot watch kind %q with unknown mode %v", kind.Kind, filter.GetMode())
 	}
@@ -2666,7 +2667,7 @@ func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) err
 		return trace.AccessDenied("scoped resource checker only supports servers")
 	}
 
-	serverScope := cmp.Or(server.Scope, scopes.Root)
+	serverScope := cmp.Or(server.Scope, apiscopes.Root)
 
 	err := c.scopedContext.CheckerContext.Decision(c.ctx, serverScope,
 		func(checker *services.ScopedAccessChecker) error {
@@ -2687,7 +2688,7 @@ func (c *scopedResourceChecker) GetAllowedLoginsForResource(
 		return nil, trace.AccessDenied("scoped resource checker only supports servers")
 	}
 
-	serverScope := cmp.Or(server.Scope, scopes.Root)
+	serverScope := cmp.Or(server.Scope, apiscopes.Root)
 
 	var logins []string
 	for checker, err := range c.scopedContext.CheckerContext.CheckersForResourceScope(c.ctx, serverScope) {
@@ -7217,7 +7218,7 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) er
 
 func (a *ScopedServerWithRoles) checkAccessToKubeClusterWithVerbs(ctx context.Context, cluster types.KubeCluster, verbs ...scopedaccess.Verb) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), apiscopes.Root), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verbs...); err != nil {
 			return trace.Wrap(err)
 		}
@@ -7914,9 +7915,9 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 	}
 
 	// We check if the scope has changed after the decision so we can provide a useful error message.
-	// We do a naive equality check to cover when both scopes are empty and scopes.Compare for a more complete check
+	// We do a naive equality check to cover when both scopes are empty and apiscopes.Compare for a more complete check
 	// when at least one scope is set.
-	if existing.GetScope() != cluster.GetScope() && scopes.Compare(existing.GetScope(), cluster.GetScope()) != scopes.Equivalent {
+	if existing.GetScope() != cluster.GetScope() && apiscopes.Compare(existing.GetScope(), cluster.GetScope()) != apiscopes.Equivalent {
 		return trace.BadParameter("scope of existing kubernetes cluster cannot be changed")
 	}
 

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -65,9 +66,9 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	}
 
 	for i, rule := range kube.GetAllow() {
-		serviceAccountSet := rule.ServiceAccount != ""
-		serviceAccountNameSet := rule.ServiceAccountName != ""
-		serviceAccountNamespaceSet := rule.ServiceAccountNamespace != ""
+		serviceAccountSet := rule.GetServiceAccount() != ""
+		serviceAccountNameSet := rule.GetServiceAccountName() != ""
+		serviceAccountNamespaceSet := rule.GetServiceAccountNamespace() != ""
 
 		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
 			return trace.BadParameter(
@@ -77,12 +78,12 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 		}
 
 		if serviceAccountSet {
-			parts := strings.Split(rule.ServiceAccount, ":")
+			parts := strings.Split(rule.GetServiceAccount(), ":")
 			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 				return trace.BadParameter(
 					"allow[%d].service_account should be in format \"namespace:service_account\", got %q instead",
 					i,
-					rule.ServiceAccount,
+					rule.GetServiceAccount(),
 				)
 			}
 		}
@@ -561,7 +562,7 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	bot, err := apiscopes.ParseQualifiedName(spec.GetBot())
 	if err != nil {
 		return trace.Wrap(err, "validating scoped token bot")
 	}
@@ -578,15 +579,15 @@ func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRole
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
+	if !apiscopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
 		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
-	if spec.AssignedScope != "" {
+	if spec.GetAssignedScope() != "" {
 		return trace.BadParameter("scoped tokens for bots cannot have an assigned_scope")
 	}
 
-	if spec.JoinMethod == string(types.JoinMethodToken) {
+	if spec.GetJoinMethod() == string(types.JoinMethodToken) {
 		return trace.BadParameter("scoped bot tokens do not support the `token` join method, `bound_keypair` should be used instead")
 	}
 
@@ -606,11 +607,11 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("usage_mode cannot be 'bot' for a non-bot token")
 	}
 
-	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
+	if err := apiscopes.StrongValidate(spec.GetAssignedScope()); err != nil {
 		return trace.Wrap(err, "validating scoped token assigned scope")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
+	if !apiscopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetAssignedScope()) {
 		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
@@ -632,7 +633,7 @@ func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, sco
 	if spec.GetBot() == "" {
 		return "", "", trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
-	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	bot, err := apiscopes.ParseQualifiedName(spec.GetBot())
 	if err != nil {
 		return "", "", trace.Wrap(err, "validating scoped token bot")
 	}
@@ -658,7 +659,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	if expected, actual := "", token.GetSubKind(); expected != actual {
 		return trace.BadParameter("expected sub_kind %v, got %q", expected, actual)
 	}
-	if err := scopes.StrongValidateResourceName(token.GetMetadata().GetName()); err != nil {
+	if err := apiscopes.StrongValidateResourceName(token.GetMetadata().GetName()); err != nil {
 		return trace.Wrap(err, "validating scoped token name")
 	}
 
@@ -671,7 +672,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("spec must not be nil")
 	}
 
-	if err := scopes.StrongValidate(token.GetScope()); err != nil {
+	if err := apiscopes.StrongValidate(token.GetScope()); err != nil {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
@@ -688,11 +689,11 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("spec.usage_mode: %q is not one of [%s]", spec.GetUsageMode(), strings.Join(allowedUsageModes, ", "))
 	}
 
-	if len(spec.Roles) == 0 {
+	if len(spec.GetRoles()) == 0 {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
 
-	roles, err := types.NewTeleportRoles(spec.Roles)
+	roles, err := types.NewTeleportRoles(spec.GetRoles())
 	if err != nil {
 		return trace.Wrap(err, "validating scoped token roles")
 	}
@@ -731,7 +732,7 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("missing scoped token")
 	}
 
-	if err := scopes.WeakValidate(token.GetScope()); err != nil {
+	if err := apiscopes.WeakValidate(token.GetScope()); err != nil {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
@@ -744,7 +745,7 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err)
 	}
 	if !isBotToken {
-		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
+		if err := apiscopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
 			return trace.Wrap(err, "validating scoped token assigned scope")
 		}
 	}

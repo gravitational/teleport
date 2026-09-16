@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
@@ -198,7 +199,7 @@ func (c *AssignmentCache) Put(assignment *scopedaccessv1.ScopedRoleAssignment) e
 }
 
 // Delete removes an assignment from the cache by its scope-qualified name and sub-kind.
-func (c *AssignmentCache) Delete(assignment scopes.QualifiedName, subKind string) {
+func (c *AssignmentCache) Delete(assignment apiscopes.QualifiedName, subKind string) {
 	c.cache.Del(cache.ScopedKey[string]{
 		Scope: assignment.Scope,
 		Key: assignmentKey{
