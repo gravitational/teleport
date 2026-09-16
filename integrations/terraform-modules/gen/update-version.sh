@@ -29,7 +29,7 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 modules=(
-    "teleport/container-service/aws"
+    "teleport/agent/aws"
     "teleport/db-agent/aws"
 )
 

@@ -1,8 +1,27 @@
-## Teleport ECS Deployment
+## Teleport Agent Services Deployment on AWS ECS
 
-This module deploys a Teleport service to AWS ECS.
+This module deploys one or more Teleport services to AWS as an ECS task.
+It is not intended to deploy a Teleport cluster or its Auth Service and Proxy
+Service control plane. This module does not provision the persistent backend and
+audit event storage, load balancing, DNS, or TLS certificates required to
+operate a self-hosted Teleport cluster.
+
+Any of the following services may be registered with an existing Teleport
+cluster using this module:
+- Teleport Application Service
+- Teleport Database Service
+- Teleport Discovery Service
+- Teleport Jamf Service
+- Teleport Kubernetes Service
 
 ## Prerequisites
+- An existing Teleport cluster with Auth Service and Proxy Service
+- A reachable Teleport Proxy Service endpoint
+<!-- lint ignore absolute-docs-links -->
+- A supported join method and credentials that the agent can use to join the
+  cluster. The example creates an IAM join token using the Teleport Terraform
+  provider. See the [Join Methods and Token Reference](https://goteleport.com/docs/reference/deployment/join-methods/)
+  for supported join methods and creating tokens.
 <!-- lint ignore absolute-docs-links -->
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
@@ -113,9 +132,8 @@ No modules.
 | ecs\_task\_cloudwatch\_log\_group\_arn | ARN of the CloudWatch log group for the Teleport ECS task. |
 | ecs\_task\_cloudwatch\_log\_group\_name | Name of the CloudWatch log group for the Teleport ECS task. |
 | ecs\_task\_definition\_arn | ARN of the Teleport ECS task definition. |
-| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport agent ECS task. |
-| ecs\_task\_role\_name | The name of the task IAM role for the Teleport agent ECS task. |
-| security\_group\_id | Security group ID created for the Teleport agent ECS service. |
-| teleport\_config | Teleport configuration used by the ECS task. |
+| ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport ECS task. |
+| ecs\_task\_role\_name | The name of the task IAM role for the Teleport ECS task. |
+| security\_group\_id | Security group ID created for the Teleport ECS service. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
 <!-- END_TF_DOCS -->
