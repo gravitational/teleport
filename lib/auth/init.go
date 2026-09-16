@@ -426,6 +426,12 @@ type InitConfig struct {
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
 
+	// ReleaseCtxTimeout overrides the timeout for releasing the cluster
+	// initialization lock.
+	// If not set, default is applied. See lib/backend/lock.go for details.
+	// This setting is particularly useful in test environments.
+	ReleaseCtxTimeout time.Duration
+
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
 
@@ -529,6 +535,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
+			ReleaseCtxTimeout:   cfg.ReleaseCtxTimeout,
 		}, func(ctx context.Context) error {
 			return trace.Wrap(initCluster(ctx, cfg, asrv))
 		}); err != nil {

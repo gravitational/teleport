@@ -347,6 +347,10 @@ type ConfigTesting struct {
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
 
+	// ReleaseCtxTimeout overrides the timeout for releasing locks used during
+	// Auth Server initialization.
+	ReleaseCtxTimeout time.Duration
+
 	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
 	TriggerOktaSyncC chan struct{}
 }

@@ -2348,6 +2348,7 @@ func (process *TeleportProcess) initAuthService() error {
 				TTL:                time.Second * 30,
 				LockNameComponents: []string{"recording_encryption"},
 			},
+			ReleaseCtxTimeout: cfg.Testing.ReleaseCtxTimeout,
 		},
 		InitialSessionRecordingConfig: cfg.Auth.SessionRecordingConfig,
 	})
@@ -2550,6 +2551,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Tracer:                      process.TracingProvider.Tracer(teleport.ComponentAuth),
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
+			ReleaseCtxTimeout:           cfg.Testing.ReleaseCtxTimeout,
 			SessionSummarizerProvider:   sessionSummarizerProvider,
 			RecordingMetadataProvider:   recordingMetadataProvider,
 			InsecureMode:                cfg.InsecureMode,
