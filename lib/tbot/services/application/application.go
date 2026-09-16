@@ -60,6 +60,22 @@ func validateAppName(name string, scoped bool) error {
 	return nil
 }
 
+func getAppByPublicAddrPrefix(
+	ctx context.Context,
+	client apiclient.GetResourcesClient,
+	prefix string,
+) (types.Application, error) {
+	ctx, span := tracer.Start(ctx, "getAppByPublicAddrPrefix")
+	defer span.End()
+
+	apps, err := getMatchingApps(ctx, client, fmt.Sprintf(`hasPrefix(resource.spec.public_addr, "%s.")`, prefix))
+	if err != nil {
+		return nil, trace.Wrap(err, `public_addr starting with: "%s."`, prefix)
+	}
+
+	return apps[0], nil
+}
+
 // getApp finds the first matching app for the scope-qualified name
 //
 // Includes a predicate filter on resource.scope which is only available in v19+.
