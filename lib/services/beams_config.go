@@ -40,6 +40,9 @@ type BeamsConfigService interface {
 	// UpdateBeamsConfig updates an existing BeamsConfig resource using conditional update.
 	UpdateBeamsConfig(ctx context.Context, config *beamsv1.BeamsConfig) (*beamsv1.BeamsConfig, error)
 
+	// UpsertBeamsConfig creates or replaces the BeamsConfig singleton.
+	UpsertBeamsConfig(ctx context.Context, config *beamsv1.BeamsConfig) (*beamsv1.BeamsConfig, error)
+
 	// DeleteBeamsConfig deletes the singleton BeamsConfig resource.
 	DeleteBeamsConfig(ctx context.Context) error
 }

@@ -41,14 +41,26 @@ func getBeamsConfig(ctx context.Context, client *authclient.Client, ref services
 }
 
 func createBeamsConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	if opts.Force {
-		return trace.Wrap(updateBeamsConfig(ctx, client, raw, opts))
-	}
-
 	config, err := services.UnmarshalProtoResource[*beamsv1.BeamsConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if opts.Force {
+		_, err := client.BeamsConfigServiceClient().UpsertBeamsConfig(ctx, beamsv1.UpsertBeamsConfigRequest_builder{
+			BeamsConfig: config,
+		}.Build())
+		// TODO(greedy52) DELETE IN v20 remove fallback to update once all auth servers support UpsertBeamsConfig.
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(updateBeamsConfig(ctx, client, raw, opts))
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println("beams_config has been created")
+		return nil
+	}
+
 	if _, err := client.BeamsConfigServiceClient().CreateBeamsConfig(ctx, beamsv1.CreateBeamsConfigRequest_builder{
 		BeamsConfig: config,
 	}.Build()); err != nil {

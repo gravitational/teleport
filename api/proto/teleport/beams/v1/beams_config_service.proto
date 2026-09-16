@@ -32,6 +32,9 @@ service BeamsConfigService {
   // UpdateBeamsConfig updates an existing BeamsConfig singleton.
   rpc UpdateBeamsConfig(UpdateBeamsConfigRequest) returns (UpdateBeamsConfigResponse);
 
+  // UpsertBeamsConfig creates or replaces the BeamsConfig singleton.
+  rpc UpsertBeamsConfig(UpsertBeamsConfigRequest) returns (UpsertBeamsConfigResponse);
+
   // DeleteBeamsConfig deletes the BeamsConfig singleton.
   rpc DeleteBeamsConfig(DeleteBeamsConfigRequest) returns (DeleteBeamsConfigResponse);
 }
@@ -61,6 +64,16 @@ message UpdateBeamsConfigRequest {
 
 // Response for UpdateBeamsConfig.
 message UpdateBeamsConfigResponse {
+  BeamsConfig beams_config = 1;
+}
+
+// Request for UpsertBeamsConfig.
+message UpsertBeamsConfigRequest {
+  BeamsConfig beams_config = 1;
+}
+
+// Response for UpsertBeamsConfig.
+message UpsertBeamsConfigResponse {
   BeamsConfig beams_config = 1;
 }
 

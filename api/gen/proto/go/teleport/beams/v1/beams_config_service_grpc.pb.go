@@ -36,6 +36,7 @@ const (
 	BeamsConfigService_GetBeamsConfig_FullMethodName    = "/teleport.beams.v1.BeamsConfigService/GetBeamsConfig"
 	BeamsConfigService_CreateBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/CreateBeamsConfig"
 	BeamsConfigService_UpdateBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/UpdateBeamsConfig"
+	BeamsConfigService_UpsertBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/UpsertBeamsConfig"
 	BeamsConfigService_DeleteBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/DeleteBeamsConfig"
 )
 
@@ -52,6 +53,8 @@ type BeamsConfigServiceClient interface {
 	CreateBeamsConfig(ctx context.Context, in *CreateBeamsConfigRequest, opts ...grpc.CallOption) (*CreateBeamsConfigResponse, error)
 	// UpdateBeamsConfig updates an existing BeamsConfig singleton.
 	UpdateBeamsConfig(ctx context.Context, in *UpdateBeamsConfigRequest, opts ...grpc.CallOption) (*UpdateBeamsConfigResponse, error)
+	// UpsertBeamsConfig creates or replaces the BeamsConfig singleton.
+	UpsertBeamsConfig(ctx context.Context, in *UpsertBeamsConfigRequest, opts ...grpc.CallOption) (*UpsertBeamsConfigResponse, error)
 	// DeleteBeamsConfig deletes the BeamsConfig singleton.
 	DeleteBeamsConfig(ctx context.Context, in *DeleteBeamsConfigRequest, opts ...grpc.CallOption) (*DeleteBeamsConfigResponse, error)
 }
@@ -94,6 +97,16 @@ func (c *beamsConfigServiceClient) UpdateBeamsConfig(ctx context.Context, in *Up
 	return out, nil
 }
 
+func (c *beamsConfigServiceClient) UpsertBeamsConfig(ctx context.Context, in *UpsertBeamsConfigRequest, opts ...grpc.CallOption) (*UpsertBeamsConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertBeamsConfigResponse)
+	err := c.cc.Invoke(ctx, BeamsConfigService_UpsertBeamsConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *beamsConfigServiceClient) DeleteBeamsConfig(ctx context.Context, in *DeleteBeamsConfigRequest, opts ...grpc.CallOption) (*DeleteBeamsConfigResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteBeamsConfigResponse)
@@ -117,6 +130,8 @@ type BeamsConfigServiceServer interface {
 	CreateBeamsConfig(context.Context, *CreateBeamsConfigRequest) (*CreateBeamsConfigResponse, error)
 	// UpdateBeamsConfig updates an existing BeamsConfig singleton.
 	UpdateBeamsConfig(context.Context, *UpdateBeamsConfigRequest) (*UpdateBeamsConfigResponse, error)
+	// UpsertBeamsConfig creates or replaces the BeamsConfig singleton.
+	UpsertBeamsConfig(context.Context, *UpsertBeamsConfigRequest) (*UpsertBeamsConfigResponse, error)
 	// DeleteBeamsConfig deletes the BeamsConfig singleton.
 	DeleteBeamsConfig(context.Context, *DeleteBeamsConfigRequest) (*DeleteBeamsConfigResponse, error)
 	mustEmbedUnimplementedBeamsConfigServiceServer()
@@ -137,6 +152,9 @@ func (UnimplementedBeamsConfigServiceServer) CreateBeamsConfig(context.Context, 
 }
 func (UnimplementedBeamsConfigServiceServer) UpdateBeamsConfig(context.Context, *UpdateBeamsConfigRequest) (*UpdateBeamsConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateBeamsConfig not implemented")
+}
+func (UnimplementedBeamsConfigServiceServer) UpsertBeamsConfig(context.Context, *UpsertBeamsConfigRequest) (*UpsertBeamsConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpsertBeamsConfig not implemented")
 }
 func (UnimplementedBeamsConfigServiceServer) DeleteBeamsConfig(context.Context, *DeleteBeamsConfigRequest) (*DeleteBeamsConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteBeamsConfig not implemented")
@@ -216,6 +234,24 @@ func _BeamsConfigService_UpdateBeamsConfig_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BeamsConfigService_UpsertBeamsConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertBeamsConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamsConfigServiceServer).UpsertBeamsConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamsConfigService_UpsertBeamsConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamsConfigServiceServer).UpsertBeamsConfig(ctx, req.(*UpsertBeamsConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BeamsConfigService_DeleteBeamsConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteBeamsConfigRequest)
 	if err := dec(in); err != nil {
@@ -252,6 +288,10 @@ var BeamsConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateBeamsConfig",
 			Handler:    _BeamsConfigService_UpdateBeamsConfig_Handler,
+		},
+		{
+			MethodName: "UpsertBeamsConfig",
+			Handler:    _BeamsConfigService_UpsertBeamsConfig_Handler,
 		},
 		{
 			MethodName: "DeleteBeamsConfig",
