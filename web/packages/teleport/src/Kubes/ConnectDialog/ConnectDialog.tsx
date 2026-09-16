@@ -39,6 +39,7 @@ function ConnectDialog(props: Props) {
     kubeConnectName,
     clusterId,
     accessRequestId,
+    scope,
   } = props;
 
   const startKubeExecSession = () => {
@@ -85,7 +86,8 @@ function ConnectDialog(props: Props) {
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Log in to Teleport'}
+          {' - Log in to your Teleport cluster'}
+          {scope && ' with a pinned scope'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({
@@ -93,6 +95,7 @@ function ConnectDialog(props: Props) {
               username,
               clusterId,
               accessRequestId,
+              scope,
             })}
           />
         </Box>
@@ -145,6 +148,7 @@ type Props = {
   kubeConnectName: string;
   clusterId: string;
   accessRequestId?: string;
+  scope: string;
 };
 
 const dialogCss = () => `

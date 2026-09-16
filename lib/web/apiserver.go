@@ -3627,8 +3627,10 @@ func makeUnifiedResourceRequest(r *http.Request, scopePin *scopesv1.Pin) (*proto
 		}
 	}
 
-	// include KindSAMLIdPServiceProvider when requesting KindApp
-	if slices.Contains(kinds, types.KindApp) &&
+	// include KindSAMLIdPServiceProvider when requesting KindApp for unscoped
+	// sessions.
+	if scopePin.GetScope() == "" &&
+		slices.Contains(kinds, types.KindApp) &&
 		!slices.Contains(kinds, types.KindSAMLIdPServiceProvider) {
 		kinds = append(kinds, types.KindSAMLIdPServiceProvider)
 	}
@@ -3637,9 +3639,13 @@ func makeUnifiedResourceRequest(r *http.Request, scopePin *scopesv1.Pin) (*proto
 	scopedIdentity := scopePin.GetScope() != ""
 	if len(kinds) == 0 {
 		if scopedIdentity {
-			// TODO(bl-nero): Support more resource kinds when they are supported for
-			// scoped sessions.
-			kinds = []string{types.KindNode}
+			kinds = []string{
+				types.KindApp,
+				types.KindAppServer,
+				types.KindNode,
+				types.KindKubernetesCluster,
+				types.KindKubeServer,
+			}
 		} else {
 			kinds = []string{
 				types.KindApp,

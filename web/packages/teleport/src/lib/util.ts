@@ -34,12 +34,14 @@ export function generateTshLoginCommand({
   clusterId = '',
   username,
   accessRequestId = '',
+  scope = '',
   windowLocation = window.location,
 }: {
   authType: AuthType;
   clusterId?: string;
   username: string;
   accessRequestId?: string;
+  scope?: string;
   /** Allows overwriting `window.location` in tests. */
   windowLocation?: {
     hostname: string;
@@ -50,14 +52,15 @@ export function generateTshLoginCommand({
   const { hostname, port } = windowLocation;
   const host = `${hostname}:${port || '443'}`;
   const requestId = accessRequestId ? ` --request-id=${accessRequestId}` : '';
+  const scopeFlag = scope ? ` --scope=${scope}` : '';
 
   switch (authType) {
     case 'sso':
-      return `tsh login --proxy=${host} ${clusterId}${requestId}`.trim();
+      return `tsh login --proxy=${host} ${clusterId}${requestId}${scopeFlag}`.trim();
     case 'local':
-      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}`.trim();
+      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}${scopeFlag}`.trim();
     case 'passwordless':
-      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}`.trim();
+      return `tsh login --proxy=${host} --auth=${authType} --user=${username} ${clusterId}${requestId}${scopeFlag}`.trim();
     default:
       throw new Error(`auth type ${authType} is not supported`);
   }
