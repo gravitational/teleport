@@ -1,5 +1,5 @@
 ---
-title: "Step 1 - Sign up for Teleport Enterprise Cloud"
+title: "Sign up for Teleport Enterprise Cloud"
 description: "Sign up for Teleport Enterprise Cloud and deploy your hosted cluster."
 tags:
   - get-started
@@ -40,9 +40,11 @@ The signup flow creates a local Teleport user with the following preset roles:
 |`auditor`|View audit events and session recordings|
 
 Since this user has almost total privileges, you should treat this identity as a
-fallback after completing initial setup operations. In Step 3 of the Get Started
-series, we will show you how to set up a more granular authentication and
-role-based access control for day-to-day Teleport usage.
+fallback after completing initial setup operations.
+
+Later in the Get Started series, we will show you how to set up a more granular
+authentication and role-based access control for day-to-day Teleport usage ([Get
+Started with Teleport Access Controls](access.mdx)).
 
 ### Create a backup local user
 
@@ -103,5 +105,5 @@ recourse is to set up a new Teleport Enterprise Cloud account.
 At this point, you've launched your own Teleport Enterprise Cloud cluster and created a local admin user. You can now move on to the next step of enrolling your infrastructure resources.
 
 <div style={{ marginTop: 'var(--m-4)' }}>
-  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Enroll resources <Icon name="arrowRight" inline size="sm"/> </Button>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Get Started Connecting Infrastructure to Teleport <Icon name="arrowRight" inline size="sm"/> </Button>
 </div>
