@@ -43,6 +43,7 @@ struct EnrollDeviceView: View {
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
 		.background(Color.Background.depth3)
+		.onDisappear(perform: viewModel.onDisappear)
 	}
 }
 
@@ -60,22 +61,27 @@ extension EnrollDeviceView {
 
 	var requestNowButton: some View {
 		Button {
-			Task { await viewModel.performDeviceEnrollment() }
+			viewModel.userTappedRequestNowButton()
 		} label: {
 			Group {
-				if viewModel.loadingState.isLoading {
-					Label(
-						"Request in progress",
-						systemImage: "progress.indicator",
-					)
-					.labelStyle(.iconOnly)
-					.symbolEffect(
-						.variableColor.iterative,
-						options: .repeat(.continuous),
-						isActive: true,
-					)
-				} else {
-					Text("Request Now")
+				switch viewModel.loadingState {
+					case .loading, .reloading:
+						Label(
+							"Request in progress",
+							systemImage: "progress.indicator",
+						)
+						.labelStyle(.iconOnly)
+						.symbolEffect(
+							.variableColor.iterative,
+							options: .repeat(.continuous),
+							isActive: true,
+						)
+					case .idle:
+						Text("Request Now")
+					case .failure:
+						Text("Retry")
+					case .success:
+						Text("Done")
 				}
 			}
 			.frame(maxWidth: .infinity)
@@ -92,7 +98,7 @@ extension EnrollDeviceView {
 		}
 		.buttonStyle(.bordered)
 		.controlSize(.large)
-		.disabled(viewModel.loadingState.isLoading)
+		.disabled(!viewModel.loadingState.isLoading)
 	}
 }
 

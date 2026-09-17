@@ -19,45 +19,13 @@ package enroll
 import (
 	"context"
 	"log/slog"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicetrustpublicv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 )
-
-type Client struct {
-	proxyServer string
-	insecure    bool
-}
-
-// NewClient returns a Client configured to dial proxyServer.
-// insecure must be false in release builds of the iOS app; it is intended
-// only for development against local clusters.
-func NewClient(proxyServer string, insecure bool) *Client {
-	return &Client{
-		proxyServer: proxyServer,
-		insecure:    insecure,
-	}
-}
-
-// DeviceCollectedData mirrors the iOS-relevant subset of
-// teleport.devicetrust.v1.DeviceCollectedData. The wrapper is required
-// because gomobile only exports types from the bound package.
-//
-// Fields don't start with an acronym to dodge a gomobile bug
-// (https://github.com/golang/go/issues/32008): VersionOS, not OSVersion.
-type DeviceCollectedData struct {
-	SerialNumber       string
-	ModelIdentifier    string
-	VersionOS          string
-	BuildOS            string
-	SystemSerialNumber string
-}
 
 // DeviceEnrollToken mirrors teleport.devicetrust.v1.DeviceEnrollToken.
 // ExpireTime is dropped because gomobile doesn't support
@@ -108,36 +76,4 @@ func (c *Client) CreatePairedDeviceEnrollToken(pairingToken string, deviceData *
 	return &DeviceEnrollToken{
 		Token: resp.GetDeviceEnrollToken().GetToken(),
 	}, nil
-}
-
-// toPBDeviceData translates DeviceCollectedData into the proto type.
-func toPBDeviceData(d *DeviceCollectedData) (*devicepb.DeviceCollectedData, error) {
-	if d == nil {
-		d = &DeviceCollectedData{}
-	}
-	osType, err := osTypeFromModelIdentifier(d.ModelIdentifier)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return devicepb.DeviceCollectedData_builder{
-		CollectTime:        timestamppb.Now(),
-		OsType:             osType,
-		SerialNumber:       d.SerialNumber,
-		ModelIdentifier:    d.ModelIdentifier,
-		OsVersion:          d.VersionOS,
-		OsBuild:            d.BuildOS,
-		SystemSerialNumber: d.SystemSerialNumber,
-	}.Build(), nil
-}
-
-func osTypeFromModelIdentifier(modelIdentifier string) (devicepb.OSType, error) {
-	switch model := strings.ToLower(modelIdentifier); {
-	case strings.HasPrefix(model, "iphone"):
-		return devicepb.OSType_OS_TYPE_IOS, nil
-	case strings.HasPrefix(model, "ipad"):
-		return devicepb.OSType_OS_TYPE_IPADOS, nil
-	default:
-		return devicepb.OSType_OS_TYPE_UNSPECIFIED,
-			trace.BadParameter("unsupported model identifier %q", modelIdentifier)
-	}
 }

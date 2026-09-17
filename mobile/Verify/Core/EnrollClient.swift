@@ -18,7 +18,7 @@ import Darwin
 import Dependencies
 import DependenciesMacros
 import Enroll
-import Foundation
+public import Foundation
 import Logging
 import SystemClients
 
@@ -31,6 +31,15 @@ public struct EnrollClient: Sendable {
 		_ port: Int,
 		_ pairingToken: String,
 	) async throws -> String
+
+	public var enrollDevice: @Sendable (
+		_ hostName: String,
+		_ port: Int,
+		_ enrollmentToken: String,
+		_ credentialID: String,
+		_ publicKeyDER: Data,
+		_ signChallenge: ChallengeSigner,
+	) async throws -> Void
 }
 
 public enum EnrollClientError: Error, Sendable {
@@ -44,38 +53,68 @@ extension EnrollClient {
 	public static let liveValue = EnrollClient(
 		requestEnrollmentToken: { hostName, port, pairingToken in
 			try await Task.detached(priority: .userInitiated) {
-				let proxyServer = "\(hostName):\(port)"
+				let proxyServer = proxyServerString(hostName: hostName, port: port)
 				guard let client = Enroll.EnrollClient(proxyServer, insecure: false) else {
 					throw EnrollClientError.clientCreationFailed
 				}
-
-				let serialNumber = try getSerialNumber()
-				let collectedData = Enroll.EnrollDeviceCollectedData()
-				collectedData.serialNumber = serialNumber
-				collectedData.systemSerialNumber = serialNumber
-				collectedData.versionOS = getOSVersion()
-				collectedData.modelIdentifier = try getModelIdentifier()
-				collectedData.buildOS = try getOSBuild()
-
-				logger.debug("Collected device information", metadata: [
-					"serialNumber": "\(serialNumber)",
-					"deviceModel": "\(collectedData.modelIdentifier)",
-					"osVersion": "\(collectedData.versionOS)",
-					"osBuild": "\(collectedData.buildOS)",
-				])
 				let token = try client.createPairedDeviceEnrollToken(
 					pairingToken,
-					deviceData: collectedData,
+					deviceData: collectDeviceData(),
 				)
 				return token.token
 			}.value
 		},
+		enrollDevice: { hostName, port, enrollmentToken, credentialID, publicKeyDER, signChallenge in
+			let proxyServer = proxyServerString(hostName: hostName, port: port)
+			guard let client = Enroll.EnrollClient(proxyServer, insecure: false) else {
+				throw EnrollClientError.clientCreationFailed
+			}
+			let operation = try client.newEnrollDeviceOperation(
+				enrollmentToken,
+				deviceData: collectDeviceData(),
+				credentialIdentifier: credentialID,
+				publicKeyDER: publicKeyDER,
+			)
+			defer {
+				do {
+					try operation.close()
+				} catch {
+					logger.warning("Failed to close EnrollDeviceOperation", error: error)
+				}
+			}
+
+			let challenge = try operation.initialize()
+			let signature = try await signChallenge(challenge)
+			try operation.sendChallengeResponse(signature)
+		},
 	)
 }
+
+// MARK: - Supporting Types
+
+public typealias ChallengeSigner = @Sendable (Data) async throws -> Data
 
 // MARK: - Private Helpers
 
 extension EnrollClient {
+	private static func collectDeviceData() throws -> Enroll.EnrollDeviceCollectedData {
+		let serialNumber = try getSerialNumber()
+		let collectedData = Enroll.EnrollDeviceCollectedData()
+		collectedData.serialNumber = serialNumber
+		collectedData.systemSerialNumber = serialNumber
+		collectedData.versionOS = getOSVersion()
+		collectedData.modelIdentifier = try getModelIdentifier()
+		collectedData.buildOS = try getOSBuild()
+
+		logger.debug("Collected device information", metadata: [
+			"serialNumber": "\(serialNumber)",
+			"deviceModel": "\(collectedData.modelIdentifier)",
+			"osVersion": "\(collectedData.versionOS)",
+			"osBuild": "\(collectedData.buildOS)",
+		])
+		return collectedData
+	}
+
 	/// Returns the dotted numeric OS version reported by Foundation, such as `18.5.0`.
 	private static func getOSVersion() -> String {
 		let version = ProcessInfo.processInfo.operatingSystemVersion
@@ -144,5 +183,10 @@ extension EnrollClient {
 			}
 			return String(cString: baseAddress)
 		}
+	}
+
+	/// Joins the hostname and port for the proxy server in the format expected by EnrollClient
+	private static func proxyServerString(hostName: String, port: Int) -> String {
+		"\(hostName):\(port)"
 	}
 }

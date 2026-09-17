@@ -23,7 +23,7 @@ import Foundation
 /// Feature tests should override this dependency directly. They do not need to imitate Keychain or Secure Enclave.
 @DependencyClient
 struct DeviceTrustCredentialClient {
-	/// Enrollment operation: loads the existing credential or creates one only when it is genuinely absent.
+	/// Enrollment operation: loads the existing credential or creates one only when it is absent.
 	var loadOrCreate: @Sendable () throws -> DeviceTrustCredential
 
 	/// Authentication operation: loads the existing credential without ever creating a replacement.

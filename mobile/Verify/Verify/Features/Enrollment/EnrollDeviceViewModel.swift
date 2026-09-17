@@ -28,12 +28,17 @@ class EnrollDeviceViewModel {
 	private let logger = Logger.forType(EnrollDeviceViewModel.self)
 
 	var loadingState: LoadingState<String> = .idle
-	private let deepLink: EnrollMobileDeviceDeepLink
 	let eventStackViewModel = EventStackViewModel<EnrollmentEventID>()
+	private var deviceEnrollmentTask: Task<Void, Never>? = nil
+	private let deepLink: EnrollMobileDeviceDeepLink
 
 	@ObservationIgnored
 	@Dependency(\.enrollClient)
-	private var enrollClient: EnrollClient
+	private var enrollClient
+
+	@ObservationIgnored
+	@Dependency(\.deviceTrustCredentialClient)
+	private var deviceTrustCredentialClient
 
 	@ObservationIgnored
 	@Dependency(\.defaultDatabase)
@@ -53,12 +58,15 @@ class EnrollDeviceViewModel {
 		loadingState = .loading
 		eventStackViewModel.clearAllEvents()
 		do {
+			let credential = try deviceTrustCredentialClient.loadOrCreate()
 			let token = try await requestEnrollmentToken()
-			try await enrollDevice(using: token)
+			try await enrollDevice(token: token, credential: credential)
 			let cluster = try await saveClusterToDatabase()
 			logger.info("Successfully enrolled cluster", metadata: cluster?.logMetadata)
-			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
 			loadingState = .success(token)
+		} catch let cancellationError as CancellationError {
+			logger.warning("Device trust enrollment was cancelled.", error: cancellationError)
+			loadingState = .failure(cancellationError)
 		} catch {
 			logger.error("Failed to enroll in Device Trust", error: error)
 			loadingState = .failure(error)
@@ -71,7 +79,7 @@ class EnrollDeviceViewModel {
 extension EnrollDeviceViewModel {
 	protocol Delegate: AnyObject {
 		func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel)
-		func enrollDeviceViewModelDidEnrollCluster(_ viewModel: EnrollDeviceViewModel)
+		func enrollDeviceViewModelDidRequestDismissal(_ viewModel: EnrollDeviceViewModel)
 	}
 }
 
@@ -89,10 +97,32 @@ extension EnrollDeviceViewModel {
 	}
 }
 
+// MARK: - View Lifecycle
+
+extension EnrollDeviceViewModel {
+	func onDisappear() {
+		deviceEnrollmentTask?.cancel()
+		deviceEnrollmentTask = nil
+	}
+}
+
 // MARK: - User Actions
 
 extension EnrollDeviceViewModel {
+	func userTappedRequestNowButton() {
+		switch loadingState {
+			case .idle:
+				deviceEnrollmentTask = Task { await performDeviceEnrollment() }
+			case .loading, .reloading:
+				break
+			case .failure, .success:
+				delegate?.enrollDeviceViewModelDidRequestDismissal(self)
+		}
+	}
+
 	func userTappedCancel() {
+		deviceEnrollmentTask?.cancel()
+		deviceEnrollmentTask = nil
 		delegate?.enrollDeviceViewModelDidCancelOperation(self)
 	}
 }
@@ -106,6 +136,7 @@ extension EnrollDeviceViewModel {
 				id: .enrollmentTokenRequest,
 				message: "Requesting enrollment token…",
 			)
+			try Task.checkCancellation()
 			let token = try await enrollClient.requestEnrollmentToken(
 				hostName: deepLink.hostname,
 				port: deepLink.port,
@@ -127,24 +158,30 @@ extension EnrollDeviceViewModel {
 		}
 	}
 
-	private func enrollDevice(using enrollmentToken: String) async throws {
-		struct DeviceEnrollmentNotImplemented: Error {}
-
+	private func enrollDevice(token: String, credential: DeviceTrustCredential) async throws {
 		do {
 			eventStackViewModel.addEvent(
 				id: .enrollDeviceRequest,
 				message: "Enrolling in Device Trust…",
 			)
+			try Task.checkCancellation()
 
-			// TODO: With enrollment token in hand, fire off the EnrollDevice RPC
-			throw DeviceEnrollmentNotImplemented()
+			try await enrollClient.enrollDevice(
+				hostName: deepLink.hostname,
+				port: deepLink.port,
+				enrollmentToken: token,
+				credentialID: credential.id,
+				publicKeyDER: credential.publicKeyDER,
+				signChallenge: { [deviceTrustCredentialClient] challenge in
+					try await deviceTrustCredentialClient.signChallenge(challenge: challenge, purpose: .enrollment)
+				},
+			)
 
-			// Leaving this code commented until this function is implemented to silence an unreachable code warning.
-			// eventStackViewModel.updateEvent(
-			// 	id: .enrollDeviceRequest,
-			// 	message: "Device enrolled in Device Trust",
-			// 	status: .success
-			// )
+			eventStackViewModel.updateEvent(
+				id: .enrollDeviceRequest,
+				message: "Device enrolled in Device Trust",
+				status: .success,
+			)
 		} catch {
 			eventStackViewModel.updateEvent(
 				id: .enrollDeviceRequest,
@@ -161,6 +198,7 @@ extension EnrollDeviceViewModel {
 				id: .saveClusterToDatabaseTask,
 				message: "Saving cluster…",
 			)
+			try Task.checkCancellation()
 			let cluster = try await database.write { db in
 				try Cluster.insert {
 					Cluster.Draft(

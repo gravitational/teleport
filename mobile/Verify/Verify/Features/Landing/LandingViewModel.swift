@@ -163,7 +163,7 @@ extension LandingViewModel: EnrollDeviceViewModel.Delegate {
 		destination = nil
 	}
 
-	func enrollDeviceViewModelDidEnrollCluster(_ viewModel: EnrollDeviceViewModel) {
+	func enrollDeviceViewModelDidRequestDismissal(_ viewModel: EnrollDeviceViewModel) {
 		destination = nil
 	}
 }
