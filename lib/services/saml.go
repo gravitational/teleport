@@ -445,6 +445,8 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 		ForceAuthn:                     sc.GetForceAuthn(),
+		// Raise default to avoid issues with customers with large number of groups.
+		MaximumXMLTokens: 150_000,
 	}
 
 	// Provider specific settings for ADFS and JumpCloud. Specifically these
