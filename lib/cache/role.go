@@ -25,9 +25,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type roleIndex string
+type roleIndex struct{}
 
-const roleNameIndex roleIndex = "name"
+var roleNameIndex roleIndex
+
+func roleNameIndexKeyForName(name string) string {
+	// this matches the order of the roles in the backend, which is
+	// unfortunately not the correct order (role "foo" should come earlier than
+	// role "foo-bar", but with a "/params" suffix the order is the other way
+	// around)
+	return name + "/params"
+}
 
 func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex], error) {
 	if a == nil {
@@ -39,7 +47,9 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.
 			types.KindRole,
 			types.Role.Clone,
 			map[roleIndex]func(types.Role) string{
-				roleNameIndex: types.Role.GetName,
+				roleNameIndex: func(r types.Role) string {
+					return roleNameIndexKeyForName(r.GetName())
+				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
 			return a.GetRoles(ctx)
@@ -109,7 +119,11 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	}
 
 	var resp proto.ListRolesResponse
-	for r := range rg.store.resources(roleNameIndex, req.StartKey, "") {
+	var start string
+	if req.StartKey != "" {
+		start = roleNameIndexKeyForName(req.StartKey)
+	}
+	for r := range rg.store.resources(roleNameIndex, start, "") {
 		rv6, ok := r.(*types.RoleV6)
 		if !ok {
 			continue
@@ -146,7 +160,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return role, trace.Wrap(err)
 	}
 
-	r, err := rg.store.get(roleNameIndex, name)
+	r, err := rg.store.get(roleNameIndex, roleNameIndexKeyForName(name))
 	if err != nil {
 		// release read lock early
 		rg.Release()

@@ -29,7 +29,6 @@ import (
 	"iter"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -106,8 +105,12 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 
 // ListUsers returns a page of users.
 func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.GetPageToken()))
-	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+	var rangeStart backend.Key
+	rangeStart = backend.ExactKey(webPrefix, usersPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+	if pageToken := req.GetPageToken(); pageToken != "" {
+		rangeStart = backend.ExactKey(webPrefix, usersPrefix, pageToken)
+	}
 	pageSize := req.GetPageSize()
 
 	// Adjust page size, so it can't be too large.
@@ -141,22 +144,13 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		}
 
 		if len(resp.GetUsers()) >= int(pageSize) {
-			resp.SetNextPageToken(nextUserToken(resp.GetUsers()[len(resp.GetUsers())-1]))
-			return &resp, nil
+			resp.SetNextPageToken(user.GetName())
+			break
 		}
 
 		resp.SetUsers(append(resp.GetUsers(), user))
 	}
 	return &resp, nil
-}
-
-// nextUserToken returns the last token for the given user. This
-// allows the listing operation to provide a token which doesn't divulge
-// the next user in the list while still allowing listing to operate
-// without missing any users.
-func nextUserToken(user types.User) string {
-	key := backend.RangeEnd(backend.ExactKey(user.GetName())).String()
-	return strings.Trim(key, string(backend.Separator))
 }
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
