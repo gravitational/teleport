@@ -94,20 +94,15 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
    - Disables Network Level Authentication (NLA) for remote desktop services.
    - Enables RemoteFX compression.
 
-  In versions below Teleport 17.4.0, the Windows auth package for local users is
-  "greedy" and attempts to process all smart card logins. This prevents smart
-  card logins from outside of Teleport from working, and also makes it
-  impossible to use Teleport to connect as Active Directory users. This is no
-  longer the case with Teleport 17.4.0 and up. To connect as local users and
-  Active Directory users on the same host, you need to register the host twice
-  with Teleport, once with `ad: true` and once with `ad: false`.
+  To connect as local users and Active Directory users on the same host, you
+  need to register the host twice with Teleport, once with `ad: true` and once
+  with `ad: false`.
 
-  Note: official Teleport release installers include a Microsoft-signed Windows
-  authentication package that can be loaded when
+  Note: starting with Teleport 18.11.1, the authentication package is signed by Microsoft
+  and can be loaded on systems with
   [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
-  is enabled. If you build the Windows authentication package from source instead
-  of using an official release artifact, the resulting DLL is not Microsoft-signed
-  and cannot be loaded while LSA protection is enabled.
+  enabled. Prior versions of the package are only signed by Teleport and require LSA
+  protection to be disabled on the target host.
 
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
@@ -123,7 +118,7 @@ an administrative Command Prompt or PowerShell console with the following comman
 
 ```code
 $ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
-``` 
+```
 
 ## Step 2/4. Configure the Windows Desktop Service
 
@@ -257,14 +252,14 @@ following for the Windows Desktop Service:
   description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
 >
   Here are some troubleshooting tips:
-  - Check the service status on the Linux server: 
-  
+  - Check the service status on the Linux server:
+
     ```code
     $ systemctl status teleport
     ```
 
-  - Review logs for connection errors: 
-  
+  - Review logs for connection errors:
+
     ```code
     $ sudo journalctl -u teleport
     ```
@@ -352,15 +347,15 @@ Windows login to use for the connection.
   description="Confirm that you can connect to the Windows desktop and see the Windows login screen or desktop."
 >
   Here are some troubleshooting tips:
-  
+
   - Ensure your Teleport user is assigned the `windows-desktop-admins` role (or equivalent role with desktop permissions).
 
   - Verify the Windows login you selected exists on the Windows computer.
 
   - Check that RDP port 3389 is open between the Linux server running the Desktop Service and the Windows host.
 
-  - If the connection fails, review the Windows Desktop Service logs on the Linux server: 
-  
+  - If the connection fails, review the Windows Desktop Service logs on the Linux server:
+
     ```code
     $ sudo journalctl -u teleport
     ```
