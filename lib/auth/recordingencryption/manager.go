@@ -419,6 +419,7 @@ func (m *Manager) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byte, error)
 		return nil, trace.Wrap(err)
 
 	}
+	m.keyCache.Store(in.Fingerprint, decrypter)
 
 	fileKey, err = decrypter.Decrypt(in.Rand, in.WrappedKey, in.Opts)
 	return fileKey, trace.Wrap(err)

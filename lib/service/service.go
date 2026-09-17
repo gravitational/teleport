@@ -2462,8 +2462,21 @@ func (process *TeleportProcess) initAuthService() error {
 	// originating instance retries them from its own queue.
 	var fallbackEmitter *events.FallbackEmitter
 	if isAuditQueueEnabled() {
-		fe, err := process.newAuthFallbackEmitter(emitter)
+		sealer, err := recordingencryption.NewLazyAuditQueueSealer(process.ExitContext(), authSRCWatcher{
+			SessionRecordingConfigGetter: clusterConfig,
+			Events:                       local.NewEventsService(b),
+		})
 		if err != nil {
+			return trace.Wrap(err, "initializing audit queue encryption for the auth fallback queue")
+		}
+		opener, err := recordingencryption.NewAuditQueueOpener(recordingEncryptionManager)
+		if err != nil {
+			_ = sealer.Close()
+			return trace.Wrap(err)
+		}
+		fe, err := process.newAuthFallbackEmitter(emitter, sealer, opener)
+		if err != nil {
+			_ = sealer.Close()
 			return trace.Wrap(err)
 		}
 		fallbackEmitter = fe
@@ -3520,6 +3533,14 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatche
 		AuditQueueBackends: process.auditQueueBackends(),
 	}
 	if asyncCfg.EnableAuditQueue {
+		if srcWatcher == nil {
+			return nil, trace.BadParameter("audit queue requires a session recording config watcher")
+		}
+		submitter, ok := clt.(events.SealedBatchSubmitter)
+		if !ok {
+			return nil, trace.BadParameter("audit queue requires a client that can submit sealed batches, got %T", clt)
+		}
+		asyncCfg.SealedSubmitter = submitter
 		sealer, err := recordingencryption.NewAuditQueueSealer(process.ExitContext(), srcWatcher)
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing audit queue encryption")
@@ -3614,13 +3635,20 @@ func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.Aud
 	return &status
 }
 
-func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter) (*events.FallbackEmitter, error) {
+type authSRCWatcher struct {
+	recordingencryption.SessionRecordingConfigGetter
+	types.Events
+}
+
+func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter, sealer auditqueue.Sealer, opener events.SealedBatchOpener) (*events.FallbackEmitter, error) {
 	emitter, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
 		Primary:            primary,
 		DataDir:            process.Config.DataDir,
 		EnableAuditQueue:   isAuditQueueEnabled(),
 		AuditQueueCfg:      process.auditQueueConfig(),
 		AuditQueueBackends: process.auditQueueBackends(),
+		Sealer:             sealer,
+		Opener:             opener,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

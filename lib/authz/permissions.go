@@ -1428,6 +1428,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindOktaAssignment, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),

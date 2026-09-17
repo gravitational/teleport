@@ -80,6 +80,52 @@ func (x Order) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// The payload encoding of a sealed audit queue batch.
+type AuditQueueBatchFormat int32
+
+const (
+	// An unspecified payload format. Requests with this format are rejected.
+	AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED AuditQueueBatchFormat = 0
+	// An age-encrypted batch of audit events. The ciphertext is age encrypted
+	// using the cluster's session recording encryption public keys. The plaintext
+	// is an AuditQueueBatch protobuf message.
+	AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_AGE_V1 AuditQueueBatchFormat = 1
+)
+
+// Enum value maps for AuditQueueBatchFormat.
+var (
+	AuditQueueBatchFormat_name = map[int32]string{
+		0: "AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED",
+		1: "AUDIT_QUEUE_BATCH_FORMAT_AGE_V1",
+	}
+	AuditQueueBatchFormat_value = map[string]int32{
+		"AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED": 0,
+		"AUDIT_QUEUE_BATCH_FORMAT_AGE_V1":      1,
+	}
+)
+
+func (x AuditQueueBatchFormat) Enum() *AuditQueueBatchFormat {
+	p := new(AuditQueueBatchFormat)
+	*p = x
+	return p
+}
+
+func (x AuditQueueBatchFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AuditQueueBatchFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_auditlog_v1_auditlog_proto_enumTypes[1].Descriptor()
+}
+
+func (AuditQueueBatchFormat) Type() protoreflect.EnumType {
+	return &file_teleport_auditlog_v1_auditlog_proto_enumTypes[1]
+}
+
+func (x AuditQueueBatchFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // StreamUnstructuredSessionEventsRequest is a request containing data needed to fetch a session recording.
 type StreamUnstructuredSessionEventsRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -895,6 +941,281 @@ func (b0 EventExportChunk_builder) Build() *EventExportChunk {
 	return m0
 }
 
+// One sealed audit event batch from an agent's local audit queue.
+type AuditQueueSealedBatch struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The sealed batch payload, encoded as described by format. Only the auth
+	// server holds the private keys to decrypt it.
+	Payload []byte `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
+	// The payload encoding.
+	Format AuditQueueBatchFormat `protobuf:"varint,2,opt,name=format,proto3,enum=teleport.auditlog.v1.AuditQueueBatchFormat" json:"format,omitempty"`
+	// The number of audit events in the batch, reported by the agent for
+	// observability before decryption.
+	EventCount    int64 `protobuf:"varint,3,opt,name=event_count,json=eventCount,proto3" json:"event_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditQueueSealedBatch) Reset() {
+	*x = AuditQueueSealedBatch{}
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditQueueSealedBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditQueueSealedBatch) ProtoMessage() {}
+
+func (x *AuditQueueSealedBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuditQueueSealedBatch) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *AuditQueueSealedBatch) GetFormat() AuditQueueBatchFormat {
+	if x != nil {
+		return x.Format
+	}
+	return AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED
+}
+
+func (x *AuditQueueSealedBatch) GetEventCount() int64 {
+	if x != nil {
+		return x.EventCount
+	}
+	return 0
+}
+
+func (x *AuditQueueSealedBatch) SetPayload(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Payload = v
+}
+
+func (x *AuditQueueSealedBatch) SetFormat(v AuditQueueBatchFormat) {
+	x.Format = v
+}
+
+func (x *AuditQueueSealedBatch) SetEventCount(v int64) {
+	x.EventCount = v
+}
+
+type AuditQueueSealedBatch_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The sealed batch payload, encoded as described by format. Only the auth
+	// server holds the private keys to decrypt it.
+	Payload []byte
+	// The payload encoding.
+	Format AuditQueueBatchFormat
+	// The number of audit events in the batch, reported by the agent for
+	// observability before decryption.
+	EventCount int64
+}
+
+func (b0 AuditQueueSealedBatch_builder) Build() *AuditQueueSealedBatch {
+	m0 := &AuditQueueSealedBatch{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payload = b.Payload
+	x.Format = b.Format
+	x.EventCount = b.EventCount
+	return m0
+}
+
+// A batch of audit events. This is the plaintext of an AuditQueueSealedBatch
+// payload and the row payload of an unencrypted agent audit queue.
+type AuditQueueBatch struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The audit events, each a marshaled events.OneOf protobuf message.
+	Events        [][]byte `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditQueueBatch) Reset() {
+	*x = AuditQueueBatch{}
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditQueueBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditQueueBatch) ProtoMessage() {}
+
+func (x *AuditQueueBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AuditQueueBatch) GetEvents() [][]byte {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+func (x *AuditQueueBatch) SetEvents(v [][]byte) {
+	x.Events = v
+}
+
+type AuditQueueBatch_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The audit events, each a marshaled events.OneOf protobuf message.
+	Events [][]byte
+}
+
+func (b0 AuditQueueBatch_builder) Build() *AuditQueueBatch {
+	m0 := &AuditQueueBatch{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Events = b.Events
+	return m0
+}
+
+// The request to deliver a sealed audit event batch.
+type SubmitAuditQueueBatchRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The sealed batch to deliver.
+	Batch         *AuditQueueSealedBatch `protobuf:"bytes,1,opt,name=batch,proto3" json:"batch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitAuditQueueBatchRequest) Reset() {
+	*x = SubmitAuditQueueBatchRequest{}
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAuditQueueBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAuditQueueBatchRequest) ProtoMessage() {}
+
+func (x *SubmitAuditQueueBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *SubmitAuditQueueBatchRequest) GetBatch() *AuditQueueSealedBatch {
+	if x != nil {
+		return x.Batch
+	}
+	return nil
+}
+
+func (x *SubmitAuditQueueBatchRequest) SetBatch(v *AuditQueueSealedBatch) {
+	x.Batch = v
+}
+
+func (x *SubmitAuditQueueBatchRequest) HasBatch() bool {
+	if x == nil {
+		return false
+	}
+	return x.Batch != nil
+}
+
+func (x *SubmitAuditQueueBatchRequest) ClearBatch() {
+	x.Batch = nil
+}
+
+type SubmitAuditQueueBatchRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The sealed batch to deliver.
+	Batch *AuditQueueSealedBatch
+}
+
+func (b0 SubmitAuditQueueBatchRequest_builder) Build() *SubmitAuditQueueBatchRequest {
+	m0 := &SubmitAuditQueueBatchRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Batch = b.Batch
+	return m0
+}
+
+// The return value of a SubmitAuditQueueBatch request.
+type SubmitAuditQueueBatchResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubmitAuditQueueBatchResponse) Reset() {
+	*x = SubmitAuditQueueBatchResponse{}
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubmitAuditQueueBatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubmitAuditQueueBatchResponse) ProtoMessage() {}
+
+func (x *SubmitAuditQueueBatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_auditlog_v1_auditlog_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type SubmitAuditQueueBatchResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SubmitAuditQueueBatchResponse_builder) Build() *SubmitAuditQueueBatchResponse {
+	m0 := &SubmitAuditQueueBatchResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 var File_teleport_auditlog_v1_auditlog_proto protoreflect.FileDescriptor
 
 const file_teleport_auditlog_v1_auditlog_proto_rawDesc = "" +
@@ -934,54 +1255,77 @@ const file_teleport_auditlog_v1_auditlog_proto_rawDesc = "" +
 	"\x1bGetEventExportChunksRequest\x12.\n" +
 	"\x04date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04date\"(\n" +
 	"\x10EventExportChunk\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\tR\x05chunk*>\n" +
+	"\x05chunk\x18\x01 \x01(\tR\x05chunk\"\x97\x01\n" +
+	"\x15AuditQueueSealedBatch\x12\x18\n" +
+	"\apayload\x18\x01 \x01(\fR\apayload\x12C\n" +
+	"\x06format\x18\x02 \x01(\x0e2+.teleport.auditlog.v1.AuditQueueBatchFormatR\x06format\x12\x1f\n" +
+	"\vevent_count\x18\x03 \x01(\x03R\n" +
+	"eventCount\")\n" +
+	"\x0fAuditQueueBatch\x12\x16\n" +
+	"\x06events\x18\x01 \x03(\fR\x06events\"a\n" +
+	"\x1cSubmitAuditQueueBatchRequest\x12A\n" +
+	"\x05batch\x18\x01 \x01(\v2+.teleport.auditlog.v1.AuditQueueSealedBatchR\x05batch\"\x1f\n" +
+	"\x1dSubmitAuditQueueBatchResponse*>\n" +
 	"\x05Order\x12 \n" +
 	"\x1cORDER_DESCENDING_UNSPECIFIED\x10\x00\x12\x13\n" +
-	"\x0fORDER_ASCENDING\x10\x012\x8f\x04\n" +
+	"\x0fORDER_ASCENDING\x10\x01*f\n" +
+	"\x15AuditQueueBatchFormat\x12(\n" +
+	"$AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED\x10\x00\x12#\n" +
+	"\x1fAUDIT_QUEUE_BATCH_FORMAT_AGE_V1\x10\x012\x92\x05\n" +
 	"\x0fAuditLogService\x12\x8a\x01\n" +
 	"\x1fStreamUnstructuredSessionEvents\x12<.teleport.auditlog.v1.StreamUnstructuredSessionEventsRequest\x1a'.teleport.auditlog.v1.EventUnstructured0\x01\x12u\n" +
 	"\x15GetUnstructuredEvents\x122.teleport.auditlog.v1.GetUnstructuredEventsRequest\x1a(.teleport.auditlog.v1.EventsUnstructured\x12\x82\x01\n" +
 	"\x18ExportUnstructuredEvents\x125.teleport.auditlog.v1.ExportUnstructuredEventsRequest\x1a-.teleport.auditlog.v1.ExportEventUnstructured0\x01\x12s\n" +
-	"\x14GetEventExportChunks\x121.teleport.auditlog.v1.GetEventExportChunksRequest\x1a&.teleport.auditlog.v1.EventExportChunk0\x01BTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1;auditlogv1b\x06proto3"
+	"\x14GetEventExportChunks\x121.teleport.auditlog.v1.GetEventExportChunksRequest\x1a&.teleport.auditlog.v1.EventExportChunk0\x01\x12\x80\x01\n" +
+	"\x15SubmitAuditQueueBatch\x122.teleport.auditlog.v1.SubmitAuditQueueBatchRequest\x1a3.teleport.auditlog.v1.SubmitAuditQueueBatchResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1;auditlogv1b\x06proto3"
 
-var file_teleport_auditlog_v1_auditlog_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_auditlog_v1_auditlog_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_auditlog_v1_auditlog_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_auditlog_v1_auditlog_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_auditlog_v1_auditlog_proto_goTypes = []any{
-	(Order)(0), // 0: teleport.auditlog.v1.Order
-	(*StreamUnstructuredSessionEventsRequest)(nil), // 1: teleport.auditlog.v1.StreamUnstructuredSessionEventsRequest
-	(*GetUnstructuredEventsRequest)(nil),           // 2: teleport.auditlog.v1.GetUnstructuredEventsRequest
-	(*EventsUnstructured)(nil),                     // 3: teleport.auditlog.v1.EventsUnstructured
-	(*ExportUnstructuredEventsRequest)(nil),        // 4: teleport.auditlog.v1.ExportUnstructuredEventsRequest
-	(*ExportEventUnstructured)(nil),                // 5: teleport.auditlog.v1.ExportEventUnstructured
-	(*EventUnstructured)(nil),                      // 6: teleport.auditlog.v1.EventUnstructured
-	(*GetEventExportChunksRequest)(nil),            // 7: teleport.auditlog.v1.GetEventExportChunksRequest
-	(*EventExportChunk)(nil),                       // 8: teleport.auditlog.v1.EventExportChunk
-	(*timestamppb.Timestamp)(nil),                  // 9: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                        // 10: google.protobuf.Struct
+	(Order)(0),                 // 0: teleport.auditlog.v1.Order
+	(AuditQueueBatchFormat)(0), // 1: teleport.auditlog.v1.AuditQueueBatchFormat
+	(*StreamUnstructuredSessionEventsRequest)(nil), // 2: teleport.auditlog.v1.StreamUnstructuredSessionEventsRequest
+	(*GetUnstructuredEventsRequest)(nil),           // 3: teleport.auditlog.v1.GetUnstructuredEventsRequest
+	(*EventsUnstructured)(nil),                     // 4: teleport.auditlog.v1.EventsUnstructured
+	(*ExportUnstructuredEventsRequest)(nil),        // 5: teleport.auditlog.v1.ExportUnstructuredEventsRequest
+	(*ExportEventUnstructured)(nil),                // 6: teleport.auditlog.v1.ExportEventUnstructured
+	(*EventUnstructured)(nil),                      // 7: teleport.auditlog.v1.EventUnstructured
+	(*GetEventExportChunksRequest)(nil),            // 8: teleport.auditlog.v1.GetEventExportChunksRequest
+	(*EventExportChunk)(nil),                       // 9: teleport.auditlog.v1.EventExportChunk
+	(*AuditQueueSealedBatch)(nil),                  // 10: teleport.auditlog.v1.AuditQueueSealedBatch
+	(*AuditQueueBatch)(nil),                        // 11: teleport.auditlog.v1.AuditQueueBatch
+	(*SubmitAuditQueueBatchRequest)(nil),           // 12: teleport.auditlog.v1.SubmitAuditQueueBatchRequest
+	(*SubmitAuditQueueBatchResponse)(nil),          // 13: teleport.auditlog.v1.SubmitAuditQueueBatchResponse
+	(*timestamppb.Timestamp)(nil),                  // 14: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                        // 15: google.protobuf.Struct
 }
 var file_teleport_auditlog_v1_auditlog_proto_depIdxs = []int32{
-	9,  // 0: teleport.auditlog.v1.GetUnstructuredEventsRequest.start_date:type_name -> google.protobuf.Timestamp
-	9,  // 1: teleport.auditlog.v1.GetUnstructuredEventsRequest.end_date:type_name -> google.protobuf.Timestamp
+	14, // 0: teleport.auditlog.v1.GetUnstructuredEventsRequest.start_date:type_name -> google.protobuf.Timestamp
+	14, // 1: teleport.auditlog.v1.GetUnstructuredEventsRequest.end_date:type_name -> google.protobuf.Timestamp
 	0,  // 2: teleport.auditlog.v1.GetUnstructuredEventsRequest.order:type_name -> teleport.auditlog.v1.Order
-	6,  // 3: teleport.auditlog.v1.EventsUnstructured.items:type_name -> teleport.auditlog.v1.EventUnstructured
-	9,  // 4: teleport.auditlog.v1.ExportUnstructuredEventsRequest.date:type_name -> google.protobuf.Timestamp
-	6,  // 5: teleport.auditlog.v1.ExportEventUnstructured.event:type_name -> teleport.auditlog.v1.EventUnstructured
-	9,  // 6: teleport.auditlog.v1.EventUnstructured.time:type_name -> google.protobuf.Timestamp
-	10, // 7: teleport.auditlog.v1.EventUnstructured.unstructured:type_name -> google.protobuf.Struct
-	9,  // 8: teleport.auditlog.v1.GetEventExportChunksRequest.date:type_name -> google.protobuf.Timestamp
-	1,  // 9: teleport.auditlog.v1.AuditLogService.StreamUnstructuredSessionEvents:input_type -> teleport.auditlog.v1.StreamUnstructuredSessionEventsRequest
-	2,  // 10: teleport.auditlog.v1.AuditLogService.GetUnstructuredEvents:input_type -> teleport.auditlog.v1.GetUnstructuredEventsRequest
-	4,  // 11: teleport.auditlog.v1.AuditLogService.ExportUnstructuredEvents:input_type -> teleport.auditlog.v1.ExportUnstructuredEventsRequest
-	7,  // 12: teleport.auditlog.v1.AuditLogService.GetEventExportChunks:input_type -> teleport.auditlog.v1.GetEventExportChunksRequest
-	6,  // 13: teleport.auditlog.v1.AuditLogService.StreamUnstructuredSessionEvents:output_type -> teleport.auditlog.v1.EventUnstructured
-	3,  // 14: teleport.auditlog.v1.AuditLogService.GetUnstructuredEvents:output_type -> teleport.auditlog.v1.EventsUnstructured
-	5,  // 15: teleport.auditlog.v1.AuditLogService.ExportUnstructuredEvents:output_type -> teleport.auditlog.v1.ExportEventUnstructured
-	8,  // 16: teleport.auditlog.v1.AuditLogService.GetEventExportChunks:output_type -> teleport.auditlog.v1.EventExportChunk
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	7,  // 3: teleport.auditlog.v1.EventsUnstructured.items:type_name -> teleport.auditlog.v1.EventUnstructured
+	14, // 4: teleport.auditlog.v1.ExportUnstructuredEventsRequest.date:type_name -> google.protobuf.Timestamp
+	7,  // 5: teleport.auditlog.v1.ExportEventUnstructured.event:type_name -> teleport.auditlog.v1.EventUnstructured
+	14, // 6: teleport.auditlog.v1.EventUnstructured.time:type_name -> google.protobuf.Timestamp
+	15, // 7: teleport.auditlog.v1.EventUnstructured.unstructured:type_name -> google.protobuf.Struct
+	14, // 8: teleport.auditlog.v1.GetEventExportChunksRequest.date:type_name -> google.protobuf.Timestamp
+	1,  // 9: teleport.auditlog.v1.AuditQueueSealedBatch.format:type_name -> teleport.auditlog.v1.AuditQueueBatchFormat
+	10, // 10: teleport.auditlog.v1.SubmitAuditQueueBatchRequest.batch:type_name -> teleport.auditlog.v1.AuditQueueSealedBatch
+	2,  // 11: teleport.auditlog.v1.AuditLogService.StreamUnstructuredSessionEvents:input_type -> teleport.auditlog.v1.StreamUnstructuredSessionEventsRequest
+	3,  // 12: teleport.auditlog.v1.AuditLogService.GetUnstructuredEvents:input_type -> teleport.auditlog.v1.GetUnstructuredEventsRequest
+	5,  // 13: teleport.auditlog.v1.AuditLogService.ExportUnstructuredEvents:input_type -> teleport.auditlog.v1.ExportUnstructuredEventsRequest
+	8,  // 14: teleport.auditlog.v1.AuditLogService.GetEventExportChunks:input_type -> teleport.auditlog.v1.GetEventExportChunksRequest
+	12, // 15: teleport.auditlog.v1.AuditLogService.SubmitAuditQueueBatch:input_type -> teleport.auditlog.v1.SubmitAuditQueueBatchRequest
+	7,  // 16: teleport.auditlog.v1.AuditLogService.StreamUnstructuredSessionEvents:output_type -> teleport.auditlog.v1.EventUnstructured
+	4,  // 17: teleport.auditlog.v1.AuditLogService.GetUnstructuredEvents:output_type -> teleport.auditlog.v1.EventsUnstructured
+	6,  // 18: teleport.auditlog.v1.AuditLogService.ExportUnstructuredEvents:output_type -> teleport.auditlog.v1.ExportEventUnstructured
+	9,  // 19: teleport.auditlog.v1.AuditLogService.GetEventExportChunks:output_type -> teleport.auditlog.v1.EventExportChunk
+	13, // 20: teleport.auditlog.v1.AuditLogService.SubmitAuditQueueBatch:output_type -> teleport.auditlog.v1.SubmitAuditQueueBatchResponse
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_auditlog_v1_auditlog_proto_init() }
@@ -994,8 +1338,8 @@ func file_teleport_auditlog_v1_auditlog_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_auditlog_v1_auditlog_proto_rawDesc), len(file_teleport_auditlog_v1_auditlog_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   8,
+			NumEnums:      2,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

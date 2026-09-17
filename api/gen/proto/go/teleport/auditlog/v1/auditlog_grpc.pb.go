@@ -37,13 +37,14 @@ const (
 	AuditLogService_GetUnstructuredEvents_FullMethodName           = "/teleport.auditlog.v1.AuditLogService/GetUnstructuredEvents"
 	AuditLogService_ExportUnstructuredEvents_FullMethodName        = "/teleport.auditlog.v1.AuditLogService/ExportUnstructuredEvents"
 	AuditLogService_GetEventExportChunks_FullMethodName            = "/teleport.auditlog.v1.AuditLogService/GetEventExportChunks"
+	AuditLogService_SubmitAuditQueueBatch_FullMethodName           = "/teleport.auditlog.v1.AuditLogService/SubmitAuditQueueBatch"
 )
 
 // AuditLogServiceClient is the client API for AuditLogService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuditLogService provides methods to access audit log.
+// AuditLogService provides methods to access and submit to the audit log.
 type AuditLogServiceClient interface {
 	// StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the session events as JSON.
@@ -57,6 +58,10 @@ type AuditLogServiceClient interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, in *GetEventExportChunksRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[EventExportChunk], error)
+	// SubmitAuditQueueBatch delivers a sealed batch of audit events from an
+	// agent's local audit queue. The batch is encrypted to the session
+	// recording encryption keys and can only be decrypted by the auth server.
+	SubmitAuditQueueBatch(ctx context.Context, in *SubmitAuditQueueBatchRequest, opts ...grpc.CallOption) (*SubmitAuditQueueBatchResponse, error)
 }
 
 type auditLogServiceClient struct {
@@ -134,11 +139,21 @@ func (c *auditLogServiceClient) GetEventExportChunks(ctx context.Context, in *Ge
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AuditLogService_GetEventExportChunksClient = grpc.ServerStreamingClient[EventExportChunk]
 
+func (c *auditLogServiceClient) SubmitAuditQueueBatch(ctx context.Context, in *SubmitAuditQueueBatchRequest, opts ...grpc.CallOption) (*SubmitAuditQueueBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitAuditQueueBatchResponse)
+	err := c.cc.Invoke(ctx, AuditLogService_SubmitAuditQueueBatch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuditLogServiceServer is the server API for AuditLogService service.
 // All implementations must embed UnimplementedAuditLogServiceServer
 // for forward compatibility.
 //
-// AuditLogService provides methods to access audit log.
+// AuditLogService provides methods to access and submit to the audit log.
 type AuditLogServiceServer interface {
 	// StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the session events as JSON.
@@ -152,6 +167,10 @@ type AuditLogServiceServer interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(*GetEventExportChunksRequest, grpc.ServerStreamingServer[EventExportChunk]) error
+	// SubmitAuditQueueBatch delivers a sealed batch of audit events from an
+	// agent's local audit queue. The batch is encrypted to the session
+	// recording encryption keys and can only be decrypted by the auth server.
+	SubmitAuditQueueBatch(context.Context, *SubmitAuditQueueBatchRequest) (*SubmitAuditQueueBatchResponse, error)
 	mustEmbedUnimplementedAuditLogServiceServer()
 }
 
@@ -173,6 +192,9 @@ func (UnimplementedAuditLogServiceServer) ExportUnstructuredEvents(*ExportUnstru
 }
 func (UnimplementedAuditLogServiceServer) GetEventExportChunks(*GetEventExportChunksRequest, grpc.ServerStreamingServer[EventExportChunk]) error {
 	return status.Error(codes.Unimplemented, "method GetEventExportChunks not implemented")
+}
+func (UnimplementedAuditLogServiceServer) SubmitAuditQueueBatch(context.Context, *SubmitAuditQueueBatchRequest) (*SubmitAuditQueueBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAuditQueueBatch not implemented")
 }
 func (UnimplementedAuditLogServiceServer) mustEmbedUnimplementedAuditLogServiceServer() {}
 func (UnimplementedAuditLogServiceServer) testEmbeddedByValue()                         {}
@@ -246,6 +268,24 @@ func _AuditLogService_GetEventExportChunks_Handler(srv interface{}, stream grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AuditLogService_GetEventExportChunksServer = grpc.ServerStreamingServer[EventExportChunk]
 
+func _AuditLogService_SubmitAuditQueueBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitAuditQueueBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuditLogServiceServer).SubmitAuditQueueBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuditLogService_SubmitAuditQueueBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuditLogServiceServer).SubmitAuditQueueBatch(ctx, req.(*SubmitAuditQueueBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuditLogService_ServiceDesc is the grpc.ServiceDesc for AuditLogService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -256,6 +296,10 @@ var AuditLogService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUnstructuredEvents",
 			Handler:    _AuditLogService_GetUnstructuredEvents_Handler,
+		},
+		{
+			MethodName: "SubmitAuditQueueBatch",
+			Handler:    _AuditLogService_SubmitAuditQueueBatch_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

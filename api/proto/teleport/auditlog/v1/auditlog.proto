@@ -21,7 +21,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1;auditlogv1";
 
-// AuditLogService provides methods to access audit log.
+// AuditLogService provides methods to access and submit to the audit log.
 service AuditLogService {
   // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
   // This endpoint is used by the event handler to retrieve the session events as JSON.
@@ -35,6 +35,10 @@ service AuditLogService {
   // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
   // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
   rpc GetEventExportChunks(GetEventExportChunksRequest) returns (stream EventExportChunk);
+  // SubmitAuditQueueBatch delivers a sealed batch of audit events from an
+  // agent's local audit queue. The batch is encrypted to the session
+  // recording encryption keys and can only be decrypted by the auth server.
+  rpc SubmitAuditQueueBatch(SubmitAuditQueueBatchRequest) returns (SubmitAuditQueueBatchResponse);
 }
 
 // StreamUnstructuredSessionEventsRequest is a request containing data needed to fetch a session recording.
@@ -129,3 +133,41 @@ message EventExportChunk {
   // chunk is the chunk to export.
   string chunk = 1;
 }
+
+// The payload encoding of a sealed audit queue batch.
+enum AuditQueueBatchFormat {
+  // An unspecified payload format. Requests with this format are rejected.
+  AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED = 0;
+  // An age-encrypted batch of audit events. The ciphertext is age encrypted
+  // using the cluster's session recording encryption public keys. The plaintext
+  // is an AuditQueueBatch protobuf message.
+  AUDIT_QUEUE_BATCH_FORMAT_AGE_V1 = 1;
+}
+
+// One sealed audit event batch from an agent's local audit queue.
+message AuditQueueSealedBatch {
+  // The sealed batch payload, encoded as described by format. Only the auth
+  // server holds the private keys to decrypt it.
+  bytes payload = 1;
+  // The payload encoding.
+  AuditQueueBatchFormat format = 2;
+  // The number of audit events in the batch, reported by the agent for
+  // observability before decryption.
+  int64 event_count = 3;
+}
+
+// A batch of audit events. This is the plaintext of an AuditQueueSealedBatch
+// payload and the row payload of an unencrypted agent audit queue.
+message AuditQueueBatch {
+  // The audit events, each a marshaled events.OneOf protobuf message.
+  repeated bytes events = 1;
+}
+
+// The request to deliver a sealed audit event batch.
+message SubmitAuditQueueBatchRequest {
+  // The sealed batch to deliver.
+  AuditQueueSealedBatch batch = 1;
+}
+
+// The return value of a SubmitAuditQueueBatch request.
+message SubmitAuditQueueBatchResponse {}

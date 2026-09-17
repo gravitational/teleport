@@ -715,6 +715,7 @@ func (q *sqliteQueue) Close() error {
 		label := filepath.Base(q.path)
 		queuePending.DeleteLabelValues(label)
 		queueDeadLetter.DeleteLabelValues(label)
+		queueCorrupt.DeleteLabelValues(label)
 
 		// Flush the WAL file.
 		if _, err := q.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {

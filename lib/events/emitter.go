@@ -31,8 +31,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/modules"
@@ -45,6 +47,8 @@ const (
 	AsyncBufferSize = 1024
 	// auditQueueDir is the directory where the audit queue resides.
 	auditQueueDir = "audit-queue"
+	// Matches the audit queue dequeue batch size so one delivery cycle is one round of requests.
+	sealedSubmitConcurrency = 25
 )
 
 // AsyncEmitterConfig provides parameters for emitter
@@ -65,6 +69,15 @@ type AsyncEmitterConfig struct {
 	AuditQueueBackends []auditqueue.Kind
 	// Sealer is used to encrypt audit log events before writing them to disk.
 	Sealer auditqueue.Sealer
+	// SealedSubmitter delivers sealed audit event batches to the auth server.
+	SealedSubmitter SealedBatchSubmitter
+}
+
+// SealedBatchSubmitter delivers sealed audit event batches to the auth
+// server. A nil error means the whole batch was accepted. An error means the
+// whole batch must be retried.
+type SealedBatchSubmitter interface {
+	SubmitAuditQueueBatch(ctx context.Context, req *auditlogpb.SubmitAuditQueueBatchRequest) error
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -173,6 +186,7 @@ type AsyncEmitter struct {
 	queue           auditqueue.Queue
 	deliveryTimeout time.Duration
 	wg              sync.WaitGroup
+	sealedWarnOnce  sync.Once
 }
 
 // Close closes emitter and cancels all in flight events.
@@ -231,11 +245,25 @@ func (a *AsyncEmitter) forward() {
 	}
 }
 
+func splitSealedItems(items []auditqueue.Item) (plain, sealed []auditqueue.Item) {
+	for _, item := range items {
+		if item.Sealed() {
+			sealed = append(sealed, item)
+			continue
+		}
+		plain = append(plain, item)
+	}
+	return plain, sealed
+}
+
 // deliver is the handler function passed to queue.Run. It must return a list of
 // the items it was able to successfully deliver.
-func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
+func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) ([]auditqueue.Item, error) {
 	ctx, cancel := context.WithTimeout(ctx, a.deliveryTimeout)
 	defer cancel()
+
+	items, sealedItems := splitSealedItems(items)
+	sealedDelivered, sealedErr := a.deliverSealed(ctx, sealedItems)
 
 	batchEmitter, _ := a.cfg.Inner.(apievents.BatchEmitter)
 
@@ -246,37 +274,141 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 		}
 		err := batchEmitter.EmitAuditEvents(ctx, events)
 		if err == nil {
-			return items
+			return append(items, sealedDelivered...), sealedErr
 		}
 		if ctx.Err() != nil {
-			return nil
+			return sealedDelivered, sealedErr
+		}
+		if trace.IsLimitExceeded(err) {
+			return sealedDelivered, errors.Join(sealedErr, err)
 		}
 		slog.WarnContext(ctx, "Failed to emit audit events as a single request, falling back to per-batch delivery.", "error", err)
 	}
 
 	var successfullyDelivered []auditqueue.Item
 	var failed int
-	var firstErr error
+	var plainErr error
 	for _, item := range items {
 		if ctx.Err() != nil {
 			break
 		}
 		if err := a.deliverBatch(ctx, batchEmitter, item); err != nil {
 			failed++
-			if firstErr == nil {
-				firstErr = err
+			if trace.IsLimitExceeded(err) {
+				plainErr = err
+				break
+			}
+			if plainErr == nil {
+				plainErr = err
 			}
 			continue
 		}
 		successfullyDelivered = append(successfullyDelivered, item)
 	}
 	if failed > 0 && ctx.Err() == nil {
-		slog.ErrorContext(ctx, "Failed to emit audit events.",
-			"count", failed,
-			"error", firstErr,
-		)
+		if trace.IsLimitExceeded(plainErr) {
+			slog.DebugContext(ctx, "Audit event delivery throttled by the auth server.",
+				"count", failed,
+				"error", plainErr,
+			)
+		} else {
+			slog.ErrorContext(ctx, "Failed to emit audit events.",
+				"count", failed,
+				"error", plainErr,
+			)
+		}
 	}
-	return successfullyDelivered
+	return append(successfullyDelivered, sealedDelivered...), errors.Join(sealedErr, plainErr)
+}
+
+func (a *AsyncEmitter) deliverSealed(ctx context.Context, sealed []auditqueue.Item) ([]auditqueue.Item, error) {
+	if len(sealed) == 0 {
+		return nil, nil
+	}
+	if a.cfg.SealedSubmitter == nil {
+		a.sealedWarnOnce.Do(func() {
+			slog.WarnContext(ctx,
+				"Sealed audit event batches cannot be delivered because no sealed batch submitter is configured. They will be retried.",
+			)
+		})
+		return nil, nil
+	}
+
+	var mu sync.Mutex
+	var delivered []auditqueue.Item
+	var failed int
+	var throttled int
+	var throttleErr error
+	var g errgroup.Group
+	defer g.Wait()
+	g.SetLimit(sealedSubmitConcurrency)
+	for _, item := range sealed {
+		if ctx.Err() != nil {
+			break
+		}
+		g.Go(func() error {
+			err := a.submitSealed(ctx, item)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				delivered = append(delivered, item)
+				return nil
+			case trace.IsLimitExceeded(err):
+				throttled++
+				if throttleErr == nil {
+					throttleErr = err
+				}
+				return nil
+			default:
+				failed++
+				return err
+			}
+		})
+	}
+	firstErr := g.Wait()
+	if ctx.Err() == nil {
+		if failed > 0 {
+			slog.ErrorContext(ctx, "Failed to submit sealed audit event batches.",
+				"count", failed,
+				"error", firstErr,
+			)
+		}
+		if throttled > 0 {
+			slog.DebugContext(ctx, "Sealed audit event batch submissions throttled by the auth server.",
+				"count", throttled,
+				"error", throttleErr,
+			)
+		}
+	}
+	if throttleErr != nil {
+		return delivered, throttleErr
+	}
+	return delivered, firstErr
+}
+
+func (a *AsyncEmitter) submitSealed(ctx context.Context, item auditqueue.Item) error {
+	format, ok := sealedWireFormat(item.Format)
+	if !ok {
+		return trace.BadParameter("sealed batch has unknown payload format %d", item.Format)
+	}
+	req := auditlogpb.SubmitAuditQueueBatchRequest_builder{
+		Batch: auditlogpb.AuditQueueSealedBatch_builder{
+			Payload:    item.Payload,
+			Format:     format,
+			EventCount: int64(item.EventCount),
+		}.Build(),
+	}.Build()
+	return trace.Wrap(a.cfg.SealedSubmitter.SubmitAuditQueueBatch(ctx, req))
+}
+
+func sealedWireFormat(format int) (auditlogpb.AuditQueueBatchFormat, bool) {
+	switch format {
+	case auditqueue.FormatAgeV1:
+		return auditlogpb.AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_AGE_V1, true
+	default:
+		return auditlogpb.AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_UNSPECIFIED, false
+	}
 }
 
 func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.BatchEmitter, item auditqueue.Item) error {
@@ -285,7 +417,7 @@ func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.
 		if err == nil {
 			return nil
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || trace.IsLimitExceeded(err) {
 			return trace.Wrap(err)
 		}
 		slog.WarnContext(ctx, "Failed to emit audit events as a batch, falling back to per-event delivery.", "error", err)

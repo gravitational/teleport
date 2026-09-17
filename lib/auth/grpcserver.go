@@ -108,6 +108,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/app/appv1"
+	"github.com/gravitational/teleport/lib/auth/auditlog/auditlogv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/clientiprestriction/clientiprestrictionv1"
@@ -229,6 +230,7 @@ type GRPCServer struct {
 	APIConfig
 	server      *grpc.Server
 	healthcheck *health.Server
+	auditQueue  *auditlogv1.AuditQueueService
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -6569,11 +6571,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		resolveSSHTargetRateLimiter = rate.NewLimiter(rate.Limit(*cfg.ResolveSSHTargetRateLimit), int(math.Ceil(*cfg.ResolveSSHTargetRateLimit)))
 	}
 
+	auditQueueService, err := auditlogv1.NewAuditQueueService(auditlogv1.AuditQueueServiceConfig{
+		Authorizer:   cfg.Authorizer,
+		Logger:       cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentAuditLog),
+		KeyUnwrapper: cfg.AuthServer.Services,
+		Emitter:      cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
 		server:      server,
 		healthcheck: health.NewServer(),
+		auditQueue:  auditQueueService,
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
 		createAuditStreamSemaphore:         createAuditStreamSemaphore,
@@ -7004,6 +7017,12 @@ func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext
 			scopedContext: authContext,
 		},
 	}, nil
+}
+
+// SubmitAuditQueueBatch delivers a sealed batch of audit events from an
+// agent's local audit queue.
+func (g *GRPCServer) SubmitAuditQueueBatch(ctx context.Context, req *auditlogpb.SubmitAuditQueueBatchRequest) (*auditlogpb.SubmitAuditQueueBatchResponse, error) {
+	return g.auditQueue.SubmitAuditQueueBatch(ctx, req)
 }
 
 // GetUnstructuredEvents searches for events on the backend and sends them back in an unstructured format.

@@ -96,6 +96,10 @@ type Config struct {
 	DeadLetterTTL time.Duration
 	// Synchronous controls the SQLite synchronous pragma.
 	Synchronous SynchronousMode
+	// WriteLinger bounds how long the writer waits for additional events before
+	// committing a batch. Defaults to defaultWriteLinger if unset. A negative
+	// value disables lingering.
+	WriteLinger time.Duration
 	// Sealer, when set, encrypts each batch payload before it is written to
 	// disk. The queue borrows the Sealer. It is closed by the emitter that
 	// owns it, never by the queue.
@@ -104,12 +108,34 @@ type Config struct {
 	OnStatsUpdated func()
 }
 
+const (
+	// FormatPlaintext marks a row whose payload is an AuditQueueBatch
+	// message.
+	FormatPlaintext = 0
+	// FormatAgeV1 marks a row whose payload is an age encrypted
+	// AuditQueueBatch message. Such rows cannot be decrypted by the agent
+	// process because the private keys live on the auth server.
+	FormatAgeV1 = 1
+)
+
 // Item is a batch of events yielded to a Handler.
 type Item struct {
 	id int64
-	// Events is the list of events in the batch.
+	// Events is the decoded batch. It is populated only for plaintext items.
 	Events []apievents.AuditEvent
+	// Payload is the raw sealed batch. It is populated only for sealed items,
+	// which cannot be decoded by this process.
+	Payload []byte
+	// Format identifies the payload encoding (FormatPlaintext or FormatAgeV1).
+	Format int
+	// EventCount is the number of events in the batch, valid for both
+	// plaintext and sealed items.
+	EventCount int
 }
+
+// Sealed reports whether the item carries an encrypted payload instead of
+// decoded events.
+func (i Item) Sealed() bool { return i.Format != FormatPlaintext }
 
 // Stats reports the current depth of a Queue.
 type Stats struct {
@@ -146,7 +172,7 @@ type Sealer interface {
 //
 // Handler may be invoked concurrently from multiple goroutines.
 // Implementations are responsible for their own goroutine safety.
-type Handler func(ctx context.Context, items []Item) []Item
+type Handler func(ctx context.Context, items []Item) ([]Item, error)
 
 // Queue is a queue for audit log events.
 type Queue interface {

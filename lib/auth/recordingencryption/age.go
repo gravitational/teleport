@@ -73,9 +73,13 @@ func NewRecordingIdentity(ctx context.Context, unwrapper KeyUnwrapper) *Recordin
 // Unwrap uses the additional stanzas added by [RecordingRecipient.Wrap] in order to find a matching RSA 4096
 // private key.
 func (i *RecordingIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	return unwrapMatchingStanza(i.ctx, i.unwrapper, RecordingStanza, stanzas)
+}
+
+func unwrapMatchingStanza(ctx context.Context, unwrapper KeyUnwrapper, stanzaType string, stanzas []*age.Stanza) ([]byte, error) {
 	var errs []error
 	for _, stanza := range stanzas {
-		if stanza.Type != RecordingStanza {
+		if stanza.Type != stanzaType {
 			continue
 		}
 
@@ -83,7 +87,7 @@ func (i *RecordingIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 			continue
 		}
 
-		fileKey, err := i.unwrapper.UnwrapKey(i.ctx, UnwrapInput{
+		fileKey, err := unwrapper.UnwrapKey(ctx, UnwrapInput{
 			Rand:        rand.Reader,
 			WrappedKey:  stanza.Body,
 			Fingerprint: stanza.Args[0],
@@ -181,4 +185,23 @@ func ParseAuditQueueRecipient(in []byte) (*AuditQueueRecipient, error) {
 // Wrap a fileKey using an RSA public key.
 func (r *AuditQueueRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 	return wrapFileKey(r.PublicKey, AuditQueueStanza, fileKey)
+}
+
+// AuditQueueIdentity unwraps file keys.
+type AuditQueueIdentity struct {
+	ctx       context.Context
+	unwrapper KeyUnwrapper
+}
+
+// NewAuditQueueIdentity returns a new AuditQueueIdentity.
+func NewAuditQueueIdentity(ctx context.Context, unwrapper KeyUnwrapper) *AuditQueueIdentity {
+	return &AuditQueueIdentity{
+		ctx:       ctx,
+		unwrapper: unwrapper,
+	}
+}
+
+// Unwrap decrypts a file key.
+func (i *AuditQueueIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	return unwrapMatchingStanza(i.ctx, i.unwrapper, AuditQueueStanza, stanzas)
 }
