@@ -19,6 +19,7 @@
 package bot
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -94,6 +95,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
+
+	// TODO(peterwillis): DELETE IN V20.0.0
+	if c.Onboarding.Terraform != (onboarding.TerraformCloudOnboardingConfig{}) {
+		c.Logger.WarnContext(context.Background(), "The onboarding.terraform field is deprecated, please us onboarding.terraform_cloud instead. Support for onboarding.terraform will be removed in Teleport V20.0.0")
+		if c.Onboarding.TerraformCloud != (onboarding.TerraformCloudOnboardingConfig{}) {
+			return trace.BadParameter("only one of terraform and terraform_cloud can be set")
+		}
+		c.Onboarding.TerraformCloud = c.Onboarding.Terraform
+		c.Onboarding.Terraform = onboarding.TerraformCloudOnboardingConfig{}
+	}
+
 	return nil
 }
 

@@ -523,7 +523,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: onboarding.TerraformOnboardingConfig{
+			TerraformCloud: onboarding.TerraformCloudOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
 			Gitlab: onboarding.GitlabOnboardingConfig{
