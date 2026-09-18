@@ -1,6 +1,24 @@
 # Changelog
 
+## 17.7.29 (09/08/26)
+
+* Fixed issue with macOS binaries crashing due to invalid signing certificate.
+* Hardened join authorization logic to consistently enforce permissions for global requests (e.g. "force-terminate").
+* Improved AWS Console app URL validation to match supported AWS console hosts instead of raw string prefixes, and added support for standard regional AWS Console endpoints.
+* Blocked unsupervised non-interactive sessions after a moderated file transfer.
+* Fixed app access authorization to ensure connections are authorized against the exact application being served.
+* Fixed `tsh kubectl exec` masking exit codes.
+* Fixed an issue that prevented the correct version from being displayed for `tctl` builds on macOS.
+* Fixed several TLS code paths where a compromised leaf cluster could forge client certificate identities.
+* Fixed crash of proxy server when a legacy join request is made with missing data.
+* Fixed Redshift automatic user cleanup after a PostgreSQL client disconnects during connection setup.
+* Updated Go to 1.25.14.
+
 ## 17.7.28 (08/19/26)
+
+__Note: Due to a build process issue, macOS binaries in this release are incorrectly signed__
+__causing macOS to terminate the process when it starts. If you're using macOS client tools like__
+__tsh or Teleport Connect, upgrade to 17.7.29 instead.__
 
 This is a public release announcing security vulnerabilities addressed in 17.7.27.
 In addition to the issues addressed in 17.7.27, this release includes an additional
