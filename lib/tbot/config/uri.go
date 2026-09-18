@@ -116,9 +116,20 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 				"URI join method parameter %q conflicts with configured field: onboarding.azure.client_id",
 				param))
 		case types.JoinMethodTerraformCloud:
+			target := &cfg.Onboarding.TerraformCloud.AudienceTag
+			field := "onboarding.terraform_cloud.audience_tag"
+
+			// TODO(peterwillis): DELETE IN V20.0.0
+			if cfg.Onboarding.Terraform != (onboarding.TerraformCloudOnboardingConfig{}) {
+				target = &cfg.Onboarding.Terraform.AudienceTag
+				field = "onboarding.terraform.audience_tag"
+			}
+
 			errors = append(errors, applyValueOrError(
-				&cfg.Onboarding.Terraform.AudienceTag, param,
-				"URI join method parameter %q conflicts with configured field: onboarding.terraform.audience_tag", param))
+				target, param,
+				"URI join method parameter %q conflicts with configured field: %s",
+				param, field,
+			))
 		case types.JoinMethodGitLab:
 			errors = append(errors, applyValueOrError(
 				&cfg.Onboarding.Gitlab.TokenEnvVarName, param,

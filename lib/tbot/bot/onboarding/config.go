@@ -72,8 +72,8 @@ type AzureOnboardingConfig struct {
 	ClientID string `yaml:"client_id,omitempty"`
 }
 
-// TerraformOnboardingConfig contains parameters for the "terraform" join method
-type TerraformOnboardingConfig struct {
+// TerraformCloudOnboardingConfig contains parameters for the "terraform_cloud" join method
+type TerraformCloudOnboardingConfig struct {
 	// TokenTag is the name of the tag configured via the environment variable
 	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
 	// variant is used.
@@ -280,8 +280,12 @@ type Config struct {
 	// Azure holds configuration relevant to the azure joining method.
 	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
 
-	// Terraform holds configuration relevant to the `terraform` join method.
-	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+	// TODO(peterwillis): DELETE IN V20.0.0
+	// Terraform is a deprecated alias for TerraformCloud
+	Terraform TerraformCloudOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// TerraformCloud holds configuration relevant to the `terraform_cloud` join method.
+	TerraformCloud TerraformCloudOnboardingConfig `yaml:"terraform_cloud,omitempty"`
 
 	// Gitlab holds configuration relevant to the `gitlab` join method.
 	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`

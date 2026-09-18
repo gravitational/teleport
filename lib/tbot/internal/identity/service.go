@@ -802,7 +802,7 @@ func botIdentityFromToken(
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	case types.JoinMethodTerraformCloud:
-		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+		params.TerraformCloudAudienceTag = cfg.Onboarding.TerraformCloud.AudienceTag
 	case types.JoinMethodGitLab:
 		params.GitlabParams = joinclient.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
