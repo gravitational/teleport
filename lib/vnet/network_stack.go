@@ -798,10 +798,20 @@ func (ns *networkStack) assignedIPv4(fqdn string) (ipv4, bool) {
 
 func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	slog.DebugContext(ctx, "Forwarding IP packets between OS and VNet.")
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
-	g.Go(func() error { return forwardTUNtoNetstack(ctx, tun, linkEndpoint) })
+	g, groupCtx := errgroup.WithContext(ctx)
+	g.Go(func() error { return forwardNetstackToTUN(groupCtx, linkEndpoint, tun) })
+	g.Go(func() error { return forwardTUNtoNetstack(groupCtx, tun, linkEndpoint) })
 	err := g.Wait()
+
+	// If the outer context is closed, the cleanup goroutine in run may unblock
+	// and close the TUN device causing a read/write call to return os.ErrClosed.
+	//
+	// In this case, we return the context error instead, which the calling code
+	// will interpret as a non-error.
+	if errors.Is(err, os.ErrClosed) && ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	slog.DebugContext(ctx, "Finished forwarding IP packets between OS and VNet.")
 	return trace.Wrap(err)
 }
@@ -854,10 +864,6 @@ func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *chan
 	for {
 		n, err := tun.Read(bufs, sizes, readOffset)
 		if err != nil {
-			// tun.Read might get interrupted due to the TUN device getting closed after ctx cancellation.
-			if errors.Is(err, os.ErrClosed) && ctx.Err() != nil {
-				return ctx.Err()
-			}
 			return trace.Wrap(err, "reading packets from TUN")
 		}
 		for i := range sizes[:n] {
