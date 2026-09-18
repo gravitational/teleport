@@ -23,7 +23,7 @@ const (
 	// enrollment ceremony to take in the public service, from the moment
 	// EnrollDevice is called until its handler returns. The ceremony is two round
 	// trips, so a healthy client finishes well within it.
-	PublicEnrollDeviceTimeout = time.Minute
+	PublicEnrollDeviceTimeout = 2 * time.Minute
 
 	// PublicEnrollDeviceProxyTimeout is the timeout for the stream the Proxy
 	// Service forwards to the Auth Service. It is longer than
