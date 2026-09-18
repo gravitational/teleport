@@ -35,8 +35,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportVnetConfig{}
-var _ resource.ResourceWithSchema = &resourceTeleportVnetConfig{}
-
 
 // resourceTeleportVnetConfigType is the resource metadata type
 type resourceTeleportVnetConfigType struct{}
@@ -172,7 +170,13 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(apitypes.MetaNameVnetConfig)
+	attrs := plan.Attributes()
+	attrs["id"] = types.StringValue(apitypes.MetaNameVnetConfig)
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -336,7 +340,13 @@ func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req resourc
 	}
 	id := vnetConfig.Metadata.Name
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -386,7 +396,14 @@ func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

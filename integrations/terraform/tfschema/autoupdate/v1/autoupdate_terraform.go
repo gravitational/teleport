@@ -31,9 +31,14 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
-	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_objectplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_schema_validator "github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	_ "google.golang.org/protobuf/types/known/durationpb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
@@ -47,153 +52,140 @@ var _ = math.Inf
 // GenSchemaAutoUpdateConfigResource returns Terraform Framework resource schema definition for AutoUpdateConfig
 func GenSchemaAutoUpdateConfigResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 			Required:      false,
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapAttribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
 				},
-			}),
+			},
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Object{github_com_hashicorp_terraform_plugin_framework_resource_schema_objectplanmodifier.UseStateForUnknown()},
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"agents": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"maintenance_window_duration": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"agents": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"maintenance_window_duration": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Description: "maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is \"time-based\". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.",
 							Optional:    true,
 						}),
-						"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "mode specifies whether agent autoupdates are enabled, disabled, or paused.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"schedules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"regular": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-									"canary_count": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"schedules": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"regular": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+								Computed:    true,
+								Description: "regular schedules for non-critical versions.",
+								NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+									"canary_count": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
 										Computed:      true,
 										Description:   "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
 									},
-									"days": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"days": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 										Computed:      true,
 										Description:   "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
+										ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 									},
-									"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 										Computed:      true,
 										Description:   "name of the group",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 									},
-									"start_hour": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"start_hour": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
 										Computed:      true,
 										Description:   "start_hour to initiate update",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
 									},
-									"wait_hours": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"wait_hours": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
 										Computed:      true,
 										Description:   "wait_hours after last group succeeds before this group can run. This can only be used when the strategy is \"halt-on-failure\". This field must be positive.",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
 									},
-								}),
-								Computed:      true,
-								Description:   "regular schedules for non-critical versions.",
+								}},
 								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							}}),
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+							}},
 							Description: "schedules specifies schedules for updates of grouped agents.",
 							Optional:    true,
 						},
-						"strategy": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"strategy": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "strategy to use for updating the agents.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-					}),
+					},
 					Description: "",
 					Optional:    true,
 				},
-				"tools": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"tools": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 						Computed:      true,
 						Description:   "Mode defines state of the client tools auto update.",
 						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+					}},
 					Description: "",
 					Optional:    true,
 				},
-			}),
+			},
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Description: "",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -201,137 +193,124 @@ func GenSchemaAutoUpdateConfigResource(ctx context.Context) (github_com_hashicor
 // GenSchemaAutoUpdateConfigDataSource returns Terraform Framework datasource schema definition for AutoUpdateConfig
 func GenSchemaAutoUpdateConfigDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
-			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapAttribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "name is an object name.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-			}),
+			},
 			Computed:    true,
 			Description: "",
 			Optional:    true,
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"agents": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"maintenance_window_duration": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"agents": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"maintenance_window_duration": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Description: "maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is \"time-based\". Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next maintenance window.",
 							Optional:    true,
 						}),
-						"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "mode specifies whether agent autoupdates are enabled, disabled, or paused.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"schedules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"regular": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-									"canary_count": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"schedules": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"regular": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+								Computed:    true,
+								Description: "regular schedules for non-critical versions.",
+								NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+									"canary_count": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 										Computed:    true,
 										Description: "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
-									"days": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"days": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 										Computed:    true,
 										Description: "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
+										ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 									},
-									"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 										Computed:    true,
 										Description: "name of the group",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
-									"start_hour": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"start_hour": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 										Computed:    true,
 										Description: "start_hour to initiate update",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
-									"wait_hours": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"wait_hours": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 										Computed:    true,
 										Description: "wait_hours after last group succeeds before this group can run. This can only be used when the strategy is \"halt-on-failure\". This field must be positive.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 									},
-								}),
-								Computed:    true,
-								Description: "regular schedules for non-critical versions.",
-								Optional:    true,
-							}}),
+								}},
+								Optional: true,
+							}},
 							Description: "schedules specifies schedules for updates of grouped agents.",
 							Optional:    true,
 						},
-						"strategy": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"strategy": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "strategy to use for updating the agents.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-					}),
+					},
 					Description: "",
 					Optional:    true,
 				},
-				"tools": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"tools": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 						Computed:    true,
 						Description: "Mode defines state of the client tools auto update.",
 						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					}},
 					Description: "",
 					Optional:    true,
 				},
-			}),
+			},
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Description: "",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -339,116 +318,105 @@ func GenSchemaAutoUpdateConfigDataSource(ctx context.Context) (github_com_hashic
 // GenSchemaAutoUpdateVersionResource returns Terraform Framework resource schema definition for AutoUpdateVersion
 func GenSchemaAutoUpdateVersionResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 			Required:      false,
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapAttribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
 				},
-			}),
+			},
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Object{github_com_hashicorp_terraform_plugin_framework_resource_schema_objectplanmodifier.UseStateForUnknown()},
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"agents": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"agents": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "autoupdate_mode to use for the rollout",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"schedule": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"schedule": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "schedule to use for the rollout",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"start_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"start_version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "start_version is the version used for newly installed agents before their update window.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"target_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"target_version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "target_version is the version that all agents will update to during their update window.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-					}),
+					},
 					Description: "",
 					Optional:    true,
 				},
-				"tools": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"target_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"tools": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"target_version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 						Computed:      true,
 						Description:   "TargetVersion specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.",
 						Optional:      true,
-						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+					}},
 					Description: "",
 					Optional:    true,
 				},
-			}),
+			},
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Description: "",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -456,104 +424,93 @@ func GenSchemaAutoUpdateVersionResource(ctx context.Context) (github_com_hashico
 // GenSchemaAutoUpdateVersionDataSource returns Terraform Framework datasource schema definition for AutoUpdateVersion
 func GenSchemaAutoUpdateVersionDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
-			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapAttribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "name is an object name.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-			}),
+			},
 			Computed:    true,
 			Description: "",
 			Optional:    true,
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"agents": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"agents": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "autoupdate_mode to use for the rollout",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"schedule": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"schedule": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "schedule to use for the rollout",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"start_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"start_version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "start_version is the version used for newly installed agents before their update window.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"target_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"target_version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "target_version is the version that all agents will update to during their update window.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-					}),
+					},
 					Description: "",
 					Optional:    true,
 				},
-				"tools": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"target_version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"tools": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"target_version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 						Computed:    true,
 						Description: "TargetVersion specifies the semantic version required for tools to establish a connection with the cluster. Client tools after connection to the cluster going to be updated to this version automatically.",
 						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					}},
 					Description: "",
 					Optional:    true,
 				},
-			}),
+			},
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Description: "",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }

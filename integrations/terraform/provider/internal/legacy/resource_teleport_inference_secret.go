@@ -36,7 +36,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportInferenceSecret{}
-var _ resource.ResourceWithSchema = &resourceTeleportInferenceSecret{}
 
 // resourceTeleportInferenceSecretType is the resource metadata type
 type resourceTeleportInferenceSecretType struct{}
@@ -78,17 +77,22 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, exist := plan.Attributes()["spec"]
-	if !exist {
-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
-		return
-	}
-	
 
 	inferenceSecret := &summarizerv1.InferenceSecret{}
 	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	specFromPlan, exist := plan.Attributes()["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
 	}
 
@@ -160,9 +164,17 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(inferenceSecret.Metadata.Name)
-	plan.Attributes()["spec"] = specFromPlan
+	attrs := plan.Attributes()
+
+	attrs["id"] = types.StringValue(inferenceSecret.Metadata.Name)
+	attrs["spec"] = specFromPlan
 	
+
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -225,6 +237,18 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 		return
 	}
 
+	inferenceSecret := &summarizerv1.InferenceSecret{}
+	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
@@ -234,13 +258,6 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error copying InferenceSecret spec", trace.Wrap(err), "inference_secret"))
-		return
-	}
-
-	inferenceSecret := &summarizerv1.InferenceSecret{}
-	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
 		return
 	}
 	inferenceSecretResource := inferenceSecret
@@ -301,8 +318,13 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	plan.Attributes()["spec"] = specFromPlan
+	attrs := plan.Attributes()
+	attrs["spec"] = specFromPlan
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -372,7 +394,14 @@ func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

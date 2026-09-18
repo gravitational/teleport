@@ -27,7 +27,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - 'github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()'
+        - 'github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()'
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 # These fields will be excluded
@@ -60,6 +60,7 @@ duration_type:
   unknown_value_method: "UnknownDuration"
   cast_to_type: "time.Duration"
   cast_from_type: "time.Duration"
+  type_constructor: "DurationType{}"
 validators:
   # Expires must be in the future
   Metadata.expires:

@@ -31,7 +31,6 @@ import (
 )
 
 var _ datasource.DataSource = &dataSource[any, Identifier]{}
-var _ datasource.DataSourceWithSchema = &dataSource[any, Identifier]{}
 
 // DataSourceClient reads a Teleport resource for a data source.
 type DataSourceClient[T any, I Identifier] interface {
@@ -109,9 +108,15 @@ func (r dataSource[T, I]) Read(ctx context.Context, req datasource.ReadRequest, 
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attributes()["id"]
+	attrs := state.Attributes()
+	v, ok := attrs["id"]
 	if !ok || v.IsNull() {
-		state.Attributes()["id"] = types.StringValue(id.String())
+		attrs["id"] = types.StringValue(id.String())
+		state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	state, diags = r.dataSource.Codec.ToState(ctx, obj, &state)

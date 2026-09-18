@@ -146,11 +146,6 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 	if req.Plan.Raw.IsNull() {
 		return
 	}
-	// Create: The API generates entity_descriptor if the user didn't provide it
-	// so they'll match -- no need to modify the plan
-	if req.State.Raw.IsNull() {
-		return
-	}
 
 	r.modifyPlan(ctx, req, resp)
 
@@ -207,6 +202,12 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		// taint the resource not reapply on the next run.
 
 	} else { // configEntityDescriptor.IsNull()
+		// Create: The API generates entity_descriptor if the user didn't provide it,
+		// and there is no prior state descriptor to synchronize into the plan.
+		if req.State.Raw.IsNull() {
+			return
+		}
+
 		// For updates, the API requires a valid `entity_descriptor`, but here the user hasn't
 		// provided one in Terraform. We therefore start with the state and add in the entity_id and acs_url
 		// provided in Terraform. For entity_id, this is required to ensure updates aren't rejected because
@@ -294,7 +295,13 @@ func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

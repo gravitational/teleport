@@ -35,8 +35,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportClientIPRestriction{}
-var _ resource.ResourceWithSchema = &resourceTeleportClientIPRestriction{}
-
 
 // resourceTeleportClientIPRestrictionType is the resource metadata type
 type resourceTeleportClientIPRestrictionType struct{}
@@ -172,7 +170,13 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req res
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(clientIPRestriction.Metadata.Name)
+	attrs := plan.Attributes()
+	attrs["id"] = types.StringValue(clientIPRestriction.Metadata.Name)
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -336,7 +340,13 @@ func (r resourceTeleportClientIPRestriction) ImportState(ctx context.Context, re
 	}
 	id := clientIPRestriction.Metadata.Name
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -386,7 +396,14 @@ func (r resourceTeleportClientIPRestriction) ModifyPlan(ctx context.Context, req
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

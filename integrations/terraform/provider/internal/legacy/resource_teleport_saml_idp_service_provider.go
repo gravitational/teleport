@@ -35,7 +35,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportSAMLIdPServiceProvider{}
-var _ resource.ResourceWithSchema = &resourceTeleportSAMLIdPServiceProvider{}
 
 // resourceTeleportSAMLIdPServiceProviderType is the resource metadata type
 type resourceTeleportSAMLIdPServiceProviderType struct{}
@@ -77,17 +76,22 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, exist := plan.Attributes()["spec"]
-	if !exist {
-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
-		return
-	}
-	
 
 	samlIdPServiceProvider := &apitypes.SAMLIdPServiceProviderV1{}
 	diags = tfschema.CopySAMLIdPServiceProviderV1FromTerraform(ctx, plan, samlIdPServiceProvider)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan, diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	specFromPlan, exist := plan.Attributes()["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
 		return
 	}
 
@@ -168,9 +172,17 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(samlIdPServiceProvider.Metadata.Name)
-	plan.Attributes()["spec"] = specFromPlan
+	attrs := plan.Attributes()
+
+	attrs["id"] = types.StringValue(samlIdPServiceProvider.Metadata.Name)
+	attrs["spec"] = specFromPlan
 	
+
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -234,6 +246,18 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 		return
 	}
 
+	samlIdPServiceProvider := &apitypes.SAMLIdPServiceProviderV1{}
+	diags = tfschema.CopySAMLIdPServiceProviderV1FromTerraform(ctx, plan, samlIdPServiceProvider)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan, diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
@@ -243,13 +267,6 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error copying SAMLIdPServiceProvider spec", trace.Wrap(err), "saml_idp_service_provider"))
-		return
-	}
-
-	samlIdPServiceProvider := &apitypes.SAMLIdPServiceProviderV1{}
-	diags = tfschema.CopySAMLIdPServiceProviderV1FromTerraform(ctx, plan, samlIdPServiceProvider)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
 		return
 	}
 	samlIdPServiceProviderResource := samlIdPServiceProvider
@@ -317,8 +334,13 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	plan.Attributes()["spec"] = specFromPlan
+	attrs := plan.Attributes()
+	attrs["spec"] = specFromPlan
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -371,7 +393,13 @@ func (r resourceTeleportSAMLIdPServiceProvider) ImportState(ctx context.Context,
 	}
 	id := samlIdPServiceProviderResource.GetName()
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

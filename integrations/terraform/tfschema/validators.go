@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -31,7 +31,7 @@ import (
 type TimeValueInFutureValidator struct{}
 
 // MustTimeBeInFuture returns TimeValueInFutureValidator
-func MustTimeBeInFuture() tfsdk.AttributeValidator {
+func MustTimeBeInFuture() validator.String {
 	return TimeValueInFutureValidator{}
 }
 
@@ -46,23 +46,27 @@ func (v TimeValueInFutureValidator) MarkdownDescription(_ context.Context) strin
 }
 
 // Validate performs the validation.
-func (v TimeValueInFutureValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-
-	value, ok := req.AttributeConfig.(TimeValue)
-	if !ok {
-		resp.Diagnostics.AddError("Time validation error", fmt.Sprintf("Attribute %v can not be converted to TimeValue", req.AttributePath.String()))
-		return
-	}
-
+func (v TimeValueInFutureValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
-	if time.Now().After(value.Value) {
-		resp.Diagnostics.AddError("Time validation error", fmt.Sprintf("Attribute %v value must be in the future", req.AttributePath.String()))
+	t, err := time.Parse(time.RFC3339, value.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Time validation error",
+			"Value must be a valid RFC3339 timestamp.")
+		return
+	}
+
+	if time.Now().After(t) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Time validation error",
+			"Value must be in the future.")
+		return
 	}
 }
 
@@ -73,7 +77,7 @@ type VersionValidator struct {
 }
 
 // UseVersionBetween creates VersionValidator
-func UseVersionBetween(min, max int) tfsdk.AttributeValidator {
+func UseVersionBetween(min, max int) validator.String {
 	return VersionValidator{min, max}
 }
 
@@ -88,17 +92,8 @@ func (v VersionValidator) MarkdownDescription(_ context.Context) string {
 }
 
 // Validate performs the validation.
-func (v VersionValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-
-	value, ok := req.AttributeConfig.(types.String)
-	if !ok {
-		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v can not be converted to StringValue", req.AttributePath.String()))
-		return
-	}
-
+func (v VersionValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() {
 		return
 	}
@@ -107,12 +102,18 @@ func (v VersionValidator) Validate(_ context.Context, req tfsdk.ValidateAttribut
 	fmt.Sscan(value.ValueString()[1:], &version) // strip leading v<xx>
 
 	if version == 0 {
-		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v (%v) is not a valid version (vXX)", req.AttributePath.String(), value.ValueString()))
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Version validation error",
+			"Value is not a valid version (vXX).")
 		return
 	}
 
 	if version < v.Min || version > v.Max {
-		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Version v%v (%v) is not in range v%v..v%v", version, req.AttributePath.String(), v.Min, v.Max))
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Version validation error",
+			fmt.Sprintf("Version is not in range v%v..v%v.", v.Min, v.Max))
 		return
 	}
 }
@@ -123,7 +124,7 @@ type MapKeysPresentValidator struct {
 }
 
 // UseKeysPresentValidator creates MapKeysPresentValidator
-func UseMapKeysPresentValidator(keys ...string) tfsdk.AttributeValidator {
+func UseMapKeysPresentValidator(keys ...string) validator.Map {
 	return MapKeysPresentValidator{Keys: keys}
 }
 
@@ -138,30 +139,28 @@ func (v MapKeysPresentValidator) MarkdownDescription(_ context.Context) string {
 }
 
 // Validate performs the validation.
-func (v MapKeysPresentValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-
-	value, ok := req.AttributeConfig.(types.Map)
-	if !ok {
-		resp.Diagnostics.AddError("Map keys validation error", fmt.Sprintf("Attribute %v can not be converted to Map", req.AttributePath.String()))
-		return
-	}
-
+func (v MapKeysPresentValidator) ValidateMap(_ context.Context, req validator.MapRequest, resp *validator.MapResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
-OUTER:
 	for _, k := range v.Keys {
+		found := false
 		for e := range value.Elements() {
 			if e == k {
-				break OUTER
+				found = true
+				break
 			}
 		}
 
-		resp.Diagnostics.AddError("Map keys validation error", fmt.Sprintf("Key %v must be present in the map %v", k, req.AttributePath.String()))
+		if found {
+			continue
+		}
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Map keys validation error",
+			fmt.Sprintf("Key %v must be present in the map.", k))
 	}
 
 }
@@ -172,7 +171,7 @@ type AnyOfValidator struct {
 }
 
 // UseAnyOfValidator creates AnyOfValidator
-func UseAnyOfValidator(keys ...string) tfsdk.AttributeValidator {
+func UseAnyOfValidator(keys ...string) validator.Object {
 	return AnyOfValidator{
 		Keys: keys,
 	}
@@ -189,20 +188,8 @@ func (v AnyOfValidator) MarkdownDescription(_ context.Context) string {
 }
 
 // Validate performs the validation.
-func (v AnyOfValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-
-	value, ok := req.AttributeConfig.(types.Object)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"AnyOf Object validation error",
-			fmt.Sprintf("Attribute %v can not be converted to Object", req.AttributePath.String()),
-		)
-		return
-	}
-
+func (v AnyOfValidator) ValidateObject(ctx context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() {
 		return
 	}
@@ -212,19 +199,21 @@ func (v AnyOfValidator) Validate(ctx context.Context, req tfsdk.ValidateAttribut
 		if found {
 			tfVal, err := attr.ToTerraformValue(ctx)
 			if err != nil {
-				resp.Diagnostics.AddError(
+				resp.Diagnostics.AddAttributeError(
+					req.Path,
 					"AnyOf keys validation error",
 					fmt.Sprintf("Failed to convert ToTerraformValue attribute with key '%s': %v", key, err),
 				)
 				return
 			}
-			if !tfVal.IsNull() {
+			if !tfVal.IsKnown() || !tfVal.IsNull() {
 				return
 			}
 		}
 	}
 
-	resp.Diagnostics.AddError(
+	resp.Diagnostics.AddAttributeError(
+		req.Path,
 		"AnyOf keys validation error",
 		fmt.Sprintf("AnyOf '%s' keys must be present", strings.Join(v.Keys, ", ")),
 	)
@@ -249,7 +238,7 @@ func (v AnyOfValidator) Validate(ctx context.Context, req tfsdk.ValidateAttribut
 type SAMLIdPServiceProviderAttributeNameFormatValidator struct{}
 
 // SAMLIdPAttributeNameFormatValidator returns SAMLIdPServiceProviderAttributeNameFormatValidator.
-func SAMLIdPAttributeNameFormatValidator() tfsdk.AttributeValidator {
+func SAMLIdPAttributeNameFormatValidator() validator.String {
 	return SAMLIdPServiceProviderAttributeNameFormatValidator{}
 }
 
@@ -261,23 +250,18 @@ func (v SAMLIdPServiceProviderAttributeNameFormatValidator) MarkdownDescription(
 	return "`name_format` must be a URN (e.g. `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`)"
 }
 
-func (v SAMLIdPServiceProviderAttributeNameFormatValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-	value, ok := req.AttributeConfig.(types.String)
-	if !ok {
-		resp.Diagnostics.AddError("name_format validation error", fmt.Sprintf("Attribute %v can not be converted to String", req.AttributePath.String()))
-		return
-	}
+func (v SAMLIdPServiceProviderAttributeNameFormatValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() || value.ValueString() == "" {
 		return
 	}
 	if !strings.Contains(value.ValueString(), ":") {
-		resp.Diagnostics.AddError(
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
 			"name_format validation error",
-			fmt.Sprintf("Attribute %v: %q is not a valid URN; use the full URN form (e.g. urn:oasis:names:tc:SAML:2.0:attrname-format:basic)", req.AttributePath.String(), value.ValueString()),
+			fmt.Sprintf("%q is not a valid URN; use the full URN form (e.g. urn:oasis:names:tc:SAML:2.0:attrname-format:basic).", value.ValueString()),
 		)
+		return
 	}
 }
 
@@ -289,7 +273,7 @@ func (v SAMLIdPServiceProviderAttributeNameFormatValidator) Validate(_ context.C
 type SAMLIdPServiceProviderSpecValidator struct{}
 
 // SAMLIdPSpecValidator returns SAMLIdPServiceProviderSpecValidator.
-func SAMLIdPSpecValidator() tfsdk.AttributeValidator {
+func SAMLIdPSpecValidator() validator.Object {
 	return SAMLIdPServiceProviderSpecValidator{}
 }
 
@@ -305,15 +289,8 @@ func (v SAMLIdPServiceProviderSpecValidator) MarkdownDescription(_ context.Conte
 	return SamlIdPServiceProviderDescription
 }
 
-func (v SAMLIdPServiceProviderSpecValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-	spec, ok := req.AttributeConfig.(types.Object)
-	if !ok {
-		resp.Diagnostics.AddError("Spec validation error", fmt.Sprintf("Attribute %v can not be converted to Object", req.AttributePath.String()))
-		return
-	}
+func (v SAMLIdPServiceProviderSpecValidator) ValidateObject(_ context.Context, req validator.ObjectRequest, resp *validator.ObjectResponse) {
+	spec := req.ConfigValue
 	if spec.IsNull() || spec.IsUnknown() {
 		return
 	}
@@ -332,13 +309,15 @@ func (v SAMLIdPServiceProviderSpecValidator) Validate(_ context.Context, req tfs
 	}
 
 	if entityDescriptor.IsNull() && (entityID.IsNull() || acsURL.IsNull()) {
-		resp.Diagnostics.AddError(
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
 			"Entity not provided",
 			"Either entity_descriptor or entity_id and acs_url must be provided",
 		)
 	}
 	if !entityDescriptor.IsNull() && (!entityID.IsNull() || !acsURL.IsNull()) {
-		resp.Diagnostics.AddWarning(
+		resp.Diagnostics.AddAttributeWarning(
+			req.Path,
 			"User must match multiple entity_id/acs_url values",
 			"You've provided both `entity_id` or `acs_url` and `entity_descriptor` (which contains entity_id and acs_url). "+
 				"Either provide only one or make sure the two values match. Apply will fail if the entity_id values differ.",
@@ -348,7 +327,7 @@ func (v SAMLIdPServiceProviderSpecValidator) Validate(_ context.Context, req tfs
 }
 
 // UseValueIn creates a StringValueValidator
-func UseValueIn(allowed ...string) tfsdk.AttributeValidator {
+func UseValueIn(allowed ...string) validator.String {
 	return StringValueValidator{allowed}
 }
 
@@ -368,25 +347,22 @@ func (v StringValueValidator) MarkdownDescription(_ context.Context) string {
 }
 
 // Validate performs the validation.
-func (v StringValueValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	if req.AttributeConfig == nil {
-		return
-	}
-
-	value, ok := req.AttributeConfig.(types.String)
-	if !ok {
-		resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v can not be converted to StringValue", req.AttributePath.String()))
-		return
-	}
-
+func (v StringValueValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	value := req.ConfigValue
 	if value.IsNull() || value.IsUnknown() {
 		if !slices.Contains(v.AllowedValues, "") {
-			resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is unset but empty string is not a valid value.", req.AttributePath.String(), value.ValueString()))
+			resp.Diagnostics.AddAttributeError(
+				req.Path,
+				"Field validation error",
+				"Value is unset but empty string is not a valid value.")
 		}
 		return
 	}
 
 	if !slices.Contains(v.AllowedValues, value.ValueString()) {
-		resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is not in the allowed set (%v).", req.AttributePath.String(), value.ValueString(), v.AllowedValues))
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Field validation error",
+			fmt.Sprintf("%q is not in the allowed set (%v).", value.ValueString(), v.AllowedValues))
 	}
 }

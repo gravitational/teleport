@@ -36,7 +36,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportDiscoveryConfig{}
-var _ resource.ResourceWithSchema = &resourceTeleportDiscoveryConfig{}
 
 // resourceTeleportDiscoveryConfigType is the resource metadata type
 type resourceTeleportDiscoveryConfigType struct{}
@@ -158,7 +157,15 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(discoveryConfig.Header.Metadata.Name)
+	attrs := plan.Attributes()
+
+	attrs["id"] = types.StringValue(discoveryConfig.Header.Metadata.Name)
+
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -340,7 +347,13 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req re
 	}
 	id := discoveryConfig.Metadata.Name
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -394,7 +407,14 @@ func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

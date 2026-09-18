@@ -23,7 +23,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
+)
+
+var (
+	_ basetypes.StringTypable  = DurationType{}
+	_ basetypes.StringValuable = DurationValue{}
 )
 
 // DurationType represents time.Time Terraform type which is stored in RFC3339 format, nanoseconds truncated
@@ -92,6 +99,28 @@ func (t DurationType) ValueFromTerraform(ctx context.Context, in tftypes.Value) 
 	return DurationValue{Value: current, rawValue: raw}, nil
 }
 
+// ValueFromString converts a framework string value into a DurationValue.
+func (t DurationType) ValueFromString(_ context.Context, in basetypes.StringValue) (basetypes.StringValuable, diag.Diagnostics) {
+	if in.IsUnknown() {
+		return DurationValue{Unknown: true}, nil
+	}
+	if in.IsNull() {
+		return DurationValue{Null: true}, nil
+	}
+
+	value, err := time.ParseDuration(in.ValueString())
+	if err != nil {
+		return nil, diag.Diagnostics{
+			diag.NewErrorDiagnostic("Invalid Duration Value", err.Error()),
+		}
+	}
+
+	return DurationValue{
+		Value:    value,
+		rawValue: in.ValueString(),
+	}, nil
+}
+
 // NewDuration creates a DurationValue with a known value.
 func NewDuration(value time.Duration) DurationValue {
 	return DurationValue{
@@ -153,6 +182,31 @@ func (t DurationValue) ToTerraformValue(ctx context.Context) (tftypes.Value, err
 	return tftypes.NewValue(tftypes.String, value), nil
 }
 
+// ToStringValue converts DurationValue into a framework string value.
+func (t DurationValue) ToStringValue(context.Context) (basetypes.StringValue, diag.Diagnostics) {
+	if t.IsNull() {
+		return basetypes.NewStringNull(), nil
+	}
+	if t.IsUnknown() {
+		return basetypes.NewStringUnknown(), nil
+	}
+
+	if t.rawValue != "" {
+		currentRawValue, err := time.ParseDuration(t.rawValue)
+		if err != nil {
+			return basetypes.NewStringUnknown(), diag.Diagnostics{
+				diag.NewErrorDiagnostic("failed to parse duration raw value", err.Error()),
+			}
+		}
+
+		if currentRawValue == t.Value {
+			return basetypes.NewStringValue(t.rawValue), nil
+		}
+	}
+
+	return basetypes.NewStringValue(t.Value.String()), nil
+}
+
 // Equal returns true if `other` if durations are equal
 func (t DurationValue) Equal(other attr.Value) bool {
 	o, ok := other.(DurationValue)
@@ -163,6 +217,9 @@ func (t DurationValue) Equal(other attr.Value) bool {
 		return false
 	}
 	if t.Null != o.Null {
+		return false
+	}
+	if t.rawValue != o.rawValue {
 		return false
 	}
 	return t.Value == o.Value
@@ -194,4 +251,30 @@ func (t DurationValue) String() string {
 // ValueDuration returns the underlying duration value.
 func (t DurationValue) ValueDuration() time.Duration {
 	return t.Value
+}
+
+var _ basetypes.StringValuableWithSemanticEquals = DurationValue{}
+
+func (t DurationValue) StringSemanticEquals(ctx context.Context, newValuable basetypes.StringValuable) (bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// The framework should always pass the correct value type, but always check
+	newValue, ok := newValuable.(DurationValue)
+	if !ok {
+		diags.AddError(
+			"Semantic Equality Check Error",
+			"An unexpected value type was received while performing semantic equality checks. "+
+				"Please report this to the provider developers.\n\n"+
+				"Expected Value Type: "+fmt.Sprintf("%T", t)+"\n"+
+				"Got Value Type: "+fmt.Sprintf("%T", newValuable),
+		)
+
+		return false, diags
+	}
+
+	if t.IsNull() || t.IsUnknown() || newValue.IsNull() || newValue.IsUnknown() {
+		return false, diags
+	}
+
+	return t.Value == newValue.Value, diags
 }

@@ -24,12 +24,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 const (
 	// timeThreshold represents time rounding threshold (nanoseconds would be cut off)
 	timeThreshold = time.Nanosecond
+)
+
+var (
+	_ basetypes.StringTypable  = TimeType{}
+	_ basetypes.StringValuable = TimeValue{}
 )
 
 // TimeType represents time.Time Terraform type which is stored in RFC3339 format, nanoseconds truncated
@@ -101,6 +107,25 @@ func (t TimeType) ValueFromTerraform(ctx context.Context, in tftypes.Value) (att
 	}
 
 	return TimeValue{Value: current, Format: t.Format}, nil
+}
+
+// ValueFromString converts a framework string value into a TimeValue.
+func (t TimeType) ValueFromString(_ context.Context, in basetypes.StringValue) (basetypes.StringValuable, diag.Diagnostics) {
+	if in.IsUnknown() {
+		return TimeValue{Unknown: true, Format: t.Format}, nil
+	}
+	if in.IsNull() {
+		return TimeValue{Null: true, Format: t.Format}, nil
+	}
+
+	value, err := time.Parse(t.Format, in.ValueString())
+	if err != nil {
+		return nil, diag.Diagnostics{
+			diag.NewErrorDiagnostic("Invalid Time Value", err.Error()),
+		}
+	}
+
+	return TimeValue{Value: value, Format: t.Format}, nil
 }
 
 // Validate validates Terraform Time valud
@@ -203,6 +228,18 @@ func (t TimeValue) ToTerraformValue(ctx context.Context) (tftypes.Value, error) 
 	}
 
 	return tftypes.NewValue(tftypes.String, t.Value.Truncate(timeThreshold).Format(t.Format)), nil
+}
+
+// ToStringValue converts TimeValue into a framework string value.
+func (t TimeValue) ToStringValue(context.Context) (basetypes.StringValue, diag.Diagnostics) {
+	if t.IsNull() {
+		return basetypes.NewStringNull(), nil
+	}
+	if t.IsUnknown() {
+		return basetypes.NewStringUnknown(), nil
+	}
+
+	return basetypes.NewStringValue(t.Value.Truncate(timeThreshold).Format(t.Format)), nil
 }
 
 // Equal returns true if `other` is a *String and has the same value as `s`.

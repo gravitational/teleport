@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	tftypes "github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -37,11 +37,11 @@ The workaround we found was to use this plan modifier.`
 )
 
 // DefaultRoleOptions returns the default implementation of the DefaultRoleOptionsModifier
-func DefaultRoleOptions() tfsdk.AttributePlanModifier {
+func DefaultRoleOptions() planmodifier.Object {
 	return DefaultRoleOptionsModifier{}
 }
 
-// DefaultRoleOptionsModifier implements the tfsdk.AttributePlanModifier interface. It accounts
+// DefaultRoleOptionsModifier implements the planmodifier.Object interface. It accounts
 // for default values applied by CheckAndSetDefaults that would otherwise create inconsistent states
 type DefaultRoleOptionsModifier struct {
 }
@@ -59,7 +59,7 @@ func (d DefaultRoleOptionsModifier) MarkdownDescription(ctx context.Context) str
 }
 
 // Modify the terraform plan to account for defaults applied to RoleOptions by CheckAndSetDefaults
-func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
+func (d DefaultRoleOptionsModifier) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
 	var config tftypes.Object
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
@@ -82,7 +82,7 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		return
 	}
 
-	config, diags = CopyRoleV6ToTerraform(ctx, role, &config)
+	config, diags = CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, true)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to convert back the role into a TF object.")
@@ -109,15 +109,15 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to cast 'options' as a TF object.")
 		return
 	}
-	resp.AttributePlan = options
+	resp.PlanValue = options
 }
 
 // DefaultKubernetesResources returns the default implementation of the DefaultKubernetesResourcesModifier
-func DefaultKubernetesResources() tfsdk.AttributePlanModifier {
+func DefaultKubernetesResources() planmodifier.List {
 	return DefaultKubernetesResourcesModifier{}
 }
 
-// DefaultKubernetesResourcesModifier implements the tfsdk.AttributePlanModifier interface. It accounts
+// DefaultKubernetesResourcesModifier implements the planmodifier.List interface. It accounts
 // for default values applied by CheckAndSetDefaults that would otherwise create inconsistent states
 type DefaultKubernetesResourcesModifier struct{}
 
@@ -134,7 +134,7 @@ func (d DefaultKubernetesResourcesModifier) MarkdownDescription(_ context.Contex
 }
 
 // Modify the terraform plan to account for defaults applied to KubernetesResources by CheckAndSetDefaults
-func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
+func (d DefaultKubernetesResourcesModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
 	var config tftypes.Object
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
@@ -157,7 +157,7 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		return
 	}
 
-	config, diags = CopyRoleV6ToTerraform(ctx, role, &config)
+	config, diags = CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, true)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to convert back the role into a TF object.")
@@ -198,5 +198,5 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to cast 'kubernetes_resources' as a TF list.")
 		return
 	}
-	resp.AttributePlan = kubernetesResources
+	resp.PlanValue = kubernetesResources
 }

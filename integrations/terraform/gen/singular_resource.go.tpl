@@ -48,8 +48,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleport{{.Name}}{}
-var _ resource.ResourceWithSchema = &resourceTeleport{{.Name}}{}
-
 
 // resourceTeleport{{.Name}}Type is the resource metadata type
 type resourceTeleport{{.Name}}Type struct{}
@@ -286,7 +284,13 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue({{.ID}})
+	attrs := plan.Attributes()
+	attrs["id"] = types.StringValue({{.ID}})
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -628,7 +632,13 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 	id := {{.VarName}}.GetName()
 {{- end}}
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -707,7 +717,14 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

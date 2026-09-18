@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package v1
 
 import (
@@ -25,8 +24,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -47,14 +48,9 @@ var (
 //   - null/unset -> CLASSIFIER_ACTION_MODE_UNSPECIFIED (the default behavior)
 //   - true       -> CLASSIFIER_ACTION_MODE_ENABLED
 //   - false      -> CLASSIFIER_ACTION_MODE_DISABLED
-func GenSchemaClassifierActionModeDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.BoolType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-	}
+func GenSchemaClassifierActionModeDataSource(_ context.Context, attr datasource_schema.BoolAttribute) datasource_schema.BoolAttribute {
+	attr.Optional = true
+	return attr
 }
 
 // GenSchemaClassifierActionModeResource returns the Terraform schema for a
@@ -63,14 +59,9 @@ func GenSchemaClassifierActionModeDataSource(_ context.Context, attr tfsdk.Attri
 //   - null/unset -> CLASSIFIER_ACTION_MODE_UNSPECIFIED (the default behavior)
 //   - true       -> CLASSIFIER_ACTION_MODE_ENABLED
 //   - false      -> CLASSIFIER_ACTION_MODE_DISABLED
-func GenSchemaClassifierActionModeResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.BoolType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-	}
+func GenSchemaClassifierActionModeResource(ctx context.Context, attr resource_schema.BoolAttribute) resource_schema.BoolAttribute {
+	attr.Optional = true
+	return attr
 }
 
 // CopyFromClassifierActionMode converts an optional Terraform boolean into a
@@ -124,27 +115,17 @@ var riskLevelFromString = map[string]summarizerv1.RiskLevel{
 }
 
 // GenSchemaRiskLevelDataSource exposes a RiskLevel enum as an optional "low".."critical" string.
-func GenSchemaRiskLevelDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.StringType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-		Validators:    append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels}),
-	}
+func GenSchemaRiskLevelDataSource(_ context.Context, attr datasource_schema.StringAttribute) datasource_schema.StringAttribute {
+	attr.Optional = true
+	attr.Validators = append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels})
+	return attr
 }
 
 // GenSchemaRiskLevelResource exposes a RiskLevel enum as an optional "low".."critical" string.
-func GenSchemaRiskLevelResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.StringType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-		Validators:    append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels}),
-	}
+func GenSchemaRiskLevelResource(ctx context.Context, attr resource_schema.StringAttribute) resource_schema.StringAttribute {
+	attr.Optional = true
+	attr.Validators = append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels})
+	return attr
 }
 
 func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.RiskLevel) {
@@ -182,6 +163,8 @@ func CopyToRiskLevel(_ diag.Diagnostics, o summarizerv1.RiskLevel, _ attr.Type, 
 	return types.StringValue(s)
 }
 
+var _ validator.String = stringEnumValidator{}
+
 // riskLevels lists the accepted risk_level_floor values in documentation order.
 var riskLevels = []string{"low", "medium", "high", "critical"}
 
@@ -204,9 +187,9 @@ func (v stringEnumValidator) message() string {
 	return "must be one of " + strings.Join(quoted, ", ")
 }
 
-func (v stringEnumValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
-	value, ok := req.AttributeConfig.(types.String)
-	if !ok || value.IsNull() || value.IsUnknown() {
+func (v stringEnumValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	value := req.ConfigValue
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 	if !slices.Contains(v.allowed, strings.ToLower(value.ValueString())) {

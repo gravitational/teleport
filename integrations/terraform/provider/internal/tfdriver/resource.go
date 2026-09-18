@@ -33,7 +33,6 @@ import (
 )
 
 var _ resource.Resource = &Resource[any, Identifier]{}
-var _ resource.ResourceWithSchema = &Resource[any, Identifier]{}
 
 // Runtime provides provider settings for Terraform resources.
 type Runtime interface {
@@ -205,7 +204,13 @@ func (r Resource[T, I]) Create(ctx context.Context, req resource.CreateRequest, 
 				return
 			}
 
-			plan.Attributes()["id"] = types.StringValue(id.String())
+			attrs := plan.Attributes()
+			attrs["id"] = types.StringValue(id.String())
+			plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
 
 			diags = resp.State.Set(ctx, &plan)
 			resp.Diagnostics.Append(diags...)
@@ -396,7 +401,13 @@ func (r Resource[T, I]) ImportState(ctx context.Context, req resource.ImportStat
 		return
 	}
 
-	state.Attributes()["id"] = types.StringValue(req.ID)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(req.ID)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

@@ -34,8 +34,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportClusterMaintenanceConfig{}
-var _ resource.ResourceWithSchema = &resourceTeleportClusterMaintenanceConfig{}
-
 
 // resourceTeleportClusterMaintenanceConfigType is the resource metadata type
 type resourceTeleportClusterMaintenanceConfigType struct{}
@@ -178,7 +176,13 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue("cluster_maintenance_config")
+	attrs := plan.Attributes()
+	attrs["id"] = types.StringValue("cluster_maintenance_config")
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -344,7 +348,13 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 	}
 	id := clusterMaintenanceConfig.GetName()
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -398,7 +408,14 @@ func (r resourceTeleportClusterMaintenanceConfig) ModifyPlan(ctx context.Context
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

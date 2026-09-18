@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package legacy
 
 import (
@@ -28,6 +27,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -60,174 +62,156 @@ import (
 func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id": tfsdk.Attribute{
+			"id": schema.StringAttribute{
 				Computed:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
-				Type:          types.StringType,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"kind": tfsdk.Attribute{
+			"kind": schema.StringAttribute{
 				Computed:      true,
 				Description:   "The kind of resource represented.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
-				Type:          types.StringType,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"sub_kind": tfsdk.Attribute{
+			"sub_kind": schema.StringAttribute{
 				Computed:      true,
 				Description:   "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
-				Type:          types.StringType,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"version": tfsdk.Attribute{
+			"version": schema.StringAttribute{
 				Computed:      true,
 				Description:   "The version of the resource being represented.",
 				Optional:      true,
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
-				Type:          types.StringType,
-				Validators:    []tfsdk.AttributeValidator{tfschema.UseVersionBetween(1, 1)},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators:    []validator.String{tfschema.UseVersionBetween(1, 1)},
 			},
-			"metadata": tfsdk.Attribute{
-				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
-					"description": {
+			"metadata": schema.SingleNestedAttribute{
+				Attributes: map[string]schema.Attribute{
+					"description": schema.StringAttribute{
 						Description: "Description is object description",
 						Optional:    true,
-						Type:        types.StringType,
 					},
-					"expires": {
+					"expires": schema.StringAttribute{
 						Description: "Expires is a global expiry time header can be set on any resource in the system.",
 						Optional:    true,
-						Type:        tfschema.UseRFC3339Time(),
-						Validators:  []tfsdk.AttributeValidator{tfschema.MustTimeBeInFuture()},
+						CustomType:  tfschema.UseRFC3339Time(),
+						Validators:  []validator.String{tfschema.MustTimeBeInFuture()},
 					},
-					"labels": {
+					"labels": schema.MapAttribute{
 						Description: "Labels is a set of labels",
 						Optional:    true,
-						Type:        types.MapType{ElemType: types.StringType},
-						Validators:  []tfsdk.AttributeValidator{tfschema.UseMapKeysPresentValidator("teleport.dev/origin")},
+						ElementType: types.StringType,
+						Validators:  []validator.Map{tfschema.UseMapKeysPresentValidator("teleport.dev/origin")},
 					},
-					"name": {
+					"name": schema.StringAttribute{
 						Description:   "Name is an object name",
-						PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
+						PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 						Required:      true,
-						Type:          types.StringType,
 					},
-					"namespace": {
+					"namespace": schema.StringAttribute{
 						Computed:      true,
 						Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 						Optional:      true,
-						PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
-						Type:          types.StringType,
+						PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 					},
-					"revision": {
+					"revision": schema.StringAttribute{
 						Description: "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 						Optional:    true,
-						Type:        types.StringType,
 					},
-				}),
+				},
 				Description: "Common metadata that all resources share",
 				Optional:    true,
-				Validators: []tfsdk.AttributeValidator{
+				Validators: []validator.Object{
 					requiredUnlessLegacyValidator{},
 				},
 			},
-			"spec": tfsdk.Attribute{
-				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
-					"traits": tfschema.GenSchemaTraitsResource(ctx, tfsdk.Attribute{
+			"spec": schema.SingleNestedAttribute{
+				Attributes: map[string]schema.Attribute{
+					"traits": tfschema.GenSchemaTraitsResource(ctx, schema.MapAttribute{
 						Description: "The traits that will be associated with the bot for the purposes of role templating.\n\nWhere multiple specified with the same name, these will be merged by the server.",
 					}),
-					"roles": {
+					"roles": schema.ListAttribute{
 						Optional:    true,
 						Description: "A list of roles the created bot should be allowed to assume via role impersonation.",
-						Type:        types.ListType{ElemType: types.StringType},
+						ElementType: types.StringType,
 					},
-					"max_session_ttl": {
+					"max_session_ttl": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).",
-						Type:        tfschema.DurationType{},
+						CustomType:  tfschema.DurationType{},
 					},
-				}),
+				},
 				Description: "The configured properties of a bot.",
 				Optional:    true,
-				Validators: []tfsdk.AttributeValidator{
+				Validators: []validator.Object{
 					requiredUnlessLegacyValidator{},
 				},
 			},
-			"status": tfsdk.Attribute{
-				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
-					"user_name": {
+			"status": schema.SingleNestedAttribute{
+				Attributes: map[string]schema.Attribute{
+					"user_name": schema.StringAttribute{
 						Description: "The name of the user associated with the bot.",
-						Type:        types.StringType,
 						Computed:    true,
 					},
-					"role_name": {
+					"role_name": schema.StringAttribute{
 						Description: "The name of the role associated with the bot.",
-						Type:        types.StringType,
 						Computed:    true,
 					},
-				}),
+				},
 				Description: "Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
 			},
-			"scope": tfsdk.Attribute{
+			"scope": schema.StringAttribute{
 				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 				Optional:      true,
-				Type:          types.StringType,
 			},
 
 			// Deprecated fields.
-			"name": tfsdk.Attribute{
-				Type:               types.StringType,
+			"name": schema.StringAttribute{
 				Optional:           true,
 				Description:        "The name of the bot, i.e. the unprefixed User name",
 				DeprecationMessage: "Deprecated. Used `metadata.name` instead.",
-				Validators: []tfsdk.AttributeValidator{
+				Validators: []validator.String{
 					rfd153OnlyValidator{},
 				},
-				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
-			"user_name": tfsdk.Attribute{
-				Type:               types.StringType,
+			"user_name": schema.StringAttribute{
 				Computed:           true,
 				Description:        "The name of the generated bot user",
 				DeprecationMessage: "Deprecated. Use `status.user_name` instead.",
 			},
-			"role_name": tfsdk.Attribute{
-				Type:               types.StringType,
+			"role_name": schema.StringAttribute{
 				Computed:           true,
 				Description:        "The name of the generated bot role",
 				DeprecationMessage: "Deprecated. Use `status.role_name` instead.",
 			},
-			"token_ttl": tfsdk.Attribute{
-				Type:               types.StringType,
+			"token_ttl": schema.StringAttribute{
 				Optional:           true,
 				Computed:           true,
 				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
 			},
-			"token_id": tfsdk.Attribute{
-				Type: types.StringType,
+			"token_id": schema.StringAttribute{
 				// Implementation note: this is not used anymore, we can skip this
 				// This will go away eventually when we'll generate the bot provider instead
 				Optional:           true,
 				Sensitive:          true,
 				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
 			},
-			"roles": tfsdk.Attribute{
-				Type: types.ListType{
-					ElemType: types.StringType,
-				},
+			"roles": schema.ListAttribute{
+				ElementType:        types.StringType,
 				Optional:           true,
 				Description:        "A list of roles the created bot should be allowed to assume via role impersonation.",
 				DeprecationMessage: "Deprecated. Use `spec.roles` instead.",
-				Validators: []tfsdk.AttributeValidator{
+				Validators: []validator.List{
 					rfd153OnlyValidator{},
 				},
 			},
-			"traits": tfschema.GenSchemaTraitsResource(ctx, tfsdk.Attribute{
+			"traits": tfschema.GenSchemaTraitsResource(ctx, schema.MapAttribute{
 				DeprecationMessage: "Deprecated. Use `spec.traits` instead.",
-				Validators: []tfsdk.AttributeValidator{
+				Validators: []validator.Map{
 					rfd153OnlyValidator{},
 				},
 			}),
@@ -236,7 +220,6 @@ func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 }
 
 var _ resource.Resource = &resourceTeleportBot{}
-var _ resource.ResourceWithSchema = &resourceTeleportBot{}
 
 // resourceTeleportBotType is the resource metadata type
 type resourceTeleportBotType struct{}
@@ -554,7 +537,12 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 				if !prev.IsUnknown() {
 					if dur, ok := prev.(tfschema.DurationValue); ok {
 						if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
-							result.Spec.Attributes()["max_session_ttl"] = prev
+							attrs := result.Spec.Attributes()
+							attrs["max_session_ttl"] = prev
+							result.Spec, diags = types.ObjectValue(result.Spec.AttributeTypes(ctx), attrs)
+							if diags.HasError() {
+								return Bot{}, diags
+							}
 						}
 					}
 				}
@@ -670,24 +658,41 @@ func (v rfd153OnlyValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
 }
 
-func (v rfd153OnlyValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, rsp *tfsdk.ValidateAttributeResponse) {
-	if !attrPresent(req.AttributeConfig) {
-		return
-	}
+func (v rfd153OnlyValidator) ValidateString(ctx context.Context, req validator.StringRequest, rsp *validator.StringResponse) {
+	rsp.Diagnostics.Append(v.validate(ctx, req.Config, req.Path, req.ConfigValue)...)
+}
 
+func (v rfd153OnlyValidator) ValidateList(ctx context.Context, req validator.ListRequest, rsp *validator.ListResponse) {
+	rsp.Diagnostics.Append(v.validate(ctx, req.Config, req.Path, req.ConfigValue)...)
+}
+
+func (v rfd153OnlyValidator) ValidateMap(ctx context.Context, req validator.MapRequest, rsp *validator.MapResponse) {
+	rsp.Diagnostics.Append(v.validate(ctx, req.Config, req.Path, req.ConfigValue)...)
+}
+
+func (v rfd153OnlyValidator) validate(ctx context.Context, config tfsdk.Config, attrPath path.Path, configValue attr.Value) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if !attrPresent(configValue) {
+		return diags
+	}
 	var meta, spec types.Object
 	var scope types.String
-	req.Config.GetAttribute(ctx, path.Root("metadata"), &meta)
-	req.Config.GetAttribute(ctx, path.Root("spec"), &spec)
-	req.Config.GetAttribute(ctx, path.Root("scope"), &scope)
+	diags.Append(config.GetAttribute(ctx, path.Root("metadata"), &meta)...)
+	diags.Append(config.GetAttribute(ctx, path.Root("spec"), &spec)...)
+	diags.Append(config.GetAttribute(ctx, path.Root("scope"), &scope)...)
+	if diags.HasError() {
+		return diags
+	}
 
 	if attrPresent(meta) || attrPresent(spec) || attrPresent(scope) {
-		rsp.Diagnostics.AddAttributeError(
-			req.AttributePath,
+		diags.AddAttributeError(
+			attrPath,
 			"Attribute Validation Error",
-			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec`, `metadata`, or `scope`.", req.AttributePath),
+			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec`, `metadata`, or `scope`.", attrPath),
 		)
 	}
+
+	return diags
 }
 
 // requiredUnlessLegacyValidator makes the attribute required *unless* the user
@@ -703,15 +708,19 @@ func (v requiredUnlessLegacyValidator) MarkdownDescription(ctx context.Context) 
 	return v.Description(ctx)
 }
 
-func (v requiredUnlessLegacyValidator) Validate(ctx context.Context, req tfsdk.ValidateAttributeRequest, rsp *tfsdk.ValidateAttributeResponse) {
-	if attrPresent(req.AttributeConfig) {
+func (v requiredUnlessLegacyValidator) ValidateObject(ctx context.Context, req validator.ObjectRequest, rsp *validator.ObjectResponse) {
+	if attrPresent(req.ConfigValue) {
 		return
 	}
 
 	var legacyConfig bool
 	for _, name := range []string{"name", "roles", "traits"} {
 		var attr attr.Value
-		req.Config.GetAttribute(ctx, path.Root(name), &attr)
+		rsp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(name), &attr)...)
+		if rsp.Diagnostics.HasError() {
+			return
+		}
+
 		if attrPresent(attr) {
 			legacyConfig = true
 			break
@@ -720,16 +729,18 @@ func (v requiredUnlessLegacyValidator) Validate(ctx context.Context, req tfsdk.V
 
 	if !legacyConfig {
 		rsp.Diagnostics.AddAttributeError(
-			req.AttributePath,
+			req.Path,
 			"Missing required argument",
-			fmt.Sprintf("The argument `%s` is required, but not definition was found.", req.AttributePath),
+			fmt.Sprintf("The argument `%s` is required, but not definition was found.", req.Path),
 		)
 	}
 }
 
 var (
-	_ tfsdk.AttributeValidator = rfd153OnlyValidator{}
-	_ tfsdk.AttributeValidator = requiredUnlessLegacyValidator{}
+	_ validator.Map    = rfd153OnlyValidator{}
+	_ validator.List   = rfd153OnlyValidator{}
+	_ validator.String = rfd153OnlyValidator{}
+	_ validator.Object = requiredUnlessLegacyValidator{}
 )
 
 // Bot is the Terraform (i.e. state or plan) representation of a bot.

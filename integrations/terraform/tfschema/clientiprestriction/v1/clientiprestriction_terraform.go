@@ -31,9 +31,13 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
-	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_objectplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_schema_validator "github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -46,99 +50,91 @@ var _ = math.Inf
 // GenSchemaClientIPRestrictionResource returns Terraform Framework resource schema definition for ClientIPRestriction
 func GenSchemaClientIPRestrictionResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 			Required:      false,
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "The kind of resource represented. This is always `client_ip_restriction`.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapAttribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"namespace": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-			}),
+			},
 			Computed:      true,
 			Description:   "Metadata about the client IP restrictions.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Object{github_com_hashicorp_terraform_plugin_framework_resource_schema_objectplanmodifier.UseStateForUnknown()},
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"allowed_cidrs": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"allowed_cidrs": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 					Computed:      true,
 					Description:   "allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 				},
-				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description: "expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes \"expired\". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: \"draft\" (configured but not enforced) and \"enforced\" (should be enforced by Teleport Cloud). An empty value is treated as \"enforced\" for backward compatibility.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-			}),
+			},
 			Description: "User-configurable parts of the resource settings.",
 			Optional:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "The sub_kind of the resource. Always \"\".",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "The version of the resource. Always \"v1\".",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
 	}}, nil
 }
@@ -146,88 +142,80 @@ func GenSchemaClientIPRestrictionResource(ctx context.Context) (github_com_hashi
 // GenSchemaClientIPRestrictionDataSource returns Terraform Framework datasource schema definition for ClientIPRestriction
 func GenSchemaClientIPRestrictionDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
-			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "The kind of resource represented. This is always `client_ip_restriction`.",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapAttribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "name is an object name.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"namespace": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-			}),
+			},
 			Computed:    true,
 			Description: "Metadata about the client IP restrictions.",
 			Optional:    true,
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"allowed_cidrs": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"allowed_cidrs": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 					Computed:    true,
 					Description: "allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes \"expired\". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"mode": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: \"draft\" (configured but not enforced) and \"enforced\" (should be enforced by Teleport Cloud). An empty value is treated as \"enforced\" for backward compatibility.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-			}),
+			},
 			Description: "User-configurable parts of the resource settings.",
 			Optional:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "The sub_kind of the resource. Always \"\".",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "The version of the resource. Always \"v1\".",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }

@@ -32,7 +32,6 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportClusterMaintenanceConfig{}
-var _ datasource.DataSourceWithSchema = &dataSourceTeleportClusterMaintenanceConfig{}
 
 // dataSourceTeleportClusterMaintenanceConfigType is the data source metadata type
 type dataSourceTeleportClusterMaintenanceConfigType struct{}
@@ -86,10 +85,17 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, re
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attributes()["id"]
+	attrs := state.Attributes()
+	v, ok := attrs["id"]
 	if !ok || v.IsNull() {
 		id := clusterMaintenanceConfig.GetName()
-		state.Attributes()["id"] = types.StringValue(id)
+		attrs["id"] = types.StringValue(id)
+	}
+
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	diags = resp.State.Set(ctx, &state)

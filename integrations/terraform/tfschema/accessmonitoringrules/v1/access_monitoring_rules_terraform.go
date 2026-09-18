@@ -31,9 +31,12 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
-	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	github_com_hashicorp_terraform_plugin_framework_schema_validator "github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -45,196 +48,179 @@ var _ = math.Inf
 // GenSchemaAccessMonitoringRuleResource returns Terraform Framework resource schema definition for AccessMonitoringRule
 func GenSchemaAccessMonitoringRuleResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Optional:      false,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 			Required:      false,
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "kind is a resource kind",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapAttribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Description:   "name is an object name.",
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 					Required:      true,
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"namespace": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-			}),
+			},
 			Description: "metadata is the rules's metadata.",
 			Optional:    true,
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"automatic_review": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"decision": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"automatic_review": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"decision": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"integration": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"reason": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"reason": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "reason specifies a reason for the review decision. This field is optional and if it is not supplied, a generic reason will be applied to reviews.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-					}),
+					},
 					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
-				"condition": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"condition": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"desired_state": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"desired_state": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
 					Description:   "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
-				"notification": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"notification": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "name is the name of the plugin to which this configuration should apply.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
-						"recipients": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"recipients": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 							Computed:      true,
 							Description:   "recipients is the list of recipients the plugin should notify.",
+							ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 						},
-					}),
+					},
 					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
-				"schedules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							"shifts": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-									"end": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"schedules": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapNestedAttribute{
+					Computed:    true,
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"time": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+						Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+							"shifts": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+								Computed:    true,
+								Description: "Shifts contains a set of shifts that make up the schedule.",
+								NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+									"end": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 										Computed:      true,
 										Description:   "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 									},
-									"start": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"start": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 										Computed:      true,
 										Description:   "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 									},
-									"weekday": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"weekday": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 										Computed:      true,
 										Description:   "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
 										Optional:      true,
-										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 									},
-								}),
-								Computed:      true,
-								Description:   "Shifts contains a set of shifts that make up the schedule.",
+								}},
 								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 							},
-							"timezone": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"timezone": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 								Computed:      true,
 								Description:   "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
 								Optional:      true,
-								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 							},
-						}),
+						},
 						Description: "TimeSchedule specifies an in-line schedule.",
 						Optional:    true,
-					}}),
-					Computed:      true,
-					Description:   "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					}}},
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
 				},
-				"states": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"states": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 					Computed:      true,
 					Description:   "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
+					ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 				},
-				"subjects": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"subjects": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 					Description: "subjects the rule operates on, can be a resource kind or a particular resource property.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-			}),
+			},
 			Description: "Spec is an AccessMonitoringRule specification",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Computed:      true,
 			Description:   "sub_kind is an optional resource sub kind, used in some resources",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 			Description: "version is version",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -242,175 +228,158 @@ func GenSchemaAccessMonitoringRuleResource(ctx context.Context) (github_com_hash
 // GenSchemaAccessMonitoringRuleDataSource returns Terraform Framework datasource schema definition for AccessMonitoringRule
 func GenSchemaAccessMonitoringRuleDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
-		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
-			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "kind is a resource kind",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"metadata": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"description": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
-					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapAttribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Description: "name is an object name.",
 					Required:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"namespace": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-			}),
+			},
 			Description: "metadata is the rules's metadata.",
 			Optional:    true,
 		},
-		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"automatic_review": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"decision": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"automatic_review": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"decision": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"integration": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"reason": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"reason": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "reason specifies a reason for the review decision. This field is optional and if it is not supplied, a generic reason will be applied to reviews.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-					}),
+					},
 					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
-				"condition": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"condition": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"desired_state": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"desired_state": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
 					Description: "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"notification": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"notification": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "name is the name of the plugin to which this configuration should apply.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"recipients": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"recipients": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 							Computed:    true,
 							Description: "recipients is the list of recipients the plugin should notify.",
+							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-					}),
+					},
 					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
-				"schedules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							"shifts": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-									"end": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"schedules": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapNestedAttribute{
+					Computed:    true,
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"time": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+						Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+							"shifts": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+								Computed:    true,
+								Description: "Shifts contains a set of shifts that make up the schedule.",
+								NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+									"end": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 										Computed:    true,
 										Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
-									"start": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"start": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 										Computed:    true,
 										Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
-									"weekday": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"weekday": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 										Computed:    true,
 										Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
-								}),
-								Computed:    true,
-								Description: "Shifts contains a set of shifts that make up the schedule.",
-								Optional:    true,
+								}},
+								Optional: true,
 							},
-							"timezone": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"timezone": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 								Computed:    true,
 								Description: "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
 								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
-						}),
+						},
 						Description: "TimeSchedule specifies an in-line schedule.",
 						Optional:    true,
-					}}),
-					Computed:    true,
-					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
-					Optional:    true,
+					}}},
+					Optional: true,
 				},
-				"states": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"states": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 					Computed:    true,
 					Description: "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"subjects": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"subjects": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 					Description: "subjects the rule operates on, can be a resource kind or a particular resource property.",
+					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-			}),
+			},
 			Description: "Spec is an AccessMonitoringRule specification",
 			Required:    true,
 		},
-		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Computed:    true,
 			Description: "sub_kind is an optional resource sub kind, used in some resources",
 			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"version": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 			Description: "version is version",
 			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }

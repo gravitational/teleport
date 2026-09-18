@@ -58,7 +58,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleport{{.Name}}{}
-var _ resource.ResourceWithSchema = &resourceTeleport{{.Name}}{}
 
 // resourceTeleport{{.Name}}Type is the resource metadata type
 type resourceTeleport{{.Name}}Type struct{}
@@ -101,20 +100,25 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	{{- if .SaveSpecStateFromPlan}}
-	specFromPlan, exist := plan.Attributes()["spec"]
-	if !exist {
-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
-		return
-	}
-	{{end}}
-
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	{{- if .SaveSpecStateFromPlan}}
+	plan, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	specFromPlan, exist := plan.Attributes()["spec"]
+	if !exist {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+		return
+	}
+	{{- end}}
 
 	{{if .RandomMetadataName -}}
 	if {{.VarName}}.Metadata.Name == "" {
@@ -294,14 +298,22 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	attrs := plan.Attributes()
+
 	{{ if .IDPrefix -}}
-	plan.Attributes()["id"] = types.StringValue(formatID(idPrefix, {{.ID}}))
+	attrs["id"] = types.StringValue(formatID(idPrefix, {{.ID}}))
 	{{- else -}}
-	plan.Attributes()["id"] = types.StringValue({{.ID}})
+	attrs["id"] = types.StringValue({{.ID}})
 	{{- end }}
 	{{- if .SaveSpecStateFromPlan}}
-	plan.Attributes()["spec"] = specFromPlan
+	attrs["spec"] = specFromPlan
 	{{end}}
+
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -486,7 +498,19 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
+	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
+	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 {{- if .SaveSpecStateFromPlan}}
+	plan, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
@@ -499,15 +523,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error copying {{.Name}} spec", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-
 {{- end}}
-
-	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 
 {{- if .ConvertPackagePath}}
 	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
@@ -668,8 +684,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 	}
 
 {{- if .SaveSpecStateFromPlan}}
-
-	plan.Attributes()["spec"] = specFromPlan
+	attrs := plan.Attributes()
+	attrs["spec"] = specFromPlan
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 {{- end}}
 
 	diags = resp.State.Set(ctx, plan)
@@ -880,7 +901,13 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 	id := {{.VarName}}Resource.GetName()
 {{- end}}
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -960,7 +987,14 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -33,7 +33,6 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportInferenceModel{}
-var _ datasource.DataSourceWithSchema = &dataSourceTeleportInferenceModel{}
 
 // dataSourceTeleportInferenceModelType is the data source metadata type
 type dataSourceTeleportInferenceModelType struct{}
@@ -87,9 +86,16 @@ func (r dataSourceTeleportInferenceModel) Read(ctx context.Context, req datasour
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attributes()["id"]
+	attrs := state.Attributes()
+	v, ok := attrs["id"]
 	if !ok || v.IsNull() {
-		state.Attributes()["id"] = id
+		attrs["id"] = id
+	}
+
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	inferenceModel := inferenceModelI

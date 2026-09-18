@@ -38,7 +38,6 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleport{{.Name}}{}
-var _ datasource.DataSourceWithSchema = &dataSourceTeleport{{.Name}}{}
 
 // dataSourceTeleport{{.Name}}Type is the data source metadata type
 type dataSourceTeleport{{.Name}}Type struct{}
@@ -134,13 +133,20 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attributes()["id"]
+	attrs := state.Attributes()
+	v, ok := attrs["id"]
 	if !ok || v.IsNull() {
 		{{- if .IDPrefix }}
-		state.Attributes()["id"] = types.String{Value: formatID(idPrefix.ValueString(), id.ValueString())}
+		attrs["id"] = types.String{Value: formatID(idPrefix.ValueString(), id.ValueString())}
 		{{- else }}
-		state.Attributes()["id"] = id
+		attrs["id"] = id
 		{{- end }}
+	}
+
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	{{if .IsPlainStruct -}}

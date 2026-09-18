@@ -38,7 +38,6 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportWorkloadCluster{}
-var _ resource.ResourceWithSchema = &resourceTeleportWorkloadCluster{}
 
 // resourceTeleportWorkloadClusterType is the resource metadata type
 type resourceTeleportWorkloadClusterType struct{}
@@ -156,7 +155,15 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attributes()["id"] = types.StringValue(workloadcluster.Metadata.Name)
+	attrs := plan.Attributes()
+
+	attrs["id"] = types.StringValue(workloadcluster.Metadata.Name)
+
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -395,7 +402,13 @@ func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req re
 	}
 	id := workloadcluster.Metadata.Name
 
-	state.Attributes()["id"] = types.StringValue(id)
+	attrs := state.Attributes()
+	attrs["id"] = types.StringValue(id)
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -445,7 +458,14 @@ func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attributes()["spec"] = config.Attributes()["spec"]
+
+	attrs := plan.Attributes()
+	attrs["spec"] = config.Attributes()["spec"]
+	plan, diags = types.ObjectValue(plan.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

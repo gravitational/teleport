@@ -32,7 +32,6 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportClientIPRestriction{}
-var _ datasource.DataSourceWithSchema = &dataSourceTeleportClientIPRestriction{}
 
 // dataSourceTeleportClientIPRestrictionType is the data source metadata type
 type dataSourceTeleportClientIPRestrictionType struct{}
@@ -86,10 +85,17 @@ func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req dat
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attributes()["id"]
+	attrs := state.Attributes()
+	v, ok := attrs["id"]
 	if !ok || v.IsNull() {
 		id := clientIPRestriction.Metadata.Name
-		state.Attributes()["id"] = types.StringValue(id)
+		attrs["id"] = types.StringValue(id)
+	}
+
+	state, diags = types.ObjectValue(state.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	diags = resp.State.Set(ctx, &state)

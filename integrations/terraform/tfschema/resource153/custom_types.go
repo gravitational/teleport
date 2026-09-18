@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package resource153
 
 import (
@@ -22,8 +21,9 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -32,15 +32,15 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
-func GenSchemaTimestampDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaTimestampDataSource(_ context.Context, attr datasource_schema.StringAttribute) datasource_schema.StringAttribute {
 	attr.Optional = true
-	attr.Type = tfschema.UseRFC3339Time()
+	attr.CustomType = tfschema.UseRFC3339Time()
 	return attr
 }
 
-func GenSchemaTimestampResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaTimestampResource(ctx context.Context, attr resource_schema.StringAttribute) resource_schema.StringAttribute {
 	attr.Optional = true
-	attr.Type = tfschema.UseRFC3339Time()
+	attr.CustomType = tfschema.UseRFC3339Time()
 	return attr
 }
 
@@ -72,15 +72,15 @@ func CopyToTimestamp(_ diag.Diagnostics, o *timestamppb.Timestamp, _ attr.Type, 
 	return tfschema.NewTime(o.AsTime())
 }
 
-func GenSchemaDurationDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaDurationDataSource(_ context.Context, attr datasource_schema.StringAttribute) datasource_schema.StringAttribute {
 	attr.Optional = true
-	attr.Type = tfschema.DurationType{}
+	attr.CustomType = tfschema.DurationType{}
 	return attr
 }
 
-func GenSchemaDurationResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaDurationResource(ctx context.Context, attr resource_schema.StringAttribute) resource_schema.StringAttribute {
 	attr.Optional = true
-	attr.Type = tfschema.DurationType{}
+	attr.CustomType = tfschema.DurationType{}
 	return attr
 }
 
@@ -102,7 +102,6 @@ func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Durat
 // CopyToDuration converts a Teleport [durationpb.Duration] into a Terraform
 // [tfschema.DurationValue]. Set `preserveUnknown` to preserve unknown values.
 func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
-
 	if preserveUnknown && v != nil && v.IsUnknown() {
 		return tfschema.DurationValue{Unknown: true}
 	}
@@ -115,22 +114,24 @@ func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v a
 
 	// Note: Prior Terraform attribute value is returned if possible to preserve
 	// the rawValue, which contains the original string value.
-	value, ok := v.(tfschema.DurationValue)
-	if !ok {
-		value = tfschema.DurationValue{}
+	duration := o.AsDuration()
+	if existing, ok := v.(tfschema.DurationValue); ok &&
+		!existing.IsNull() &&
+		!existing.IsUnknown() &&
+		existing.ValueDuration() == duration {
+		return existing
 	}
 
-	value.Null = false
-	value.Value = o.AsDuration()
-	value.Unknown = false
-	return value
+	return tfschema.DurationValue{
+		Value: duration,
+	}
 }
 
-func GenSchemaLabelsDataSource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaLabelsDataSource(ctx context.Context, attr datasource_schema.MapAttribute) datasource_schema.MapAttribute {
 	return tfschema.GenSchemaLabelsDataSource(ctx, attr)
 }
 
-func GenSchemaLabelsResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaLabelsResource(ctx context.Context, attr resource_schema.MapAttribute) resource_schema.MapAttribute {
 	return tfschema.GenSchemaLabelsResource(ctx, attr)
 }
 
