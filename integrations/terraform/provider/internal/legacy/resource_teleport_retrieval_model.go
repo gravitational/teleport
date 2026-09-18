@@ -60,7 +60,7 @@ func (r resourceTeleportRetrievalModel) Metadata(_ context.Context, _ resource.M
 
 // GetSchema returns the resource schema
 func (r resourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaRetrievalModel(ctx)
+	return schemav1.GenSchemaRetrievalModelResource(ctx)
 }
 
 // Create creates the RetrievalModel

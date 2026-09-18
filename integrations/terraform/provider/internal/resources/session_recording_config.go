@@ -40,7 +40,7 @@ func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.Ses
 		Kind: types.KindSessionRecordingConfig,
 		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.SessionRecordingConfigV2]{
-			SchemaFunc:  tfschema.GenSchemaSessionRecordingConfigV2,
+			SchemaFunc:  tfschema.GenSchemaSessionRecordingConfigV2DataSource,
 			ToStateFunc: tfschema.CopySessionRecordingConfigV2ToTerraform,
 		},
 		Identifier: tfdriver.SingletonIdentifierFromName(sessionRecordingConfigID),
@@ -56,7 +56,7 @@ func NewSessionRecordingConfigResourceType() tfdriver.ResourceType[types.Session
 		Kind: types.KindSessionRecordingConfig,
 		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.SessionRecordingConfigV2]{
-			SchemaFunc:   tfschema.GenSchemaSessionRecordingConfigV2,
+			SchemaFunc:   tfschema.GenSchemaSessionRecordingConfigV2Resource,
 			ToStateFunc:  tfschema.CopySessionRecordingConfigV2ToTerraform,
 			FromPlanFunc: tfschema.CopySessionRecordingConfigV2FromTerraform,
 		},

@@ -41,8 +41,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaClientIPRestriction returns tfsdk.Schema definition for ClientIPRestriction
-func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaClientIPRestrictionResource returns Terraform Framework resource schema definition for ClientIPRestriction
+func GenSchemaClientIPRestrictionResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -67,7 +67,7 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -108,7 +108,7 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes \"expired\". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -137,6 +137,95 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaClientIPRestrictionDataSource returns Terraform Framework datasource schema definition for ClientIPRestriction
+func GenSchemaClientIPRestrictionDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "The kind of resource represented. This is always `client_ip_restriction`.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "name is an object name.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata about the client IP restrictions.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allowed_cidrs": {
+					Computed:    true,
+					Description: "allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes \"expired\". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"mode": {
+					Computed:    true,
+					Description: "mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: \"draft\" (configured but not enforced) and \"enforced\" (should be enforced by Teleport Cloud). An empty value is treated as \"enforced\" for backward compatibility.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "User-configurable parts of the resource settings.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "The sub_kind of the resource. Always \"\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "The version of the resource. Always \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -378,7 +467,7 @@ func CopyClientIPRestrictionToTerraform(ctx context.Context, obj *github_com_gra
 // CopyClientIPRestrictionToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyClientIPRestrictionToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_clientiprestriction_v1.ClientIPRestriction, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaClientIPRestriction(ctx)
+	schema, diags := GenSchemaClientIPRestrictionResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

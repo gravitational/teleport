@@ -57,7 +57,7 @@ func (r dataSourceTeleportIntegration) Metadata(_ context.Context, _ datasource.
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaIntegrationV1(ctx)
+	return tfschema.GenSchemaIntegrationV1DataSource(ctx)
 }
 
 // Read reads teleport Integration

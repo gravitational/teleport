@@ -59,7 +59,7 @@ func (r resourceTeleportIntegration) Metadata(_ context.Context, _ resource.Meta
 
 // GetSchema returns the resource schema
 func (r resourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaIntegrationV1(ctx)
+	return tfschema.GenSchemaIntegrationV1Resource(ctx)
 }
 
 // Create creates the Integration

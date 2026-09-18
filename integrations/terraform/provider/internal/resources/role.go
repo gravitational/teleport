@@ -36,7 +36,7 @@ func NewRoleDataSourceType() tfdriver.DataSourceType[apitypes.RoleV6, tfdriver.N
 		Kind: apitypes.KindRole,
 		Name: apitypes.KindRole,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.RoleV6]{
-			SchemaFunc:  tfschema.GenSchemaRoleV6,
+			SchemaFunc:  tfschema.GenSchemaRoleV6DataSource,
 			ToStateFunc: tfschema.CopyRoleV6ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewRoleResourceType() tfdriver.ResourceType[apitypes.RoleV6, tfdriver.NameI
 		Kind: apitypes.KindRole,
 		Name: apitypes.KindRole,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.RoleV6]{
-			SchemaFunc:   tfschema.GenSchemaRoleV6,
+			SchemaFunc:   tfschema.GenSchemaRoleV6Resource,
 			ToStateFunc:  tfschema.CopyRoleV6ToTerraform,
 			FromPlanFunc: tfschema.CopyRoleV6FromTerraform,
 		},

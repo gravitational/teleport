@@ -41,8 +41,8 @@ var _ = fmt.Errorf
 var _ = math.Inf
 var _ = time.Kitchen
 
-// GenSchemaDeviceV1 returns tfsdk.Schema definition for DeviceV1
-func GenSchemaDeviceV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaDeviceV1Resource returns Terraform Framework resource schema definition for DeviceV1
+func GenSchemaDeviceV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -122,6 +122,94 @@ func GenSchemaDeviceV1(ctx context.Context) (github_com_hashicorp_terraform_plug
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "",
+					Optional:    true,
+				},
+			}),
+			Description: "Specification of the device.",
+			Optional:    true,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaDeviceV1DataSource returns Terraform Framework datasource schema definition for DeviceV1
+func GenSchemaDeviceV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "Name is an object name",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"asset_tag": {
+					Description: "",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"enroll_status": {
+					Computed:    true,
+					Description: "",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"os_type": {
+					Description: "",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"owner": {
+					Computed:    true,
+					Description: "",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"source": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"name": {
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"origin": {
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "",
@@ -386,7 +474,7 @@ func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_
 // CopyDeviceV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyDeviceV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaDeviceV1(ctx)
+	schema, diags := GenSchemaDeviceV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

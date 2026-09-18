@@ -37,7 +37,7 @@ func NewCertAuthorityOverrideDataSourceType() tfdriver.DataSourceType[subcav1.Ce
 		Kind: types.KindCertAuthorityOverride,
 		Name: types.KindCertAuthorityOverride,
 		Codec: tfdriver.DataSourceCodecFuncs[subcav1.CertAuthorityOverride]{
-			SchemaFunc:  schemav1.GenSchemaCertAuthorityOverride,
+			SchemaFunc:  schemav1.GenSchemaCertAuthorityOverrideDataSource,
 			ToStateFunc: schemav1.CopyCertAuthorityOverrideToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("sub_kind")),
@@ -53,7 +53,7 @@ func NewCertAuthorityOverrideResourceType() tfdriver.ResourceType[subcav1.CertAu
 		Kind: types.KindCertAuthorityOverride,
 		Name: types.KindCertAuthorityOverride,
 		Codec: tfdriver.ResourceCodecFuncs[subcav1.CertAuthorityOverride]{
-			SchemaFunc:   schemav1.GenSchemaCertAuthorityOverride,
+			SchemaFunc:   schemav1.GenSchemaCertAuthorityOverrideResource,
 			ToStateFunc:  schemav1.CopyCertAuthorityOverrideToTerraform,
 			FromPlanFunc: schemav1.CopyCertAuthorityOverrideFromTerraform,
 		},

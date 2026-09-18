@@ -43,7 +43,7 @@ func NewScopedRoleDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRole, 
 		Kind: scopedaccess.KindScopedRole,
 		Name: scopedaccess.KindScopedRole,
 		Codec: tfdriver.DataSourceCodecFuncs[accessv1.ScopedRole]{
-			SchemaFunc:  schemav1.GenSchemaScopedRole,
+			SchemaFunc:  schemav1.GenSchemaScopedRoleDataSource,
 			ToStateFunc: schemav1.CopyScopedRoleToTerraform,
 		},
 	}
@@ -58,7 +58,7 @@ func NewScopedRoleResourceType() tfdriver.ResourceType[accessv1.ScopedRole, tfdr
 		Kind: scopedaccess.KindScopedRole,
 		Name: scopedaccess.KindScopedRole,
 		Codec: tfdriver.ResourceCodecFuncs[accessv1.ScopedRole]{
-			SchemaFunc:   schemav1.GenSchemaScopedRole,
+			SchemaFunc:   schemav1.GenSchemaScopedRoleResource,
 			ToStateFunc:  schemav1.CopyScopedRoleToTerraform,
 			FromPlanFunc: schemav1.CopyScopedRoleFromTerraform,
 		},

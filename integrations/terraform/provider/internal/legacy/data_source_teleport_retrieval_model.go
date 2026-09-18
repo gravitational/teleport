@@ -56,7 +56,7 @@ func (r dataSourceTeleportRetrievalModel) Metadata(_ context.Context, _ datasour
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaRetrievalModel(ctx)
+	return schemav1.GenSchemaRetrievalModelDataSource(ctx)
 }
 
 // Read reads teleport RetrievalModel

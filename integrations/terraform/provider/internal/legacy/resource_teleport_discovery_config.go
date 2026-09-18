@@ -60,7 +60,7 @@ func (r resourceTeleportDiscoveryConfig) Metadata(_ context.Context, _ resource.
 
 // GetSchema returns the resource schema
 func (r resourceTeleportDiscoveryConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaDiscoveryConfig(ctx)
+	return schemav1.GenSchemaDiscoveryConfigResource(ctx)
 }
 
 // Create creates the DiscoveryConfig

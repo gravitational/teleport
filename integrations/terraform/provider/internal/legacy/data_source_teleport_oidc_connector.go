@@ -57,7 +57,7 @@ func (r dataSourceTeleportOIDCConnector) Metadata(_ context.Context, _ datasourc
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportOIDCConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaOIDCConnectorV3(ctx)
+	return tfschema.GenSchemaOIDCConnectorV3DataSource(ctx)
 }
 
 // Read reads teleport OIDCConnector

@@ -43,8 +43,8 @@ var _ = fmt.Errorf
 var _ = math.Inf
 var _ = time.Kitchen
 
-// GenSchemaLoginRule returns tfsdk.Schema definition for LoginRule
-func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaLoginRuleResource returns Terraform Framework resource schema definition for LoginRule
+func GenSchemaLoginRuleResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -116,6 +116,80 @@ func GenSchemaLoginRule(ctx context.Context) (github_com_hashicorp_terraform_plu
 			Description:   "TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaLoginRuleDataSource returns Terraform Framework datasource schema definition for LoginRule
+func GenSchemaLoginRuleDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is resource metadata.",
+			Required:    true,
+		},
+		"priority": {
+			Description: "Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+		},
+		"traits_expression": {
+			Computed:    true,
+			Description: "TraitsExpression is a predicate expression which should return the desired traits for the user upon login.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"traits_map": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+				Computed:    true,
+				Description: "",
+				Optional:    true,
+				Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+			}}),
+			Computed:    true,
+			Description: "TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.",
+			Optional:    true,
 		},
 		"version": {
 			Description: "Version is the resource version.",
@@ -360,7 +434,7 @@ func CopyLoginRuleToTerraform(ctx context.Context, obj *github_com_gravitational
 // CopyLoginRuleToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyLoginRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_loginrule_v1.LoginRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaLoginRule(ctx)
+	schema, diags := GenSchemaLoginRuleResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

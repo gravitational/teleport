@@ -42,8 +42,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaScopedToken returns tfsdk.Schema definition for ScopedToken
-func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaScopedTokenResource returns Terraform Framework resource schema definition for ScopedToken
+func GenSchemaScopedTokenResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -68,7 +68,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -359,7 +359,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"must_register_before": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"must_register_before": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Description: "An optional time before which registration via registration join secret must be performed. Attempts to register using a registration secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
 									Optional:    true,
 								}),
@@ -395,7 +395,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 							Description: "Parameters related to recovery after identity expiration, including the initial join.",
 							Optional:    true,
 						},
-						"rotate_after": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"rotate_after": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "An optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.",
 							Optional:    true,
 						}),
@@ -1018,6 +1018,877 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaScopedTokenDataSource returns Terraform Framework datasource schema definition for ScopedToken
+func GenSchemaScopedTokenDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata contains the resource metadata.",
+			Required:    true,
+		},
+		"scope": {
+			Description: "Scope is the scope of the token resource.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"assigned_scope": {
+					Computed:    true,
+					Description: "The scope to which this token is assigned.  Must be equivalent or descendent to the scope of the token itself.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"aws_account": {
+									Computed:    true,
+									Description: "The AWS account ID.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"aws_arn": {
+									Computed:    true,
+									Description: "The ARN of the joining identity for use with the IAM join method. Supports wildcards \"*\" and \"?\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"aws_organization_id": {
+									Computed:    true,
+									Description: "The organization ID that the joining AWS identity must belong to when using the IAM join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"aws_regions": {
+									Computed:    true,
+									Description: "List of AWS regions a node is allowed to join from when using the EC2 join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"aws_role": {
+									Computed:    true,
+									Description: "The ARN of the role the Auth Service will assume in order to call the EC2 API when using the EC2 join method.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
+						},
+						"iid_ttl": {
+							Computed:    true,
+							Description: "The TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token. This should be a duration string such as \"8h\" or \"6mo\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "The AWS-specific configuration used with the \"ec2\" and \"iam\" join methods.",
+					Optional:    true,
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"resource_groups": {
+								Computed:    true,
+								Description: "A list of Azure resource groups the node is allowed to join from.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"subscription": {
+								Computed:    true,
+								Description: "The Azure subscription.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"tenant": {
+								Computed:    true,
+								Description: "Tenant is the Azure Tenant ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
+					}}),
+					Description: "The Azure-specific configuration used with the \"azure\" join method.",
+					Optional:    true,
+				},
+				"azure_devops": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"definition_id": {
+									Computed:    true,
+									Description: "The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"pipeline_name": {
+									Computed:    true,
+									Description: "The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Computed:    true,
+									Description: "The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_name": {
+									Computed:    true,
+									Description: "The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_ref": {
+									Computed:    true,
+									Description: "The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uri": {
+									Computed:    true,
+									Description: "The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_version": {
+									Computed:    true,
+									Description: "The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "The subject string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
+						},
+						"organization_id": {
+							Computed:    true,
+							Description: "The UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "The Azure Devops-specific configuration used with the \"azure_devops\" join method.",
+					Optional:    true,
+				},
+				"bitbucket": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"branch_name": {
+									Computed:    true,
+									Description: "The name of the branch on which this pipeline executed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deployment_environment_uuid": {
+									Computed:    true,
+									Description: "The UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the \"Pipelines -> OpenID Connect -> Deployment environments\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uuid": {
+									Computed:    true,
+									Description: "The UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workspace_uuid": {
+									Computed:    true,
+									Description: "The UUID of the workspace for which this token was issued. This value may be found in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A list of rules. Workloads trying to join must match at least one allow rule for the join attempt to be allowed.",
+							Optional:    true,
+						},
+						"audience": {
+							Computed:    true,
+							Description: "The Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"identity_provider_url": {
+							Computed:    true,
+							Description: "A Bitbucket-specified issuer URL for the incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"bitbucket\" join method.",
+					Optional:    true,
+				},
+				"bot": {
+					Computed:    true,
+					Description: "The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"bound_keypair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"onboarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"initial_public_key": {
+									Computed:    true,
+									Description: "The initial public key is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"must_register_before": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "An optional time before which registration via registration join secret must be performed. Attempts to register using a registration secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
+									Optional:    true,
+								}),
+								"registration_secret": {
+									Computed:    true,
+									Description: "A secret that joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
+									Optional:    true,
+									Sensitive:   true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Parameters related to initial onboarding and keypair registration.",
+							Optional:    true,
+						},
+						"recovery": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"limit": {
+									Computed:    true,
+									Description: "The maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"mode": {
+									Computed:    true,
+									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Parameters related to recovery after identity expiration, including the initial join.",
+							Optional:    true,
+						},
+						"rotate_after": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "An optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.",
+							Optional:    true,
+						}),
+					}),
+					Description: "Configuration specific to the \"bound_keypair\" join method.",
+					Optional:    true,
+				},
+				"circleci": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"context_id": {
+									Computed:    true,
+									Description: "A unique context identifier. At least one of context_id or project_id is required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Computed:    true,
+									Description: "A unique project identifier. At least one of project_id or context_id is required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one rule is required.",
+							Optional:    true,
+						},
+						"organization_id": {
+							Computed:    true,
+							Description: "The unique identifier of the organization. Required.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"circleci\" join method",
+					Optional:    true,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"locations": {
+								Computed:    true,
+								Description: "A list of regions (e.g. \"us-west1\") and/or zones (e.g. \"us-west1-b\").",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"project_ids": {
+								Computed:    true,
+								Description: "A list of project IDs (e.g. `<example-id-123456>`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"service_accounts": {
+								Computed:    true,
+								Description: "A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+						}),
+						Computed:    true,
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
+					}}),
+					Description: "The GCP-specific configuration used with the \"gcp\" join method.",
+					Optional:    true,
+				},
+				"generic_oidc": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow_any": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"conditions": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"attribute": {
+											Computed:    true,
+											Description: "The name of the field this condition should check, separated by \".\" for nested fields.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"eq": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+												Computed:    true,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											}}),
+											Description: "An \"equals\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"in": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+												Computed:    true,
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											}}),
+											Description: "An \"in\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"not_eq": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+												Computed:    true,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											}}),
+											Description: "A \"not equals\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"not_in": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+												Computed:    true,
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											}}),
+											Description: "A \"not in\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+									}),
+									Computed:    true,
+									Description: "Conditions are simple eq/not_eq/in/not_in conditions that check individual fields. All conditions must be satisfied for a join attempt to be allowed. Mutually exclusive with `expression`.",
+									Optional:    true,
+								},
+								"expression": {
+									Computed:    true,
+									Description: "A predicate expression that must evaluate to `true` for the join attempt to be allowed. It is mutually exclusive with `conditions`. TODO: Include name of variable available to the expr in docs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Complex rules evaluated using \"OR\" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt/ to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.",
+							Optional:    true,
+						},
+						"audience": {
+							Computed:    true,
+							Description: "The expected JWT audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining.  For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName  For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"insecure_allow_http_issuer": {
+							Computed:    true,
+							Description: "If set, disables the requirement that the issuer must use HTTPS.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"issuer": {
+							Computed:    true,
+							Description: "The expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "An optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"tls_ca": {
+							Computed:    true,
+							Description: "A TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. If unset, the standard web PKI root certificates will be used to verify the connection to the issuer when fetching OIDC metadata. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"generic_oidc\" join method.",
+					Optional:    true,
+				},
+				"github": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"actor": {
+									Computed:    true,
+									Description: "actor is the personal account that initiated the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"enterprise": {
+									Computed:    true,
+									Description: "enterprise name in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"enterprise_id": {
+									Computed:    true,
+									Description: "enterprise_id in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment": {
+									Computed:    true,
+									Description: "environment name used by the job.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref": {
+									Computed:    true,
+									Description: "ref (git) that triggered the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref_type": {
+									Computed:    true,
+									Description: "ref_type for example: \"branch\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository": {
+									Computed:    true,
+									Description: "repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_owner": {
+									Computed:    true,
+									Description: "repository_owner is the name of the organization in which the repository is stored.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workflow": {
+									Computed:    true,
+									Description: "workflow name.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token.",
+							Optional:    true,
+						},
+						"enterprise_server_host": {
+							Computed:    true,
+							Description: "enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"enterprise_slug": {
+							Computed:    true,
+							Description: "enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"github\" join method.",
+					Optional:    true,
+				},
+				"gitlab": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"ci_config_ref_uri": {
+									Computed:    true,
+									Description: "The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ci_config_sha": {
+									Computed:    true,
+									Description: "The git commit SHA for the ci_config_ref_uri.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deployment_tier": {
+									Computed:    true,
+									Description: "The deployment tier of the environment the job specifies",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment": {
+									Computed:    true,
+									Description: "Limits access by the environment the job deploys to (if one is associated)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment_protected": {
+									Description: "True if the Git ref is protected, false otherwise.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"namespace_path": {
+									Computed:    true,
+									Description: "Used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"pipeline_source": {
+									Computed:    true,
+									Description: "Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_path": {
+									Computed:    true,
+									Description: "Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_visibility": {
+									Computed:    true,
+									Description: "The visibility of the project where the pipeline is running. Can be internal, private, or public.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref": {
+									Computed:    true,
+									Description: "Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref_protected": {
+									Description: "True if the Git ref is protected, false otherwise.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"ref_type": {
+									Computed:    true,
+									Description: "Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_email": {
+									Computed:    true,
+									Description: "The email of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_id": {
+									Computed:    true,
+									Description: "The ID of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_login": {
+									Computed:    true,
+									Description: "The username of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A set of claim-matching fields evaluated against the GitLab CI token.",
+							Optional:    true,
+						},
+						"domain": {
+							Computed:    true,
+							Description: "The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"gitlab\" join method.",
+					Optional:    true,
+				},
+				"immutable_labels": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"ssh": {
+						Computed:    true,
+						Description: "Labels that should be applied to SSH nodes.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					}}),
+					Description: "Immutable labels that should be applied to any resulting resources provisioned using this token.",
+					Optional:    true,
+				},
+				"join_method": {
+					Description: "The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"kubernetes": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"service_account": {
+									Computed:    true,
+									Description: "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_name": {
+									Computed:    true,
+									Description: "The name of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_namespace": {
+									Computed:    true,
+									Description: "The namespace of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
+						},
+						"oidc": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"insecure_allow_http_issuer": {
+									Computed:    true,
+									Description: "If set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"issuer": {
+									Computed:    true,
+									Description: "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "The configuration specific to the `oidc` type.",
+							Optional:    true,
+						},
+						"static_jwks": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
+								Computed:    true,
+								Description: "The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "The configuration specific to the `static_jwks` type.",
+							Optional:    true,
+						},
+						"type": {
+							Computed:    true,
+							Description: "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "The Kubernetes-specific configuration used with the \"kubernetes\" join method.",
+					Optional:    true,
+				},
+				"oracle": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"instances": {
+								Computed:    true,
+								Description: "A list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"parent_compartments": {
+								Computed:    true,
+								Description: "A list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"regions": {
+								Computed:    true,
+								Description: "A list of regions an instance is allowed to join from. Both full region names (\"us-phoenix-1\") and abbreviations (\"phx\") are allowed. If empty, any region is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"tenancy": {
+								Computed:    true,
+								Description: "The OCID of the instance's tenancy. Required.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+						Optional:    true,
+					}}),
+					Description: "The Oracle-specific configuration used with the \"oracle\" join method.",
+					Optional:    true,
+				},
+				"roles": {
+					Description: "The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"tpm": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"description": {
+									Computed:    true,
+									Description: "A human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: \"build-server-100\"",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_certificate_serial": {
+									Computed:    true,
+									Description: "The serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_public_hash": {
+									Computed:    true,
+									Description: "The SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "A list of Rules, the presented delegated identity must match one allow rule to permit joining.",
+							Optional:    true,
+						},
+						"ekcert_allowed_cas": {
+							Computed:    true,
+							Description: "A list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "Configuration specific to the \"tpm\" join method.",
+					Optional:    true,
+				},
+				"usage_mode": {
+					Description: "The usage mode of the token. Can be \"single_use\" or \"unlimited\". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is the token specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "Version is the resource version.",
@@ -3815,7 +4686,7 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 // CopyScopedTokenToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.ScopedToken, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaScopedToken(ctx)
+	schema, diags := GenSchemaScopedTokenResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

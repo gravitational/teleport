@@ -40,8 +40,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaAccessMonitoringRule returns tfsdk.Schema definition for AccessMonitoringRule
-func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaAccessMonitoringRuleResource returns Terraform Framework resource schema definition for AccessMonitoringRule
+func GenSchemaAccessMonitoringRuleResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -66,7 +66,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -228,6 +228,182 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "version is version",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaAccessMonitoringRuleDataSource returns Terraform Framework datasource schema definition for AccessMonitoringRule
+func GenSchemaAccessMonitoringRuleDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "metadata is the rules's metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"automatic_review": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"decision": {
+							Computed:    true,
+							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"reason": {
+							Computed:    true,
+							Description: "reason specifies a reason for the review decision. This field is optional and if it is not supplied, a generic reason will be applied to reviews.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
+					Optional:    true,
+				},
+				"condition": {
+					Computed:    true,
+					Description: "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"desired_state": {
+					Computed:    true,
+					Description: "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"notification": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"name": {
+							Computed:    true,
+							Description: "name is the name of the plugin to which this configuration should apply.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"recipients": {
+							Computed:    true,
+							Description: "recipients is the list of recipients the plugin should notify.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
+					Optional:    true,
+				},
+				"schedules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"shifts": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"end": {
+										Computed:    true,
+										Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+									"start": {
+										Computed:    true,
+										Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+									"weekday": {
+										Computed:    true,
+										Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+								}),
+								Computed:    true,
+								Description: "Shifts contains a set of shifts that make up the schedule.",
+								Optional:    true,
+							},
+							"timezone": {
+								Computed:    true,
+								Description: "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Description: "TimeSchedule specifies an in-line schedule.",
+						Optional:    true,
+					}}),
+					Computed:    true,
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					Optional:    true,
+				},
+				"states": {
+					Computed:    true,
+					Description: "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"subjects": {
+					Description: "subjects the rule operates on, can be a resource kind or a particular resource property.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+			}),
+			Description: "Spec is an AccessMonitoringRule specification",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "sub_kind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "version is version",
@@ -786,7 +962,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 // CopyAccessMonitoringRuleToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaAccessMonitoringRule(ctx)
+	schema, diags := GenSchemaAccessMonitoringRuleResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

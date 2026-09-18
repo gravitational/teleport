@@ -57,7 +57,7 @@ func (r dataSourceTeleportProvisionToken) Metadata(_ context.Context, _ datasour
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return token.GenSchemaProvisionTokenV2(ctx)
+	return token.GenSchemaProvisionTokenV2DataSource(ctx)
 }
 
 // Read reads teleport ProvisionToken

@@ -56,7 +56,7 @@ func (r dataSourceTeleportClientIPRestriction) Metadata(_ context.Context, _ dat
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportClientIPRestriction) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaClientIPRestriction(ctx)
+	return schemav1.GenSchemaClientIPRestrictionDataSource(ctx)
 }
 
 // Read reads teleport ClientIPRestriction

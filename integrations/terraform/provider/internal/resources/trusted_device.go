@@ -36,7 +36,7 @@ func NewTrustedDeviceDataSourceType() tfdriver.DataSourceType[types.DeviceV1, tf
 		Kind: types.KindDevice,
 		Name: "trusted_device",
 		Codec: tfdriver.DataSourceCodecFuncs[types.DeviceV1]{
-			SchemaFunc:  schemav1.GenSchemaDeviceV1,
+			SchemaFunc:  schemav1.GenSchemaDeviceV1DataSource,
 			ToStateFunc: schemav1.CopyDeviceV1ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewTrustedDeviceResourceType() tfdriver.ResourceType[types.DeviceV1, tfdriv
 		Kind: types.KindDevice,
 		Name: "trusted_device",
 		Codec: tfdriver.ResourceCodecFuncs[types.DeviceV1]{
-			SchemaFunc:   schemav1.GenSchemaDeviceV1,
+			SchemaFunc:   schemav1.GenSchemaDeviceV1Resource,
 			ToStateFunc:  schemav1.CopyDeviceV1ToTerraform,
 			FromPlanFunc: schemav1.CopyDeviceV1FromTerraform,
 		},

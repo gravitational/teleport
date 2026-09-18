@@ -36,7 +36,7 @@ func NewLockDataSourceType() tfdriver.DataSourceType[types.LockV2, tfdriver.Name
 		Kind: types.KindLock,
 		Name: types.KindLock,
 		Codec: tfdriver.DataSourceCodecFuncs[types.LockV2]{
-			SchemaFunc:  tfschema.GenSchemaLockV2,
+			SchemaFunc:  tfschema.GenSchemaLockV2DataSource,
 			ToStateFunc: tfschema.CopyLockV2ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewLockResourceType() tfdriver.ResourceType[types.LockV2, tfdriver.NameIden
 		Kind: types.KindLock,
 		Name: types.KindLock,
 		Codec: tfdriver.ResourceCodecFuncs[types.LockV2]{
-			SchemaFunc:   tfschema.GenSchemaLockV2,
+			SchemaFunc:   tfschema.GenSchemaLockV2Resource,
 			ToStateFunc:  tfschema.CopyLockV2ToTerraform,
 			FromPlanFunc: tfschema.CopyLockV2FromTerraform,
 		},

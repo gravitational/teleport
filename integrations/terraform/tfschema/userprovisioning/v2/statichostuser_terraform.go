@@ -42,8 +42,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaStaticHostUser returns tfsdk.Schema definition for StaticHostUser
-func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaStaticHostUserResource returns Terraform Framework resource schema definition for StaticHostUser
+func GenSchemaStaticHostUserResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -68,7 +68,7 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -180,6 +180,138 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "version is the resource version. It must be specified. Supported values are: `v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaStaticHostUserDataSource returns Terraform Framework datasource schema definition for StaticHostUser
+func GenSchemaStaticHostUserDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "metadata is resource metadata.",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"matchers": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"default_shell": {
+						Computed:    true,
+						Description: "default_shell is the new user's default shell",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"gid": {
+						Computed:    true,
+						Description: "gid is the new user's gid.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+					"groups": {
+						Computed:    true,
+						Description: "groups is a list of additional groups to add the user to.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					},
+					"node_labels": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"name": {
+								Description: "The name of the label.",
+								Required:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"values": {
+								Description: "The values associated with the label.",
+								Required:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+						}),
+						Computed:    true,
+						Description: "node_labels is a map of node labels that will create a user from this resource.",
+						Optional:    true,
+					},
+					"node_labels_expression": {
+						Computed:    true,
+						Description: "node_labels_expression is a predicate expression to create a user from this resource.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"sudoers": {
+						Computed:    true,
+						Description: "sudoers is a list of sudoer entries to add.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					},
+					"take_ownership_if_user_exists": {
+						Computed:    true,
+						Description: "take_ownership_if_user_exists will take ownership of existing, unmanaged users",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+					},
+					"uid": {
+						Computed:    true,
+						Description: "uid is the new user's uid.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+				}),
+				Description: "",
+				Required:    true,
+			}}),
+			Description: "spec is the static host user spec.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "sub_kind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "version is the resource version. It must be specified. Supported values are: `v2`.",
@@ -616,7 +748,7 @@ func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitat
 // CopyStaticHostUserToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyStaticHostUserToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaStaticHostUser(ctx)
+	schema, diags := GenSchemaStaticHostUserResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

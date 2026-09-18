@@ -57,7 +57,7 @@ func (r dataSourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ 
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
+	return tfschema.GenSchemaSAMLIdPServiceProviderV1DataSource(ctx)
 }
 
 // Read reads teleport SAMLIdPServiceProvider

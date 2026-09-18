@@ -41,8 +41,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaScopedRole returns tfsdk.Schema definition for ScopedRole
-func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaScopedRoleResource returns Terraform Framework resource schema definition for ScopedRole
+func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -550,6 +550,475 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaScopedRoleDataSource returns Terraform Framework datasource schema definition for ScopedRole
+func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata contains the resource metadata.",
+			Required:    true,
+		},
+		"scope": {
+			Description: "Scope is the scope of the role resource.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"app": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_idle_timeout": {
+							Computed:    true,
+							Description: "Overrides the defaults block idle timeout specifically for app sessions. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disconnect_expired_cert": {
+							Description: "DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"label_expression": {
+							Computed:    true,
+							Description: "LabelExpression is an optional predicate expression evaluated against an application's labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"labels": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "The name of the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "The values associated with the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "The set of application labels used for RBAC.",
+							Optional:    true,
+						},
+						"lock": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+					}),
+					Description: "The App Access specific configuration for a scoped role.",
+					Optional:    true,
+				},
+				"assignable_scopes": {
+					Description: "AssignableScopes is a list of scopes to which this role can be assigned.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"defaults": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_idle_timeout": {
+							Computed:    true,
+							Description: "ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disconnect_expired_cert": {
+							Description: "DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"lock": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. The cluster-wide default is used only when neither this nor the protocol's equivalent control is set.",
+							Optional:    true,
+						},
+						"session_recording": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Mode sets the session recording mode. Allowed values: strict or best_effort.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode. If neither this nor the protocol's equivalent control is set, best_effort is used.",
+							Optional:    true,
+						},
+					}),
+					Description: "Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.",
+					Optional:    true,
+				},
+				"kube": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_idle_timeout": {
+							Computed:    true,
+							Description: "Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disconnect_expired_cert": {
+							Description: "DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"groups": {
+							Computed:    true,
+							Description: "The list of kubernetes groups this role allows.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"label_expression": {
+							Computed:    true,
+							Description: "LabelExpression is an optional predicate expression evaluated against a kubernetes server's labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"labels": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "The name of the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "The values associated with the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "The map of kubernetes cluster labels used for RBAC.",
+							Optional:    true,
+						},
+						"lock": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "Lock configures the role's locking behavior for kubernetes sessions. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+						"resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Computed:    true,
+									Description: "The kube API group of the kube resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kind": {
+									Computed:    true,
+									Description: "The kube resource type.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Computed:    true,
+									Description: "The kube resource name. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"namespace": {
+									Computed:    true,
+									Description: "The kube resource namespace. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"verbs": {
+									Computed:    true,
+									Description: "The allowed kube verbs for interacting with the kube resource.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "The kubernetes resources this role grants access to.",
+							Optional:    true,
+						},
+						"users": {
+							Computed:    true,
+							Description: "An optional list of impersonatable kubernetes users this role allows.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "The kubernetes specific configuration for a scoped role.",
+					Optional:    true,
+				},
+				"rules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"resources": {
+							Computed:    true,
+							Description: "Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"verbs": {
+							Computed:    true,
+							Description: "Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "Rules describes basic resource:verb permissions (e.g. scoped_role:read).",
+					Optional:    true,
+				},
+				"ssh": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_idle_timeout": {
+							Computed:    true,
+							Description: "ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disconnect_expired_cert": {
+							Description: "DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"enhanced_recording": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"command": {
+									Description: "Command enables session.command in audit logs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"disk": {
+									Description: "Disk enables session.disk in audit logs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"network": {
+									Description: "Network enables session.network in audit logs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+							}),
+							Description: "EnhancedRecording is the set of BPF events to record for enhanced session recording.",
+							Optional:    true,
+						},
+						"file_copy": {
+							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"forward_agent": {
+							Description: "ForwardAgent enables SSH agent forwarding.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"host_sudoers": {
+							Computed:    true,
+							Description: "Sudoers is a list of entries to include in a users sudoer file",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"host_user_creation": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"groups": {
+									Computed:    true,
+									Description: "Groups is a list of host groups to add the user to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"mode": {
+									Computed:    true,
+									Description: "Mode specifies how the host user should be created.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"shell": {
+									Computed:    true,
+									Description: "Shell is the shell to set for the user.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "HostUserCreation configures the creation of host users.",
+							Optional:    true,
+						},
+						"label_expression": {
+							Computed:    true,
+							Description: "LabelExpression is an optional predicate expression evaluated against an ssh node's labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"labels": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "The name of the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "The values associated with the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "Labels is the set of node labels used to dynamically select which nodes this role applies to.",
+							Optional:    true,
+						},
+						"lock": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "Lock configures the role's locking behavior for SSH sessions. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+						"logins": {
+							Computed:    true,
+							Description: "Logins is the list of OS logins this role permits on matching nodes.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"max_sessions": {
+							Description: "MaxSessions defines the maximum number of concurrent sessions per connection.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"permit_x11_forwarding": {
+							Description: "PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"port_forwarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"local": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+										Description: "",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									}}),
+									Description: "Allow for local port forwarding.",
+									Optional:    true,
+								},
+								"remote": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+										Description: "",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									}}),
+									Description: "Allow for remote port forwarding.",
+									Optional:    true,
+								},
+							}),
+							Description: "SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.",
+							Optional:    true,
+						},
+						"session_recording": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+								Computed:    true,
+								Description: "Mode sets the session recording mode. Allowed values: strict or best_effort.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "SessionRecording configures the session recording strategy for SSH sessions.",
+							Optional:    true,
+						},
+					}),
+					Description: "Ssh specifies controls that govern SSH access.",
+					Optional:    true,
+				},
+				"workload_identity": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"labels": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"name": {
+								Computed:    true,
+								Description: "The name of the label.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"values": {
+								Computed:    true,
+								Description: "The values associated with the label.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+						}),
+						Computed:    true,
+						Description: "Labels is the set of WorkloadIdentity labels used to dynamically select which WorkloadIdentity resources this role permits issuance with. Issuance additionally requires the caller to hold read_no_secrets (and, for the multi-issue RPC, list) rules for the workload_identity kind in the relevant scope.",
+						Optional:    true,
+					}}),
+					Description: "WorkloadIdentity specifies controls that govern issuance using WorkloadIdentity resources.",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec is the role specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "Version is the resource version.",
@@ -2193,7 +2662,7 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 // CopyScopedRoleToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRole, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaScopedRole(ctx)
+	schema, diags := GenSchemaScopedRoleResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

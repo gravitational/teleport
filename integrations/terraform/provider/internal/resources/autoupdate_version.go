@@ -36,7 +36,7 @@ func NewAutoUpdateVersionDataSourceType() tfdriver.DataSourceType[autoupdatev1.A
 		Kind: types.KindAutoUpdateVersion,
 		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.DataSourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
-			SchemaFunc:  schemav1.GenSchemaAutoUpdateVersion,
+			SchemaFunc:  schemav1.GenSchemaAutoUpdateVersionDataSource,
 			ToStateFunc: schemav1.CopyAutoUpdateVersionToTerraform,
 		},
 		Identifier: tfdriver.SingletonIdentifierFromName(types.MetaNameAutoUpdateVersion),
@@ -52,7 +52,7 @@ func NewAutoUpdateVersionResourceType() tfdriver.ResourceType[autoupdatev1.AutoU
 		Kind: types.KindAutoUpdateVersion,
 		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.ResourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
-			SchemaFunc:   schemav1.GenSchemaAutoUpdateVersion,
+			SchemaFunc:   schemav1.GenSchemaAutoUpdateVersionResource,
 			ToStateFunc:  schemav1.CopyAutoUpdateVersionToTerraform,
 			FromPlanFunc: schemav1.CopyAutoUpdateVersionFromTerraform,
 		},

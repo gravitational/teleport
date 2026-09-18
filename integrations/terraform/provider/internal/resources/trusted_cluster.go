@@ -36,7 +36,7 @@ func NewTrustedClusterDataSourceType() tfdriver.DataSourceType[types.TrustedClus
 		Kind: types.KindTrustedCluster,
 		Name: types.KindTrustedCluster,
 		Codec: tfdriver.DataSourceCodecFuncs[types.TrustedClusterV2]{
-			SchemaFunc:  tfschema.GenSchemaTrustedClusterV2,
+			SchemaFunc:  tfschema.GenSchemaTrustedClusterV2DataSource,
 			ToStateFunc: tfschema.CopyTrustedClusterV2ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewTrustedClusterResourceType() tfdriver.ResourceType[types.TrustedClusterV
 		Kind: types.KindTrustedCluster,
 		Name: types.KindTrustedCluster,
 		Codec: tfdriver.ResourceCodecFuncs[types.TrustedClusterV2]{
-			SchemaFunc:   tfschema.GenSchemaTrustedClusterV2,
+			SchemaFunc:   tfschema.GenSchemaTrustedClusterV2Resource,
 			ToStateFunc:  tfschema.CopyTrustedClusterV2ToTerraform,
 			FromPlanFunc: tfschema.CopyTrustedClusterV2FromTerraform,
 		},

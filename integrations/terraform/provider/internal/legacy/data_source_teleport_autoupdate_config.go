@@ -56,7 +56,7 @@ func (r dataSourceTeleportAutoUpdateConfig) Metadata(_ context.Context, _ dataso
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportAutoUpdateConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaAutoUpdateConfig(ctx)
+	return schemav1.GenSchemaAutoUpdateConfigDataSource(ctx)
 }
 
 // Read reads teleport AutoUpdateConfig

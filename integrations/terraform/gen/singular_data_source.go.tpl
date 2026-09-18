@@ -61,7 +61,7 @@ func (r dataSourceTeleport{{.Name}}) Metadata(_ context.Context, _ datasource.Me
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
+	return {{.SchemaPackage}}.GenSchema{{.TypeName}}DataSource(ctx)
 }
 
 // Read reads teleport {{.Name}}

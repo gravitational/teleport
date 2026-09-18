@@ -57,7 +57,7 @@ func (r dataSourceTeleportInferencePolicy) Metadata(_ context.Context, _ datasou
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportInferencePolicy) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferencePolicy(ctx)
+	return schemav1.GenSchemaInferencePolicyDataSource(ctx)
 }
 
 // Read reads teleport InferencePolicy

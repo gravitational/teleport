@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package v1
 
 import (
@@ -34,18 +35,35 @@ import (
 )
 
 var (
-	GenSchemaTimestamp = resource153.GenSchemaTimestamp
-	CopyToTimestamp    = resource153.CopyToTimestamp
-	CopyFromTimestamp  = resource153.CopyFromTimestamp
+	GenSchemaTimestampDataSource = resource153.GenSchemaTimestampDataSource
+	GenSchemaTimestampResource   = resource153.GenSchemaTimestampResource
+	CopyToTimestamp              = resource153.CopyToTimestamp
+	CopyFromTimestamp            = resource153.CopyFromTimestamp
 )
 
-// GenSchemaClassifierActionMode returns the Terraform schema for a
+// GenSchemaClassifierActionModeDataSource returns the Terraform schema for a
 // ClassifierActionMode tri-state enum. The enum is exposed as an optional
 // boolean, relying on the natural tri-state of an optional attribute:
 //   - null/unset -> CLASSIFIER_ACTION_MODE_UNSPECIFIED (the default behavior)
 //   - true       -> CLASSIFIER_ACTION_MODE_ENABLED
 //   - false      -> CLASSIFIER_ACTION_MODE_DISABLED
-func GenSchemaClassifierActionMode(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaClassifierActionModeDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfsdk.Attribute{
+		Optional:      true,
+		Type:          types.BoolType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
+	}
+}
+
+// GenSchemaClassifierActionModeResource returns the Terraform schema for a
+// ClassifierActionMode tri-state enum. The enum is exposed as an optional
+// boolean, relying on the natural tri-state of an optional attribute:
+//   - null/unset -> CLASSIFIER_ACTION_MODE_UNSPECIFIED (the default behavior)
+//   - true       -> CLASSIFIER_ACTION_MODE_ENABLED
+//   - false      -> CLASSIFIER_ACTION_MODE_DISABLED
+func GenSchemaClassifierActionModeResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
 		Optional:      true,
 		Type:          types.BoolType,
@@ -105,8 +123,20 @@ var riskLevelFromString = map[string]summarizerv1.RiskLevel{
 	"critical": summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
 }
 
-// GenSchemaRiskLevel exposes a RiskLevel enum as an optional "low".."critical" string.
-func GenSchemaRiskLevel(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+// GenSchemaRiskLevelDataSource exposes a RiskLevel enum as an optional "low".."critical" string.
+func GenSchemaRiskLevelDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfsdk.Attribute{
+		Optional:      true,
+		Type:          types.StringType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
+		Validators:    append(attr.Validators, stringEnumValidator{attribute: "risk_level_floor", allowed: riskLevels}),
+	}
+}
+
+// GenSchemaRiskLevelResource exposes a RiskLevel enum as an optional "low".."critical" string.
+func GenSchemaRiskLevelResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
 		Optional:      true,
 		Type:          types.StringType,

@@ -57,7 +57,7 @@ func (r dataSourceTeleportInferenceSecret) Metadata(_ context.Context, _ datasou
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportInferenceSecret) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferenceSecret(ctx)
+	return schemav1.GenSchemaInferenceSecretDataSource(ctx)
 }
 
 // Read reads teleport InferenceSecret

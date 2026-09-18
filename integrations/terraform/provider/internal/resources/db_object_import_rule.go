@@ -37,7 +37,7 @@ func NewDatabaseObjectImportRuleDataSourceType() tfdriver.DataSourceType[dbobjec
 		Kind: types.KindDatabaseObjectImportRule,
 		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
-			SchemaFunc:  schemav1.GenSchemaDatabaseObjectImportRule,
+			SchemaFunc:  schemav1.GenSchemaDatabaseObjectImportRuleDataSource,
 			ToStateFunc: schemav1.CopyDatabaseObjectImportRuleToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewDatabaseObjectImportRuleResourceType() tfdriver.ResourceType[dbobjectimp
 		Kind: types.KindDatabaseObjectImportRule,
 		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
-			SchemaFunc:   schemav1.GenSchemaDatabaseObjectImportRule,
+			SchemaFunc:   schemav1.GenSchemaDatabaseObjectImportRuleResource,
 			ToStateFunc:  schemav1.CopyDatabaseObjectImportRuleToTerraform,
 			FromPlanFunc: schemav1.CopyDatabaseObjectImportRuleFromTerraform,
 		},

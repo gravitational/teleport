@@ -60,7 +60,7 @@ func (r resourceTeleportInferenceModel) Metadata(_ context.Context, _ resource.M
 
 // GetSchema returns the resource schema
 func (r resourceTeleportInferenceModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferenceModel(ctx)
+	return schemav1.GenSchemaInferenceModelResource(ctx)
 }
 
 // Create creates the InferenceModel

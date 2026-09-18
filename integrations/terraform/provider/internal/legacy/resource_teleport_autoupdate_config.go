@@ -60,7 +60,7 @@ func (r resourceTeleportAutoUpdateConfig) Metadata(_ context.Context, _ resource
 
 // GetSchema returns the resource schema
 func (r resourceTeleportAutoUpdateConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaAutoUpdateConfig(ctx)
+	return schemav1.GenSchemaAutoUpdateConfigResource(ctx)
 }
 
 // Create creates the AutoUpdateConfig

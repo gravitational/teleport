@@ -56,7 +56,7 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Metadata(_ context.Context, 
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportClusterMaintenanceConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaClusterMaintenanceConfigV1(ctx)
+	return tfschema.GenSchemaClusterMaintenanceConfigV1DataSource(ctx)
 }
 
 // Read reads teleport ClusterMaintenanceConfig

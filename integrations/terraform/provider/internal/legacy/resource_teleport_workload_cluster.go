@@ -62,7 +62,7 @@ func (r resourceTeleportWorkloadCluster) Metadata(_ context.Context, _ resource.
 
 // GetSchema returns the resource schema
 func (r resourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaWorkloadCluster(ctx)
+	return schemav1.GenSchemaWorkloadClusterResource(ctx)
 }
 
 // Create creates the WorkloadCluster

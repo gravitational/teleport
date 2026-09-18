@@ -37,7 +37,7 @@ func NewLoginRuleDataSourceType() tfdriver.DataSourceType[loginrulev1.LoginRule,
 		Kind: types.KindLoginRule,
 		Name: types.KindLoginRule,
 		Codec: tfdriver.DataSourceCodecFuncs[loginrulev1.LoginRule]{
-			SchemaFunc:  schemav1.GenSchemaLoginRule,
+			SchemaFunc:  schemav1.GenSchemaLoginRuleDataSource,
 			ToStateFunc: schemav1.CopyLoginRuleToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewLoginRuleResourceType() tfdriver.ResourceType[loginrulev1.LoginRule, tfd
 		Kind: types.KindLoginRule,
 		Name: types.KindLoginRule,
 		Codec: tfdriver.ResourceCodecFuncs[loginrulev1.LoginRule]{
-			SchemaFunc:   schemav1.GenSchemaLoginRule,
+			SchemaFunc:   schemav1.GenSchemaLoginRuleResource,
 			ToStateFunc:  schemav1.CopyLoginRuleToTerraform,
 			FromPlanFunc: schemav1.CopyLoginRuleFromTerraform,
 		},

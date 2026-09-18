@@ -19,11 +19,13 @@ package v1
 import "github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 
 var (
-	GenSchemaDuration = resource153.GenSchemaDuration
-	CopyToDuration    = resource153.CopyToDuration
-	CopyFromDuration  = resource153.CopyFromDuration
+	GenSchemaDurationDataSource = resource153.GenSchemaDurationDataSource
+	GenSchemaDurationResource   = resource153.GenSchemaDurationResource
+	CopyToDuration              = resource153.CopyToDuration
+	CopyFromDuration            = resource153.CopyFromDuration
 
-	GenSchemaTimestamp = resource153.GenSchemaTimestamp
-	CopyToTimestamp    = resource153.CopyToTimestamp
-	CopyFromTimestamp  = resource153.CopyFromTimestamp
+	GenSchemaTimestampDataSource = resource153.GenSchemaTimestampDataSource
+	GenSchemaTimestampResource   = resource153.GenSchemaTimestampResource
+	CopyToTimestamp              = resource153.CopyToTimestamp
+	CopyFromTimestamp            = resource153.CopyFromTimestamp
 )

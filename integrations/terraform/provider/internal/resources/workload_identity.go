@@ -38,7 +38,7 @@ func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentit
 		Kind: types.KindWorkloadIdentity,
 		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.DataSourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
-			SchemaFunc:  schemav1.GenSchemaWorkloadIdentity,
+			SchemaFunc:  schemav1.GenSchemaWorkloadIdentityDataSource,
 			ToStateFunc: schemav1.CopyWorkloadIdentityToTerraform,
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(tfdriver.ScopeQualifiedPath{
@@ -57,7 +57,7 @@ func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.
 		Kind: types.KindWorkloadIdentity,
 		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.ResourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
-			SchemaFunc:   schemav1.GenSchemaWorkloadIdentity,
+			SchemaFunc:   schemav1.GenSchemaWorkloadIdentityResource,
 			ToStateFunc:  schemav1.CopyWorkloadIdentityToTerraform,
 			FromPlanFunc: schemav1.CopyWorkloadIdentityFromTerraform,
 		},

@@ -44,8 +44,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaAccessList returns tfsdk.Schema definition for AccessList
-func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaAccessListResource returns Terraform Framework resource schema definition for AccessList
+func GenSchemaAccessListResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"header": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -65,7 +65,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "expires is a global expiry time header can be set on any resource in the system.",
 							Optional:    true,
 							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -129,7 +129,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"audit": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"notifications": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								Computed:      true,
 								Description:   "start specifies when to start notifying users that the next audit date is coming up.",
 								Optional:      true,
@@ -413,8 +413,332 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 	}}, nil
 }
 
-// GenSchemaMember returns tfsdk.Schema definition for Member
-func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaAccessListDataSource returns Terraform Framework datasource schema definition for AccessList
+func GenSchemaAccessListDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"header": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"kind": {
+					Computed:    true,
+					Description: "kind is a resource kind.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"metadata": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"description": {
+							Computed:    true,
+							Description: "description is object description.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+						}),
+						"labels": {
+							Computed:    true,
+							Description: "labels is a set of labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"name": {
+							Description: "name is an object name.",
+							Required:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"namespace": {
+							Computed:    true,
+							Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "metadata is resource metadata.",
+					Optional:    true,
+				},
+				"sub_kind": {
+					Computed:    true,
+					Description: "sub_kind is an optional resource sub kind, used in some resources.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"version": {
+					Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "header is the header for the resource.",
+			Optional:    true,
+		},
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "scope is the scope of the Access List.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"audit": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"notifications": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Computed:    true,
+								Description: "start specifies when to start notifying users that the next audit date is coming up.",
+								Optional:    true,
+							})}),
+							Computed:    true,
+							Description: "notifications is the configuration for notifying users.",
+							Optional:    true,
+						},
+						"recurrence": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"day_of_month": {
+									Computed:    true,
+									Description: "day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"frequency": {
+									Computed:    true,
+									Description: "frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+							}),
+							Computed:    true,
+							Description: "recurrence is the recurrence definition",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "audit describes the frequency that this Access List must be audited.",
+					Optional:    true,
+				},
+				"description": {
+					Computed:    true,
+					Description: "description is an optional plaintext description of the Access List.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"grants": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"roles": {
+							Computed:    true,
+							Description: "roles are the names of roles to be granted to users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"scoped_roles": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"role": {
+									Computed:    true,
+									Description: "role is the scope-qualified name of the scoped role to be granted.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scope": {
+									Computed:    true,
+									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "scoped_roles are scoped roles to be granted to users.",
+							Optional:    true,
+						},
+						"traits": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"key": {
+									Computed:    true,
+									Description: "key is the name of the trait.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "values is the list of trait values.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "traits are the traits to be granted to users.",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "grants describes the access granted by membership to this Access List.",
+					Optional:    true,
+				},
+				"membership_requires": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"roles": {
+							Computed:    true,
+							Description: "roles are the user roles that must be present for the user to obtain access.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"traits": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"key": {
+									Computed:    true,
+									Description: "key is the name of the trait.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "values is the list of trait values.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "traits are the traits that must be present for the user to obtain access.",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
+					Optional:    true,
+				},
+				"owner_grants": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"roles": {
+							Computed:    true,
+							Description: "roles are the names of roles to be granted to users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"scoped_roles": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"role": {
+									Computed:    true,
+									Description: "role is the scope-qualified name of the scoped role to be granted.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scope": {
+									Computed:    true,
+									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "scoped_roles are scoped roles to be granted to users.",
+							Optional:    true,
+						},
+						"traits": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"key": {
+									Computed:    true,
+									Description: "key is the name of the trait.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "values is the list of trait values.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "traits are the traits to be granted to users.",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "owner_grants describes the access granted by owners to this Access List.",
+					Optional:    true,
+				},
+				"owners": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"description": {
+							Computed:    true,
+							Description: "description is the plaintext description of the owner and why they are an owner.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"membership_kind": {
+							Computed:    true,
+							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"name": {
+							Computed:    true,
+							Description: "name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "owners is a list of owners of the Access List.",
+					Required:    true,
+				},
+				"ownership_requires": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"roles": {
+							Computed:    true,
+							Description: "roles are the user roles that must be present for the user to obtain access.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"traits": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"key": {
+									Computed:    true,
+									Description: "key is the name of the trait.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "values is the list of trait values.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "traits are the traits that must be present for the user to obtain access.",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
+					Optional:    true,
+				},
+				"title": {
+					Description: "title is a plaintext short description of the Access List.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"type": {
+					Computed:    true,
+					Description: "type can be an empty string which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "spec is the specification for the Access List.",
+			Optional:    true,
+		},
+	}}, nil
+}
+
+// GenSchemaMemberResource returns Terraform Framework resource schema definition for Member
+func GenSchemaMemberResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"header": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -434,7 +758,7 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "expires is a global expiry time header can be set on any resource in the system.",
 							Optional:    true,
 							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -501,7 +825,7 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is when the user's membership to the Access List expires.",
 					Optional:    true,
 				}),
@@ -517,6 +841,107 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "spec is the specification for the Access List member.",
+			Optional:    true,
+		},
+	}}, nil
+}
+
+// GenSchemaMemberDataSource returns Terraform Framework datasource schema definition for Member
+func GenSchemaMemberDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"header": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"kind": {
+					Computed:    true,
+					Description: "kind is a resource kind.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"metadata": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"description": {
+							Computed:    true,
+							Description: "description is object description.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+						}),
+						"labels": {
+							Computed:    true,
+							Description: "labels is a set of labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"name": {
+							Description: "name is an object name.",
+							Required:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"namespace": {
+							Computed:    true,
+							Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "metadata is resource metadata.",
+					Optional:    true,
+				},
+				"sub_kind": {
+					Computed:    true,
+					Description: "sub_kind is an optional resource sub kind, used in some resources.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"version": {
+					Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "header is the header for the resource.",
+			Optional:    true,
+		},
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"access_list": {
+					Description: "associated Access List",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is when the user's membership to the Access List expires.",
+					Optional:    true,
+				}),
+				"membership_kind": {
+					Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"reason": {
+					Computed:    true,
+					Description: "reason is the reason this user was added to the Access List.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "spec is the specification for the Access List member.",
@@ -1570,7 +1995,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 // CopyAccessListToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessList, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaAccessList(ctx)
+	schema, diags := GenSchemaAccessListResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -3168,7 +3593,7 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 // CopyMemberToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.Member, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaMember(ctx)
+	schema, diags := GenSchemaMemberResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

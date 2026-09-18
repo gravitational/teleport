@@ -37,7 +37,7 @@ func NewSSHServerDataSourceType() tfdriver.DataSourceType[apitypes.ServerV2, tfd
 		Kind: apitypes.KindNode,
 		Name: "server",
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.ServerV2]{
-			SchemaFunc:  tfschema.GenSchemaServerV2,
+			SchemaFunc:  tfschema.GenSchemaServerV2DataSource,
 			ToStateFunc: tfschema.CopyServerV2ToTerraform,
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(
@@ -58,7 +58,7 @@ func NewSSHServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdrive
 		Kind: apitypes.KindNode,
 		Name: "server",
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.ServerV2]{
-			SchemaFunc:   tfschema.GenSchemaServerV2,
+			SchemaFunc:   tfschema.GenSchemaServerV2Resource,
 			ToStateFunc:  tfschema.CopyServerV2ToTerraform,
 			FromPlanFunc: tfschema.CopyServerV2FromTerraform,
 		},

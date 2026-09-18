@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package resource153
 
 import (
@@ -31,7 +32,13 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
-func GenSchemaTimestamp(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaTimestampDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	attr.Optional = true
+	attr.Type = tfschema.UseRFC3339Time()
+	return attr
+}
+
+func GenSchemaTimestampResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	attr.Optional = true
 	attr.Type = tfschema.UseRFC3339Time()
 	return attr
@@ -65,7 +72,13 @@ func CopyToTimestamp(_ diag.Diagnostics, o *timestamppb.Timestamp, _ attr.Type, 
 	return tfschema.NewTime(o.AsTime())
 }
 
-func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+func GenSchemaDurationDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	attr.Optional = true
+	attr.Type = tfschema.DurationType{}
+	return attr
+}
+
+func GenSchemaDurationResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	attr.Optional = true
 	attr.Type = tfschema.DurationType{}
 	return attr
@@ -113,8 +126,12 @@ func CopyToDuration(_ diag.Diagnostics, o *durationpb.Duration, _ attr.Type, v a
 	return value
 }
 
-func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfschema.GenSchemaLabels(ctx, attr)
+func GenSchemaLabelsDataSource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfschema.GenSchemaLabelsDataSource(ctx, attr)
+}
+
+func GenSchemaLabelsResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfschema.GenSchemaLabelsResource(ctx, attr)
 }
 
 func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {

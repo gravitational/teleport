@@ -60,7 +60,7 @@ func (r resourceTeleportVnetConfig) Metadata(_ context.Context, _ resource.Metad
 
 // GetSchema returns the resource schema
 func (r resourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaVnetConfig(ctx)
+	return schemav1.GenSchemaVnetConfigResource(ctx)
 }
 
 // Create creates the VnetConfig

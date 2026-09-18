@@ -60,7 +60,7 @@ func (r resourceTeleportInferencePolicy) Metadata(_ context.Context, _ resource.
 
 // GetSchema returns the resource schema
 func (r resourceTeleportInferencePolicy) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferencePolicy(ctx)
+	return schemav1.GenSchemaInferencePolicyResource(ctx)
 }
 
 // Create creates the InferencePolicy

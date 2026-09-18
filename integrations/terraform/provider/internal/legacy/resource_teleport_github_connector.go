@@ -59,7 +59,7 @@ func (r resourceTeleportGithubConnector) Metadata(_ context.Context, _ resource.
 
 // GetSchema returns the resource schema
 func (r resourceTeleportGithubConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaGithubConnectorV3(ctx)
+	return tfschema.GenSchemaGithubConnectorV3Resource(ctx)
 }
 
 // Create creates the GithubConnector

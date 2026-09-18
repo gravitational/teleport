@@ -46,8 +46,8 @@ var _ = fmt.Errorf
 var _ = math.Inf
 var _ = time.Kitchen
 
-// GenSchemaDiscoveryConfig returns tfsdk.Schema definition for DiscoveryConfig
-func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaDiscoveryConfigResource returns Terraform Framework resource schema definition for DiscoveryConfig
+func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"header": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -67,7 +67,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "expires is a global expiry time header can be set on any resource in the system.",
 							Optional:    true,
 							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -173,7 +173,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 								},
 								"eks_audit_logs": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tags": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										Computed:      true,
 										Description:   "The tags of EKS clusters for which apiserver audit logs should be fetched.",
 										Optional:      true,
@@ -447,7 +447,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"tags": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Tags are AWS resource Tags to match.",
 							Optional:      true,
@@ -601,7 +601,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"tags": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "ResourceTags are Azure tags on resources to match.",
 							Optional:      true,
@@ -736,7 +736,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Description: "Params sets the join method when installing on discovered GCP nodes.",
 							Optional:    true,
 						},
-						"labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Labels are GCP labels to match.",
 							Optional:      true,
@@ -763,7 +763,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"tags": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"tags": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Tags is obsolete and only exists for backwards compatibility. Use Labels instead.",
 							Optional:      true,
@@ -784,7 +784,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 				},
 				"kube": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Labels are Kubernetes services labels to match.",
 							Optional:      true,
@@ -809,6 +809,684 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 					Description:   "Kube is a list of Kubernetes Matchers.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
+				},
+			}),
+			Description: "Spec is an DiscoveryConfig specification.",
+			Required:    true,
+		},
+	}}, nil
+}
+
+// GenSchemaDiscoveryConfigDataSource returns Terraform Framework datasource schema definition for DiscoveryConfig
+func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"header": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"kind": {
+					Computed:    true,
+					Description: "kind is a resource kind.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"metadata": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"description": {
+							Computed:    true,
+							Description: "description is object description.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+						}),
+						"labels": {
+							Computed:    true,
+							Description: "labels is a set of labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"name": {
+							Description: "name is an object name.",
+							Required:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"namespace": {
+							Computed:    true,
+							Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "metadata is resource metadata.",
+					Required:    true,
+				},
+				"sub_kind": {
+					Computed:    true,
+					Description: "sub_kind is an optional resource sub kind, used in some resources.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"version": {
+					Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Header is the resource header.",
+			Required:    true,
+		},
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"access_graph": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"aws": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"assume_role": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"external_id": {
+											Computed:    true,
+											Description: "ExternalID is the external ID used to assume a role in another account.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"role_arn": {
+											Computed:    true,
+											Description: "RoleARN is the fully specified AWS IAM role ARN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"role_name": {
+											Computed:    true,
+											Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
+									Optional:    true,
+								},
+								"cloud_trail_logs": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"region": {
+											Computed:    true,
+											Description: "The AWS region of the SQS queue for CloudTrail notifications, ex.: \"us-east-2\".",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"sqs_queue": {
+											Computed:    true,
+											Description: "The name or URL for CloudTrail log events, ex.: \"demo-cloudtrail-queue\".",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "Configuration settings for collecting AWS CloudTrail logs via an SQS queue.",
+									Optional:    true,
+								},
+								"eks_audit_logs": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tags": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										Computed:    true,
+										Description: "The tags of EKS clusters for which apiserver audit logs should be fetched.",
+										Optional:    true,
+									})}),
+									Description: "",
+									Optional:    true,
+								},
+								"integration": {
+									Computed:    true,
+									Description: "Integration is the integration name used to generate credentials to interact with AWS APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"regions": {
+									Computed:    true,
+									Description: "Regions are AWS regions to import resources from.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "AWS is a configuration for AWS Access Graph service poll service.",
+							Optional:    true,
+						},
+						"azure": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"integration": {
+									Computed:    true,
+									Description: "Integration is the integration name used to generate credentials to interact with Azure APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"subscription_id": {
+									Computed:    true,
+									Description: "SubscriptionID Is the ID of the Azure subscription to sync resources from",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Azure is a configuration for Azure Access Graph service poll service.",
+							Optional:    true,
+						},
+						"poll_interval": {
+							Computed:    true,
+							Description: "PollInterval is the frequency at which to poll for resources",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+					}),
+					Description: "AccessGraph is the configurations for syncing Cloud accounts into Access Graph.",
+					Optional:    true,
+				},
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"assume_role": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"external_id": {
+									Computed:    true,
+									Description: "ExternalID is the external ID used to assume a role in another account.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"role_arn": {
+									Computed:    true,
+									Description: "RoleARN is the fully specified AWS IAM role ARN.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"role_name": {
+									Computed:    true,
+									Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
+							Optional:    true,
+						},
+						"install": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"azure": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
+										Computed:    true,
+										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "Azure is the set of Azure-specific installation parameters.",
+									Optional:    true,
+								},
+								"enroll_mode": {
+									Computed:    true,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"http_proxy_settings": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"http_proxy": {
+											Computed:    true,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"https_proxy": {
+											Computed:    true,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"no_proxy": {
+											Computed:    true,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
+									Optional:    true,
+								},
+								"install_teleport": {
+									Computed:    true,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"join_method": {
+									Computed:    true,
+									Description: "JoinMethod is the method to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"join_token": {
+									Computed:    true,
+									Description: "JoinToken is the token to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"proxy_addr": {
+									Computed:    true,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"script_name": {
+									Computed:    true,
+									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sshd_config": {
+									Computed:    true,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"suffix": {
+									Computed:    true,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"update_group": {
+									Computed:    true,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Params sets the join method when installing on discovered EC2 nodes",
+							Optional:    true,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "Integration is the integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"kube_app_discovery": {
+							Computed:    true,
+							Description: "KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"organization": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"organization_id": {
+									Computed:    true,
+									Description: "OrganizationID is the AWS Organization ID to match against. Required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"organizational_units": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"exclude": {
+											Computed:    true,
+											Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"include": {
+											Computed:    true,
+											Description: "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+									}),
+									Description: "OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.",
+									Optional:    true,
+								},
+							}),
+							Description: "Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.",
+							Optional:    true,
+						},
+						"regions": {
+							Computed:    true,
+							Description: "Regions are AWS regions to query for databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"setup_access_for_arn": {
+							Computed:    true,
+							Description: "SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ssm": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"document_name": {
+								Computed:    true,
+								Description: "DocumentName is the name of the document to use when executing an SSM command",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Computed:    true,
+							Description: "SSM provides options to use when sending a document command to an EC2 node",
+							Optional:    true,
+						},
+						"tags": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Tags are AWS resource Tags to match.",
+							Optional:    true,
+						}),
+						"types": {
+							Computed:    true,
+							Description: "Types are AWS database types to match, \"ec2\", \"rds\", \"redshift\", \"elasticache\", or \"memorydb\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "AWS is a list of AWS Matchers.",
+					Optional:    true,
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"install_params": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"azure": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
+										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
+										Required:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Computed:    true,
+									Description: "Azure is the set of Azure-specific installation parameters.",
+									Optional:    true,
+								},
+								"enroll_mode": {
+									Computed:    true,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"http_proxy_settings": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"http_proxy": {
+											Computed:    true,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"https_proxy": {
+											Computed:    true,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"no_proxy": {
+											Computed:    true,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
+									Optional:    true,
+								},
+								"install_teleport": {
+									Computed:    true,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"join_method": {
+									Description: "JoinMethod is the method to use when joining the cluster",
+									Required:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"join_token": {
+									Description: "JoinToken is the token to use when joining the cluster",
+									Required:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"proxy_addr": {
+									Computed:    true,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"script_name": {
+									Computed:    true,
+									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sshd_config": {
+									Computed:    true,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"suffix": {
+									Computed:    true,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"update_group": {
+									Computed:    true,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Params sets the join method when installing on discovered Azure nodes.",
+							Optional:    true,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"regions": {
+							Computed:    true,
+							Description: "Regions are Azure locations to match for databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"resource_groups": {
+							Computed:    true,
+							Description: "ResourceGroups are Azure resource groups to query for resources.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"subscriptions": {
+							Computed:    true,
+							Description: "Subscriptions are Azure subscriptions to query for resources.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"tags": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "ResourceTags are Azure tags on resources to match.",
+							Optional:    true,
+						}),
+						"types": {
+							Computed:    true,
+							Description: "Types are Azure types to match: \"mysql\", \"postgres\", \"aks\", \"vm\"",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "Azure is a list of Azure Matchers.",
+					Optional:    true,
+				},
+				"discovery_group": {
+					Computed:    true,
+					Description: "DiscoveryGroup is used by discovery_service to add extra matchers. All the discovery_services that have the same discovery_group, will load the matchers of this resource.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"install_params": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"azure": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
+										Computed:    true,
+										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									}}),
+									Description: "Azure is the set of Azure-specific installation parameters.",
+									Optional:    true,
+								},
+								"enroll_mode": {
+									Computed:    true,
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"http_proxy_settings": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"http_proxy": {
+											Computed:    true,
+											Description: "HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"https_proxy": {
+											Computed:    true,
+											Description: "HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"no_proxy": {
+											Computed:    true,
+											Description: "NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.",
+									Optional:    true,
+								},
+								"install_teleport": {
+									Computed:    true,
+									Description: "InstallTeleport disables agentless discovery",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"join_method": {
+									Computed:    true,
+									Description: "JoinMethod is the method to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"join_token": {
+									Computed:    true,
+									Description: "JoinToken is the token to use when joining the cluster",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"proxy_addr": {
+									Computed:    true,
+									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"script_name": {
+									Computed:    true,
+									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sshd_config": {
+									Computed:    true,
+									Description: "SSHDConfig provides the path to write sshd configuration changes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"suffix": {
+									Computed:    true,
+									Description: "Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"update_group": {
+									Computed:    true,
+									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Params sets the join method when installing on discovered GCP nodes.",
+							Optional:    true,
+						},
+						"labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Labels are GCP labels to match.",
+							Optional:    true,
+						}),
+						"locations": {
+							Computed:    true,
+							Description: "Locations are GCP locations to search resources for.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"project_ids": {
+							Computed:    true,
+							Description: "ProjectIDs are the GCP project ID where the resources are deployed.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"service_accounts": {
+							Computed:    true,
+							Description: "ServiceAccounts are the emails of service accounts attached to VMs.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"tags": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Tags is obsolete and only exists for backwards compatibility. Use Labels instead.",
+							Optional:    true,
+						}),
+						"types": {
+							Computed:    true,
+							Description: "Types are GCP resource types to match: \"gke\", \"gce\", \"cloudsql\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "GCP is a list of GCP Matchers.",
+					Optional:    true,
+				},
+				"kube": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Labels are Kubernetes services labels to match.",
+							Optional:    true,
+						}),
+						"namespaces": {
+							Computed:    true,
+							Description: "Namespaces are Kubernetes namespaces in which to discover services",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"types": {
+							Computed:    true,
+							Description: "Types are Kubernetes services types to match. Currently only 'app' is supported.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "Kube is a list of Kubernetes Matchers.",
+					Optional:    true,
 				},
 			}),
 			Description: "Spec is an DiscoveryConfig specification.",
@@ -2934,7 +3612,7 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 // CopyDiscoveryConfigToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_discoveryconfig_v1.DiscoveryConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaDiscoveryConfig(ctx)
+	schema, diags := GenSchemaDiscoveryConfigResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

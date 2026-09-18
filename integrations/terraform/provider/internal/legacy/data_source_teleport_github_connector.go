@@ -57,7 +57,7 @@ func (r dataSourceTeleportGithubConnector) Metadata(_ context.Context, _ datasou
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportGithubConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaGithubConnectorV3(ctx)
+	return tfschema.GenSchemaGithubConnectorV3DataSource(ctx)
 }
 
 // Read reads teleport GithubConnector

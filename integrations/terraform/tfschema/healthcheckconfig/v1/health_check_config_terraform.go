@@ -43,8 +43,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaHealthCheckConfig returns tfsdk.Schema definition for HealthCheckConfig
-func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaHealthCheckConfigResource returns Terraform Framework resource schema definition for HealthCheckConfig
+func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -69,7 +69,7 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -107,7 +107,7 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
-				"interval": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"interval": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Interval is the time between each health check.",
 					Optional:    true,
 				}),
@@ -182,7 +182,7 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 					Description: "Match is used to select resources that these settings apply to.",
 					Required:    true,
 				},
-				"timeout": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"timeout": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Timeout is the health check connection establishment timeout. An attempt that times out is a failed attempt.",
 					Optional:    true,
 				}),
@@ -203,6 +203,157 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the health check config version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaHealthCheckConfigDataSource returns Terraform Framework datasource schema definition for HealthCheckConfig
+func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Must be \"health_check_config\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is the health check config resource's metadata.",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"healthy_threshold": {
+					Computed:    true,
+					Description: "HealthyThreshold is the number of consecutive passing health checks after which a target's health status becomes \"healthy\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"interval": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "Interval is the time between each health check.",
+					Optional:    true,
+				}),
+				"match": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"db_labels": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "The name of the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "The values associated with the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "DBLabels matches database labels. An empty value is ignored. The match result is logically ANDed with DBLabelsExpression, if both are non-empty.",
+							Optional:    true,
+						},
+						"db_labels_expression": {
+							Computed:    true,
+							Description: "DBLabelsExpression is a label predicate expression to match databases. An empty value is ignored. The match result is logically ANDed with DBLabels, if both are non-empty.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disabled": {
+							Computed:    true,
+							Description: "Disabled disables matches for all labels and expressions.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"kubernetes_labels": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "The name of the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"values": {
+									Computed:    true,
+									Description: "The values associated with the label.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "KubernetesLabels matches Kubernetes labels. An empty value is ignored. The match result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.",
+							Optional:    true,
+						},
+						"kubernetes_labels_expression": {
+							Computed:    true,
+							Description: "KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An empty value is ignored. The match result is logically ANDed with KubernetesLabels, if both are non-empty.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Match is used to select resources that these settings apply to.",
+					Required:    true,
+				},
+				"timeout": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "Timeout is the health check connection establishment timeout. An attempt that times out is a failed attempt.",
+					Optional:    true,
+				}),
+				"unhealthy_threshold": {
+					Computed:    true,
+					Description: "UnhealthyThreshold is the number of consecutive failing health checks after which a target's health status becomes \"unhealthy\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+			}),
+			Description: "Spec is the health check config specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "Version is the health check config version.",
@@ -661,7 +812,7 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 // CopyHealthCheckConfigToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaHealthCheckConfig(ctx)
+	schema, diags := GenSchemaHealthCheckConfigResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

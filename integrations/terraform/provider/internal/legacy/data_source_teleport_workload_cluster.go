@@ -57,7 +57,7 @@ func (r dataSourceTeleportWorkloadCluster) Metadata(_ context.Context, _ datasou
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaWorkloadCluster(ctx)
+	return schemav1.GenSchemaWorkloadClusterDataSource(ctx)
 }
 
 // Read reads teleport WorkloadCluster

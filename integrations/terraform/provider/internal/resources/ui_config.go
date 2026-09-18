@@ -40,7 +40,7 @@ func NewUIConfigDataSourceType() tfdriver.DataSourceType[types.UIConfigV1, tfdri
 		Kind: types.KindUIConfig,
 		Name: types.KindUIConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.UIConfigV1]{
-			SchemaFunc:  tfschema.GenSchemaUIConfigV1,
+			SchemaFunc:  tfschema.GenSchemaUIConfigV1DataSource,
 			ToStateFunc: tfschema.CopyUIConfigV1ToTerraform,
 		},
 		Identifier: tfdriver.SingletonIdentifierFromName(uiConfigID),
@@ -56,7 +56,7 @@ func NewUIConfigResourceType() tfdriver.ResourceType[types.UIConfigV1, tfdriver.
 		Kind: types.KindUIConfig,
 		Name: types.KindUIConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.UIConfigV1]{
-			SchemaFunc:   tfschema.GenSchemaUIConfigV1,
+			SchemaFunc:   tfschema.GenSchemaUIConfigV1Resource,
 			ToStateFunc:  tfschema.CopyUIConfigV1ToTerraform,
 			FromPlanFunc: tfschema.CopyUIConfigV1FromTerraform,
 		},

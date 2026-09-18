@@ -59,7 +59,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ re
 
 // GetSchema returns the resource schema
 func (r resourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
+	return tfschema.GenSchemaSAMLIdPServiceProviderV1Resource(ctx)
 }
 
 // Create creates the SAMLIdPServiceProvider

@@ -36,7 +36,7 @@ func NewUserDataSourceType() tfdriver.DataSourceType[types.UserV2, tfdriver.Name
 		Kind: types.KindUser,
 		Name: types.KindUser,
 		Codec: tfdriver.DataSourceCodecFuncs[types.UserV2]{
-			SchemaFunc:  tfschema.GenSchemaUserV2,
+			SchemaFunc:  tfschema.GenSchemaUserV2DataSource,
 			ToStateFunc: tfschema.CopyUserV2ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewUserResourceType() tfdriver.ResourceType[types.UserV2, tfdriver.NameIden
 		Kind: types.KindUser,
 		Name: types.KindUser,
 		Codec: tfdriver.ResourceCodecFuncs[types.UserV2]{
-			SchemaFunc:   tfschema.GenSchemaUserV2,
+			SchemaFunc:   tfschema.GenSchemaUserV2Resource,
 			ToStateFunc:  tfschema.CopyUserV2ToTerraform,
 			FromPlanFunc: tfschema.CopyUserV2FromTerraform,
 		},

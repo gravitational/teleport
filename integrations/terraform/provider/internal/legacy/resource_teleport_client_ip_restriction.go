@@ -60,7 +60,7 @@ func (r resourceTeleportClientIPRestriction) Metadata(_ context.Context, _ resou
 
 // GetSchema returns the resource schema
 func (r resourceTeleportClientIPRestriction) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaClientIPRestriction(ctx)
+	return schemav1.GenSchemaClientIPRestrictionResource(ctx)
 }
 
 // Create creates the ClientIPRestriction

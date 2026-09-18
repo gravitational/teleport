@@ -26,13 +26,15 @@ type DurationType = tfschema.DurationType
 type DurationValue = tfschema.DurationValue
 
 var (
-	GenSchemaTimestamp = resource153.GenSchemaTimestamp
-	CopyToTimestamp    = resource153.CopyToTimestamp
-	CopyFromTimestamp  = resource153.CopyFromTimestamp
+	GenSchemaTimestampDataSource = resource153.GenSchemaTimestampDataSource
+	GenSchemaTimestampResource   = resource153.GenSchemaTimestampResource
+	CopyToTimestamp              = resource153.CopyToTimestamp
+	CopyFromTimestamp            = resource153.CopyFromTimestamp
 
-	GenSchemaLabels = resource153.GenSchemaLabels
-	CopyFromLabels  = resource153.CopyFromLabels
-	CopyToLabels    = resource153.CopyToLabels
+	GenSchemaLabelsDataSource = resource153.GenSchemaLabelsDataSource
+	GenSchemaLabelsResource   = resource153.GenSchemaLabelsResource
+	CopyFromLabels            = resource153.CopyFromLabels
+	CopyToLabels              = resource153.CopyToLabels
 
 	NewDuration     = tfschema.NewDuration
 	NullDuration    = tfschema.NullDuration

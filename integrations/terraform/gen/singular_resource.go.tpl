@@ -73,7 +73,7 @@ func (r resourceTeleport{{.Name}}) Metadata(_ context.Context, _ resource.Metada
 
 // GetSchema returns the resource schema
 func (r resourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
+	return {{.SchemaPackage}}.GenSchema{{.TypeName}}Resource(ctx)
 }
 
 // Create creates the {{.Name}}

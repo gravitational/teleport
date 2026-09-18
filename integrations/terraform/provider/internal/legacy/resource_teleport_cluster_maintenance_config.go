@@ -59,7 +59,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Metadata(_ context.Context, _ 
 
 // GetSchema returns the resource schema
 func (r resourceTeleportClusterMaintenanceConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaClusterMaintenanceConfigV1(ctx)
+	return tfschema.GenSchemaClusterMaintenanceConfigV1Resource(ctx)
 }
 
 // Create creates the ClusterMaintenanceConfig

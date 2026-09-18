@@ -36,7 +36,7 @@ func NewOktaImportRuleDataSourceType() tfdriver.DataSourceType[types.OktaImportR
 		Kind: types.KindOktaImportRule,
 		Name: types.KindOktaImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[types.OktaImportRuleV1]{
-			SchemaFunc:  tfschema.GenSchemaOktaImportRuleV1,
+			SchemaFunc:  tfschema.GenSchemaOktaImportRuleV1DataSource,
 			ToStateFunc: tfschema.CopyOktaImportRuleV1ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewOktaImportRuleResourceType() tfdriver.ResourceType[types.OktaImportRuleV
 		Kind: types.KindOktaImportRule,
 		Name: types.KindOktaImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[types.OktaImportRuleV1]{
-			SchemaFunc:   tfschema.GenSchemaOktaImportRuleV1,
+			SchemaFunc:   tfschema.GenSchemaOktaImportRuleV1Resource,
 			ToStateFunc:  tfschema.CopyOktaImportRuleV1ToTerraform,
 			FromPlanFunc: tfschema.CopyOktaImportRuleV1FromTerraform,
 		},

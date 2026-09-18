@@ -40,8 +40,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaCertAuthorityOverride returns tfsdk.Schema definition for CertAuthorityOverride
-func GenSchemaCertAuthorityOverride(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaCertAuthorityOverrideResource returns Terraform Framework resource schema definition for CertAuthorityOverride
+func GenSchemaCertAuthorityOverrideResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -66,7 +66,7 @@ func GenSchemaCertAuthorityOverride(ctx context.Context) (github_com_hashicorp_t
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -149,6 +149,106 @@ func GenSchemaCertAuthorityOverride(ctx context.Context) (github_com_hashicorp_t
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaCertAuthorityOverrideDataSource returns Terraform Framework datasource schema definition for CertAuthorityOverride
+func GenSchemaCertAuthorityOverrideDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is \"cert_authority_override\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "name is an object name.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata for the resource. The name of the resource is the cluster name.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"certificate_overrides": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"certificate": {
+						Computed:    true,
+						Description: "Certificate to present, in PEM form.  The public key must match an existing CA certificate. It must also match the public_key field, if present.  The certificate Subject must contain the cluster name, either in the \"O=\" field or in OID \"1.3.9999.4.1\", as per RFD 0237.  https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md#subject-customization",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"chain": {
+						Computed:    true,
+						Description: "Certificate chain, in PEM form.  The chain must be sorted from leaf to root.  If present Teleport may supply the chain, along with the certificate, in appropriate situations.  The chain is limited to a generous (but sensible) server-defined length.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					},
+					"disabled": {
+						Computed:    true,
+						Description: "If true disables the override.  A disabled override may exist for recording purposes, to be enabled later, or simply to mark a certain public key as not overridden. In the latter case the certificate may be absent.  Disabled overrides allow CRLs to be created asynchronously, using CertAuthorityOverride watchers.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+					},
+					"public_key": {
+						Computed:    true,
+						Description: "SHA256(SubjectPublicKeyInfo DER) printed as hex string.  Informative if certificate is present.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+				}),
+				Computed:    true,
+				Description: "Certificate overrides. Required.",
+				Optional:    true,
+			}}),
+			Description: "Spec for the resource.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "Sub kind is the CA type. Eg: \"db_client\", \"spiffe-tls\", \"windows\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -446,7 +546,7 @@ func CopyCertAuthorityOverrideToTerraform(ctx context.Context, obj *github_com_g
 // CopyCertAuthorityOverrideToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyCertAuthorityOverrideToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaCertAuthorityOverride(ctx)
+	schema, diags := GenSchemaCertAuthorityOverrideResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

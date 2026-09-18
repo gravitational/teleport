@@ -43,7 +43,7 @@ func NewScopedTokenDataSourceType() tfdriver.DataSourceType[joiningv1.ScopedToke
 		Kind: apitypes.KindScopedToken,
 		Name: apitypes.KindScopedToken,
 		Codec: tfdriver.DataSourceCodecFuncs[joiningv1.ScopedToken]{
-			SchemaFunc:  schemav1.GenSchemaScopedToken,
+			SchemaFunc:  schemav1.GenSchemaScopedTokenDataSource,
 			ToStateFunc: schemav1.CopyScopedTokenToTerraform,
 		},
 	}
@@ -58,7 +58,7 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 		Kind: apitypes.KindScopedToken,
 		Name: apitypes.KindScopedToken,
 		Codec: tfdriver.ResourceCodecFuncs[joiningv1.ScopedToken]{
-			SchemaFunc:   schemav1.GenSchemaScopedToken,
+			SchemaFunc:   schemav1.GenSchemaScopedTokenResource,
 			ToStateFunc:  schemav1.CopyScopedTokenToTerraform,
 			FromPlanFunc: schemav1.CopyScopedTokenFromTerraform,
 		},

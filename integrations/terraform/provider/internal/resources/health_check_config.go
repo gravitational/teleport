@@ -37,7 +37,7 @@ func NewHealthCheckConfigDataSourceType() tfdriver.DataSourceType[healthcheckcon
 		Kind: types.KindHealthCheckConfig,
 		Name: types.KindHealthCheckConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[healthcheckconfigv1.HealthCheckConfig]{
-			SchemaFunc:  schemav1.GenSchemaHealthCheckConfig,
+			SchemaFunc:  schemav1.GenSchemaHealthCheckConfigDataSource,
 			ToStateFunc: schemav1.CopyHealthCheckConfigToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewHealthCheckConfigResourceType() tfdriver.ResourceType[healthcheckconfigv
 		Kind: types.KindHealthCheckConfig,
 		Name: types.KindHealthCheckConfig,
 		Codec: tfdriver.ResourceCodecFuncs[healthcheckconfigv1.HealthCheckConfig]{
-			SchemaFunc:   schemav1.GenSchemaHealthCheckConfig,
+			SchemaFunc:   schemav1.GenSchemaHealthCheckConfigResource,
 			ToStateFunc:  schemav1.CopyHealthCheckConfigToTerraform,
 			FromPlanFunc: schemav1.CopyHealthCheckConfigFromTerraform,
 		},

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package legacy
 
 import (
@@ -131,7 +132,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 			},
 			"spec": {
 				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
-					"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{
+					"traits": tfschema.GenSchemaTraitsResource(ctx, tfsdk.Attribute{
 						Description: "The traits that will be associated with the bot for the purposes of role templating.\n\nWhere multiple specified with the same name, these will be merged by the server.",
 					}),
 					"roles": {
@@ -223,7 +224,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 					rfd153OnlyValidator{},
 				},
 			},
-			"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{
+			"traits": tfschema.GenSchemaTraitsResource(ctx, tfsdk.Attribute{
 				DeprecationMessage: "Deprecated. Use `spec.traits` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},

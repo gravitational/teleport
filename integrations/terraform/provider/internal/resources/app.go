@@ -36,7 +36,7 @@ func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.Nam
 		Kind: apitypes.KindApp,
 		Name: apitypes.KindApp,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.AppV3]{
-			SchemaFunc:  tfschema.GenSchemaAppV3,
+			SchemaFunc:  tfschema.GenSchemaAppV3DataSource,
 			ToStateFunc: tfschema.CopyAppV3ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIde
 		Kind: apitypes.KindApp,
 		Name: apitypes.KindApp,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.AppV3]{
-			SchemaFunc:   tfschema.GenSchemaAppV3,
+			SchemaFunc:   tfschema.GenSchemaAppV3Resource,
 			ToStateFunc:  tfschema.CopyAppV3ToTerraform,
 			FromPlanFunc: tfschema.CopyAppV3FromTerraform,
 		},

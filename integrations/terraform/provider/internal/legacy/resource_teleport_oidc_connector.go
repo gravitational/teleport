@@ -59,7 +59,7 @@ func (r resourceTeleportOIDCConnector) Metadata(_ context.Context, _ resource.Me
 
 // GetSchema returns the resource schema
 func (r resourceTeleportOIDCConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaOIDCConnectorV3(ctx)
+	return tfschema.GenSchemaOIDCConnectorV3Resource(ctx)
 }
 
 // Create creates the OIDCConnector

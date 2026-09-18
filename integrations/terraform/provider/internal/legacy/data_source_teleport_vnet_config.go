@@ -56,7 +56,7 @@ func (r dataSourceTeleportVnetConfig) Metadata(_ context.Context, _ datasource.M
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaVnetConfig(ctx)
+	return schemav1.GenSchemaVnetConfigDataSource(ctx)
 }
 
 // Read reads teleport VnetConfig

@@ -135,7 +135,7 @@ func NewFooDataSourceType() tfdriver.DataSourceType[apitypes.FooV1, tfdriver.Nam
         Kind: apitypes.KindFoo,
         Name: "foo",
         Codec: tfdriver.DataSourceCodecFuncs[apitypes.FooV1]{
-            SchemaFunc:  tfschema.GenSchemaFooV1,
+            SchemaFunc:  tfschema.GenSchemaFooV1DataSource,
             ToStateFunc: tfschema.CopyFooV1ToTerraform,
         },
         Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -150,7 +150,7 @@ func NewFooResourceType() tfdriver.ResourceType[apitypes.FooV1, tfdriver.NameIde
         Kind: apitypes.KindFoo,
         Name: "foo",
         Codec: tfdriver.ResourceCodecFuncs[apitypes.FooV1]{
-            SchemaFunc:   tfschema.GenSchemaFooV1,
+            SchemaFunc:   tfschema.GenSchemaFooV1Resource,
             FromPlanFunc: tfschema.CopyFooV1FromTerraform,
             ToStateFunc:  tfschema.CopyFooV1ToTerraform,
         },

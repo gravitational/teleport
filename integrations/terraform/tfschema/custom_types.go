@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package tfschema
 
 import (
@@ -30,15 +31,22 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// GenSchemaBoolOptions returns Terraform schema for BoolOption type
-func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+// GenSchemaBoolOptionDataSource returns Terraform schema for BoolOption type
+func GenSchemaBoolOptionDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	attr.Optional = true
 	attr.Type = types.BoolType
 	return attr
 }
 
-// GenSchemaTraits returns Terraform schema for Traits type
-func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+// GenSchemaBoolOptionResource returns Terraform schema for BoolOption type
+func GenSchemaBoolOptionResource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	attr.Optional = true
+	attr.Type = types.BoolType
+	return attr
+}
+
+// GenSchemaTraitsDataSource returns Terraform schema for Traits type.
+func GenSchemaTraitsDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	attr.Optional = true
 	attr.Type = types.MapType{
 		ElemType: types.ListType{
@@ -48,9 +56,25 @@ func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return attr
 }
 
-// GenSchemaBoolOptions returns Terraform schema for Labels type
-func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return GenSchemaTraits(ctx, attr)
+// GenSchemaTraitsResource returns Terraform schema for Traits type.
+func GenSchemaTraitsResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	attr.Optional = true
+	attr.Type = types.MapType{
+		ElemType: types.ListType{
+			ElemType: types.StringType,
+		},
+	}
+	return attr
+}
+
+// GenSchemaLabelsDataSource returns Terraform schema for Labels type.
+func GenSchemaLabelsDataSource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return GenSchemaTraitsDataSource(ctx, attr)
+}
+
+// GenSchemaLabelsResource returns Terraform schema for Labels type.
+func GenSchemaLabelsResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return GenSchemaTraitsResource(ctx, attr)
 }
 
 func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.BoolOption) {
@@ -203,8 +227,17 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 	return traits
 }
 
-// GenSchemaStrings returns Terraform schema for Strings type
-func GenSchemaStrings(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+// GenSchemaStringsDataSource returns Terraform schema for Strings type.
+func GenSchemaStringsDataSource(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	attr.Optional = true
+	attr.Type = types.ListType{
+		ElemType: types.StringType,
+	}
+	return attr
+}
+
+// GenSchemaStringsResource returns Terraform schema for Strings type.
+func GenSchemaStringsResource(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	attr.Optional = true
 	attr.Type = types.ListType{
 		ElemType: types.StringType,

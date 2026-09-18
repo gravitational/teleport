@@ -36,7 +36,7 @@ func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[types.SAMLConnecto
 		Kind: types.KindSAMLConnector,
 		Name: "saml_connector",
 		Codec: tfdriver.DataSourceCodecFuncs[types.SAMLConnectorV2]{
-			SchemaFunc:  tfschema.GenSchemaSAMLConnectorV2,
+			SchemaFunc:  tfschema.GenSchemaSAMLConnectorV2DataSource,
 			ToStateFunc: tfschema.CopySAMLConnectorV2ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(
@@ -54,7 +54,7 @@ func NewSAMLConnectorResourceType() tfdriver.ResourceType[types.SAMLConnectorV2,
 		Kind: types.KindSAMLConnector,
 		Name: "saml_connector",
 		Codec: tfdriver.ResourceCodecFuncs[types.SAMLConnectorV2]{
-			SchemaFunc:   tfschema.GenSchemaSAMLConnectorV2,
+			SchemaFunc:   tfschema.GenSchemaSAMLConnectorV2Resource,
 			FromPlanFunc: tfschema.CopySAMLConnectorV2FromTerraform,
 			ToStateFunc:  tfschema.CopySAMLConnectorV2ToTerraform,
 		},

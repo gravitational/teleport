@@ -57,7 +57,7 @@ func (r dataSourceTeleportDiscoveryConfig) Metadata(_ context.Context, _ datasou
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportDiscoveryConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaDiscoveryConfig(ctx)
+	return schemav1.GenSchemaDiscoveryConfigDataSource(ctx)
 }
 
 // Read reads teleport DiscoveryConfig

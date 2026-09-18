@@ -37,7 +37,7 @@ func NewStaticHostUserDataSourceType() tfdriver.DataSourceType[userprovisioningv
 		Kind: types.KindStaticHostUser,
 		Name: types.KindStaticHostUser,
 		Codec: tfdriver.DataSourceCodecFuncs[userprovisioningv2.StaticHostUser]{
-			SchemaFunc:  schemav1.GenSchemaStaticHostUser,
+			SchemaFunc:  schemav1.GenSchemaStaticHostUserDataSource,
 			ToStateFunc: schemav1.CopyStaticHostUserToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewStaticHostUserResourceType() tfdriver.ResourceType[userprovisioningv2.St
 		Kind: types.KindStaticHostUser,
 		Name: types.KindStaticHostUser,
 		Codec: tfdriver.ResourceCodecFuncs[userprovisioningv2.StaticHostUser]{
-			SchemaFunc:   schemav1.GenSchemaStaticHostUser,
+			SchemaFunc:   schemav1.GenSchemaStaticHostUserResource,
 			ToStateFunc:  schemav1.CopyStaticHostUserToTerraform,
 			FromPlanFunc: schemav1.CopyStaticHostUserFromTerraform,
 		},

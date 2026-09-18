@@ -43,8 +43,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaInferenceModel returns tfsdk.Schema definition for InferenceModel
-func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaInferenceModelResource returns Terraform Framework resource schema definition for InferenceModel
+func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -69,7 +69,7 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -182,8 +182,132 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 	}}, nil
 }
 
-// GenSchemaInferenceSecret returns tfsdk.Schema definition for InferenceSecret
-func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaInferenceModelDataSource returns Terraform Framework datasource schema definition for InferenceModel
+func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Should always be set to \"inference_model\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"bedrock": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"bedrock_model_id": {
+							Computed:    true,
+							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"region": {
+							Computed:    true,
+							Description: "Region is the AWS region which will be used for inference.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Bedrock indicates that this model uses Amazon Bedrock as the inference provider and specifies Bedrock-specific parameters.",
+					Optional:    true,
+				},
+				"max_session_length_bytes": {
+					Computed:    true,
+					Description: "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"openai": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"api_key_secret_ref": {
+							Computed:    true,
+							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"base_url": {
+							Computed:    true,
+							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"openai_model_id": {
+							Computed:    true,
+							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Openai indicates that this model uses OpenAI as the inference provider and specifies OpenAI-specific parameters.",
+					Optional:    true,
+				},
+			}),
+			Description: "",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind. Should be empty.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. Should be set to \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaInferenceSecretResource returns Terraform Framework resource schema definition for InferenceSecret
+func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -208,7 +332,7 @@ func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terrafo
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -265,8 +389,83 @@ func GenSchemaInferenceSecret(ctx context.Context) (github_com_hashicorp_terrafo
 	}}, nil
 }
 
-// GenSchemaInferencePolicy returns tfsdk.Schema definition for InferencePolicy
-func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaInferenceSecretDataSource returns Terraform Framework datasource schema definition for InferenceSecret
+func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Should always be set to \"inference_secret\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+				Description: "Value is the secret value, such as an API key.",
+				Required:    true,
+				Sensitive:   true,
+				Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			}}),
+			Description: "Spec contains the secret value. Once set, it can only be read by Teleport itself; it will not be returned in API responses.",
+			Required:    true,
+			Sensitive:   true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind. Should be empty.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. Should be set to \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaInferencePolicyResource returns Terraform Framework resource schema definition for InferencePolicy
+func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -291,7 +490,7 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -360,8 +559,94 @@ func GenSchemaInferencePolicy(ctx context.Context) (github_com_hashicorp_terrafo
 	}}, nil
 }
 
-// GenSchemaClassifier returns tfsdk.Schema definition for Classifier
-func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaInferencePolicyDataSource returns Terraform Framework datasource schema definition for InferencePolicy
+func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Should always be set to \"inference_policy\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"filter": {
+					Computed:    true,
+					Description: "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"kinds": {
+					Description: "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"model": {
+					Description: "Model is the name of the `InferenceModel` resource to be used for summarization.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind. Should be empty.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. Should be set to \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaClassifierResource returns Terraform Framework resource schema definition for Classifier
+func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -386,7 +671,7 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -419,19 +704,19 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"actions": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"emit_audit_event": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"emit_audit_event": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						}),
-						"flag_for_review": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"flag_for_review": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						}),
-						"risk_level_floor": GenSchemaRiskLevel(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"risk_level_floor": GenSchemaRiskLevelResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
 							Optional:      true,
@@ -469,19 +754,19 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"actions": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"emit_audit_event": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"emit_audit_event": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 								}),
-								"flag_for_review": GenSchemaClassifierActionMode(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"flag_for_review": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 								}),
-								"risk_level_floor": GenSchemaRiskLevel(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"risk_level_floor": GenSchemaRiskLevelResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
 									Optional:      true,
@@ -537,8 +822,166 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 	}}, nil
 }
 
-// GenSchemaRetrievalModel returns tfsdk.Schema definition for RetrievalModel
-func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaClassifierDataSource returns Terraform Framework datasource schema definition for Classifier
+func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Should always be set to \"classifier\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "name is an object name.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is the resource metadata.",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"actions": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"emit_audit_event": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.",
+							Optional:    true,
+						}),
+						"flag_for_review": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
+							Optional:    true,
+						}),
+						"risk_level_floor": GenSchemaRiskLevelDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
+							Optional:    true,
+						}),
+					}),
+					Description: "Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary.",
+					Optional:    true,
+				},
+				"criteria": {
+					Description: "Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"disabled": {
+					Computed:    true,
+					Description: "Disabled, if true, excludes the classifier from evaluation without deleting it.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"filter": {
+					Computed:    true,
+					Description: "Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels[\"env\"], \"prod\")`. If empty, the classifier applies to all sessions of matching kinds.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"kinds": {
+					Description: "Kinds are session kinds matched by this classifier, e.g., \"ssh\", \"k8s\", \"db\".",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"rules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"actions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"emit_audit_event": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.",
+									Optional:    true,
+								}),
+								"flag_for_review": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
+									Optional:    true,
+								}),
+								"risk_level_floor": GenSchemaRiskLevelDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
+									Optional:    true,
+								}),
+							}),
+							Description: "Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule.",
+							Optional:    true,
+						},
+						"criteria": {
+							Computed:    true,
+							Description: "Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"filter": {
+							Computed:    true,
+							Description: "Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Description: "Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.",
+							Required:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Rules escalate the response to a match for a subset of sessions. A rule applies when the criteria matched and the rule's own filter and criteria both hold. The top-level actions and the actions of every applicable rule combine: risk level floors combine by taking the highest and toggles combine by OR, so a rule can only add effects and order is not significant.",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec selects the sessions that this classifier applies to and defines what the classifier matches.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind. Should be empty.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. Should be set to \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaRetrievalModelResource returns Terraform Framework resource schema definition for RetrievalModel
+func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -563,7 +1006,7 @@ func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terrafor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -668,6 +1111,126 @@ func GenSchemaRetrievalModel(ctx context.Context) (github_com_hashicorp_terrafor
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaRetrievalModelDataSource returns Terraform Framework datasource schema definition for RetrievalModel
+func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind. Should always be set to \"retrieval_model\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"bedrock": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"bedrock_model_id": {
+							Computed:    true,
+							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"integration": {
+							Computed:    true,
+							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"region": {
+							Computed:    true,
+							Description: "Region is the AWS region which will be used for inference.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Bedrock indicates that this model uses Amazon Bedrock as the embeddings provider and specifies Bedrock-specific parameters.",
+					Optional:    true,
+				},
+				"inference_model_name": {
+					Computed:    true,
+					Description: "inference_model_name is the name of the model used to convert natural language search queries into API requests and generate prose from a session summary.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"openai": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"api_key_secret_ref": {
+							Computed:    true,
+							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"base_url": {
+							Computed:    true,
+							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"openai_model_id": {
+							Computed:    true,
+							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Openai indicates that this model uses OpenAI as the embeddings provider and specifies OpenAI-specific parameters.",
+					Optional:    true,
+				},
+			}),
+			Description: "spec contains the configuration for the retrieval model, including the embeddings provider and the search inference model. In the future it can be extended with re-rankers configuration and other settings.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is the resource sub-kind. Should be empty.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. Should be set to \"v1\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -1014,7 +1577,7 @@ func CopyInferenceModelToTerraform(ctx context.Context, obj *github_com_gravitat
 // CopyInferenceModelToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyInferenceModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaInferenceModel(ctx)
+	schema, diags := GenSchemaInferenceModelResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -1554,7 +2117,7 @@ func CopyInferenceSecretToTerraform(ctx context.Context, obj *github_com_gravita
 // CopyInferenceSecretToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyInferenceSecretToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferenceSecret, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaInferenceSecret(ctx)
+	schema, diags := GenSchemaInferenceSecretResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -2004,7 +2567,7 @@ func CopyInferencePolicyToTerraform(ctx context.Context, obj *github_com_gravita
 // CopyInferencePolicyToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyInferencePolicyToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.InferencePolicy, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaInferencePolicy(ctx)
+	schema, diags := GenSchemaInferencePolicyResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -2678,7 +3241,7 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 // CopyClassifierToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyClassifierToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.Classifier, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaClassifier(ctx)
+	schema, diags := GenSchemaClassifierResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -3468,7 +4031,7 @@ func CopyRetrievalModelToTerraform(ctx context.Context, obj *github_com_gravitat
 // CopyRetrievalModelToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyRetrievalModelToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RetrievalModel, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaRetrievalModel(ctx)
+	schema, diags := GenSchemaRetrievalModelResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

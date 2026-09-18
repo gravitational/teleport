@@ -37,7 +37,7 @@ func NewClassifierDataSourceType() tfdriver.DataSourceType[summarizerv1.Classifi
 		Kind: types.KindClassifier,
 		Name: types.KindClassifier,
 		Codec: tfdriver.DataSourceCodecFuncs[summarizerv1.Classifier]{
-			SchemaFunc:  schemav1.GenSchemaClassifier,
+			SchemaFunc:  schemav1.GenSchemaClassifierDataSource,
 			ToStateFunc: schemav1.CopyClassifierToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewClassifierResourceType() tfdriver.ResourceType[summarizerv1.Classifier, 
 		Kind: types.KindClassifier,
 		Name: types.KindClassifier,
 		Codec: tfdriver.ResourceCodecFuncs[summarizerv1.Classifier]{
-			SchemaFunc:   schemav1.GenSchemaClassifier,
+			SchemaFunc:   schemav1.GenSchemaClassifierResource,
 			ToStateFunc:  schemav1.CopyClassifierToTerraform,
 			FromPlanFunc: schemav1.CopyClassifierFromTerraform,
 		},

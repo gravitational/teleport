@@ -36,7 +36,7 @@ func NewInstallerDataSourceType() tfdriver.DataSourceType[types.InstallerV1, tfd
 		Kind: types.KindInstaller,
 		Name: types.KindInstaller,
 		Codec: tfdriver.DataSourceCodecFuncs[types.InstallerV1]{
-			SchemaFunc:  tfschema.GenSchemaInstallerV1,
+			SchemaFunc:  tfschema.GenSchemaInstallerV1DataSource,
 			ToStateFunc: tfschema.CopyInstallerV1ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewInstallerResourceType() tfdriver.ResourceType[types.InstallerV1, tfdrive
 		Kind: types.KindInstaller,
 		Name: types.KindInstaller,
 		Codec: tfdriver.ResourceCodecFuncs[types.InstallerV1]{
-			SchemaFunc:   tfschema.GenSchemaInstallerV1,
+			SchemaFunc:   tfschema.GenSchemaInstallerV1Resource,
 			ToStateFunc:  tfschema.CopyInstallerV1ToTerraform,
 			FromPlanFunc: tfschema.CopyInstallerV1FromTerraform,
 		},

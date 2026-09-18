@@ -36,7 +36,7 @@ func NewDatabaseDataSourceType() tfdriver.DataSourceType[apitypes.DatabaseV3, tf
 		Kind: apitypes.KindDatabase,
 		Name: "database",
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.DatabaseV3]{
-			SchemaFunc:  tfschema.GenSchemaDatabaseV3,
+			SchemaFunc:  tfschema.GenSchemaDatabaseV3DataSource,
 			ToStateFunc: tfschema.CopyDatabaseV3ToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -52,7 +52,7 @@ func NewDatabaseResourceType() tfdriver.ResourceType[apitypes.DatabaseV3, tfdriv
 		Kind: apitypes.KindDatabase,
 		Name: "database",
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.DatabaseV3]{
-			SchemaFunc:   tfschema.GenSchemaDatabaseV3,
+			SchemaFunc:   tfschema.GenSchemaDatabaseV3Resource,
 			ToStateFunc:  tfschema.CopyDatabaseV3ToTerraform,
 			FromPlanFunc: tfschema.CopyDatabaseV3FromTerraform,
 		},

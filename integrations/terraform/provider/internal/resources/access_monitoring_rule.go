@@ -37,7 +37,7 @@ func NewAccessMonitoringRuleDataSourceType() tfdriver.DataSourceType[accessmonit
 		Kind: types.KindAccessMonitoringRule,
 		Name: types.KindAccessMonitoringRule,
 		Codec: tfdriver.DataSourceCodecFuncs[accessmonitoringrulesv1.AccessMonitoringRule]{
-			SchemaFunc:  schemav1.GenSchemaAccessMonitoringRule,
+			SchemaFunc:  schemav1.GenSchemaAccessMonitoringRuleDataSource,
 			ToStateFunc: schemav1.CopyAccessMonitoringRuleToTerraform,
 		},
 		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
@@ -53,7 +53,7 @@ func NewAccessMonitoringRuleResourceType() tfdriver.ResourceType[accessmonitorin
 		Kind: types.KindAccessMonitoringRule,
 		Name: types.KindAccessMonitoringRule,
 		Codec: tfdriver.ResourceCodecFuncs[accessmonitoringrulesv1.AccessMonitoringRule]{
-			SchemaFunc:   schemav1.GenSchemaAccessMonitoringRule,
+			SchemaFunc:   schemav1.GenSchemaAccessMonitoringRuleResource,
 			ToStateFunc:  schemav1.CopyAccessMonitoringRuleToTerraform,
 			FromPlanFunc: schemav1.CopyAccessMonitoringRuleFromTerraform,
 		},

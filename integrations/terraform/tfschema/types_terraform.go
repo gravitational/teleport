@@ -47,8 +47,8 @@ var _ = fmt.Errorf
 var _ = math.Inf
 var _ = time.Kitchen
 
-// GenSchemaDatabaseV3 returns tfsdk.Schema definition for DatabaseV3
-func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaDatabaseV3Resource returns Terraform Framework resource schema definition for DatabaseV3
+func GenSchemaDatabaseV3Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -801,8 +801,661 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 	}}, nil
 }
 
-// GenSchemaServerV2 returns tfsdk.Schema definition for ServerV2
-func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaDatabaseV3DataSource returns Terraform Framework datasource schema definition for DatabaseV3
+func GenSchemaDatabaseV3DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the database resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseMapKeysPresentValidator("teleport.dev/origin")},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is the database metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"ad": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"domain": {
+							Computed:    true,
+							Description: "Domain is the Active Directory domain the database resides in.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"kdc_host_name": {
+							Computed:    true,
+							Description: "KDCHostName is the host name for a KDC for x509 Authentication.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"keytab_file": {
+							Computed:    true,
+							Description: "KeytabFile is the path to the Kerberos keytab file.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"krb5_file": {
+							Computed:    true,
+							Description: "Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_cert": {
+							Computed:    true,
+							Description: "LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_host": {
+							Computed:    true,
+							Description: "LDAPHost is the host used for LDAP queries, optionally including a port. (Optional, defaults to KDCHostName; useful when the LDAP server and KDC are reachable under different names.)",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_service_account_name": {
+							Computed:    true,
+							Description: "LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_service_account_sid": {
+							Computed:    true,
+							Description: "LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"ldap_tls_server_name": {
+							Computed:    true,
+							Description: "LDAPTLSServerName is the server name used for the TLS handshake with the LDAP server. (Optional, defaults to the host part of LDAPHost, falling back to KDCHostName.)",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"pki_domain": {
+							Computed:    true,
+							Description: "PKIDomain is the Active Directory domain where CRLs are published. (Optional, defaults to Domain; useful when PKI lives in a root domain but Teleport accesses resources in a child domain.)",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"spn": {
+							Computed:    true,
+							Description: "SPN is the service principal name for the database.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "AD is the Active Directory configuration for the database.",
+					Optional:    true,
+				},
+				"admin_user": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"default_database": {
+							Computed:    true,
+							Description: "DefaultDatabase is the database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Computed:    true,
+							Description: "Name is the username of the privileged database user.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AdminUser is the database admin user for automatic user provisioning.",
+					Optional:    true,
+				},
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_id": {
+							Computed:    true,
+							Description: "AccountID is the AWS account ID this database belongs to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"assume_role_arn": {
+							Computed:    true,
+							Description: "AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"docdb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"cluster_id": {
+									Computed:    true,
+									Description: "ClusterID is the cluster identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Computed:    true,
+									Description: "EndpointType is the type of the endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"instance_id": {
+									Computed:    true,
+									Description: "InstanceID is the instance identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "DocumentDB contains Amazon DocumentDB-specific metadata.",
+							Optional:    true,
+						},
+						"elasticache": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"endpoint_type": {
+									Computed:    true,
+									Description: "EndpointType is the type of the endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"replication_group_id": {
+									Computed:    true,
+									Description: "ReplicationGroupID is the Redis replication group ID.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"transit_encryption_enabled": {
+									Computed:    true,
+									Description: "TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"user_group_ids": {
+									Computed:    true,
+									Description: "UserGroupIDs is a list of user group IDs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "ElastiCache contains Amazon ElastiCache Redis-specific metadata.",
+							Optional:    true,
+						},
+						"elasticache_serverless": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"cache_name": {
+								Computed:    true,
+								Description: "CacheName is an ElastiCache Serverless cache name.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Computed:    true,
+							Description: "ElastiCacheServerless contains Amazon ElastiCache Serverless metadata.",
+							Optional:    true,
+						},
+						"external_id": {
+							Computed:    true,
+							Description: "ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"iam_policy_status": {
+							Computed:    true,
+							Description: "IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"memorydb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"acl_name": {
+									Computed:    true,
+									Description: "ACLName is the name of the ACL associated with the cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"cluster_name": {
+									Computed:    true,
+									Description: "ClusterName is the name of the MemoryDB cluster.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Computed:    true,
+									Description: "EndpointType is the type of the endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"tls_enabled": {
+									Computed:    true,
+									Description: "TLSEnabled indicates whether in-transit encryption (TLS) is enabled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+							}),
+							Computed:    true,
+							Description: "MemoryDB contains AWS MemoryDB specific metadata.",
+							Optional:    true,
+						},
+						"opensearch": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"domain_id": {
+									Computed:    true,
+									Description: "DomainID is the ID of the domain.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"domain_name": {
+									Computed:    true,
+									Description: "DomainName is the name of the domain.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Computed:    true,
+									Description: "EndpointType is the type of the endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "OpenSearch contains AWS OpenSearch specific metadata.",
+							Optional:    true,
+						},
+						"rds": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"cluster_id": {
+									Computed:    true,
+									Description: "ClusterID is the RDS cluster (Aurora) identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"iam_auth": {
+									Computed:    true,
+									Description: "IAMAuth indicates whether database IAM authentication is enabled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"instance_id": {
+									Computed:    true,
+									Description: "InstanceID is the RDS instance identifier.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"resource_id": {
+									Computed:    true,
+									Description: "ResourceID is the RDS instance resource identifier (db-xxx).",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"security_groups": {
+									Computed:    true,
+									Description: "SecurityGroups is a list of attached security groups for the RDS instance.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"subnets": {
+									Computed:    true,
+									Description: "Subnets is a list of subnets for the RDS instance.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"vpc_id": {
+									Computed:    true,
+									Description: "VPCID is the VPC where the RDS is running.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RDS contains RDS specific metadata.",
+							Optional:    true,
+						},
+						"rdsproxy": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"custom_endpoint_name": {
+									Computed:    true,
+									Description: "CustomEndpointName is the identifier of an RDS Proxy custom endpoint.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the identifier of an RDS Proxy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"resource_id": {
+									Computed:    true,
+									Description: "ResourceID is the RDS instance resource identifier (prx-xxx).",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RDSProxy contains AWS Proxy specific metadata.",
+							Optional:    true,
+						},
+						"redshift": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"cluster_id": {
+								Computed:    true,
+								Description: "ClusterID is the Redshift cluster identifier.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Computed:    true,
+							Description: "Redshift contains Redshift specific metadata.",
+							Optional:    true,
+						},
+						"redshift_serverless": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"endpoint_name": {
+									Computed:    true,
+									Description: "EndpointName is the VPC endpoint name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workgroup_id": {
+									Computed:    true,
+									Description: "WorkgroupID is the workgroup ID.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workgroup_name": {
+									Computed:    true,
+									Description: "WorkgroupName is the workgroup name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RedshiftServerless contains metatada specific to Amazon Redshift Serverless.",
+							Optional:    true,
+						},
+						"region": {
+							Computed:    true,
+							Description: "Region is a AWS cloud region.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"secret_store": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"key_prefix": {
+									Computed:    true,
+									Description: "KeyPrefix specifies the secret key prefix.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kms_key_id": {
+									Computed:    true,
+									Description: "KMSKeyID specifies the AWS KMS key for encryption.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "SecretStore contains secret store configurations.",
+							Optional:    true,
+						},
+						"session_tags": {
+							Computed:    true,
+							Description: "SessionTags is a list of AWS STS session tags.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Computed:    true,
+					Description: "AWS contains AWS specific settings for RDS/Aurora/Redshift databases.",
+					Optional:    true,
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"is_flexi_server": {
+							Computed:    true,
+							Description: "IsFlexiServer is true if the database is an Azure Flexible server.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"name": {
+							Computed:    true,
+							Description: "Name is the Azure database server name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"redis": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"clustering_policy": {
+								Computed:    true,
+								Description: "ClusteringPolicy is the clustering policy for Redis Enterprise.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Computed:    true,
+							Description: "Redis contains Azure Cache for Redis specific database metadata.",
+							Optional:    true,
+						},
+						"resource_id": {
+							Computed:    true,
+							Description: "ResourceID is the Azure fully qualified ID for the resource.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Azure contains Azure specific database metadata.",
+					Optional:    true,
+				},
+				"ca_cert": {
+					Computed:    true,
+					Description: "CACert is the PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"dynamic_labels": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"command": {
+							Computed:    true,
+							Description: "Command is a command to run",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"period": {
+							Computed:    true,
+							Description: "Period is a time between command runs",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"result": {
+							Computed:    true,
+							Description: "Result captures standard output",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "DynamicLabels is the database dynamic labels.",
+					Optional:    true,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"alloydb": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"endpoint_override": {
+									Computed:    true,
+									Description: "EndpointOverride is an override of endpoint address to use.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"endpoint_type": {
+									Computed:    true,
+									Description: "EndpointType is the database endpoint type to use. Should be one of: \"private\", \"public\", \"psc\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "AlloyDB contains AlloyDB specific configuration elements.",
+							Optional:    true,
+						},
+						"instance_id": {
+							Computed:    true,
+							Description: "InstanceID is the Cloud SQL instance ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"project_id": {
+							Computed:    true,
+							Description: "ProjectID is the GCP project ID the Cloud SQL instance resides in.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "GCP contains parameters specific to GCP Cloud SQL databases.",
+					Optional:    true,
+				},
+				"mongo_atlas": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
+						Computed:    true,
+						Description: "Name is the Atlas database instance name.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					}}),
+					Computed:    true,
+					Description: "MongoAtlas contains Atlas metadata about the database.",
+					Optional:    true,
+				},
+				"mysql": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"server_version": {
+						Computed:    true,
+						Description: "ServerVersion is the server version reported by DB proxy if the runtime information is not available.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					}}),
+					Computed:    true,
+					Description: "MySQL is an additional section with MySQL database options.",
+					Optional:    true,
+				},
+				"oracle": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"audit_user": {
+							Computed:    true,
+							Description: "AuditUser is the name of the Oracle database user that should be used to access the internal audit trail.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"retry_count": {
+							Computed:    true,
+							Description: "RetryCount is the maximum number of times to retry connecting to a host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"shuffle_hostnames": {
+							Computed:    true,
+							Description: "ShuffleHostnames, when true, randomizes the order of hosts to connect to from the provided list.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+					}),
+					Computed:    true,
+					Description: "Oracle is an additional Oracle configuration options.",
+					Optional:    true,
+				},
+				"protocol": {
+					Description: "Protocol is the database protocol. Valid options are: \"cassandra\" \"clickhouse\" \"clickhouse-http\" \"cockroachdb\" \"dynamodb\" \"elasticsearch\" \"mongodb\" \"mysql\" \"oracle\" \"postgres\" \"redis\" \"snowflake\" \"spanner\" \"sqlserver\"",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"tls": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"ca_cert": {
+							Computed:    true,
+							Description: "CACert is an optional user provided CA certificate used for verifying database TLS connection.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"mode": {
+							Computed:    true,
+							Description: "Mode is a TLS connection mode. 0 is \"verify-full\"; 1 is \"verify-ca\", 2 is \"insecure\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"server_name": {
+							Computed:    true,
+							Description: "ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"trust_system_cert_pool": {
+							Computed:    true,
+							Description: "TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+					}),
+					Computed:    true,
+					Description: "TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.",
+					Optional:    true,
+				},
+				"uri": {
+					Description: "URI is the database connection endpoint.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is the database spec.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource subkind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
+// GenSchemaServerV2Resource returns Terraform Framework resource schema definition for ServerV2
+func GenSchemaServerV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -1118,8 +1771,286 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 	}}, nil
 }
 
-// GenSchemaAppV3 returns tfsdk.Schema definition for AppV3
-func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaServerV2DataSource returns Terraform Framework datasource schema definition for ServerV2
+func GenSchemaServerV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "Name is an object name",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "The advertized scope of the server which can not change once assigned.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"addr": {
+					Computed:    true,
+					Description: "Addr is a host:port address where this server can be reached.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"cloud_metadata": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"aws": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"account_id": {
+								Computed:    true,
+								Description: "AccountID is an AWS account ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"instance_id": {
+								Computed:    true,
+								Description: "InstanceID is an EC2 instance ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"integration": {
+								Computed:    true,
+								Description: "Integration is the integration name that added this Node. When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection. This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"region": {
+								Computed:    true,
+								Description: "Region is the AWS EC2 Instance Region.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"subnet_id": {
+								Computed:    true,
+								Description: "SubnetID is the Subnet ID in use by the instance.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"vpc_id": {
+								Computed:    true,
+								Description: "VPCID is the AWS VPC ID where the Instance is running.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Description: "AWSInfo contains attributes to match to an EC2 instance.",
+						Optional:    true,
+					}}),
+					Description: "CloudMetadata contains info about the cloud instance the server is running on, if any.",
+					Optional:    true,
+				},
+				"github": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"integration": {
+							Computed:    true,
+							Description: "Integration is the integration that is associated with this Server.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"organization": {
+							Computed:    true,
+							Description: "Organization specifies the name of the organization for the GitHub integration.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "GitHub contains info about GitHub proxies where each server represents a GitHub organization.",
+					Optional:    true,
+				},
+				"hostname": {
+					Computed:    true,
+					Description: "Hostname is server hostname",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"immutable_labels": {
+					Computed:    true,
+					Description: "The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"peer_addr": {
+					Computed:    true,
+					Description: "PeerAddr is the address a proxy server is reachable at by its peer proxies.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"proxy_ids": {
+					Computed:    true,
+					Description: "ProxyIDs is a list of proxy IDs this server is expected to be connected to.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"public_addrs": {
+					Computed:    true,
+					Description: "PublicAddrs is a list of public addresses where this server can be reached.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"relay_group": {
+					Computed:    true,
+					Description: "the name of the Relay group that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"relay_ids": {
+					Computed:    true,
+					Description: "the list of Relay host IDs that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"rotation": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"current_id": {
+							Computed:    true,
+							Description: "CurrentID is the ID of the rotation operation to differentiate between rotation attempts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"grace_period": {
+							Computed:    true,
+							Description: "GracePeriod is a period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"last_rotated": {
+							Computed:    true,
+							Description: "LastRotated specifies the last time of the completed rotation.",
+							Optional:    true,
+							Type:        UseRFC3339Time(),
+						},
+						"mode": {
+							Computed:    true,
+							Description: "Mode sets manual or automatic rotation mode.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"phase": {
+							Computed:    true,
+							Description: "Phase is the current rotation phase.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"schedule": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"standby": {
+									Computed:    true,
+									Description: "Standby specifies time to switch to the \"Standby\" phase.",
+									Optional:    true,
+									Type:        UseRFC3339Time(),
+								},
+								"update_clients": {
+									Computed:    true,
+									Description: "UpdateClients specifies time to switch to the \"Update clients\" phase",
+									Optional:    true,
+									Type:        UseRFC3339Time(),
+								},
+								"update_servers": {
+									Computed:    true,
+									Description: "UpdateServers specifies time to switch to the \"Update servers\" phase.",
+									Optional:    true,
+									Type:        UseRFC3339Time(),
+								},
+							}),
+							Computed:    true,
+							Description: "Schedule is a rotation schedule - used in automatic mode to switch between phases.",
+							Optional:    true,
+						},
+						"started": {
+							Computed:    true,
+							Description: "Started is set to the time when rotation has been started in case if the state of the rotation is \"in_progress\".",
+							Optional:    true,
+							Type:        UseRFC3339Time(),
+						},
+						"state": {
+							Computed:    true,
+							Description: "State could be one of \"init\" or \"in_progress\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Rotation specifies server rotation",
+					Optional:    true,
+				},
+				"use_tunnel": {
+					Computed:    true,
+					Description: "UseTunnel indicates that connections to this server should occur over a reverse tunnel.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"version": {
+					Computed:    true,
+					Description: "TeleportVersion is the teleport version that the server is running on",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is a server spec",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseValueIn("openssh", "openssh-ec2-ice")},
+		},
+		"version": {
+			Description: "Version is version",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaAppV3Resource returns Terraform Framework resource schema definition for AppV3
+func GenSchemaAppV3Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -1603,8 +2534,434 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 	}}, nil
 }
 
-// GenSchemaProvisionTokenV2 returns tfsdk.Schema definition for ProvisionTokenV2
-func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaAppV3DataSource returns Terraform Framework datasource schema definition for AppV3
+func GenSchemaAppV3DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the app resource kind. Always \"app\".",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is the app resource metadata.",
+			Optional:    true,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "The App's scope.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"external_id": {
+							Computed:    true,
+							Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"region": {
+							Computed:    true,
+							Description: "Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles_anywhere_profile": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"accept_role_session_name": {
+									Computed:    true,
+									Description: "Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This value comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"profile_arn": {
+									Computed:    true,
+									Description: "ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.",
+							Optional:    true,
+						},
+					}),
+					Description: "AWS contains additional options for AWS applications.",
+					Optional:    true,
+				},
+				"cloud": {
+					Computed:    true,
+					Description: "Cloud identifies the cloud instance the app represents.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"cors": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow_credentials": {
+							Computed:    true,
+							Description: "allow_credentials indicates whether credentials are allowed.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"allowed_headers": {
+							Computed:    true,
+							Description: "allowed_headers specifies which headers can be used when accessing the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"allowed_methods": {
+							Computed:    true,
+							Description: "allowed_methods specifies which methods are allowed when accessing the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"allowed_origins": {
+							Computed:    true,
+							Description: "allowed_origins specifies which origins are allowed to access the app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"exposed_headers": {
+							Computed:    true,
+							Description: "exposed_headers indicates which headers are made available to scripts via the browser.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"max_age": {
+							Computed:    true,
+							Description: "max_age indicates how long (in seconds) the results of a preflight request can be cached.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.",
+					Optional:    true,
+				},
+				"dynamic_labels": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"command": {
+							Computed:    true,
+							Description: "Command is a command to run",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"period": {
+							Computed:    true,
+							Description: "Period is a time between command runs",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"result": {
+							Computed:    true,
+							Description: "Result captures standard output",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "DynamicLabels are the app's command labels.",
+					Optional:    true,
+				},
+				"identity_center": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_id": {
+							Computed:    true,
+							Description: "Account ID is the AWS-assigned ID of the account",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"permission_sets": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"arn": {
+									Computed:    true,
+									Description: "ARN is the fully-formed ARN of the Permission Set.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"assignment_name": {
+									Computed:    true,
+									Description: "AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the human-readable name of the Permission Set.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "PermissionSets lists the available permission sets on the given account",
+							Optional:    true,
+						},
+					}),
+					Description: "IdentityCenter encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.",
+					Optional:    true,
+				},
+				"inference": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"fallback_model": {
+							Computed:    true,
+							Description: "Defines a model that will be used if the model requested is not on the list. The fallback model must be in the \"models\" list.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"format": {
+							Computed:    true,
+							Description: "Defines the LLM inference API format.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"models": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "Name defines the model name. This is the requested value.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"provider_name": {
+									Computed:    true,
+									Description: "Represents the model name in the configured provider.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Defines the list of supported models, and optionally their name on the inference provider.",
+							Optional:    true,
+						},
+						"provider": {
+							Computed:    true,
+							Description: "Defines which inference provider will be used to serve the requests.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "LLM contains LLM inference endpoint related configurations.",
+					Optional:    true,
+				},
+				"insecure_skip_verify": {
+					Computed:    true,
+					Description: "InsecureSkipVerify disables app's TLS certificate verification.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"integration": {
+					Computed:    true,
+					Description: "Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"mcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"args": {
+							Computed:    true,
+							Description: "Args to execute with the command.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"command": {
+							Computed:    true,
+							Description: "Command to launch stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"run_as_host_user": {
+							Computed:    true,
+							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MCP contains MCP server related configurations.",
+					Optional:    true,
+				},
+				"public_addr": {
+					Computed:    true,
+					Description: "PublicAddr is the public address the application is accessible at.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"required_app_names": {
+					Computed:    true,
+					Description: "RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"rewrite": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"headers": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"name": {
+									Computed:    true,
+									Description: "Name is the http header name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"value": {
+									Computed:    true,
+									Description: "Value is the http header value.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Headers is a list of headers to inject when passing the request over to the application.",
+							Optional:    true,
+						},
+						"jwt_claims": {
+							Computed:    true,
+							Description: "JWTClaims configures whether roles/traits are included in the JWT token.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"redirect": {
+							Computed:    true,
+							Description: "Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the \"Location\" header.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "Rewrite is a list of rewriting rules to apply to requests and responses.",
+					Optional:    true,
+				},
+				"tcp_ports": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"end_port": {
+							Computed:    true,
+							Description: "EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"port": {
+							Computed:    true,
+							Description: "Port describes the start of the range. It must be between 1 and 65535.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Computed:    true,
+					Description: "TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.",
+					Optional:    true,
+				},
+				"tls": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_cas": {
+							Computed:    true,
+							Description: "AllowedCas is the list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases. Supported aliases: \"workload_identity\" (workload Identity CA. Allows accepting certificates issued by `tbot`).",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"client_cert_mode": {
+							Computed:    true,
+							Description: "ClientCertMode specifies which client certificate mode to use for the upstream connection. Supported values: \"managed\" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections), \"disabled\" (app upstream connection won't use client certificates).",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"mode": {
+							Computed:    true,
+							Description: "Mode defines the TLS verification. Supported values: \"verify-full\" (performs certificate validation, and asserts server name and SPIFFE ID), \"verify-server-name\" (performs certificate validation, and asserts server name), \"verify-spiffe-id\": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option), \"insecure\": (accepts any certificate provided by app)",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"server_name": {
+							Computed:    true,
+							Description: "ServerName specifies a custom hostname used for TLS verification against the upstream certificate.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"server_spiffe_id": {
+							Computed:    true,
+							Description: "ServerSpiffeId specifies a SPIFFE ID that must be present on the server certificate.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "TLS contains the app TLS configuration.",
+					Optional:    true,
+				},
+				"uri": {
+					Computed:    true,
+					Description: "URI is the web app endpoint.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"use_any_proxy_public_addr": {
+					Computed:    true,
+					Description: "UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"user_groups": {
+					Computed:    true,
+					Description: "UserGroups are a list of user group IDs that this app is associated with.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is the app resource spec.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource subkind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are:`v3`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
+// GenSchemaProvisionTokenV2Resource returns Terraform Framework resource schema definition for ProvisionTokenV2
+func GenSchemaProvisionTokenV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -2373,7 +3730,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"environment_protected": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"environment_protected": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "EnvironmentProtected is true if the Git ref is protected, false otherwise.",
 									Optional:      true,
@@ -2414,7 +3771,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"ref_protected": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"ref_protected": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "RefProtected is true if the Git ref is protected, false otherwise.",
 									Optional:      true,
@@ -2667,13 +4024,13 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "Spacelift allows the configuration of options specific to the \"spacelift\" join method.",
 					Optional:    true,
 				},
-				"suggested_agent_matcher_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"suggested_agent_matcher_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 				}),
-				"suggested_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"suggested_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.",
 					Optional:      true,
@@ -2873,8 +4230,1125 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 	}}, nil
 }
 
-// GenSchemaClusterNetworkingConfigV2 returns tfsdk.Schema definition for ClusterNetworkingConfigV2
-func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaProvisionTokenV2DataSource returns Terraform Framework datasource schema definition for ProvisionTokenV2
+func GenSchemaProvisionTokenV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "Name is an object name",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"aws_account": {
+							Computed:    true,
+							Description: "AWSAccount is the AWS account ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"aws_arn": {
+							Computed:    true,
+							Description: "AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards \"*\" and \"?\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"aws_organization_id": {
+							Computed:    true,
+							Description: "AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"aws_organizational_units": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"exclude": {
+									Computed:    true,
+									Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"include": {
+									Computed:    true,
+									Description: "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Description: "AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units. Requires AWS Organization ID to be specified. The account's root ID is considered an Organizational Unit when validating the rule.",
+							Optional:    true,
+						},
+						"aws_regions": {
+							Computed:    true,
+							Description: "AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"aws_role": {
+							Computed:    true,
+							Description: "AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.",
+					Optional:    true,
+				},
+				"aws_iid_ttl": {
+					Computed:    true,
+					Description: "AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"resource_groups": {
+								Computed:    true,
+								Description: "ResourceGroups is a list of Azure resource groups the node is allowed to join from.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"subscription": {
+								Computed:    true,
+								Description: "Subscription is the Azure subscription.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"tenant": {
+								Computed:    true,
+								Description: "Tenant is the Azure Tenant ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+						Optional:    true,
+					}}),
+					Description: "Azure allows the configuration of options specific to the \"azure\" join method.",
+					Optional:    true,
+				},
+				"azure_devops": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"definition_id": {
+									Computed:    true,
+									Description: "The ID of the AZDO pipeline definition. Example: `1` Mapped from the `def_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"pipeline_name": {
+									Computed:    true,
+									Description: "The name of the AZDO pipeline. Example: `my-pipeline`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Computed:    true,
+									Description: "The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990` Mapped from the `prj_id` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_name": {
+									Computed:    true,
+									Description: "The name of the AZDO project. Example: `my-project`. Mapped out of the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_ref": {
+									Computed:    true,
+									Description: "The reference of the repository the pipeline is using. Example: `refs/heads/main`. Mapped from the `rpo_ref` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uri": {
+									Computed:    true,
+									Description: "The URI of the repository the pipeline is using. Example: `https://github.com/gravitational/teleport.git`. Mapped from the `rpo_uri` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_version": {
+									Computed:    true,
+									Description: "The individual commit of the repository the pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`. Mapped from the `rpo_ver` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "Sub also known as Subject is a string that roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline` Mapped from the `sub` claim.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified.",
+							Optional:    true,
+						},
+						"organization_id": {
+							Computed:    true,
+							Description: "OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AzureDevops allows the configuration of options specific to the \"azure_devops\" join method.",
+					Optional:    true,
+				},
+				"bitbucket": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"branch_name": {
+									Computed:    true,
+									Description: "BranchName is the name of the branch on which this pipeline executed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deployment_environment_uuid": {
+									Computed:    true,
+									Description: "DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the \"Pipelines -> OpenID Connect -> Deployment environments\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uuid": {
+									Computed:    true,
+									Description: "RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workspace_uuid": {
+									Computed:    true,
+									Description: "WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"audience": {
+							Computed:    true,
+							Description: "Audience is a Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"identity_provider_url": {
+							Computed:    true,
+							Description: "IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Bitbucket allows the configuration of options specific to the \"bitbucket\" join method.",
+					Optional:    true,
+				},
+				"bot_name": {
+					Computed:    true,
+					Description: "BotName is the name of the bot this token grants access to, if any",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"bound_keypair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"onboarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"initial_public_key": {
+									Computed:    true,
+									Description: "InitialPublicKey is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"must_register_before": {
+									Description: "MustRegisterBefore is an optional time before which registration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.",
+									Optional:    true,
+									Type:        UseRFC3339Time(),
+								},
+								"registration_secret": {
+									Computed:    true,
+									Description: "RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Onboarding contains parameters related to initial onboarding and keypair registration.",
+							Optional:    true,
+						},
+						"recovery": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"limit": {
+									Computed:    true,
+									Description: "Limit is the maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"mode": {
+									Computed:    true,
+									Description: "Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery limit nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Recovery contains parameters related to recovery after identity expiration.",
+							Optional:    true,
+						},
+						"rotate_after": {
+							Description: "RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.",
+							Optional:    true,
+							Type:        UseRFC3339Time(),
+						},
+					}),
+					Description: "BoundKeypair allows the configuration of options specific to the \"bound_keypair\" join method.",
+					Optional:    true,
+				},
+				"circleci": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"context_id": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"organization_id": {
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "CircleCI allows the configuration of options specific to the \"circleci\" join method.",
+					Optional:    true,
+				},
+				"env0": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"deployer_email": {
+								Computed:    true,
+								Description: "DeployerEmail is the email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"deployment_type": {
+								Computed:    true,
+								Description: "DeploymentType is the env0 deployment type, such as \"deploy\", \"destroy\", etc. Corresponds to `deploymentType` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"env0_tag": {
+								Computed:    true,
+								Description: "Env0Tag is a custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"environment_id": {
+								Computed:    true,
+								Description: "EnvironmentID is the unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"environment_name": {
+								Computed:    true,
+								Description: "EnvironmentName is the name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"organization_id": {
+								Computed:    true,
+								Description: "OrganizationID is the unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"project_id": {
+								Computed:    true,
+								Description: "ProjectID is a unique project identifier, corresponding to `projectId` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"project_name": {
+								Computed:    true,
+								Description: "ProjectName is the name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"template_id": {
+								Computed:    true,
+								Description: "TemplateID is the unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"template_name": {
+								Computed:    true,
+								Description: "TemplateName is the name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"workspace_name": {
+								Computed:    true,
+								Description: "WorkspaceName is the name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "Allow is a list of Rules, jobs using this token must match at least one allow rule to use this token.",
+						Optional:    true,
+					}}),
+					Description: "Env0 allows the configuration of options specific to the \"env0\" join method.",
+					Optional:    true,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"locations": {
+								Computed:    true,
+								Description: "Locations is a list of regions (e.g. \"us-west1\") and/or zones (e.g. \"us-west1-b\").",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"project_ids": {
+								Computed:    true,
+								Description: "ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"service_accounts": {
+								Computed:    true,
+								Description: "ServiceAccounts is a list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+						}),
+						Computed:    true,
+						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+						Optional:    true,
+					}}),
+					Description: "GCP allows the configuration of options specific to the \"gcp\" join method.",
+					Optional:    true,
+				},
+				"generic_oidc": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow_any": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"conditions": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"attribute": {
+											Computed:    true,
+											Description: "The name of the field this condition should check, separated by \".\" for nested fields.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"eq": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+												Computed:    true,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											}}),
+											Description: "An \"equals\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"in": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+												Computed:    true,
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											}}),
+											Description: "An \"in\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"not_eq": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+												Computed:    true,
+												Description: "The value to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											}}),
+											Description: "A \"not equals\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+										"not_in": {
+											Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+												Computed:    true,
+												Description: "The list of values to compare the attribute against.",
+												Optional:    true,
+												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											}}),
+											Description: "A \"not in\" operator. Only one operator may be set within a condition.",
+											Optional:    true,
+										},
+									}),
+									Computed:    true,
+									Description: "Conditions are simple eq/not_eq/in/not_in conditions that check individual fields. All conditions must be satisfied for a join attempt to be allowed. Mutually exclusive with `expression`.",
+									Optional:    true,
+								},
+								"expression": {
+									Computed:    true,
+									Description: "Expression is a predicate expression that must evaluate to `true` for the join attempt to be allowed. Expressions are provided the `claims` object, containing all claims extracted from the incoming JWT. It is mutually exclusive with `conditions`.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "AllowAny evaluates complex rules using \"OR\" semantics. If any rules are specified, at least one rule must evaluate to `true` for the join attempt to be allowed. These rules are evaluated after `must_match_fields`, if any field matchers are specified in that block.  Note that at least one rule, either in `must_match_fields` or `allow_any`, must be specified for any join attempts to succeed.",
+							Optional:    true,
+						},
+						"audience": {
+							Computed:    true,
+							Description: "Audience is the expected audience value (required). This must match or be included in the list of `aud` values in the JWT provided by the client when joining. For providers that do not allow you to configure this value yourself (this is technically an OIDC spec violation, but is common), use the value they provide. Otherwise, we recommend using a value that uniquely identifies the Teleport cluster and join token. For example, you can use this scheme: $clusterName/$tokenName For a cluster named `example.teleport.sh` and a token named `example`, this would result in an audience of `example.teleport.sh/example`. If you prefer, you can also use a UUID instead of the token name. Note that you will need to configure the matching value with the issuer, usually at request time.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"insecure_allow_http_issuer": {
+							Computed:    true,
+							Description: "InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"issuer": {
+							Computed:    true,
+							Description: "Issuer contains the expected `iss` value as written in the JWT you wish to trust. Unless `static_jwks` is configured, this issuer must be accessible over HTTPS to the Teleport cluster and must serve valid OIDC metadata, including discovery configuration and JWKS keys.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "StaticJWKS is an optional static JWKS value that can be used to specify JWKS keys when either OIDC discovery is either not supported by the provider or the discovery configuration is not accessible to Teleport. When set, configuration and JWKS keys will not be fetched from the URL contained in `issuer` and JWTs will be validated using the key set specified here.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"tls_ca": {
+							Computed:    true,
+							Description: "TLSCA is a TLS CA certificate that should be used to verify requests for OIDC metadata from the issuer instead of Teleport's CA store, useful if the issuer is not public or otherwise uses a self-signed certificate. Note that this value only applies to requests using this token, and will be used instead of and not in addition to the system CA store, and will need to be updated manually if the remote CA is updated.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "GenericOIDC allows the configuration of generic OIDC join tokens.",
+					Optional:    true,
+				},
+				"github": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"actor": {
+									Computed:    true,
+									Description: "The personal account that initiated the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"enterprise": {
+									Computed:    true,
+									Description: "The name of the enterprise in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"enterprise_id": {
+									Computed:    true,
+									Description: "The ID of the enterprise in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment": {
+									Computed:    true,
+									Description: "The name of the environment used by the job.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref": {
+									Computed:    true,
+									Description: "The git ref that triggered the workflow run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref_type": {
+									Computed:    true,
+									Description: "The type of ref, for example: \"branch\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository": {
+									Computed:    true,
+									Description: "The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_owner": {
+									Computed:    true,
+									Description: "The name of the organization in which the repository is stored.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workflow": {
+									Computed:    true,
+									Description: "The name of the workflow.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"enterprise_server_host": {
+							Computed:    true,
+							Description: "EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"enterprise_slug": {
+							Computed:    true,
+							Description: "EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "GitHub allows the configuration of options specific to the \"github\" join method.",
+					Optional:    true,
+				},
+				"gitlab": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"ci_config_ref_uri": {
+									Computed:    true,
+									Description: "CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ci_config_sha": {
+									Computed:    true,
+									Description: "CIConfigSHA is the git commit SHA for the ci_config_ref_uri.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deployment_tier": {
+									Computed:    true,
+									Description: "DeploymentTier is the deployment tier of the environment the job specifies",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment": {
+									Computed:    true,
+									Description: "Environment limits access by the environment the job deploys to (if one is associated)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"environment_protected": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "EnvironmentProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
+								"namespace_path": {
+									Computed:    true,
+									Description: "NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"pipeline_source": {
+									Computed:    true,
+									Description: "PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_path": {
+									Computed:    true,
+									Description: "ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_visibility": {
+									Computed:    true,
+									Description: "ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref": {
+									Computed:    true,
+									Description: "Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ref_protected": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "RefProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
+								"ref_type": {
+									Computed:    true,
+									Description: "RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"sub": {
+									Computed:    true,
+									Description: "Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_email": {
+									Computed:    true,
+									Description: "UserEmail is the email of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_id": {
+									Computed:    true,
+									Description: "UserID is the ID of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"user_login": {
+									Computed:    true,
+									Description: "UserLogin is the username of the user executing the job",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"domain": {
+							Computed:    true,
+							Description: "Domain is the domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"static_jwks": {
+							Computed:    true,
+							Description: "StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "GitLab allows the configuration of options specific to the \"gitlab\" join method.",
+					Optional:    true,
+				},
+				"integration": {
+					Computed:    true,
+					Description: "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"join_method": {
+					Computed:    true,
+					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"kubernetes": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"service_account": {
+									Computed:    true,
+									Description: "ServiceAccount is the namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_name": {
+									Computed:    true,
+									Description: "ServiceAccountName is the name of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_namespace": {
+									Computed:    true,
+									Description: "ServiceAccountNamespace is the namespace of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"oidc": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"insecure_allow_http_issuer": {
+									Computed:    true,
+									Description: "InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"issuer": {
+									Computed:    true,
+									Description: "Issuer is the URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "OIDCConfig configures the `oidc` type.",
+							Optional:    true,
+						},
+						"static_jwks": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
+								Computed:    true,
+								Description: "JWKS should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "StaticJWKS is the configuration specific to the `static_jwks` type.",
+							Optional:    true,
+						},
+						"type": {
+							Computed:    true,
+							Description: "Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Kubernetes allows the configuration of options specific to the \"kubernetes\" join method.",
+					Optional:    true,
+				},
+				"oracle": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"instances": {
+								Computed:    true,
+								Description: "Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"parent_compartments": {
+								Computed:    true,
+								Description: "ParentCompartments is a list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"regions": {
+								Computed:    true,
+								Description: "Regions is a list of regions an instance is allowed to join from. Both full region names (\"us-phoenix-1\") and abbreviations (\"phx\") are allowed. If empty, any region is allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							},
+							"tenancy": {
+								Computed:    true,
+								Description: "Tenancy is the OCID of the instance's tenancy. Required.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+						Optional:    true,
+					}}),
+					Description: "Oracle allows the configuration of options specific to the \"oracle\" join method.",
+					Optional:    true,
+				},
+				"roles": {
+					Description: "Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"spacelift": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"caller_id": {
+									Computed:    true,
+									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"caller_type": {
+									Computed:    true,
+									Description: "CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scope": {
+									Computed:    true,
+									Description: "Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"space_id": {
+									Computed:    true,
+									Description: "SpaceID is the ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"enable_glob_matching": {
+							Computed:    true,
+							Description: "EnableGlobMatching enables glob-style matching for the space_id and caller_id fields in the rules.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"hostname": {
+							Computed:    true,
+							Description: "Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Spacelift allows the configuration of options specific to the \"spacelift\" join method.",
+					Optional:    true,
+				},
+				"suggested_agent_matcher_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
+				"suggested_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
+				"terraform_cloud": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"organization_id": {
+									Computed:    true,
+									Description: "OrganizationID is the ID of the HCP Terraform organization. At least one organization value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"organization_name": {
+									Computed:    true,
+									Description: "OrganizationName is the human-readable name of the HCP Terraform organization. At least one organization value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_id": {
+									Computed:    true,
+									Description: "ProjectID is the ID of the HCP Terraform project. At least one project or workspace value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"project_name": {
+									Computed:    true,
+									Description: "ProjectName is the human-readable name for the HCP Terraform project. At least one project or workspace value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"run_phase": {
+									Computed:    true,
+									Description: "RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workspace_id": {
+									Computed:    true,
+									Description: "WorkspaceID is the ID of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workspace_name": {
+									Computed:    true,
+									Description: "WorkspaceName is the human-readable name of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
+							Optional:    true,
+						},
+						"audience": {
+							Computed:    true,
+							Description: "Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"hostname": {
+							Computed:    true,
+							Description: "Hostname is the hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "TerraformCloud allows the configuration of options specific to the \"terraform_cloud\" join method.",
+					Optional:    true,
+				},
+				"tpm": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"description": {
+									Computed:    true,
+									Description: "Description is a human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: \"build-server-100\"",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_certificate_serial": {
+									Computed:    true,
+									Description: "EKCertificateSerial is the serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"ek_public_hash": {
+									Computed:    true,
+									Description: "EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.",
+							Optional:    true,
+						},
+						"ekcert_allowed_cas": {
+							Computed:    true,
+							Description: "EKCertAllowedCAs is a list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "TPM allows the configuration of options specific to the \"tpm\" join method.",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec is a provisioning token V2 spec",
+			Required:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"bound_keypair": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"bound_bot_instance_id": {
+						Computed:    true,
+						Description: "BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"bound_host_id": {
+						Computed:    true,
+						Description: "BoundHostID is the agent UUID bound to this keypair. This field is left empty if bound to a bot, or if no agent has joined yet. It is mutually exclusive with BoundBotInstanceID but otherwise behaves identically.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"bound_public_key": {
+						Computed:    true,
+						Description: "BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"last_recovered_at": {
+						Description: "LastRecoveredAt contains a timestamp of the last successful recovery attempt. Note that normal renewals with valid client certificates do not count as a recovery attempt, however the initial join during onboarding does. This corresponds with the last time `bound_bot_instance_id` was updated.",
+						Optional:    true,
+						Type:        UseRFC3339Time(),
+					},
+					"last_rotated_at": {
+						Description: "LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.",
+						Optional:    true,
+						Type:        UseRFC3339Time(),
+					},
+					"recovery_count": {
+						Computed:    true,
+						Description: "RecoveryCount is a count of the total number of recoveries performed using this token. It is incremented for every successful join or rejoin. Recovery is only allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed` or `insecure`.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+					"registration_secret": {
+						Computed:    true,
+						Description: "RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+				}),
+				Description: "BoundKeypair contains status information related to bound_keypair type tokens.",
+				Optional:    true,
+			}}),
+			Description: "Status is extended status information, depending on token type. It is not user writable.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are:`v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaClusterNetworkingConfigV2Resource returns Terraform Framework resource schema definition for ClusterNetworkingConfigV2
+func GenSchemaClusterNetworkingConfigV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -3078,8 +5552,187 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 	}}, nil
 }
 
-// GenSchemaSessionRecordingConfigV2 returns tfsdk.Schema definition for SessionRecordingConfigV2
-func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaClusterNetworkingConfigV2DataSource returns Terraform Framework datasource schema definition for ClusterNetworkingConfigV2
+func GenSchemaClusterNetworkingConfigV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseMapKeysPresentValidator("teleport.dev/origin")},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"assist_command_execution_workers": {
+					Computed:    true,
+					Description: "AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"case_insensitive_routing": {
+					Computed:    true,
+					Description: "CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"client_idle_timeout": {
+					Computed:    true,
+					Description: "ClientIdleTimeout sets global cluster default setting for client idle timeouts.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"idle_timeout_message": {
+					Computed:    true,
+					Description: "ClientIdleTimeoutMessage is the message sent to the user when a connection times out.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"keep_alive_count_max": {
+					Computed:    true,
+					Description: "KeepAliveCountMax is the number of keep-alive messages that can be missed before the server disconnects the connection to the client.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"keep_alive_interval": {
+					Computed:    true,
+					Description: "KeepAliveInterval is the interval at which the server sends keep-alive messages to the client.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"proxy_listener_mode": {
+					Computed:    true,
+					Description: "ProxyListenerMode is proxy listener mode used by Teleport Proxies. 0 is \"separate\"; 1 is \"multiplex\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"proxy_ping_interval": {
+					Computed:    true,
+					Description: "ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"routing_strategy": {
+					Computed:    true,
+					Description: "RoutingStrategy determines the strategy used to route to nodes. 0 is \"unambiguous_match\"; 1 is \"most_recent\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"session_control_timeout": {
+					Computed:    true,
+					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the Auth Service before it begins terminating controlled sessions.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"ssh_dial_timeout": {
+					Computed:    true,
+					Description: "SSHDialTimeout is a custom dial timeout used when establishing SSH connections. If not set, the default timeout of 30s will be used.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"tunnel_strategy": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"agent_mesh": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"active": {
+								Computed:    true,
+								Description: "Automatically generated field preventing empty message errors",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+							}}),
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+						},
+						"proxy_peering": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"agent_connection_count": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"disconnect_threshold_seconds": {
+									Computed:    true,
+									Description: "disconnect_threshold_seconds is the duration without connectivity or topology changes before an agent pool may disconnect excess connections.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+							}),
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "TunnelStrategyV1 determines the tunnel strategy used in the cluster.",
+					Optional:    true,
+				},
+				"web_idle_timeout": {
+					Computed:    true,
+					Description: "WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is a ClusterNetworkingConfig specification",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. It must be specified. Supported values are:`v2`.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaSessionRecordingConfigV2Resource returns Terraform Framework resource schema definition for SessionRecordingConfigV2
+func GenSchemaSessionRecordingConfigV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -3210,7 +5863,7 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"proxy_checks_host_keys": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"proxy_checks_host_keys": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode.",
 					Optional:      true,
@@ -3255,8 +5908,165 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 	}}, nil
 }
 
-// GenSchemaAuthPreferenceV2 returns tfsdk.Schema definition for AuthPreferenceV2
-func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaSessionRecordingConfigV2DataSource returns Terraform Framework datasource schema definition for SessionRecordingConfigV2
+func GenSchemaSessionRecordingConfigV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseMapKeysPresentValidator("teleport.dev/origin")},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"encryption": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Computed:    true,
+							Description: "Enabled controls whether or not session recordings should be encrypted.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"manual_key_management": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"active_keys": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"label": {
+											Computed:    true,
+											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"type": {
+											Computed:    true,
+											Description: "Type represents which keystore should be searched when looking up keys by label.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "ActiveKeys describe which keys should be queried for active recording encryption and replay.",
+									Optional:    true,
+								},
+								"enabled": {
+									Computed:    true,
+									Description: "Enabled controls whether or recording encryption keys should be managed externally.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"rotated_keys": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"label": {
+											Computed:    true,
+											Description: "Label is a value that can be used with the related keystore in order to find relevant keys.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"type": {
+											Computed:    true,
+											Description: "Type represents which keystore should be searched when looking up keys by label.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "RotatedKeys describe which keys should be queried for historical replay.",
+									Optional:    true,
+								},
+							}),
+							Description: "ManualKeyManagement defines whether or not recording encryption keys should be managed externally and how to query those keys.",
+							Optional:    true,
+						},
+					}),
+					Description: "Encryption configures if and how session recordings should be encrypted.",
+					Optional:    true,
+				},
+				"mode": {
+					Computed:    true,
+					Description: "Mode controls where (or if) the session is recorded.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"proxy_checks_host_keys": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode.",
+					Optional:    true,
+				}),
+			}),
+			Computed:    true,
+			Description: "Spec is a SessionRecordingConfig specification",
+			Optional:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"encryption_keys": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"public_key": {
+					Computed:    true,
+					Description: "A PKIX ASN.1 DER encoded public key used for key wrapping during age encryption. Expected to be RSA 4096.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				}}),
+				Computed:    true,
+				Description: "EncryptionKeys contain the currently active age encryption keys used for encrypted session recording.",
+				Optional:    true,
+			}}),
+			Description: "Status is the SessionRecordingConfig status containing active encryption keys",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are:`v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaAuthPreferenceV2Resource returns Terraform Framework resource schema definition for AuthPreferenceV2
+func GenSchemaAuthPreferenceV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -3310,25 +6120,25 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"allow_cli_auth_via_browser": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_cli_auth_via_browser": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowCLIAuthViaBrowser enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 				}),
-				"allow_headless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_headless": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 				}),
-				"allow_local_auth": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_local_auth": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowLocalAuth is true if local authentication is enabled.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 				}),
-				"allow_passwordless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_passwordless": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
 					Optional:      true,
@@ -3375,7 +6185,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.",
 					Optional:    true,
 				},
-				"disconnect_expired_cert": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"disconnect_expired_cert": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected",
 					Optional:      true,
@@ -3423,7 +6233,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"idp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
 							Optional:      true,
@@ -3602,8 +6412,313 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 	}}, nil
 }
 
-// GenSchemaRoleV6 returns tfsdk.Schema definition for RoleV6
-func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaAuthPreferenceV2DataSource returns Terraform Framework datasource schema definition for AuthPreferenceV2
+func GenSchemaAuthPreferenceV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseMapKeysPresentValidator("teleport.dev/origin")},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_cli_auth_via_browser": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "AllowCLIAuthViaBrowser enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:    true,
+				}),
+				"allow_headless": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:    true,
+				}),
+				"allow_local_auth": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "AllowLocalAuth is true if local authentication is enabled.",
+					Optional:    true,
+				}),
+				"allow_passwordless": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:    true,
+				}),
+				"connector_name": {
+					Computed:    true,
+					Description: "ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"default_session_ttl": {
+					Computed:    true,
+					Description: "DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"device_trust": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"auto_enroll": {
+							Computed:    true,
+							Description: "Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode=\"off\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"ekcert_allowed_cas": {
+							Computed:    true,
+							Description: "Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"mode": {
+							Computed:    true,
+							Description: "Mode of verification for trusted devices.  The following modes are supported:  - \"off\": disables both device authentication and authorization. - \"optional\": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - \"required\": enforces the presence of device extensions for sensitive endpoints. - \"required-for-humans\": enforces the presence of device extensions for sensitive endpoints, for human users only (bots are exempt).  Mode is always \"off\" for OSS. Defaults to \"optional\" for Enterprise.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.",
+					Optional:    true,
+				},
+				"disconnect_expired_cert": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected",
+					Optional:    true,
+				}),
+				"hardware_key": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"pin_cache_ttl": {
+							Computed:    true,
+							Description: "PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"piv_slot": {
+							Computed:    true,
+							Description: "PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, \"9a\" or \"9e\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"serial_number_validation": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"enabled": {
+									Computed:    true,
+									Description: "Enabled indicates whether hardware key serial number validation is enabled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"serial_number_trait_name": {
+									Computed:    true,
+									Description: "SerialNumberTraitName is an optional custom user trait name for hardware key serial numbers to replace the default: \"hardware_key_serial_numbers\".  Note: Values for this user trait should be a comma-separated list of serial numbers, or a list of comm-separated lists. e.g [\"123\", \"345,678\"]",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "SerialNumberValidation holds settings for hardware key serial number validation. By default, serial number validation is disabled.",
+							Optional:    true,
+						},
+					}),
+					Description: "HardwareKey are the settings for hardware key support.",
+					Optional:    true,
+				},
+				"idp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
+							Optional:    true,
+						})}),
+						Computed:    true,
+						Description: "SAML are options related to the Teleport SAML IdP.",
+						Optional:    true,
+					}}),
+					Computed:    true,
+					Description: "IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.",
+					Optional:    true,
+				},
+				"locking_mode": {
+					Computed:    true,
+					Description: "LockingMode is the cluster-wide locking mode default.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"message_of_the_day": {
+					Computed:    true,
+					Description: "",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"okta": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"sync_period": {
+						Computed:    true,
+						Description: "SyncPeriod is the duration between synchronization calls in nanoseconds.",
+						Optional:    true,
+						Type:        DurationType{},
+					}}),
+					Computed:    true,
+					Description: "Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.",
+					Optional:    true,
+				},
+				"require_session_mfa": {
+					Computed:    true,
+					Description: "RequireMFAType is the type of MFA requirement enforced for this cluster. 0 is \"OFF\", 1 is \"SESSION\", 2 is \"SESSION_AND_HARDWARE_KEY\", 3 is \"HARDWARE_KEY_TOUCH\", 4 is \"HARDWARE_KEY_PIN\", 5 is \"HARDWARE_KEY_TOUCH_AND_PIN\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"second_factor": {
+					Computed:    true,
+					Description: "SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"second_factors": {
+					Computed:    true,
+					Description: "SecondFactors is a list of supported multi-factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
+				},
+				"signature_algorithm_suite": {
+					Computed:    true,
+					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. If unspecified, the current default value is \"legacy\". 1 is \"legacy\", 2 is \"balanced-v1\", 3 is \"fips-v1\", 4 is \"hsm-v1\".",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"stable_unix_user_config": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Computed:    true,
+							Description: "Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from the control plane if they're about to provision a host user with no other configured UID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"first_uid": {
+							Computed:    true,
+							Description: "FirstUid is the start of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"last_uid": {
+							Computed:    true,
+							Description: "LastUid is the end of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "StableUnixUserConfig contains the cluster-wide configuration for stable UNIX users.",
+					Optional:    true,
+				},
+				"type": {
+					Computed:    true,
+					Description: "Type is the type of authentication.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"u2f": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"app_id": {
+							Computed:    true,
+							Description: "AppID returns the application ID for universal mult-factor.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"device_attestation_cas": {
+							Computed:    true,
+							Description: "DeviceAttestationCAs contains the trusted attestation CAs for U2F devices.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"facets": {
+							Computed:    true,
+							Description: "Facets returns the facets for universal mult-factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "U2F are the settings for the U2F device.",
+					Optional:    true,
+				},
+				"webauthn": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"attestation_allowed_cas": {
+							Computed:    true,
+							Description: "Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"attestation_denied_cas": {
+							Computed:    true,
+							Description: "Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"rp_id": {
+							Computed:    true,
+							Description: "RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the multi-factor will need to re-register.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Webauthn are the settings for server-side Web Authentication support.",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec is an AuthPreference specification",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaRoleV6Resource returns Terraform Framework resource schema definition for RoleV6
+func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -3686,7 +6801,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"app_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"app_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "AppLabels is a map of labels used as part of the RBAC system.",
 							Optional:      true,
@@ -3791,7 +6906,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"beam_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"beam_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BeamLabels are used in the RBAC system to allow/deny access to beams.",
 							Optional:      true,
@@ -3804,7 +6919,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"cluster_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cluster_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
 							Optional:      true,
@@ -3817,7 +6932,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"db_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"db_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
 							Optional:      true,
@@ -3839,7 +6954,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"db_permissions": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"match": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"match": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Match is a list of object labels that must be matched for the permission to be granted.",
 									Optional:      true,
@@ -3865,7 +6980,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"db_service_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"db_service_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
 							Optional:      true,
@@ -3912,7 +7027,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"group_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"group_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "GroupLabels is a map of labels used as part of the RBAC system.",
 							Optional:      true,
@@ -4009,7 +7124,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"kubernetes_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"kubernetes_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
 							Optional:      true,
@@ -4072,7 +7187,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"linux_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"linux_desktop_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
 							Optional:      true,
@@ -4110,7 +7225,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "MCPPermissions defines MCP servers related permissions.",
 							Optional:    true,
 						},
-						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"node_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
 							Optional:      true,
@@ -4125,7 +7240,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"request": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"annotations": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"annotations": GenSchemaTraitsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
 									Optional:      true,
@@ -4448,7 +7563,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"windows_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"windows_desktop_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
 							Optional:      true,
@@ -4468,7 +7583,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"workload_identity_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
 							Optional:      true,
@@ -4511,7 +7626,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"app_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"app_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "AppLabels is a map of labels used as part of the RBAC system.",
 							Optional:      true,
@@ -4545,7 +7660,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"beam_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"beam_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BeamLabels are used in the RBAC system to allow/deny access to beams.",
 							Optional:      true,
@@ -4558,7 +7673,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"cluster_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cluster_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
 							Optional:      true,
@@ -4571,7 +7686,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"db_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"db_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
 							Optional:      true,
@@ -4593,7 +7708,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"db_permissions": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"match": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"match": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Match is a list of object labels that must be matched for the permission to be granted.",
 									Optional:      true,
@@ -4619,7 +7734,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"db_service_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"db_service_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
 							Optional:      true,
@@ -4666,7 +7781,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"group_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"group_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "GroupLabels is a map of labels used as part of the RBAC system.",
 							Optional:      true,
@@ -4763,7 +7878,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"kubernetes_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"kubernetes_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
 							Optional:      true,
@@ -4826,7 +7941,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"linux_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"linux_desktop_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
 							Optional:      true,
@@ -4864,7 +7979,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "MCPPermissions defines MCP servers related permissions.",
 							Optional:    true,
 						},
-						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"node_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
 							Optional:      true,
@@ -4879,7 +7994,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"request": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"annotations": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"annotations": GenSchemaTraitsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
 									Optional:      true,
@@ -5202,7 +8317,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"windows_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"windows_desktop_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
 							Optional:      true,
@@ -5222,7 +8337,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"workload_identity_labels": GenSchemaLabelsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
 							Optional:      true,
@@ -5293,7 +8408,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          DurationType{},
 						},
-						"create_db_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"create_db_user": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "CreateDatabaseUser enabled automatic database user creation.",
 							Optional:      true,
@@ -5306,13 +8421,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"create_desktop_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"create_desktop_user": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "CreateDesktopUser allows users to be automatically created on a Windows desktop",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						}),
-						"create_host_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"create_host_user": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Deprecated: use CreateHostUserMode instead.",
 							Optional:      true,
@@ -5332,13 +8447,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"desktop_clipboard": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"desktop_clipboard": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						}),
-						"desktop_directory_sharing": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"desktop_directory_sharing": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.",
 							Optional:      true,
@@ -5374,7 +8489,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"idp": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
-								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
 									Optional:      true,
@@ -5444,7 +8559,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"port_forwarding": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"port_forwarding": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Deprecated: Use SSHPortForwarding instead",
 							Optional:      true,
@@ -5459,7 +8574,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"desktop": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"desktop": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.",
 									Optional:      true,
@@ -5499,7 +8614,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"ssh_file_copy": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"ssh_file_copy": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.",
 							Optional:      true,
@@ -5508,7 +8623,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"ssh_port_forwarding": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"local": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										Computed:      true,
 										Description:   "",
 										Optional:      true,
@@ -5518,7 +8633,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 								},
 								"remote": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										Computed:      true,
 										Description:   "",
 										Optional:      true,
@@ -5566,8 +8681,1703 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 	}}, nil
 }
 
-// GenSchemaUserV2 returns tfsdk.Schema definition for UserV2
-func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaRoleV6DataSource returns Terraform Framework datasource schema definition for RoleV6
+func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_assignments": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"account": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"permission_set": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "AccountAssignments holds the list of account assignments affected by this condition.",
+							Optional:    true,
+						},
+						"app_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "AppLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
+						"app_labels_expression": {
+							Computed:    true,
+							Description: "AppLabelsExpression is a predicate expression used to allow/deny access to Apps.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"app_resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"allow_all": {
+									Computed:    true,
+									Description: "AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"allow_code": {
+									Computed:    true,
+									Description: "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"allow_encoded": {
+									Computed:    true,
+									Description: "AllowEncoded lists the characters a request path may carry in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"allow_reason": {
+									Computed:    true,
+									Description: "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deny_code_hint": {
+									Computed:    true,
+									Description: "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deny_reason_hint": {
+									Computed:    true,
+									Description: "DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"methods": {
+									Computed:    true,
+									Description: "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"paths": {
+									Computed:    true,
+									Description: "Paths are the path patterns the rule matches, for example:  `paths: [\"/api/projects/{project}/**\"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits[\"projects\"], vars.project)`  This version declares the field but rejects a rule that sets it.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.  This version implements allow_all only and rejects a rule that sets any other field. The other fields are declared so that version skew or a rollback cannot silently drop one and widen a role's access.",
+							Optional:    true,
+						},
+						"app_resources_expressions": {
+							Computed:    true,
+							Description: "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"aws_role_arns": {
+							Computed:    true,
+							Description: "AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"azure_identities": {
+							Computed:    true,
+							Description: "AzureIdentities is a list of Azure identities this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"beam_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "BeamLabels are used in the RBAC system to allow/deny access to beams.",
+							Optional:    true,
+						}),
+						"beam_labels_expression": {
+							Computed:    true,
+							Description: "BeamLabelsExpression is a predicate expression used to allow/deny access to beams.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"cluster_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
+							Optional:    true,
+						}),
+						"cluster_labels_expression": {
+							Computed:    true,
+							Description: "ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
+							Optional:    true,
+						}),
+						"db_labels_expression": {
+							Computed:    true,
+							Description: "DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_names": {
+							Computed:    true,
+							Description: "DatabaseNames is a list of database names this role is allowed to connect to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"db_permissions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"match": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Match is a list of object labels that must be matched for the permission to be granted.",
+									Optional:    true,
+								}),
+								"permissions": {
+									Computed:    true,
+									Description: "Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.",
+							Optional:    true,
+						},
+						"db_roles": {
+							Computed:    true,
+							Description: "DatabaseRoles is a list of databases roles for automatic user creation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"db_service_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
+							Optional:    true,
+						}),
+						"db_service_labels_expression": {
+							Computed:    true,
+							Description: "DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_users": {
+							Computed:    true,
+							Description: "DatabaseUsers is a list of databases users this role is allowed to connect as.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"desktop_groups": {
+							Computed:    true,
+							Description: "DesktopGroups is a list of groups for created desktop users to be added to",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"gcp_service_accounts": {
+							Computed:    true,
+							Description: "GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"github_permissions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"orgs": {
+								Computed:    true,
+								Description: "",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Computed:    true,
+							Description: "GitHubPermissions defines GitHub integration related permissions.",
+							Optional:    true,
+						},
+						"group_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "GroupLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
+						"group_labels_expression": {
+							Computed:    true,
+							Description: "GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"host_groups": {
+							Computed:    true,
+							Description: "HostGroups is a list of groups for created users to be added to",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"host_sudoers": {
+							Computed:    true,
+							Description: "HostSudoers is a list of entries to include in a users sudoer file",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"impersonate": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"roles": {
+									Computed:    true,
+									Description: "Roles is a list of resources this role is allowed to impersonate",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"users": {
+									Computed:    true,
+									Description: "Users is a list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where specifies optional advanced matcher",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.",
+							Optional:    true,
+						},
+						"join_sessions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"kinds": {
+									Computed:    true,
+									Description: "Kinds are the session kinds this policy applies to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"modes": {
+									Computed:    true,
+									Description: "Modes is a list of permitted participant modes for this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the name of the policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is a list of roles that you can join the session of.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "JoinSessions specifies policies to allow users to join other sessions.",
+							Optional:    true,
+						},
+						"kubernetes_groups": {
+							Computed:    true,
+							Description: "KubeGroups is a list of kubernetes groups",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"kubernetes_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
+							Optional:    true,
+						}),
+						"kubernetes_labels_expression": {
+							Computed:    true,
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"kubernetes_resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Computed:    true,
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kind": {
+									Computed:    true,
+									Description: "Kind specifies the Kubernetes Resource type.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the resource name. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"namespace": {
+									Computed:    true,
+									Description: "Namespace is the resource namespace. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"verbs": {
+									Computed:    true,
+									Description: "Verbs are the allowed Kubernetes verbs for the following resource.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "KubernetesResources is the Kubernetes Resources this Role grants access to.",
+							Optional:    true,
+						},
+						"kubernetes_users": {
+							Computed:    true,
+							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"linux_desktop_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
+							Optional:    true,
+						}),
+						"linux_desktop_labels_expression": {
+							Computed:    true,
+							Description: "LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"linux_desktop_logins": {
+							Computed:    true,
+							Description: "LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"logins": {
+							Computed:    true,
+							Description: "Logins is a list of *nix system logins.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"mcp": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tools": {
+								Computed:    true,
+								Description: "Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "MCPPermissions defines MCP servers related permissions.",
+							Optional:    true,
+						},
+						"node_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
+							Optional:    true,
+						}),
+						"node_labels_expression": {
+							Computed:    true,
+							Description: "NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"request": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"annotations": GenSchemaTraitsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
+									Optional:    true,
+								}),
+								"claims_to_roles": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"claim": {
+											Computed:    true,
+											Description: "Claim is a claim name.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"roles": {
+											Computed:    true,
+											Description: "Roles is a list of static teleport roles to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"value": {
+											Computed:    true,
+											Description: "Value is a claim value to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
+									Optional:    true,
+								},
+								"kubernetes_resources": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Computed:    true,
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Computed:    true,
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
+									Optional:    true,
+								},
+								"max_duration": {
+									Computed:    true,
+									Description: "MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.",
+									Optional:    true,
+									Type:        DurationType{},
+								},
+								"reason": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"mode": {
+											Computed:    true,
+											Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"prompt": {
+											Computed:    true,
+											Description: "Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "Reason defines settings for the reason for the access provided by the user.",
+									Optional:    true,
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is the name of roles which will match the request rule.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"search_as_roles": {
+									Computed:    true,
+									Description: "SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"suggested_reviewers": {
+									Computed:    true,
+									Description: "SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"thresholds": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"approve": {
+											Computed:    true,
+											Description: "Approve is the number of matching approvals needed for state-transition.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										},
+										"deny": {
+											Computed:    true,
+											Description: "Deny is the number of denials needed for state-transition.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										},
+										"filter": {
+											Computed:    true,
+											Description: "Filter is an optional predicate used to determine which reviews count toward this threshold.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"name": {
+											Computed:    true,
+											Description: "Name is the optional human-readable name of the threshold.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.",
+									Optional:    true,
+								},
+							}),
+							Description: "",
+							Optional:    true,
+						},
+						"require_session_join": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"count": {
+									Computed:    true,
+									Description: "Count is the amount of people that need to be matched for this policy to be fulfilled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"filter": {
+									Computed:    true,
+									Description: "Filter is a predicate that determines what users count towards this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kinds": {
+									Computed:    true,
+									Description: "Kinds are the session kinds this policy applies to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"modes": {
+									Computed:    true,
+									Description: "Modes is the list of modes that may be used to fulfill this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the name of the policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"on_leave": {
+									Computed:    true,
+									Description: "OnLeave is the behaviour that's used when the policy is no longer fulfilled for a live session.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RequireSessionJoin specifies policies for required users to start a session.",
+							Optional:    true,
+						},
+						"review_requests": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"claims_to_roles": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"claim": {
+											Computed:    true,
+											Description: "Claim is a claim name.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"roles": {
+											Computed:    true,
+											Description: "Roles is a list of static teleport roles to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"value": {
+											Computed:    true,
+											Description: "Value is a claim value to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
+									Optional:    true,
+								},
+								"preview_as_roles": {
+									Computed:    true,
+									Description: "PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is the name of roles which may be reviewed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"submit_for_users": {
+									Computed:    true,
+									Description: "SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where is an optional predicate which further limits which requests are reviewable.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "ReviewRequests defines conditions for submitting access reviews.",
+							Optional:    true,
+						},
+						"rules": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"actions": {
+									Computed:    true,
+									Description: "Actions specifies optional actions taken when this rule matches",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"resources": {
+									Computed:    true,
+									Description: "Resources is a list of resources",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"verbs": {
+									Computed:    true,
+									Description: "Verbs is a list of verbs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where specifies optional advanced matcher",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Rules is a list of rules and their access levels. Rules are a high level construct used for access control.",
+							Optional:    true,
+						},
+						"spiffe": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"dns_sans": {
+									Computed:    true,
+									Description: "DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"ip_sans": {
+									Computed:    true,
+									Description: "IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"path": {
+									Computed:    true,
+									Description: "Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\\/svc\\/foo\\/.*\\/bar$ would match /svc/foo/baz/bar",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.",
+							Optional:    true,
+						},
+						"windows_desktop_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
+							Optional:    true,
+						}),
+						"windows_desktop_labels_expression": {
+							Computed:    true,
+							Description: "WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"windows_desktop_logins": {
+							Computed:    true,
+							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Computed:    true,
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Allow is the set of conditions evaluated to grant access.",
+					Optional:    true,
+				},
+				"deny": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_assignments": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"account": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"permission_set": {
+									Computed:    true,
+									Description: "",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "AccountAssignments holds the list of account assignments affected by this condition.",
+							Optional:    true,
+						},
+						"app_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "AppLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
+						"app_labels_expression": {
+							Computed:    true,
+							Description: "AppLabelsExpression is a predicate expression used to allow/deny access to Apps.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"app_resources_expressions": {
+							Computed:    true,
+							Description: "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"aws_role_arns": {
+							Computed:    true,
+							Description: "AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"azure_identities": {
+							Computed:    true,
+							Description: "AzureIdentities is a list of Azure identities this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"beam_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "BeamLabels are used in the RBAC system to allow/deny access to beams.",
+							Optional:    true,
+						}),
+						"beam_labels_expression": {
+							Computed:    true,
+							Description: "BeamLabelsExpression is a predicate expression used to allow/deny access to beams.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"cluster_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
+							Optional:    true,
+						}),
+						"cluster_labels_expression": {
+							Computed:    true,
+							Description: "ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
+							Optional:    true,
+						}),
+						"db_labels_expression": {
+							Computed:    true,
+							Description: "DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_names": {
+							Computed:    true,
+							Description: "DatabaseNames is a list of database names this role is allowed to connect to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"db_permissions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"match": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Match is a list of object labels that must be matched for the permission to be granted.",
+									Optional:    true,
+								}),
+								"permissions": {
+									Computed:    true,
+									Description: "Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.",
+							Optional:    true,
+						},
+						"db_roles": {
+							Computed:    true,
+							Description: "DatabaseRoles is a list of databases roles for automatic user creation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"db_service_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
+							Optional:    true,
+						}),
+						"db_service_labels_expression": {
+							Computed:    true,
+							Description: "DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"db_users": {
+							Computed:    true,
+							Description: "DatabaseUsers is a list of databases users this role is allowed to connect as.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"desktop_groups": {
+							Computed:    true,
+							Description: "DesktopGroups is a list of groups for created desktop users to be added to",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"gcp_service_accounts": {
+							Computed:    true,
+							Description: "GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"github_permissions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"orgs": {
+								Computed:    true,
+								Description: "",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Computed:    true,
+							Description: "GitHubPermissions defines GitHub integration related permissions.",
+							Optional:    true,
+						},
+						"group_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "GroupLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
+						"group_labels_expression": {
+							Computed:    true,
+							Description: "GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"host_groups": {
+							Computed:    true,
+							Description: "HostGroups is a list of groups for created users to be added to",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"host_sudoers": {
+							Computed:    true,
+							Description: "HostSudoers is a list of entries to include in a users sudoer file",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"impersonate": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"roles": {
+									Computed:    true,
+									Description: "Roles is a list of resources this role is allowed to impersonate",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"users": {
+									Computed:    true,
+									Description: "Users is a list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where specifies optional advanced matcher",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.",
+							Optional:    true,
+						},
+						"join_sessions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"kinds": {
+									Computed:    true,
+									Description: "Kinds are the session kinds this policy applies to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"modes": {
+									Computed:    true,
+									Description: "Modes is a list of permitted participant modes for this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the name of the policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is a list of roles that you can join the session of.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "JoinSessions specifies policies to allow users to join other sessions.",
+							Optional:    true,
+						},
+						"kubernetes_groups": {
+							Computed:    true,
+							Description: "KubeGroups is a list of kubernetes groups",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"kubernetes_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
+							Optional:    true,
+						}),
+						"kubernetes_labels_expression": {
+							Computed:    true,
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"kubernetes_resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Computed:    true,
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kind": {
+									Computed:    true,
+									Description: "Kind specifies the Kubernetes Resource type.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the resource name. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"namespace": {
+									Computed:    true,
+									Description: "Namespace is the resource namespace. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"verbs": {
+									Computed:    true,
+									Description: "Verbs are the allowed Kubernetes verbs for the following resource.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "KubernetesResources is the Kubernetes Resources this Role grants access to.",
+							Optional:    true,
+						},
+						"kubernetes_users": {
+							Computed:    true,
+							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"linux_desktop_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
+							Optional:    true,
+						}),
+						"linux_desktop_labels_expression": {
+							Computed:    true,
+							Description: "LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"linux_desktop_logins": {
+							Computed:    true,
+							Description: "LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"logins": {
+							Computed:    true,
+							Description: "Logins is a list of *nix system logins.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"mcp": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"tools": {
+								Computed:    true,
+								Description: "Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "MCPPermissions defines MCP servers related permissions.",
+							Optional:    true,
+						},
+						"node_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
+							Optional:    true,
+						}),
+						"node_labels_expression": {
+							Computed:    true,
+							Description: "NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"request": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"annotations": GenSchemaTraitsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
+									Optional:    true,
+								}),
+								"claims_to_roles": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"claim": {
+											Computed:    true,
+											Description: "Claim is a claim name.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"roles": {
+											Computed:    true,
+											Description: "Roles is a list of static teleport roles to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"value": {
+											Computed:    true,
+											Description: "Value is a claim value to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
+									Optional:    true,
+								},
+								"kubernetes_resources": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"api_group": {
+											Computed:    true,
+											Description: "APIGroup specifies the Kubernetes Resource API group.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"kind": {
+											Computed:    true,
+											Description: "kind specifies the Kubernetes Resource type.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind \"kube_cluster\" or any of its subresources like \"namespaces\". This field can be defined such that it prevents a user from requesting \"kube_cluster\" and enforce requesting any of its subresources.",
+									Optional:    true,
+								},
+								"max_duration": {
+									Computed:    true,
+									Description: "MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.",
+									Optional:    true,
+									Type:        DurationType{},
+								},
+								"reason": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"mode": {
+											Computed:    true,
+											Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"prompt": {
+											Computed:    true,
+											Description: "Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "Reason defines settings for the reason for the access provided by the user.",
+									Optional:    true,
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is the name of roles which will match the request rule.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"search_as_roles": {
+									Computed:    true,
+									Description: "SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"suggested_reviewers": {
+									Computed:    true,
+									Description: "SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"thresholds": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"approve": {
+											Computed:    true,
+											Description: "Approve is the number of matching approvals needed for state-transition.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										},
+										"deny": {
+											Computed:    true,
+											Description: "Deny is the number of denials needed for state-transition.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+										},
+										"filter": {
+											Computed:    true,
+											Description: "Filter is an optional predicate used to determine which reviews count toward this threshold.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"name": {
+											Computed:    true,
+											Description: "Name is the optional human-readable name of the threshold.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.",
+									Optional:    true,
+								},
+							}),
+							Description: "",
+							Optional:    true,
+						},
+						"require_session_join": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"count": {
+									Computed:    true,
+									Description: "Count is the amount of people that need to be matched for this policy to be fulfilled.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"filter": {
+									Computed:    true,
+									Description: "Filter is a predicate that determines what users count towards this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"kinds": {
+									Computed:    true,
+									Description: "Kinds are the session kinds this policy applies to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"modes": {
+									Computed:    true,
+									Description: "Modes is the list of modes that may be used to fulfill this policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name is the name of the policy.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"on_leave": {
+									Computed:    true,
+									Description: "OnLeave is the behaviour that's used when the policy is no longer fulfilled for a live session.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RequireSessionJoin specifies policies for required users to start a session.",
+							Optional:    true,
+						},
+						"review_requests": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"claims_to_roles": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"claim": {
+											Computed:    true,
+											Description: "Claim is a claim name.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"roles": {
+											Computed:    true,
+											Description: "Roles is a list of static teleport roles to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"value": {
+											Computed:    true,
+											Description: "Value is a claim value to match.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Computed:    true,
+									Description: "ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.",
+									Optional:    true,
+								},
+								"preview_as_roles": {
+									Computed:    true,
+									Description: "PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"roles": {
+									Computed:    true,
+									Description: "Roles is the name of roles which may be reviewed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"submit_for_users": {
+									Computed:    true,
+									Description: "SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where is an optional predicate which further limits which requests are reviewable.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "ReviewRequests defines conditions for submitting access reviews.",
+							Optional:    true,
+						},
+						"rules": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"actions": {
+									Computed:    true,
+									Description: "Actions specifies optional actions taken when this rule matches",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"resources": {
+									Computed:    true,
+									Description: "Resources is a list of resources",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"verbs": {
+									Computed:    true,
+									Description: "Verbs is a list of verbs",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"where": {
+									Computed:    true,
+									Description: "Where specifies optional advanced matcher",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "Rules is a list of rules and their access levels. Rules are a high level construct used for access control.",
+							Optional:    true,
+						},
+						"spiffe": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"dns_sans": {
+									Computed:    true,
+									Description: "DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"ip_sans": {
+									Computed:    true,
+									Description: "IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"path": {
+									Computed:    true,
+									Description: "Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\\/svc\\/foo\\/.*\\/bar$ would match /svc/foo/baz/bar",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.",
+							Optional:    true,
+						},
+						"windows_desktop_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
+							Optional:    true,
+						}),
+						"windows_desktop_labels_expression": {
+							Computed:    true,
+							Description: "WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"windows_desktop_logins": {
+							Computed:    true,
+							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabelsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Computed:    true,
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.",
+					Optional:    true,
+				},
+				"options": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cert_extensions": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"mode": {
+									Computed:    true,
+									Description: "Mode is the type of extension to be used -- currently critical-option is not supported. 0 is \"extension\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"name": {
+									Computed:    true,
+									Description: "Name specifies the key to be used in the cert extension.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"type": {
+									Computed:    true,
+									Description: "Type represents the certificate type being extended, only ssh is supported at this time. 0 is \"ssh\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"value": {
+									Computed:    true,
+									Description: "Value specifies the value to be used in the cert extension.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "CertExtensions specifies the key/values",
+							Optional:    true,
+						},
+						"cert_format": {
+							Computed:    true,
+							Description: "CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_idle_timeout": {
+							Computed:    true,
+							Description: "ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"create_db_user": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "CreateDatabaseUser enabled automatic database user creation.",
+							Optional:    true,
+						}),
+						"create_db_user_mode": {
+							Computed:    true,
+							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"create_desktop_user": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "CreateDesktopUser allows users to be automatically created on a Windows desktop",
+							Optional:    true,
+						}),
+						"create_host_user": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Deprecated: use CreateHostUserMode instead.",
+							Optional:    true,
+						}),
+						"create_host_user_default_shell": {
+							Computed:    true,
+							Description: "CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"create_host_user_mode": {
+							Computed:    true,
+							Description: "CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is \"unspecified\"; 1 is \"off\"; 2 is \"drop\" (removed for v15 and above), 3 is \"keep\"; 4 is \"insecure-drop\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"desktop_clipboard": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.",
+							Optional:    true,
+						}),
+						"desktop_directory_sharing": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.",
+							Optional:    true,
+						}),
+						"device_trust_mode": {
+							Computed:    true,
+							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"disconnect_expired_cert": {
+							Computed:    true,
+							Description: "DisconnectExpiredCert sets disconnect clients on expired certificates.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"enhanced_recording": {
+							Computed:    true,
+							Description: "BPF defines what events to record for the BPF-based session recorder.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"forward_agent": {
+							Computed:    true,
+							Description: "ForwardAgent is SSH agent forwarding.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"idp": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
+									Optional:    true,
+								})}),
+								Description: "SAML are options related to the Teleport SAML IdP.",
+								Optional:    true,
+							}}),
+							Computed:    true,
+							Description: "IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.",
+							Optional:    true,
+						},
+						"lock": {
+							Computed:    true,
+							Description: "Lock specifies the locking mode (strict|best_effort) to be applied with the role.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"max_connections": {
+							Computed:    true,
+							Description: "MaxConnections defines the maximum number of concurrent connections a user may hold.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"max_kubernetes_connections": {
+							Computed:    true,
+							Description: "MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"max_session_ttl": {
+							Computed:    true,
+							Description: "MaxSessionTTL defines how long a SSH session can last for.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"max_sessions": {
+							Computed:    true,
+							Description: "MaxSessions defines the maximum number of concurrent sessions per connection.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"mfa_verification_interval": {
+							Computed:    true,
+							Description: "MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"permit_x11_forwarding": {
+							Computed:    true,
+							Description: "PermitX11Forwarding authorizes use of X11 forwarding.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"pin_source_ip": {
+							Computed:    true,
+							Description: "PinSourceIP forces the same client IP for certificate generation and usage",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"port_forwarding": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "Deprecated: Use SSHPortForwarding instead",
+							Optional:    true,
+						}),
+						"record_session": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"default": {
+									Computed:    true,
+									Description: "Default indicates the default value for the services.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"desktop": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Computed:    true,
+									Description: "Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.",
+									Optional:    true,
+								}),
+								"ssh": {
+									Computed:    true,
+									Description: "SSH indicates the session mode used on SSH sessions.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Computed:    true,
+							Description: "RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.",
+							Optional:    true,
+						},
+						"request_access": {
+							Computed:    true,
+							Description: "RequestAccess defines the request strategy (optional|reason|always) where optional is the default.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"request_prompt": {
+							Computed:    true,
+							Description: "RequestPrompt is an optional message which tells users what they aught to request.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"require_session_mfa": {
+							Computed:    true,
+							Description: "RequireMFAType is the type of MFA requirement enforced for this user. 0 is \"OFF\", 1 is \"SESSION\", 2 is \"SESSION_AND_HARDWARE_KEY\", 3 is \"HARDWARE_KEY_TOUCH\", 4 is \"HARDWARE_KEY_PIN\", 5 is \"HARDWARE_KEY_TOUCH_AND_PIN\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"ssh_file_copy": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:    true,
+							Description: "SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.",
+							Optional:    true,
+						}),
+						"ssh_port_forwarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"local": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										Computed:    true,
+										Description: "",
+										Optional:    true,
+									})}),
+									Description: "Allow local port forwarding.",
+									Optional:    true,
+								},
+								"remote": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOptionDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										Computed:    true,
+										Description: "",
+										Optional:    true,
+									})}),
+									Description: "Allow remote port forwarding.",
+									Optional:    true,
+								},
+							}),
+							Description: "SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.",
+							Optional:    true,
+						},
+						"web_terminal_clipboard_mode": {
+							Computed:    true,
+							Description: "WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are \"unrestricted\" and \"no-copy\". Defaults to \"unrestricted\" if unspecified.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Computed:    true,
+					Description: "Options is for OpenSSH options like agent forwarding.",
+					Optional:    true,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is a role specification",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 9)},
+		},
+	}}, nil
+}
+
+// GenSchemaUserV2Resource returns Terraform Framework resource schema definition for UserV2
+func GenSchemaUserV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -5741,7 +10551,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 				},
-				"traits": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"traits": GenSchemaTraitsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.",
 					Optional:      true,
@@ -5798,8 +10608,210 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 	}}, nil
 }
 
-// GenSchemaKubernetesClusterV3 returns tfsdk.Schema definition for KubernetesClusterV3
-func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaUserV2DataSource returns Terraform Framework datasource schema definition for UserV2
+func GenSchemaUserV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"github_identities": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"connector_id": {
+							Computed:    true,
+							Description: "ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"samlSingleLogoutUrl": {
+							Computed:    true,
+							Description: "SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user_id": {
+							Computed:    true,
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"username": {
+							Computed:    true,
+							Description: "Username is username supplied by external identity provider",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity",
+					Optional:    true,
+				},
+				"oidc_identities": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"connector_id": {
+							Computed:    true,
+							Description: "ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"samlSingleLogoutUrl": {
+							Computed:    true,
+							Description: "SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user_id": {
+							Computed:    true,
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"username": {
+							Computed:    true,
+							Description: "Username is username supplied by external identity provider",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity",
+					Optional:    true,
+				},
+				"roles": {
+					Computed:    true,
+					Description: "Roles is a list of roles assigned to user",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"saml_identities": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"connector_id": {
+							Computed:    true,
+							Description: "ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"samlSingleLogoutUrl": {
+							Computed:    true,
+							Description: "SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user_id": {
+							Computed:    true,
+							Description: "UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"username": {
+							Computed:    true,
+							Description: "Username is username supplied by external identity provider",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "SAMLIdentities lists associated SAML identities that let user log in using externally verified identity",
+					Optional:    true,
+				},
+				"traits": GenSchemaTraitsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.",
+					Optional:    true,
+				}),
+				"trusted_device_ids": {
+					Computed:    true,
+					Description: "TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user->device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is a user specification",
+			Optional:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mfa_weakest_device": {
+					Computed:    true,
+					Description: "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"password_state": {
+					Computed:    true,
+					Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+			}),
+			Computed:    true,
+			Description: "",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaKubernetesClusterV3Resource returns Terraform Framework resource schema definition for KubernetesClusterV3
+func GenSchemaKubernetesClusterV3Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -6018,8 +11030,200 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 	}}, nil
 }
 
-// GenSchemaOIDCConnectorV3 returns tfsdk.Schema definition for OIDCConnectorV3
-func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaKubernetesClusterV3DataSource returns Terraform Framework datasource schema definition for KubernetesClusterV3
+func GenSchemaKubernetesClusterV3DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the cluster resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is the resource metadata.",
+			Optional:    true,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "The scope of the kube cluster.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"aws": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"account_id": {
+							Computed:    true,
+							Description: "AccountID is a AWS Account ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Computed:    true,
+							Description: "Name is a AWS EKS cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"region": {
+							Computed:    true,
+							Description: "Region is a AWS cloud region.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "AWS holds the required AWS information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"azure": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"resource_group": {
+							Computed:    true,
+							Description: "ResourceGroup is the Azure resource group name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"resource_name": {
+							Computed:    true,
+							Description: "ResourceName is the AKS cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"subscription_id": {
+							Computed:    true,
+							Description: "SubscriptionID is the AKS cluster SubscriptionID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"tenant_id": {
+							Computed:    true,
+							Description: "TenantID is the AKS cluster Tenant ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Azure holds the required Azure information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"dynamic_labels": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"command": {
+							Computed:    true,
+							Description: "Command is a command to run",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"period": {
+							Computed:    true,
+							Description: "Period is a time between command runs",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"result": {
+							Computed:    true,
+							Description: "Result captures standard output",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "DynamicLabels are the cluster's dynamic labels.",
+					Optional:    true,
+				},
+				"gcp": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"location": {
+							Computed:    true,
+							Description: "Location is a GKE cluster location.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Computed:    true,
+							Description: "Name is a GCP GKE cluster name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"project_id": {
+							Computed:    true,
+							Description: "ProjectID is the GKE Project ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "GCP holds the required GCP information for Teleport to access the cluster.",
+					Optional:    true,
+				},
+				"kubeconfig": {
+					Computed:    true,
+					Description: "Kubeconfig is the kubeconfig file payload that grants access to the cluster. If multiple contexts are specified, the first will be selected.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is the resource spec.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource subkind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
+// GenSchemaOIDCConnectorV3Resource returns Terraform Framework resource schema definition for OIDCConnectorV3
+func GenSchemaOIDCConnectorV3Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -6302,7 +11506,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"redirect_url": GenSchemaStrings(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"redirect_url": GenSchemaStringsResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.",
 					Optional:      true,
@@ -6356,8 +11560,304 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 	}}, nil
 }
 
-// GenSchemaSAMLConnectorV2 returns tfsdk.Schema definition for SAMLConnectorV2
-func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaOIDCConnectorV3DataSource returns Terraform Framework datasource schema definition for OIDCConnectorV3
+func GenSchemaOIDCConnectorV3DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata holds resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"acr_values": {
+					Computed:    true,
+					Description: "ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"allow_unverified_email": {
+					Computed:    true,
+					Description: "AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"claims_to_roles": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"claim": {
+							Computed:    true,
+							Description: "Claim is a claim name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles": {
+							Computed:    true,
+							Description: "Roles is a list of static teleport roles to match.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"value": {
+							Computed:    true,
+							Description: "Value is a claim value to match.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "ClaimsToRoles specifies a dynamic mapping from claims to roles.",
+					Optional:    true,
+				},
+				"client_id": {
+					Computed:    true,
+					Description: "ClientID is the id of the authentication client (Teleport Auth Service).",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"client_redirect_settings": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Computed:    true,
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Computed:    true,
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
+					Optional:    true,
+				},
+				"client_secret": {
+					Computed:    true,
+					Description: "ClientSecret is used to authenticate the client.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"display": {
+					Computed:    true,
+					Description: "Display is the friendly name for this provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"entra_id_groups_provider": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"disabled": {
+							Computed:    true,
+							Description: "Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"graph_endpoint": {
+							Computed:    true,
+							Description: "GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint (\"https://graph.windows.net\"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint (\"https://graph.microsoft.com\"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"group_type": {
+							Computed:    true,
+							Description: "GroupType is a user group type filter. Defaults to \"security-groups\". Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the \"groups\" claim when the user's group membership exceeds 200 max item limit.",
+					Optional:    true,
+				},
+				"google_admin_email": {
+					Computed:    true,
+					Description: "GoogleAdminEmail is the email of a google admin to impersonate.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"google_service_account": {
+					Computed:    true,
+					Description: "GoogleServiceAccount is a string containing google service account credentials.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"google_service_account_uri": {
+					Computed:    true,
+					Description: "GoogleServiceAccountURI is a path to a google service account uri.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"issuer_url": {
+					Computed:    true,
+					Description: "IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"max_age": {
+					Computed:    true,
+					Description: "",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"mfa": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"acr_values": {
+							Computed:    true,
+							Description: "AcrValues are Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its \"phr\" (phishing-resistant) ACR.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_id": {
+							Computed:    true,
+							Description: "ClientID is the OIDC OAuth app client ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_secret": {
+							Computed:    true,
+							Description: "ClientSecret is the OIDC OAuth app client secret.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"enabled": {
+							Computed:    true,
+							Description: "Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"max_age": {
+							Computed:    true,
+							Description: "MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
+						"prompt": {
+							Computed:    true,
+							Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"request_object_mode": {
+							Computed:    true,
+							Description: "RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
+					Optional:    true,
+				},
+				"pkce_mode": {
+					Computed:    true,
+					Description: "PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be \"enabled\" or \"disabled\"",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"prompt": {
+					Computed:    true,
+					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"provider": {
+					Computed:    true,
+					Description: "Provider is the external identity provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"redirect_url": GenSchemaStringsDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:    true,
+					Description: "RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.",
+					Optional:    true,
+				}),
+				"request_object_mode": {
+					Computed:    true,
+					Description: "RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"scope": {
+					Computed:    true,
+					Description: "Scope specifies additional scopes set by provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"user_matchers": {
+					Computed:    true,
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"username_claim": {
+					Computed:    true,
+					Description: "UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is an OIDC connector specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
+// GenSchemaSAMLConnectorV2Resource returns Terraform Framework resource schema definition for SAMLConnectorV2
+func GenSchemaSAMLConnectorV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -6747,8 +12247,354 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 	}}, nil
 }
 
-// GenSchemaGithubConnectorV3 returns tfsdk.Schema definition for GithubConnectorV3
-func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaSAMLConnectorV2DataSource returns Terraform Framework datasource schema definition for SAMLConnectorV2
+func GenSchemaSAMLConnectorV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata holds resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"acs": {
+					Description: "AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"allow_idp_initiated": {
+					Computed:    true,
+					Description: "AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"assertion_key_pair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cert": {
+							Computed:    true,
+							Description: "Cert is a PEM-encoded x509 certificate.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"private_key": {
+							Computed:    true,
+							Description: "PrivateKey is a PEM encoded x509 private key.",
+							Optional:    true,
+							Sensitive:   true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "EncryptionKeyPair is a key pair used for decrypting SAML assertions.",
+					Optional:    true,
+				},
+				"attributes_to_roles": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"name": {
+							Computed:    true,
+							Description: "Name is an attribute statement name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles": {
+							Computed:    true,
+							Description: "Roles is a list of static teleport roles to map to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"value": {
+							Computed:    true,
+							Description: "Value is an attribute statement value to match.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AttributesToRoles is a list of mappings of attribute statements to roles.",
+					Required:    true,
+				},
+				"audience": {
+					Computed:    true,
+					Description: "Audience uniquely identifies our service provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"cert": {
+					Computed:    true,
+					Description: "Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"client_redirect_settings": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Computed:    true,
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Computed:    true,
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
+					Optional:    true,
+				},
+				"credentials": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"oauth": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"client_id": {
+								Computed:    true,
+								Description: "ClientID is the client ID to use for OAuth client credentials grant.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+							"client_secret": {
+								Computed:    true,
+								Description: "ClientSecret is the client secret to use for OAuth client credentials grant.",
+								Optional:    true,
+								Sensitive:   true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Description: "OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.",
+						Optional:    true,
+					}}),
+					Description: "SAMLConnectorCredentials configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.",
+					Optional:    true,
+				},
+				"display": {
+					Computed:    true,
+					Description: "Display controls how this connector is displayed.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"entity_descriptor": {
+					Computed:    true,
+					Description: "EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"entity_descriptor_url": {
+					Computed:    true,
+					Description: "EntityDescriptorURL is a URL that supplies a configuration XML.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"entra_id_groups_provider": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"disabled": {
+							Computed:    true,
+							Description: "Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"graph_endpoint": {
+							Computed:    true,
+							Description: "GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint (\"https://graph.windows.net\"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint (\"https://graph.microsoft.com\"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"group_type": {
+							Computed:    true,
+							Description: "GroupType is a user group type filter. Defaults to \"security-groups\". Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the \"groups.link\" SAML assertion attribute, which is sent instead of the \"groups\" attribute, when the user's group membership exceeds 150 max item limit.",
+					Optional:    true,
+				},
+				"force_authn": {
+					Computed:    true,
+					Description: "ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"include_subject": {
+					Computed:    true,
+					Description: "IncludeSubject is a flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"issuer": {
+					Computed:    true,
+					Description: "Issuer is the identity provider issuer.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"mfa": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cert": {
+							Computed:    true,
+							Description: "Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"enabled": {
+							Computed:    true,
+							Description: "Enabled specified whether this SAML connector supports MFA checks. Defaults to false.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"entity_descriptor": {
+							Computed:    true,
+							Description: "EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"entity_descriptor_url": {
+							Computed:    true,
+							Description: "EntityDescriptorUrl is a URL that supplies a configuration XML.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"force_authn": {
+							Computed:    true,
+							Description: "ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"issuer": {
+							Computed:    true,
+							Description: "Issuer is the identity provider issuer. Usually set from EntityDescriptor.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"sso": {
+							Computed:    true,
+							Description: "SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
+					Optional:    true,
+				},
+				"preferred_request_binding": {
+					Computed:    true,
+					Description: "PreferredRequestBinding is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"provider": {
+					Computed:    true,
+					Description: "Provider is the external identity provider.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"service_provider_issuer": {
+					Computed:    true,
+					Description: "ServiceProviderIssuer is the issuer of the service provider (Teleport).",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"signing_key_pair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"cert": {
+							Computed:    true,
+							Description: "Cert is a PEM-encoded x509 certificate.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"private_key": {
+							Computed:    true,
+							Description: "PrivateKey is a PEM encoded x509 private key.",
+							Optional:    true,
+							Sensitive:   true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "SigningKeyPair is an x509 key pair used to sign AuthnRequest.",
+					Optional:    true,
+				},
+				"single_logout_url": {
+					Computed:    true,
+					Description: "SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"sso": {
+					Computed:    true,
+					Description: "SSO is the URL of the identity provider's SSO service.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"user_matchers": {
+					Computed:    true,
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+			}),
+			Description: "Spec is an SAML connector specification.",
+			Required:    true,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseAnyOfValidator("entity_descriptor", "entity_descriptor_url")},
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaGithubConnectorV3Resource returns Terraform Framework resource schema definition for GithubConnectorV3
+func GenSchemaGithubConnectorV3Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -6965,8 +12811,201 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 	}}, nil
 }
 
-// GenSchemaTrustedClusterV2 returns tfsdk.Schema definition for TrustedClusterV2
-func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaGithubConnectorV3DataSource returns Terraform Framework datasource schema definition for GithubConnectorV3
+func GenSchemaGithubConnectorV3DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata holds resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"api_endpoint_url": {
+					Computed:    true,
+					Description: "APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"client_id": {
+					Description: "ClientID is the Github OAuth app client ID.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"client_redirect_settings": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allowed_https_hostnames": {
+							Computed:    true,
+							Description: "a list of hostnames allowed for https client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"insecure_allowed_cidr_ranges": {
+							Computed:    true,
+							Description: "a list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+					}),
+					Description: "ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.",
+					Optional:    true,
+				},
+				"client_secret": {
+					Description: "ClientSecret is the Github OAuth app client secret.",
+					Required:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"display": {
+					Computed:    true,
+					Description: "Display is the connector display name.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"endpoint_url": {
+					Computed:    true,
+					Description: "EndpointURL is the URL of the GitHub instance this connector is for.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"redirect_url": {
+					Computed:    true,
+					Description: "RedirectURL is the authorization callback URL.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"teams_to_logins": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"kubernetes_groups": {
+							Computed:    true,
+							Description: "KubeGroups is a list of allowed kubernetes groups for this org/team.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"kubernetes_users": {
+							Computed:    true,
+							Description: "KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"logins": {
+							Computed:    true,
+							Description: "Logins is a list of allowed logins for this org/team.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"organization": {
+							Computed:    true,
+							Description: "Organization is a Github organization a user belongs to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"team": {
+							Computed:    true,
+							Description: "Team is a team within the organization a user belongs to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.",
+					Optional:    true,
+				},
+				"teams_to_roles": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"organization": {
+							Computed:    true,
+							Description: "Organization is a Github organization a user belongs to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles": {
+							Computed:    true,
+							Description: "Roles is a list of allowed logins for this org/team.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"team": {
+							Computed:    true,
+							Description: "Team is a team within the organization a user belongs to.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "TeamsToRoles maps Github team memberships onto allowed roles.",
+					Optional:    true,
+				},
+				"user_matchers": {
+					Computed:    true,
+					Description: "UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+			}),
+			Description: "Spec is an Github connector specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 3)},
+		},
+	}}, nil
+}
+
+// GenSchemaTrustedClusterV2Resource returns Terraform Framework resource schema definition for TrustedClusterV2
+func GenSchemaTrustedClusterV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7102,8 +13141,129 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 	}}, nil
 }
 
-// GenSchemaLockV2 returns tfsdk.Schema definition for LockV2
-func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaTrustedClusterV2DataSource returns Terraform Framework datasource schema definition for TrustedClusterV2
+func GenSchemaTrustedClusterV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata holds resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"enabled": {
+					Computed:    true,
+					Description: "Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"role_map": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"local": {
+							Computed:    true,
+							Description: "Local specifies local roles to map to",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"remote": {
+							Computed:    true,
+							Description: "Remote specifies remote role name to map from",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "RoleMap specifies role mappings to remote roles.",
+					Optional:    true,
+				},
+				"roles": {
+					Computed:    true,
+					Description: "Roles is a list of roles that users will be assuming when connecting to this cluster.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"token": {
+					Computed:    true,
+					Description: "Token is the authorization token provided by another cluster needed by this cluster to join.",
+					Optional:    true,
+					Sensitive:   true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"tunnel_addr": {
+					Computed:    true,
+					Description: "ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"web_proxy_addr": {
+					Computed:    true,
+					Description: "ProxyAddress is the address of the web proxy server of the cluster to join. If not set, it is derived from `<metadata.name>:<default web proxy server port>`.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is a Trusted Cluster specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version. It must be specified. Supported values are: `v2`.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaLockV2Resource returns Terraform Framework resource schema definition for LockV2
+func GenSchemaLockV2Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7284,8 +13444,167 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 	}}, nil
 }
 
-// GenSchemaDynamicWindowsDesktopV1 returns tfsdk.Schema definition for DynamicWindowsDesktopV1
-func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaLockV2DataSource returns Terraform Framework datasource schema definition for LockV2
+func GenSchemaLockV2DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "Name is an object name",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata holds resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": {
+					Description: "Expires if set specifies when the lock ceases to be in force.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+				},
+				"message": {
+					Computed:    true,
+					Description: "Message is the message displayed to locked-out users.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"target": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"access_request": {
+							Computed:    true,
+							Description: "AccessRequest specifies the UUID of an Access Request.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"bot_instance_id": {
+							Computed:    true,
+							Description: "BotInstanceID is the bot instance ID if this is a bot identity and is ignored otherwise.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"device": {
+							Computed:    true,
+							Description: "Device is the device ID of a trusted device. Requires Teleport Enterprise.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"join_token": {
+							Computed:    true,
+							Description: "JoinToken is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"linux_desktop": {
+							Computed:    true,
+							Description: "LinuxDesktop specifies the name of a Linux desktop.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"login": {
+							Computed:    true,
+							Description: "Login specifies the name of a local UNIX user.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"mfa_device": {
+							Computed:    true,
+							Description: "MFADevice specifies the UUID of a user MFA device.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"role": {
+							Computed:    true,
+							Description: "Role specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"server_id": {
+							Computed:    true,
+							Description: "ServerID is the host id of the Teleport instance.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"user": {
+							Computed:    true,
+							Description: "User specifies the name of a Teleport user.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"windows_desktop": {
+							Computed:    true,
+							Description: "WindowsDesktop specifies the name of a Windows desktop.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "Target describes the set of interactions that the lock applies to.",
+					Optional:    true,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is a Lock specification.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "Version is the resource version. It must be specified. Supported values are: `v2`.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(2, 2)},
+		},
+	}}, nil
+}
+
+// GenSchemaDynamicWindowsDesktopV1Resource returns Terraform Framework resource schema definition for DynamicWindowsDesktopV1
+func GenSchemaDynamicWindowsDesktopV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7403,8 +13722,115 @@ func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp
 	}}, nil
 }
 
-// GenSchemaUIConfigV1 returns tfsdk.Schema definition for UIConfigV1
-func GenSchemaUIConfigV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaDynamicWindowsDesktopV1DataSource returns Terraform Framework datasource schema definition for DynamicWindowsDesktopV1
+func GenSchemaDynamicWindowsDesktopV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"addr": {
+					Description: "Addr is the address that this host can be reached at.",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"domain": {
+					Computed:    true,
+					Description: "Domain is the ActiveDirectory domain that this host belongs to.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"non_ad": {
+					Computed:    true,
+					Description: "NonAD marks this desktop as a standalone host that is not joined to an Active Directory domain.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
+				"screen_size": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"height": {
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"width": {
+							Computed:    true,
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "ScreenSize specifies the size of the screen to use for sessions on this host. In most cases this should be unspecified, in which case Teleport will fill the browser window.",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec is the DynamicWindows host spec.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaUIConfigV1Resource returns Terraform Framework resource schema definition for UIConfigV1
+func GenSchemaUIConfigV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7493,8 +13919,88 @@ func GenSchemaUIConfigV1(ctx context.Context) (github_com_hashicorp_terraform_pl
 	}}, nil
 }
 
-// GenSchemaInstallerV1 returns tfsdk.Schema definition for InstallerV1
-func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaUIConfigV1DataSource returns Terraform Framework datasource schema definition for UIConfigV1
+func GenSchemaUIConfigV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"scrollback_lines": {
+					Computed:    true,
+					Description: "ScrollbackLines is the max number of lines the UI terminal can display in its history.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"show_resources": {
+					Computed:    true,
+					Description: "ShowResources determines which resources are shown in the web UI. Default if unset is \"requestable\" which means resources the user has access to and resources they can request will be shown in the resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Spec is the resource spec.",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaInstallerV1Resource returns Terraform Framework resource schema definition for InstallerV1
+func GenSchemaInstallerV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7576,8 +14082,83 @@ func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_p
 	}}, nil
 }
 
-// GenSchemaSAMLIdPServiceProviderV1 returns tfsdk.Schema definition for SAMLIdPServiceProviderV1
-func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaInstallerV1DataSource returns Terraform Framework datasource schema definition for InstallerV1
+func GenSchemaInstallerV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is the resource kind.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is the resource metadata.",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"script": {
+				Description: "Script represents the contents of a installer shell script",
+				Required:    true,
+				Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			}}),
+			Description: "Spec is the resource spec.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource subkind. Currently unused for this resource.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the resource version.",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaSAMLIdPServiceProviderV1Resource returns Terraform Framework resource schema definition for SAMLIdPServiceProviderV1
+func GenSchemaSAMLIdPServiceProviderV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7729,8 +14310,143 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 	}}, nil
 }
 
-// GenSchemaClusterMaintenanceConfigV1 returns tfsdk.Schema definition for ClusterMaintenanceConfigV1
-func GenSchemaClusterMaintenanceConfigV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaSAMLIdPServiceProviderV1DataSource returns Terraform Framework datasource schema definition for SAMLIdPServiceProviderV1
+func GenSchemaSAMLIdPServiceProviderV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"acs_url": {
+					Computed:    true,
+					Description: "ACSURL is the endpoint where SAML authentication response will be redirected.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"attribute_mapping": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"name": {
+							Computed:    true,
+							Description: "name is an attribute name.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name_format": {
+							Computed:    true,
+							Description: "name_format is an attribute name format.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{SAMLIdPAttributeNameFormatValidator()},
+						},
+						"value": {
+							Computed:    true,
+							Description: "value is an attribute value definable with predicate expression.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Computed:    true,
+					Description: "AttributeMapping is used to map service provider requested attributes to username, role and traits in Teleport.",
+					Optional:    true,
+				},
+				"entity_descriptor": {
+					Computed:    true,
+					Description: "EntityDescriptor is the entity descriptor for the service provider",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"entity_id": {
+					Computed:    true,
+					Description: "EntityID is the entity ID for the entity descriptor. If entity descriptor is provided, this value is checked that it matches the entity ID in the entity descriptor at upsert time to avoid having to parse the XML blob in the entity descriptor every time we need to use this resource.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"launch_urls": {
+					Computed:    true,
+					Description: "LaunchURLs is used to configure custom landing URLs for service provider. It is useful in the following scenarios: 1. If a service provider does not support IdP initiated authentication, launch url can be configured to launch users directly into the service provider authentication endpoint. 2. If a service provider does support IdP initiated authentication, it can be useful if that service provider acts as a master authentication service provider for internal services. In such case, Teleport administrator can configure launch URL, that lets user pick a specific internal service URL from the Log In tile in the UI, which would take them to that particular service for authentication instead of directly launching to the master service provider. Each launch URL value must be an HTTPs endpoint.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"preset": {
+					Computed:    true,
+					Description: "Preset is used to define service provider profile that will have a custom behavior processed by Teleport.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"relay_state": {
+					Computed:    true,
+					Description: "RelayState is used to add custom value in the SAML response as a relay_state HTTP parameter. The value can contain service provider specific redirect URL, static state token etc. The value is only applied in the IdP initiated SSO flow.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Spec is the SAML IdP service provider spec.",
+			Required:    true,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{SAMLIdPSpecValidator()},
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaClusterMaintenanceConfigV1Resource returns Terraform Framework resource schema definition for ClusterMaintenanceConfigV1
+func GenSchemaClusterMaintenanceConfigV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7823,8 +14539,92 @@ func GenSchemaClusterMaintenanceConfigV1(ctx context.Context) (github_com_hashic
 	}}, nil
 }
 
-// GenSchemaOktaImportRuleV1 returns tfsdk.Schema definition for OktaImportRuleV1
-func GenSchemaOktaImportRuleV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaClusterMaintenanceConfigV1DataSource returns Terraform Framework datasource schema definition for ClusterMaintenanceConfigV1
+func GenSchemaClusterMaintenanceConfigV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"agent_upgrades": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"utc_start_hour": {
+						Computed:    true,
+						Description: "UTCStartHour is the start hour of the maintenance window in UTC.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+					"weekdays": {
+						Computed:    true,
+						Description: "Weekdays is an optional list of weekdays. If not specified, an agent upgrade window occurs every day.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					},
+				}),
+				Description: "AgentUpgrades encodes the agent upgrade window.",
+				Optional:    true,
+			}}),
+			Computed:    true,
+			Description: "",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaOktaImportRuleV1Resource returns Terraform Framework resource schema definition for OktaImportRuleV1
+func GenSchemaOktaImportRuleV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -7961,8 +14761,130 @@ func GenSchemaOktaImportRuleV1(ctx context.Context) (github_com_hashicorp_terraf
 	}}, nil
 }
 
-// GenSchemaIntegrationV1 returns tfsdk.Schema definition for IntegrationV1
-func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaOktaImportRuleV1DataSource returns Terraform Framework datasource schema definition for OktaImportRuleV1
+func GenSchemaOktaImportRuleV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Computed:    true,
+			Description: "Metadata is resource metadata",
+			Optional:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mappings": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"add_labels": {
+							Computed:    true,
+							Description: "AddLabels specifies which labels to add if any of the previous matches match.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"match": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"app_ids": {
+									Computed:    true,
+									Description: "AppIDs is a list of app IDs to match against.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"app_name_regexes": {
+									Computed:    true,
+									Description: "AppNameRegexes is a list of regexes to match against app names.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"group_ids": {
+									Computed:    true,
+									Description: "GroupIDs is a list of group IDs to match against.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"group_name_regexes": {
+									Computed:    true,
+									Description: "GroupNameRegexes is a list of regexes to match against group names.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Computed:    true,
+							Description: "Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.",
+							Optional:    true,
+						},
+					}),
+					Computed:    true,
+					Description: "Mappings is a list of matches that will map match conditions to labels.",
+					Optional:    true,
+				},
+				"priority": {
+					Computed:    true,
+					Description: "Priority represents the priority of the rule application. Lower numbered rules will be applied first.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+			}),
+			Description: "Spec is the specification for the Okta import rule.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaIntegrationV1Resource returns Terraform Framework resource schema definition for IntegrationV1
+func GenSchemaIntegrationV1Resource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -8115,6 +15037,166 @@ func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind",
+					Optional:    true,
+				},
+			}),
+			Description: "Spec is an Integration specification.",
+			Required:    true,
+		},
+		"sub_kind": {
+			Description: "SubKind is an optional resource sub kind, used in some resources",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
+			Required:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
+		},
+	}}, nil
+}
+
+// GenSchemaIntegrationV1DataSource returns Terraform Framework datasource schema definition for IntegrationV1
+func GenSchemaIntegrationV1DataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "Kind is a resource kind",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "Description is object description",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": {
+					Description: "Expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Type:        UseRFC3339Time(),
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{MustTimeBeInFuture()},
+				},
+				"labels": {
+					Computed:    true,
+					Description: "Labels is a set of labels",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Description: "Name is an object name",
+					Required:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Metadata is resource metadata",
+			Required:    true,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"aws_oidc": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"audience": {
+							Computed:    true,
+							Description: "Audience is used to record a name of a plugin or a discover service in Teleport that depends on this integration. Audience value can either be empty or \"aws-identity-center\". Preset audience may impose specific behavior on the integration CRUD API, such as preventing integration from update or deletion. Empty audience value should be treated as a default and backward-compatible behavior of the integration.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"issuer_s3_uri": {
+							Computed:    true,
+							Description: "IssuerS3URI is the Identity Provider that was configured in AWS. This bucket/prefix/* files must be publicly accessible and contain the following: > .well-known/openid-configuration > .well-known/jwks Format: `s3://<bucket>/<prefix>` Optional. The proxy's endpoint is used if it is not specified.  DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate. Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list. Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed. DELETE IN 18.0.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"role_arn": {
+							Computed:    true,
+							Description: "RoleARN contains the Role ARN used to set up the Integration. This is the AWS Role that Teleport will use to issue tokens for API Calls.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind",
+					Optional:    true,
+				},
+				"aws_ra": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"profile_sync_config": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"enabled": {
+									Computed:    true,
+									Description: "Enabled is set to true if this integration should sync profiles as application servers.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"profile_accepts_role_session_name": {
+									Computed:    true,
+									Description: "ProfileAcceptsRoleSessionName indicates whether the profile accepts a custom Role Session name.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"profile_arn": {
+									Computed:    true,
+									Description: "ProfileARN is the ARN of the Roles Anywhere Profile used to generate credentials to access the AWS APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"profile_name_filters": {
+									Computed:    true,
+									Description: "ProfileNameFilters is a list of filters applied to the profile name. Only matching profiles will be synchronized as application servers. If empty, no filtering is applied.  Filters can be globs, for example:  profile* *name*  Or regexes if they're prefixed and suffixed with ^ and $, for example:  ^profile.*$ ^.*name.*$",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"role_arn": {
+									Computed:    true,
+									Description: "RoleARN is the ARN of the IAM Role to assume when accessing the AWS APIs.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "ProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync. This is used to create AWS Roles Anywhere profiles as application servers.",
+							Optional:    true,
+						},
+						"trust_anchor_arn": {
+							Computed:    true,
+							Description: "TrustAnchorARN contains the AWS IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "AWSRA contains the specific fields to handle the AWS Roles Anywhere Integration subkind.",
+					Optional:    true,
+				},
+				"azure_oidc": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_id": {
+							Computed:    true,
+							Description: "ClientID specifies the ID of Azure enterprise application (client) that corresponds to this plugin.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"tenant_id": {
+							Computed:    true,
+							Description: "TenantID specifies the ID of Entra Tenant (Directory) that this plugin integrates with.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind",
@@ -10010,7 +17092,7 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 // CopyDatabaseV3ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyDatabaseV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DatabaseV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaDatabaseV3(ctx)
+	schema, diags := GenSchemaDatabaseV3Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -12597,7 +19679,7 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 // CopyServerV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyServerV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.ServerV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaServerV2(ctx)
+	schema, diags := GenSchemaServerV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -14705,7 +21787,7 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 // CopyAppV3ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.AppV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaAppV3(ctx)
+	schema, diags := GenSchemaAppV3Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -19674,7 +26756,7 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 // CopyProvisionTokenV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.ProvisionTokenV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaProvisionTokenV2(ctx)
+	schema, diags := GenSchemaProvisionTokenV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -23801,7 +30883,7 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 // CopyClusterNetworkingConfigV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyClusterNetworkingConfigV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.ClusterNetworkingConfigV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaClusterNetworkingConfigV2(ctx)
+	schema, diags := GenSchemaClusterNetworkingConfigV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -24703,7 +31785,7 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 // CopySessionRecordingConfigV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopySessionRecordingConfigV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.SessionRecordingConfigV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaSessionRecordingConfigV2(ctx)
+	schema, diags := GenSchemaSessionRecordingConfigV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -26118,7 +33200,7 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 // CopyAuthPreferenceV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyAuthPreferenceV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.AuthPreferenceV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaAuthPreferenceV2(ctx)
+	schema, diags := GenSchemaAuthPreferenceV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -32699,7 +39781,7 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 // CopyRoleV6ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.RoleV6, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaRoleV6(ctx)
+	schema, diags := GenSchemaRoleV6Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -40080,7 +47162,7 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 // CopyUserV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyUserV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.UserV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaUserV2(ctx)
+	schema, diags := GenSchemaUserV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -41224,7 +48306,7 @@ func CopyKubernetesClusterV3ToTerraform(ctx context.Context, obj *github_com_gra
 // CopyKubernetesClusterV3ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyKubernetesClusterV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.KubernetesClusterV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaKubernetesClusterV3(ctx)
+	schema, diags := GenSchemaKubernetesClusterV3Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -42623,7 +49705,7 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 // CopyOIDCConnectorV3ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyOIDCConnectorV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.OIDCConnectorV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaOIDCConnectorV3(ctx)
+	schema, diags := GenSchemaOIDCConnectorV3Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -44463,7 +51545,7 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 // CopySAMLConnectorV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopySAMLConnectorV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.SAMLConnectorV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaSAMLConnectorV2(ctx)
+	schema, diags := GenSchemaSAMLConnectorV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -46053,7 +53135,7 @@ func CopyGithubConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravi
 // CopyGithubConnectorV3ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyGithubConnectorV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.GithubConnectorV3, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaGithubConnectorV3(ctx)
+	schema, diags := GenSchemaGithubConnectorV3Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -47117,7 +54199,7 @@ func CopyTrustedClusterV2ToTerraform(ctx context.Context, obj *github_com_gravit
 // CopyTrustedClusterV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyTrustedClusterV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.TrustedClusterV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaTrustedClusterV2(ctx)
+	schema, diags := GenSchemaTrustedClusterV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -47924,7 +55006,7 @@ func CopyLockV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 // CopyLockV2ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyLockV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.LockV2, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaLockV2(ctx)
+	schema, diags := GenSchemaLockV2Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -48581,7 +55663,7 @@ func CopyDynamicWindowsDesktopV1ToTerraform(ctx context.Context, obj *github_com
 // CopyDynamicWindowsDesktopV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyDynamicWindowsDesktopV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DynamicWindowsDesktopV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaDynamicWindowsDesktopV1(ctx)
+	schema, diags := GenSchemaDynamicWindowsDesktopV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -49070,7 +56152,7 @@ func CopyUIConfigV1ToTerraform(ctx context.Context, obj *github_com_gravitationa
 // CopyUIConfigV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyUIConfigV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.UIConfigV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaUIConfigV1(ctx)
+	schema, diags := GenSchemaUIConfigV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -49486,7 +56568,7 @@ func CopyInstallerV1ToTerraform(ctx context.Context, obj *github_com_gravitation
 // CopyInstallerV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyInstallerV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.InstallerV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaInstallerV1(ctx)
+	schema, diags := GenSchemaInstallerV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -50077,7 +57159,7 @@ func CopySAMLIdPServiceProviderV1ToTerraform(ctx context.Context, obj *github_co
 // CopySAMLIdPServiceProviderV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopySAMLIdPServiceProviderV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.SAMLIdPServiceProviderV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaSAMLIdPServiceProviderV1(ctx)
+	schema, diags := GenSchemaSAMLIdPServiceProviderV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -50683,7 +57765,7 @@ func CopyClusterMaintenanceConfigV1ToTerraform(ctx context.Context, obj *github_
 // CopyClusterMaintenanceConfigV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyClusterMaintenanceConfigV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.ClusterMaintenanceConfigV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaClusterMaintenanceConfigV1(ctx)
+	schema, diags := GenSchemaClusterMaintenanceConfigV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -51354,7 +58436,7 @@ func CopyOktaImportRuleV1ToTerraform(ctx context.Context, obj *github_com_gravit
 // CopyOktaImportRuleV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyOktaImportRuleV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.OktaImportRuleV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaOktaImportRuleV1(ctx)
+	schema, diags := GenSchemaOktaImportRuleV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}
@@ -52323,7 +59405,7 @@ func CopyIntegrationV1ToTerraform(ctx context.Context, obj *github_com_gravitati
 // CopyIntegrationV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyIntegrationV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.IntegrationV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaIntegrationV1(ctx)
+	schema, diags := GenSchemaIntegrationV1Resource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

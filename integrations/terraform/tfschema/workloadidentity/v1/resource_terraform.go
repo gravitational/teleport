@@ -42,8 +42,8 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// GenSchemaWorkloadIdentity returns tfsdk.Schema definition for WorkloadIdentity
-func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+// GenSchemaWorkloadIdentityResource returns Terraform Framework resource schema definition for WorkloadIdentity
+func GenSchemaWorkloadIdentityResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 		"id": {
 			Computed:      true,
@@ -68,7 +68,7 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"expires": GenSchemaTimestampResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
@@ -202,7 +202,7 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"jwt": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
 								Optional:    true,
 							})}),
@@ -218,7 +218,7 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
-								"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"maximum_ttl": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Description: "Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.",
 									Optional:    true,
 								}),
@@ -274,6 +274,219 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+	}}, nil
+}
+
+// GenSchemaWorkloadIdentityDataSource returns Terraform Framework datasource schema definition for WorkloadIdentity
+func GenSchemaWorkloadIdentityDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+		"id": {
+			Computed: true,
+			Optional: false,
+			Required: false,
+			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"kind": {
+			Computed:    true,
+			Description: "The kind of resource represented.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"metadata": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"description": {
+					Computed:    true,
+					Description: "description is object description.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"expires": GenSchemaTimestampDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
+				"labels": {
+					Computed:    true,
+					Description: "labels is a set of labels.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
+				"name": {
+					Computed:    true,
+					Description: "name is an object name.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"namespace": {
+					Computed:    true,
+					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+			}),
+			Description: "Common metadata that all resources share.",
+			Optional:    true,
+		},
+		"scope": {
+			Computed:    true,
+			Description: "The scope of the WorkloadIdentity. If unset, the WorkloadIdentity is unscoped (classic behavior). If set, the WorkloadIdentity is scoped and the SPIFFE ID defined in spec.spiffe.id must be a scoped SPIFFE ID prefixed with this scope. The scope of a WorkloadIdentity cannot be changed after creation.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"spec": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"rules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"conditions": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"attribute": {
+										Computed:    true,
+										Description: "The name of the attribute to evaluate the condition against.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+									"eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Computed:    true,
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must be equal to the value.",
+										Optional:    true,
+									},
+									"in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Computed:    true,
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must be in the list of values.",
+										Optional:    true,
+									},
+									"not_eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Computed:    true,
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must not be equal to the value.",
+										Optional:    true,
+									},
+									"not_in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Computed:    true,
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must not be in the list of values.",
+										Optional:    true,
+									},
+								}),
+								Computed:    true,
+								Description: "The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression.",
+								Optional:    true,
+							},
+							"expression": {
+								Computed:    true,
+								Description: "An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
+						Computed:    true,
+						Description: "A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.",
+						Optional:    true,
+					}}),
+					Description: "The rules which are evaluated before the WorkloadIdentity can be issued.",
+					Optional:    true,
+				},
+				"spiffe": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"hint": {
+							Computed:    true,
+							Description: "A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"id": {
+							Computed:    true,
+							Description: "The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash (\"/\").  This field supports templating using attributes.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"jwt": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
+								Optional:    true,
+							})}),
+							Description: "Configuration specific to JWT-SVIDs.",
+							Optional:    true,
+						},
+						"x509": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"dns_sans": {
+									Computed:    true,
+									Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"maximum_ttl": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.",
+									Optional:    true,
+								}),
+								"subject_template": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"common_name": {
+											Computed:    true,
+											Description: "Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"organization": {
+											Computed:    true,
+											Description: "Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"organizational_unit": {
+											Computed:    true,
+											Description: "Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN.",
+									Optional:    true,
+								},
+							}),
+							Description: "Configuration specific to X509-SVIDs.",
+							Optional:    true,
+						},
+					}),
+					Description: "Configuration pertaining to the issuance of SPIFFE-compatible workload identity credentials.",
+					Optional:    true,
+				},
+			}),
+			Description: "The configured properties of the WorkloadIdentity",
+			Optional:    true,
+		},
+		"sub_kind": {
+			Computed:    true,
+			Description: "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
+		"version": {
+			Computed:    true,
+			Description: "The version of the resource being represented.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -950,7 +1163,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 // CopyWorkloadIdentityToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
 func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentity, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	schema, diags := GenSchemaWorkloadIdentity(ctx)
+	schema, diags := GenSchemaWorkloadIdentityResource(ctx)
 	if diags.HasError() {
 		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
 	}

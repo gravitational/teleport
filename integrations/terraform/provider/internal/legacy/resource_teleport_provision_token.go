@@ -61,7 +61,7 @@ func (r resourceTeleportProvisionToken) Metadata(_ context.Context, _ resource.M
 
 // GetSchema returns the resource schema
 func (r resourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return token.GenSchemaProvisionTokenV2(ctx)
+	return token.GenSchemaProvisionTokenV2Resource(ctx)
 }
 
 // Create creates the ProvisionToken
