@@ -29,6 +29,7 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/http2"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
@@ -44,6 +45,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -226,13 +228,14 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 // It is a direct connection, not going through a Teleport proxy.
 // The transport used respects HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables.
 func newDirectTransport(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
-	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	tlsConfig = tlsConfig.Clone()
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{}
 	}
+	tlsConfig.NextProtos = []string{http2.NextProtoTLS, teleport.HTTPNextProtoTLS}
 	// SetTransportDefaults sets the default values for the transport including
 	// support for HTTP_PROXY, HTTPS_PROXY, NO_PROXY, and the default user agent.
-	h2HTTPTransport = utilnet.SetTransportDefaults(h2HTTPTransport)
+	h2HTTPTransport := utilnet.SetTransportDefaults(newTransport(nil, tlsConfig))
 	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
