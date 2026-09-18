@@ -170,7 +170,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: apitypes.MetaNameVnetConfig}
+	plan.Attributes()["id"] = types.StringValue(apitypes.MetaNameVnetConfig)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -334,7 +334,7 @@ func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req resourc
 	}
 	id := vnetConfig.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -383,7 +383,7 @@ func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req resource
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

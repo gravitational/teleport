@@ -192,12 +192,12 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 						"after initial creation will fail due to this mismatch. To resolve this, "+
 						"set the entity_id from your entity_descriptor explicitly in your terraform code.")
 			} else {
-				ed, err := parseSamlIdPEntityDescriptor(configEntityDescriptor.Value)
+				ed, err := parseSamlIdPEntityDescriptor(configEntityDescriptor.ValueString())
 				if err != nil {
 					resp.Diagnostics.AddError("Invalid entity_descriptor", err.Error())
 					return
 				}
-				resp.Plan.SetAttribute(ctx, specEntityIDPath, types.String{Value: ed.EntityID})
+				resp.Plan.SetAttribute(ctx, specEntityIDPath, types.StringValue(ed.EntityID))
 			}
 		}
 
@@ -213,7 +213,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		// the values don't match. The API performs no such checks for `acs_url`, but replacing it here
 		// works around API behavior that allows creating a Teleport resource with non-matching acs_url
 		// values (https://github.com/gravitational/teleport/issues/64643).
-		entityDescriptorXml := stateEntityDescriptor.Value
+		entityDescriptorXml := stateEntityDescriptor.ValueString()
 		var err error
 		if configEntityID.IsUnknown() {
 			resp.Diagnostics.AddWarning("Unknown Entity ID",
@@ -224,7 +224,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 					"explicitly in your terraform code, ensuring its Entity ID matches "+
 					"the terraform entity_id field.")
 		} else if !configEntityID.IsNull() {
-			entityDescriptorXml, err = replaceEntityIDInSamlIdPDescriptor(entityDescriptorXml, configEntityID.Value)
+			entityDescriptorXml, err = replaceEntityIDInSamlIdPDescriptor(entityDescriptorXml, configEntityID.ValueString())
 			if err != nil {
 				resp.Diagnostics.AddWarning("Failed to parse entity_descriptor as XML",
 					"Could not set entity_id in entity_descriptor from state")
@@ -239,14 +239,14 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 					"explicitly in your terraform code, ensuring its ACS URL matches "+
 					"the terraform acs_url field.")
 		} else if !configACSURL.IsNull() {
-			entityDescriptorXml, err = replaceACSURLInSamlIdPDescriptor(entityDescriptorXml, configACSURL.Value)
+			entityDescriptorXml, err = replaceACSURLInSamlIdPDescriptor(entityDescriptorXml, configACSURL.ValueString())
 			if err != nil {
 				resp.Diagnostics.AddWarning("Failed to parse entity_descriptor as XML",
 					"Could not set acs_url in entity_descriptor from state")
 			}
 		}
 		// Note: if neither entity_id nor acs_url were null, this will be a no-op
-		resp.Plan.SetAttribute(ctx, specEntityDescriptorPath, types.String{Value: entityDescriptorXml})
+		resp.Plan.SetAttribute(ctx, specEntityDescriptorPath, types.StringValue(entityDescriptorXml))
 	}
 }
 
@@ -293,7 +293,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

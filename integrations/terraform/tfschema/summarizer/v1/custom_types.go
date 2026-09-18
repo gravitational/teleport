@@ -65,9 +65,9 @@ func CopyFromClassifierActionMode(diags diag.Diagnostics, v attr.Value, o *summa
 	}
 
 	switch {
-	case value.Null || value.Unknown:
+	case value.IsNull() || value.IsUnknown():
 		*o = summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED
-	case value.Value:
+	case value.ValueBool():
 		*o = summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED
 	default:
 		*o = summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED
@@ -78,16 +78,16 @@ func CopyFromClassifierActionMode(diags diag.Diagnostics, v attr.Value, o *summa
 // optional Terraform boolean. Set `preserveUnknown` to preserve unknown values.
 func CopyToClassifierActionMode(_ diag.Diagnostics, o summarizerv1.ClassifierActionMode, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
 	if preserveUnknown && v != nil && v.IsUnknown() {
-		return types.Bool{Unknown: true}
+		return types.BoolUnknown()
 	}
 
 	switch o {
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED:
-		return types.Bool{Value: true}
+		return types.BoolValue(true)
 	case summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED:
-		return types.Bool{Value: false}
+		return types.BoolValue(false)
 	default: // CLASSIFIER_ACTION_MODE_UNSPECIFIED
-		return types.Bool{Null: true}
+		return types.BoolNull()
 	}
 }
 
@@ -124,14 +124,14 @@ func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.Ris
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		*o = summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED
 		return
 	}
 
-	level, ok := riskLevelFromString[strings.ToLower(value.Value)]
+	level, ok := riskLevelFromString[strings.ToLower(value.ValueString())]
 	if !ok {
-		diags.AddError("Invalid risk_level_floor", fmt.Sprintf("%q must be one of low, medium, high, critical", value.Value))
+		diags.AddError("Invalid risk_level_floor", fmt.Sprintf("%q must be one of low, medium, high, critical", value.ValueString()))
 		return
 	}
 	*o = level
@@ -141,15 +141,15 @@ func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.Ris
 // [types.String] value. Set `preserveUnknown` to preserve unknown values.
 func CopyToRiskLevel(_ diag.Diagnostics, o summarizerv1.RiskLevel, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
 	if preserveUnknown && v != nil && v.IsUnknown() {
-		return types.String{Unknown: true}
+		return types.StringUnknown()
 	}
 
 	s, ok := riskLevelToString[o]
 	if !ok { // RISK_LEVEL_UNSPECIFIED
-		return types.String{Null: true}
+		return types.StringNull()
 	}
 
-	return types.String{Value: s}
+	return types.StringValue(s)
 }
 
 // riskLevels lists the accepted risk_level_floor values in documentation order.
@@ -176,10 +176,10 @@ func (v stringEnumValidator) message() string {
 
 func (v stringEnumValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
 	value, ok := req.AttributeConfig.(types.String)
-	if !ok || value.Null || value.Unknown {
+	if !ok || value.IsNull() || value.IsUnknown() {
 		return
 	}
-	if !slices.Contains(v.allowed, strings.ToLower(value.Value)) {
-		resp.Diagnostics.AddError("Invalid "+v.attribute, fmt.Sprintf("%q %s", value.Value, v.message()))
+	if !slices.Contains(v.allowed, strings.ToLower(value.ValueString())) {
+		resp.Diagnostics.AddError("Invalid "+v.attribute, fmt.Sprintf("%q %s", value.ValueString(), v.message()))
 	}
 }

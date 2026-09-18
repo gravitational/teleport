@@ -160,7 +160,7 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req resource.
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: oidcConnector.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(oidcConnector.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -185,7 +185,7 @@ func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	oidcConnectorI, err := r.p.Client().GetOIDCConnector(ctx, id.Value, true)
+	oidcConnectorI, err := r.p.Client().GetOIDCConnector(ctx, id.ValueString(), true)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -312,7 +312,7 @@ func (r resourceTeleportOIDCConnector) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	err := r.p.Client().DeleteOIDCConnector(ctx, id.Value)
+	err := r.p.Client().DeleteOIDCConnector(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting OIDCConnectorV3", trace.Wrap(err), "oidc"))
 		return
@@ -347,7 +347,7 @@ func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req reso
 	}
 	id := oidcConnectorResource.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -400,7 +400,7 @@ func (r resourceTeleportOIDCConnector) ModifyPlan(ctx context.Context, req resou
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

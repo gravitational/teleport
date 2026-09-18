@@ -284,7 +284,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: {{.ID}}}
+	plan.Attributes()["id"] = types.StringValue({{.ID}})
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -308,8 +308,8 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
@@ -317,7 +317,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRe
 	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -542,15 +542,15 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req resource.Dele
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
 	_, err := r.p.Client().{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
 		Name: {{.DefaultName}},
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 	})
 {{- else}}
@@ -626,7 +626,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 	id := {{.VarName}}.GetName()
 {{- end}}
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -704,7 +704,7 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -160,7 +160,7 @@ func (r resourceTeleportIntegration) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: integration.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(integration.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -185,7 +185,7 @@ func (r resourceTeleportIntegration) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	integrationI, err := r.p.Client().GetIntegration(ctx, id.Value)
+	integrationI, err := r.p.Client().GetIntegration(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -312,7 +312,7 @@ func (r resourceTeleportIntegration) Delete(ctx context.Context, req resource.De
 		return
 	}
 
-	err := r.p.Client().DeleteIntegration(ctx, id.Value)
+	err := r.p.Client().DeleteIntegration(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting IntegrationV1", trace.Wrap(err), "integration"))
 		return
@@ -347,7 +347,7 @@ func (r resourceTeleportIntegration) ImportState(ctx context.Context, req resour
 	}
 	id := integrationResource.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -400,7 +400,7 @@ func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

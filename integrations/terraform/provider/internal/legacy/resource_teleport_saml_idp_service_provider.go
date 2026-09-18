@@ -75,7 +75,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
 		return
@@ -166,8 +166,8 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: samlIdPServiceProvider.Metadata.Name}
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["id"] = types.StringValue(samlIdPServiceProvider.Metadata.Name)
+	plan.Attributes()["spec"] = specFromPlan
 	
 
 	diags = resp.State.Set(ctx, &plan)
@@ -193,7 +193,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req re
 		return
 	}
 
-	samlIdPServiceProviderI, err := r.p.Client().GetSAMLIdPServiceProvider(ctx, id.Value)
+	samlIdPServiceProviderI, err := r.p.Client().GetSAMLIdPServiceProvider(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -232,7 +232,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 		return
 	}
 
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(trace.Errorf("spec not found in the plan")), "saml_idp_service_provider"))
 		return
@@ -316,7 +316,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 		return
 	}
 
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -334,7 +334,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Delete(ctx context.Context, req 
 		return
 	}
 
-	err := r.p.Client().DeleteSAMLIdPServiceProvider(ctx, id.Value)
+	err := r.p.Client().DeleteSAMLIdPServiceProvider(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting SAMLIdPServiceProviderV1", trace.Wrap(err), "saml_idp_service_provider"))
 		return
@@ -369,7 +369,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ImportState(ctx context.Context,
 	}
 	id := samlIdPServiceProviderResource.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

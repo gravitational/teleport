@@ -100,7 +100,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 	}
 
 	{{- if .SaveSpecStateFromPlan}}
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
@@ -293,12 +293,12 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 	}
 
 	{{ if .IDPrefix -}}
-	plan.Attrs["id"] = types.String{Value: formatID(idPrefix, {{.ID}})}
+	plan.Attributes()["id"] = types.StringValue(formatID(idPrefix, {{.ID}}))
 	{{- else -}}
-	plan.Attrs["id"] = types.String{Value: {{.ID}}}
+	plan.Attributes()["id"] = types.StringValue({{.ID}})
 	{{- end }}
 	{{- if .SaveSpecStateFromPlan}}
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["spec"] = specFromPlan
 	{{end}}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -415,16 +415,16 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: id.Value,
+		Name: id.ValueString(),
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -432,7 +432,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRe
 	})
 {{- else}}
 
-	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.ValueString(), {{end}}id.ValueString(){{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 {{- end}}
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
@@ -486,7 +486,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 
 {{- if .SaveSpecStateFromPlan}}
 
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
@@ -667,7 +667,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 
 {{- if .SaveSpecStateFromPlan}}
 
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["spec"] = specFromPlan
 {{- end}}
 
 	diags = resp.State.Set(ctx, plan)
@@ -777,21 +777,21 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req resource.Dele
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
 
 	_, err := r.p.Client().{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
-		Name: id.Value,
+		Name: id.ValueString(),
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 	})
 {{- else}}
 
-	err := r.p.Client().{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value)
+	err := r.p.Client().{{.DeleteMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.ValueString(), {{end}}id.ValueString())
 {{- end}}
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting {{.TypeName}}", trace.Wrap(err), "{{.Kind}}"))
@@ -878,7 +878,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 	id := {{.VarName}}Resource.GetName()
 {{- end}}
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -957,7 +957,7 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

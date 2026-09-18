@@ -69,7 +69,7 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req datasour
 		return
 	}
 
-	provisionTokenI, err := r.p.Client().GetToken(ctx, id.Value)
+	provisionTokenI, err := r.p.Client().GetToken(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(err), "token"))
 		return
@@ -85,9 +85,9 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req datasour
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 	}
 
 	

@@ -84,10 +84,10 @@ func (r dataSourceTeleportVnetConfig) Read(ctx context.Context, req datasource.R
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
 		id := vnetConfig.Metadata.Name
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attributes()["id"] = types.StringValue(id)
 	}
 
 	diags = resp.State.Set(ctx, &state)

@@ -170,7 +170,7 @@ func (r resourceTeleportAutoUpdateConfig) Create(ctx context.Context, req resour
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: autoUpdateConfig.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(autoUpdateConfig.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -334,7 +334,7 @@ func (r resourceTeleportAutoUpdateConfig) ImportState(ctx context.Context, req r
 	}
 	id := autoUpdateConfig.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -383,7 +383,7 @@ func (r resourceTeleportAutoUpdateConfig) ModifyPlan(ctx context.Context, req re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

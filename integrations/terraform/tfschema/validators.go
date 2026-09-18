@@ -57,7 +57,7 @@ func (v TimeValueInFutureValidator) Validate(_ context.Context, req tfsdk.Valida
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
@@ -99,15 +99,15 @@ func (v VersionValidator) Validate(_ context.Context, req tfsdk.ValidateAttribut
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
 	var version int
-	fmt.Sscan(value.Value[1:], &version) // strip leading v<xx>
+	fmt.Sscan(value.ValueString()[1:], &version) // strip leading v<xx>
 
 	if version == 0 {
-		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v (%v) is not a valid version (vXX)", req.AttributePath.String(), value.Value))
+		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v (%v) is not a valid version (vXX)", req.AttributePath.String(), value.ValueString()))
 		return
 	}
 
@@ -149,13 +149,13 @@ func (v MapKeysPresentValidator) Validate(_ context.Context, req tfsdk.ValidateA
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
 OUTER:
 	for _, k := range v.Keys {
-		for e := range value.Elems {
+		for e := range value.Elements() {
 			if e == k {
 				break OUTER
 			}
@@ -203,12 +203,12 @@ func (v AnyOfValidator) Validate(ctx context.Context, req tfsdk.ValidateAttribut
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		return
 	}
 
 	for _, key := range v.Keys {
-		attr, found := value.Attrs[key]
+		attr, found := value.Attributes()[key]
 		if found {
 			tfVal, err := attr.ToTerraformValue(ctx)
 			if err != nil {
@@ -270,13 +270,13 @@ func (v SAMLIdPServiceProviderAttributeNameFormatValidator) Validate(_ context.C
 		resp.Diagnostics.AddError("name_format validation error", fmt.Sprintf("Attribute %v can not be converted to String", req.AttributePath.String()))
 		return
 	}
-	if value.Null || value.Unknown || value.Value == "" {
+	if value.IsNull() || value.IsUnknown() || value.ValueString() == "" {
 		return
 	}
-	if !strings.Contains(value.Value, ":") {
+	if !strings.Contains(value.ValueString(), ":") {
 		resp.Diagnostics.AddError(
 			"name_format validation error",
-			fmt.Sprintf("Attribute %v: %q is not a valid URN; use the full URN form (e.g. urn:oasis:names:tc:SAML:2.0:attrname-format:basic)", req.AttributePath.String(), value.Value),
+			fmt.Sprintf("Attribute %v: %q is not a valid URN; use the full URN form (e.g. urn:oasis:names:tc:SAML:2.0:attrname-format:basic)", req.AttributePath.String(), value.ValueString()),
 		)
 	}
 }
@@ -314,14 +314,14 @@ func (v SAMLIdPServiceProviderSpecValidator) Validate(_ context.Context, req tfs
 		resp.Diagnostics.AddError("Spec validation error", fmt.Sprintf("Attribute %v can not be converted to Object", req.AttributePath.String()))
 		return
 	}
-	if spec.Null || spec.Unknown {
+	if spec.IsNull() || spec.IsUnknown() {
 		return
 	}
 
-	entityDescriptor, _ := spec.Attrs["entity_descriptor"].(types.String)
-	entityID, _ := spec.Attrs["entity_id"].(types.String)
-	acsURL, _ := spec.Attrs["acs_url"].(types.String)
-	attrMapping, _ := spec.Attrs["attribute_mapping"].(types.List)
+	entityDescriptor, _ := spec.Attributes()["entity_descriptor"].(types.String)
+	entityID, _ := spec.Attributes()["entity_id"].(types.String)
+	acsURL, _ := spec.Attributes()["acs_url"].(types.String)
+	attrMapping, _ := spec.Attributes()["attribute_mapping"].(types.List)
 
 	if !entityDescriptor.IsNull() && !attrMapping.IsNull() {
 		resp.Diagnostics.AddWarning("entity_descriptor and attribute_mapping cause idempotency issues",
@@ -379,14 +379,14 @@ func (v StringValueValidator) Validate(_ context.Context, req tfsdk.ValidateAttr
 		return
 	}
 
-	if value.Null || value.Unknown {
+	if value.IsNull() || value.IsUnknown() {
 		if !slices.Contains(v.AllowedValues, "") {
-			resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is unset but empty string is not a valid value.", req.AttributePath.String(), value.Value))
+			resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is unset but empty string is not a valid value.", req.AttributePath.String(), value.ValueString()))
 		}
 		return
 	}
 
-	if !slices.Contains(v.AllowedValues, value.Value) {
-		resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is not in the allowed set (%v).", req.AttributePath.String(), value.Value, v.AllowedValues))
+	if !slices.Contains(v.AllowedValues, value.ValueString()) {
+		resp.Diagnostics.AddError("Field validation error", fmt.Sprintf("Attribute %v (%v) is not in the allowed set (%v).", req.AttributePath.String(), value.ValueString(), v.AllowedValues))
 	}
 }

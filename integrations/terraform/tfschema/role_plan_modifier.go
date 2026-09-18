@@ -89,7 +89,7 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		return
 	}
 
-	specRaw, ok := config.Attrs["spec"]
+	specRaw, ok := config.Attributes()["spec"]
 	if !ok {
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to get 'spec' from TF object.")
 		return
@@ -99,7 +99,7 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to cast 'spec' as a TF object.")
 		return
 	}
-	optionsRaw, ok := spec.Attrs["options"]
+	optionsRaw, ok := spec.Attributes()["options"]
 	if !ok {
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to get 'options' from TF object.")
 		return
@@ -109,7 +109,6 @@ func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.Modify
 		resp.Diagnostics.AddError(DefaultRoleOptionsModifierErrSummary, "Failed to cast 'options' as a TF object.")
 		return
 	}
-	options.Null = false
 	resp.AttributePlan = options
 }
 
@@ -165,7 +164,7 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		return
 	}
 
-	specRaw, ok := config.Attrs["spec"]
+	specRaw, ok := config.Attributes()["spec"]
 	if !ok {
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to get 'spec' from TF object.")
 		return
@@ -176,7 +175,7 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		return
 	}
 
-	allowRaw, ok := spec.Attrs["allow"]
+	allowRaw, ok := spec.Attributes()["allow"]
 	if !ok {
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to cast 'allow' as a TF object.")
 		return
@@ -188,7 +187,7 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		return
 	}
 
-	kubernetesResourcesRaw, ok := allow.Attrs["kubernetes_resources"]
+	kubernetesResourcesRaw, ok := allow.Attributes()["kubernetes_resources"]
 	if !ok {
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to cast 'kubernetes_resources' as a TF list.")
 		return
@@ -199,6 +198,5 @@ func (d DefaultKubernetesResourcesModifier) Modify(ctx context.Context, req tfsd
 		resp.Diagnostics.AddError(DefaultKubernetesResourcesModifierErrSummary, "Failed to cast 'kubernetes_resources' as a TF list.")
 		return
 	}
-	kubernetesResources.Null = false
 	resp.AttributePlan = kubernetesResources
 }

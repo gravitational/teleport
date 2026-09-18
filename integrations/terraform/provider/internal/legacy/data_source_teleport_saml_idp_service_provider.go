@@ -69,7 +69,7 @@ func (r dataSourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req 
 		return
 	}
 
-	samlIdPServiceProviderI, err := r.p.Client().GetSAMLIdPServiceProvider(ctx, id.Value)
+	samlIdPServiceProviderI, err := r.p.Client().GetSAMLIdPServiceProvider(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Wrap(err), "saml_idp_service_provider"))
 		return
@@ -85,9 +85,9 @@ func (r dataSourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req 
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 	}
 
 	

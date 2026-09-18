@@ -176,7 +176,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: "cluster_maintenance_config"}
+	plan.Attributes()["id"] = types.StringValue("cluster_maintenance_config")
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -342,7 +342,7 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 	}
 	id := clusterMaintenanceConfig.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -395,7 +395,7 @@ func (r resourceTeleportClusterMaintenanceConfig) ModifyPlan(ctx context.Context
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

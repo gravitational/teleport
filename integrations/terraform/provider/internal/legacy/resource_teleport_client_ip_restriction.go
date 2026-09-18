@@ -170,7 +170,7 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req res
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: clientIPRestriction.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(clientIPRestriction.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -334,7 +334,7 @@ func (r resourceTeleportClientIPRestriction) ImportState(ctx context.Context, re
 	}
 	id := clientIPRestriction.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -383,7 +383,7 @@ func (r resourceTeleportClientIPRestriction) ModifyPlan(ctx context.Context, req
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

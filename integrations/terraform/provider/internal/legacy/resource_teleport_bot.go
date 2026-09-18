@@ -282,7 +282,13 @@ func (r resourceTeleportBot) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	diags = resp.State.Set(ctx, r.botFromProto(ctx, response, plan))
+	plan, diags = r.botFromProto(ctx, response, plan, false)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -309,7 +315,13 @@ func (r resourceTeleportBot) Read(ctx context.Context, req resource.ReadRequest,
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Bot", trace.Wrap(err), "bot"))
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, r.botFromProto(ctx, bot, state))...)
+
+	state, diags = r.botFromProto(ctx, bot, state, false)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // botFromProto converts the server/protobuf representation of a bot to Terraform
@@ -319,7 +331,7 @@ func (r resourceTeleportBot) Read(ctx context.Context, req resource.ReadRequest,
 // NOTE: Terraform is *very* fussy about non-computed attributes changing between
 // plan and apply, even in benign ways such as null becoming an empty list, so
 // exercise caution!
-func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.Bot, base Bot) Bot {
+func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.Bot, base Bot, importState bool) (Bot, diag.Diagnostics) {
 	schema, _ := GenSchemaBot(ctx)
 
 	attrTypes := func(key string) map[string]attr.Type {
@@ -331,12 +343,18 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	}
 
 	stringValue := func(v string) types.String {
-		return types.String{Value: v, Null: v == ""}
+		if v == "" {
+			return types.StringNull()
+		}
+		return types.StringValue(v)
 	}
 
 	timeValue := func(v *timestamppb.Timestamp) tfschema.TimeValue {
 		if v == nil {
-			return tfschema.TimeValue{Null: true}
+			return tfschema.TimeValue{
+				Null:   true,
+				Format: time.RFC3339,
+			}
 		}
 		return tfschema.TimeValue{
 			Value:  v.AsTime(),
@@ -355,11 +373,19 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		if obj.IsNull() {
 			return true
 		}
-		if obj.Attrs == nil {
+		if obj.Attributes() == nil {
 			return true
 		}
-		attr, ok := obj.Attrs[name]
+		attr, ok := obj.Attributes()[name]
 		return !ok || attr.IsNull()
+	}
+
+	statusValue, diags := types.ObjectValue(attrTypes("status"), map[string]attr.Value{
+		"user_name": stringValue(bot.GetStatus().GetUserName()),
+		"role_name": stringValue(bot.GetStatus().GetRoleName()),
+	})
+	if diags.HasError() {
+		return Bot{}, diags
 	}
 
 	sqn := scopes.QualifiedName{Name: bot.GetMetadata().GetName(), Scope: bot.GetScope()}
@@ -367,25 +393,19 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	result := Bot{
 		// User-provided attributes. Will be marked as null based on whether the
 		// user provided legacy or RFD 153-style attributes.
-		Metadata: types.Object{AttrTypes: attrTypes("metadata")},
-		Spec:     types.Object{AttrTypes: attrTypes("spec")},
+		Metadata: types.ObjectNull(attrTypes("metadata")),
+		Spec:     types.ObjectNull(attrTypes("spec")),
 		Scope:    stringValue(bot.GetScope()),
 
 		// Deprecated user-provided attributes.
-		Name: types.String{},
+		Name: types.StringNull(),
 
 		// Computed attributes.
 		ID:      stringValue(sqn.String()),
 		Kind:    stringValue(bot.GetKind()),
 		SubKind: stringValue(bot.GetSubKind()),
 		Version: stringValue(bot.GetVersion()),
-		Status: types.Object{
-			AttrTypes: attrTypes("status"),
-			Attrs: map[string]attr.Value{
-				"user_name": stringValue(bot.GetStatus().GetUserName()),
-				"role_name": stringValue(bot.GetStatus().GetRoleName()),
-			},
-		},
+		Status:  statusValue,
 
 		// Deprecated computed attributes. We still set them for backward-compatibility.
 		UserName: stringValue(bot.GetStatus().GetUserName()),
@@ -393,8 +413,8 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		TokenID:  base.TokenID,
 	}
 
-	if base.TTL.Unknown {
-		result.TTL = types.String{Null: true}
+	if base.TTL.IsUnknown() {
+		result.TTL = types.StringNull()
 	} else {
 		result.TTL = base.TTL
 	}
@@ -402,31 +422,41 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	// If the plan or state includes the metadata or spec attribute, it means
 	// the user has "opted in" to the new RFD 153-style attributes. Otherwise,
 	// for backward-compatibility we'll populate the old fields.
-	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec) || attrPresent(base.Scope)
+	rfd153Style := importState || attrPresent(base.Metadata) || attrPresent(base.Spec) || attrPresent(base.Scope)
 
 	if rfd153Style {
-		result.Name.Null = true
+		result.Name = types.StringNull()
 
-		labels := types.Map{
-			Elems:    make(map[string]attr.Value),
-			ElemType: types.StringType,
-			Null:     len(bot.GetMetadata().GetLabels()) == 0 && attrNull(base.Metadata, "labels"),
-		}
-		for k, v := range bot.GetMetadata().GetLabels() {
-			labels.Elems[k] = types.String{Value: v}
+		var labels types.Map
+		if len(bot.GetMetadata().GetLabels()) == 0 && attrNull(base.Metadata, "labels") {
+			labels = types.MapNull(types.StringType)
+		} else {
+			elements := make(map[string]attr.Value)
+			for k, v := range bot.GetMetadata().GetLabels() {
+				elements[k] = types.StringValue(v)
+			}
+
+			labels, diags = types.MapValue(types.StringType, elements)
+			if diags.HasError() {
+				return Bot{}, diags
+			}
 		}
 
-		result.Metadata.Attrs = map[string]attr.Value{
+		result.Metadata, diags = types.ObjectValue(attrTypes("metadata"), map[string]attr.Value{
 			"description": stringValue(bot.GetMetadata().GetDescription()),
 			"expires":     timeValue(bot.GetMetadata().GetExpires()),
 			"name":        stringValue(bot.GetMetadata().GetName()),
 			"namespace":   stringValue(bot.GetMetadata().GetNamespace()),
 			"revision":    stringValue(bot.GetMetadata().GetRevision()),
 			"labels":      labels,
+		})
+		if diags.HasError() {
+			return Bot{}, diags
 		}
+
 	} else {
-		result.Metadata.Null = true
-		result.Name.Value = bot.GetMetadata().GetName()
+		result.Metadata = types.ObjectNull(attrTypes("metadata"))
+		result.Name = types.StringValue(bot.GetMetadata().GetName())
 	}
 
 	// If the traits list is empty, check the plan or state for whether we
@@ -434,33 +464,52 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	traitsNull := (!rfd153Style && base.Traits.IsNull()) ||
 		(rfd153Style && attrNull(base.Spec, "traits"))
 
-	traits := types.Map{
-		Null:  len(bot.GetSpec().GetTraits()) == 0 && traitsNull,
-		Elems: map[string]attr.Value{},
-		ElemType: types.ListType{
-			ElemType: types.StringType,
-		},
+	var traits types.Map
+	traitsElemType := types.ListType{
+		ElemType: types.StringType,
 	}
-	for _, trait := range bot.GetSpec().GetTraits() {
-		traits.Elems[trait.GetName()] = types.List{
-			Elems: slices.Map(trait.GetValues(), func(s string) attr.Value {
-				return types.String{Value: s}
-			}),
-			ElemType: types.StringType,
+	if len(bot.GetSpec().GetTraits()) == 0 && traitsNull {
+		traits = types.MapNull(traitsElemType)
+	} else {
+		elements := make(map[string]attr.Value)
+		for _, trait := range bot.GetSpec().GetTraits() {
+			elements[trait.GetName()], diags = types.ListValue(types.StringType,
+				slices.Map(trait.GetValues(), func(s string) attr.Value {
+					return types.StringValue(s)
+				}),
+			)
+			if diags.HasError() {
+				return Bot{}, diags
+			}
+		}
+		traits, diags = types.MapValue(traitsElemType, elements)
+		if diags.HasError() {
+			return Bot{}, diags
 		}
 	}
 
 	if rfd153Style {
-		result.Spec.Attrs = map[string]attr.Value{
-			"traits": traits,
-			"roles": types.List{
-				Elems: slices.Map(bot.GetSpec().GetRoles(), func(s string) attr.Value {
-					return types.String{Value: s}
+		var roles types.List
+		if len(bot.GetSpec().GetRoles()) == 0 && attrNull(base.Spec, "roles") {
+			roles = types.ListNull(types.StringType)
+		} else {
+			roles, diags = types.ListValue(types.StringType,
+				slices.Map(bot.GetSpec().GetRoles(), func(s string) attr.Value {
+					return types.StringValue(s)
 				}),
-				ElemType: types.StringType,
-				Null:     len(bot.GetSpec().GetRoles()) == 0 && attrNull(base.Spec, "roles"),
-			},
+			)
+			if diags.HasError() {
+				return Bot{}, diags
+			}
+		}
+
+		result.Spec, diags = types.ObjectValue(attrTypes("spec"), map[string]attr.Value{
+			"traits":          traits,
+			"roles":           roles,
 			"max_session_ttl": durationValue(bot.GetSpec().GetMaxSessionTtl()),
+		})
+		if diags.HasError() {
+			return Bot{}, diags
 		}
 
 		// Duration values can have different equivalent string representations
@@ -472,35 +521,32 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// we restore the original value if it's equivalent to what the server
 		// returned.
 		if attrPresent(base.Spec) {
-			if prev, ok := base.Spec.Attrs["max_session_ttl"]; ok {
+			if prev, ok := base.Spec.Attributes()["max_session_ttl"]; ok {
 				// Scoped bots don't have a max_session_ttl. We don't want to replace the new value by the old one
 				// if the old one is Unknown.
 				if !prev.IsUnknown() {
 					if dur, ok := prev.(tfschema.DurationValue); ok {
 						if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
-							result.Spec.Attrs["max_session_ttl"] = prev
+							result.Spec.Attributes()["max_session_ttl"] = prev
 						}
 					}
 				}
 			}
 		}
 
-		result.Traits = types.Map{
-			Null:     true,
-			ElemType: types.ListType{ElemType: types.StringType},
-		}
+		result.Traits = types.MapNull(types.ListType{ElemType: types.StringType})
 	} else {
-		result.Spec.Null = true
+		result.Spec = types.ObjectNull(attrTypes("spec"))
 		result.Traits = traits
 
 		if len(bot.GetSpec().GetRoles()) != 0 || base.Roles != nil {
 			result.Roles = slices.Map(bot.GetSpec().GetRoles(), func(s string) types.String {
-				return types.String{Value: s}
+				return types.StringValue(s)
 			})
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func (r resourceTeleportBot) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -522,7 +568,13 @@ func (r resourceTeleportBot) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	diags = resp.State.Set(ctx, r.botFromProto(ctx, rsp, plan))
+	plan, diags = r.botFromProto(ctx, rsp, plan, false)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -566,7 +618,13 @@ func (r resourceTeleportBot) ImportState(ctx context.Context, req resource.Impor
 		return
 	}
 
-	diags := rsp.State.Set(ctx, r.botFromProto(ctx, bot, Bot{}))
+	state, diags := r.botFromProto(ctx, bot, Bot{}, true)
+	rsp.Diagnostics.Append(diags...)
+	if rsp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = rsp.State.Set(ctx, state)
 	rsp.Diagnostics.Append(diags...)
 	if rsp.Diagnostics.HasError() {
 		return
@@ -701,11 +759,11 @@ func (b Bot) GetSpec() *machineidv1.BotSpec {
 
 func (b Bot) GetName() string {
 	if attrPresent(b.Name) {
-		return b.Name.Value
+		return b.Name.ValueString()
 	} else {
-		if nm, ok := b.Metadata.Attrs["name"]; ok {
+		if nm, ok := b.Metadata.Attributes()["name"]; ok {
 			if str, ok := nm.(types.String); ok {
-				return str.Value
+				return str.ValueString()
 			}
 		}
 	}
@@ -713,16 +771,16 @@ func (b Bot) GetName() string {
 }
 
 func (b Bot) GetDescription() string {
-	if desc, ok := b.Metadata.Attrs["description"]; ok {
+	if desc, ok := b.Metadata.Attributes()["description"]; ok {
 		if str, ok := desc.(types.String); ok {
-			return str.Value
+			return str.ValueString()
 		}
 	}
 	return ""
 }
 
 func (b Bot) GetExpires() *timestamppb.Timestamp {
-	if exp, ok := b.Metadata.Attrs["expires"]; ok {
+	if exp, ok := b.Metadata.Attributes()["expires"]; ok {
 		if tv, ok := exp.(tfschema.TimeValue); ok {
 			return timestamppb.New(tv.Value)
 		}
@@ -731,18 +789,18 @@ func (b Bot) GetExpires() *timestamppb.Timestamp {
 }
 
 func (b Bot) GetNamespace() string {
-	if ns, ok := b.Metadata.Attrs["namespace"]; ok {
+	if ns, ok := b.Metadata.Attributes()["namespace"]; ok {
 		if str, ok := ns.(types.String); ok {
-			return str.Value
+			return str.ValueString()
 		}
 	}
 	return ""
 }
 
 func (b Bot) GetRevision() string {
-	if rev, ok := b.Metadata.Attrs["revision"]; ok {
+	if rev, ok := b.Metadata.Attributes()["revision"]; ok {
 		if str, ok := rev.(types.String); ok {
-			return str.Value
+			return str.ValueString()
 		}
 	}
 	return ""
@@ -753,7 +811,7 @@ func (b Bot) GetLabels() map[string]string {
 		return nil
 	}
 
-	lbs, ok := b.Metadata.Attrs["labels"]
+	lbs, ok := b.Metadata.Attributes()["labels"]
 	if !ok {
 		return nil
 	}
@@ -763,10 +821,10 @@ func (b Bot) GetLabels() map[string]string {
 		return nil
 	}
 
-	labels := make(map[string]string, len(mp.Elems))
-	for key, val := range mp.Elems {
+	labels := make(map[string]string, len(mp.Elements()))
+	for key, val := range mp.Elements() {
 		if str, ok := val.(types.String); ok {
-			labels[key] = str.Value
+			labels[key] = str.ValueString()
 		}
 	}
 	return labels
@@ -775,13 +833,13 @@ func (b Bot) GetLabels() map[string]string {
 func (b Bot) GetTraits() []*machineidv1.Trait {
 	var traitMap map[string]attr.Value
 	if attrPresent(b.Spec) {
-		if ts, ok := b.Spec.Attrs["traits"]; ok && attrPresent(ts) {
+		if ts, ok := b.Spec.Attributes()["traits"]; ok && attrPresent(ts) {
 			if mp, ok := ts.(types.Map); ok {
-				traitMap = mp.Elems
+				traitMap = mp.Elements()
 			}
 		}
 	} else if attrPresent(b.Traits) {
-		traitMap = b.Traits.Elems
+		traitMap = b.Traits.Elements()
 	}
 
 	if traitMap == nil {
@@ -794,9 +852,9 @@ func (b Bot) GetTraits() []*machineidv1.Trait {
 		if !ok {
 			continue
 		}
-		values := slices.FilterMapUnique(list.Elems, func(v attr.Value) (string, bool) {
+		values := slices.FilterMapUnique(list.Elements(), func(v attr.Value) (string, bool) {
 			if str, ok := v.(types.String); ok {
-				return str.Value, true
+				return str.ValueString(), true
 			}
 			return "", false
 		})
@@ -810,11 +868,11 @@ func (b Bot) GetTraits() []*machineidv1.Trait {
 
 func (b Bot) GetRoles() []string {
 	if attrPresent(b.Spec) {
-		if rs, ok := b.Spec.Attrs["roles"]; ok {
+		if rs, ok := b.Spec.Attributes()["roles"]; ok {
 			if list, ok := rs.(types.List); ok {
-				return slices.FilterMapUnique(list.Elems, func(v attr.Value) (string, bool) {
+				return slices.FilterMapUnique(list.Elements(), func(v attr.Value) (string, bool) {
 					if str, ok := v.(types.String); ok {
-						return str.Value, true
+						return str.ValueString(), true
 					}
 					return "", false
 				})
@@ -824,7 +882,7 @@ func (b Bot) GetRoles() []string {
 	}
 
 	return slices.Map(b.Roles, func(v types.String) string {
-		return v.Value
+		return v.ValueString()
 	})
 }
 
@@ -833,7 +891,7 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 		return nil
 	}
 
-	ttl, ok := b.Spec.Attrs["max_session_ttl"]
+	ttl, ok := b.Spec.Attributes()["max_session_ttl"]
 	if !ok {
 		return nil
 	}
@@ -850,7 +908,7 @@ func (b Bot) GetScope() string {
 	if !attrPresent(b.Scope) {
 		return ""
 	}
-	return b.Scope.Value
+	return b.Scope.ValueString()
 }
 
 func attrPresent(v attr.Value) bool {

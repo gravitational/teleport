@@ -69,7 +69,7 @@ func (r dataSourceTeleportOIDCConnector) Read(ctx context.Context, req datasourc
 		return
 	}
 
-	oidcConnectorI, err := r.p.Client().GetOIDCConnector(ctx, id.Value, true)
+	oidcConnectorI, err := r.p.Client().GetOIDCConnector(ctx, id.ValueString(), true)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(err), "oidc"))
 		return
@@ -85,9 +85,9 @@ func (r dataSourceTeleportOIDCConnector) Read(ctx context.Context, req datasourc
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 	}
 
 	

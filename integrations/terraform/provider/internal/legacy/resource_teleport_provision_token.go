@@ -171,7 +171,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req resource
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: provisionToken.Metadata.Revision}
+	plan.Attributes()["id"] = types.StringValue(provisionToken.Metadata.Revision)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -196,7 +196,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	provisionTokenI, err := r.p.Client().GetToken(ctx, id.Value)
+	provisionTokenI, err := r.p.Client().GetToken(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -323,7 +323,7 @@ func (r resourceTeleportProvisionToken) Delete(ctx context.Context, req resource
 		return
 	}
 
-	err := r.p.Client().DeleteToken(ctx, id.Value)
+	err := r.p.Client().DeleteToken(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting ProvisionTokenV2", trace.Wrap(err), "token"))
 		return
@@ -358,7 +358,7 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req res
 	}
 	id := provisionTokenResource.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -411,7 +411,7 @@ func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req reso
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

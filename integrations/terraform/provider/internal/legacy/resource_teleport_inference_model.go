@@ -152,7 +152,7 @@ func (r resourceTeleportInferenceModel) Create(ctx context.Context, req resource
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: inferenceModel.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(inferenceModel.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -177,7 +177,7 @@ func (r resourceTeleportInferenceModel) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	inferenceModelI, err := r.p.Client().SummarizerClient().GetInferenceModel(ctx, id.Value)
+	inferenceModelI, err := r.p.Client().SummarizerClient().GetInferenceModel(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -296,7 +296,7 @@ func (r resourceTeleportInferenceModel) Delete(ctx context.Context, req resource
 		return
 	}
 
-	err := r.p.Client().SummarizerClient().DeleteInferenceModel(ctx, id.Value)
+	err := r.p.Client().SummarizerClient().DeleteInferenceModel(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting InferenceModel", trace.Wrap(err), "inference_model"))
 		return
@@ -331,7 +331,7 @@ func (r resourceTeleportInferenceModel) ImportState(ctx context.Context, req res
 	}
 	id := inferenceModel.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -380,7 +380,7 @@ func (r resourceTeleportInferenceModel) ModifyPlan(ctx context.Context, req reso
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

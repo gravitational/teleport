@@ -72,15 +72,15 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
 		Name: {{.DefaultName}},
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -122,14 +122,14 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
 {{- if .IsPlainStruct}}
 		id := {{.VarName}}.Metadata.Name
 {{- else }}
 		id := {{.VarName}}.GetName()
 {{- end}}
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attributes()["id"] = types.StringValue(id)
 	}
 
 	diags = resp.State.Set(ctx, &state)

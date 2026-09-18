@@ -84,10 +84,10 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, re
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
 		id := clusterMaintenanceConfig.GetName()
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attributes()["id"] = types.StringValue(id)
 	}
 
 	diags = resp.State.Set(ctx, &state)

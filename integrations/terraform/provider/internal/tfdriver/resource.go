@@ -202,7 +202,7 @@ func (r Resource[T, I]) Create(ctx context.Context, req resource.CreateRequest, 
 				return
 			}
 
-			plan.Attrs["id"] = types.String{Value: id.String()}
+			plan.Attributes()["id"] = types.StringValue(id.String())
 
 			diags = resp.State.Set(ctx, &plan)
 			resp.Diagnostics.Append(diags...)
@@ -393,7 +393,7 @@ func (r Resource[T, I]) ImportState(ctx context.Context, req resource.ImportStat
 		return
 	}
 
-	state.Attrs["id"] = types.String{Value: req.ID}
+	state.Attributes()["id"] = types.StringValue(req.ID)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

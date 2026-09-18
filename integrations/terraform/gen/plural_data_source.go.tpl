@@ -91,16 +91,16 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
+	if subKind.ValueString() == "" {
+		subKind = types.StringValue({{.DefaultSubKind}})
 	}
 {{- end}}
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client().{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: id.Value,
+		Name: id.ValueString(),
 		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
+		SubKind: subKind.ValueString(),
 		{{- end}}
 		{{- if ne .WithSecrets ""}}
 		WithSecrets: {{.WithSecrets}},
@@ -108,7 +108,7 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	})
 {{- else}}
 
-	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	{{.VarName}}I, err := r.p.Client().{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.ValueString(){{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 {{- end}}
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
@@ -132,12 +132,12 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.Re
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
 		{{- if .IDPrefix }}
-		state.Attrs["id"] = types.String{Value: formatID(idPrefix.Value, id.Value)}
+		state.Attributes()["id"] = types.String{Value: formatID(idPrefix.ValueString(), id.ValueString())}
 		{{- else }}
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 		{{- end }}
 	}
 

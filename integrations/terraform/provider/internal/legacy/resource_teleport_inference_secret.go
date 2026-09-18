@@ -76,7 +76,7 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resourc
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
@@ -158,8 +158,8 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: inferenceSecret.Metadata.Name}
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["id"] = types.StringValue(inferenceSecret.Metadata.Name)
+	plan.Attributes()["spec"] = specFromPlan
 	
 
 	diags = resp.State.Set(ctx, &plan)
@@ -185,7 +185,7 @@ func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req resource.
 		return
 	}
 
-	inferenceSecretI, err := r.p.Client().SummarizerClient().GetInferenceSecret(ctx, id.Value)
+	inferenceSecretI, err := r.p.Client().SummarizerClient().GetInferenceSecret(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -223,7 +223,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 		return
 	}
 
-	specFromPlan, exist := plan.Attrs["spec"]
+	specFromPlan, exist := plan.Attributes()["spec"]
 	if !exist {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
@@ -300,7 +300,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["spec"] = specFromPlan
+	plan.Attributes()["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -318,7 +318,7 @@ func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.p.Client().SummarizerClient().DeleteInferenceSecret(ctx, id.Value)
+	err := r.p.Client().SummarizerClient().DeleteInferenceSecret(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting InferenceSecret", trace.Wrap(err), "inference_secret"))
 		return
@@ -369,7 +369,7 @@ func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

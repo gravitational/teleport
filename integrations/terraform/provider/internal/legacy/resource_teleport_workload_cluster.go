@@ -154,7 +154,7 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: workloadcluster.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(workloadcluster.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -209,7 +209,7 @@ func (r resourceTeleportWorkloadCluster) Read(ctx context.Context, req resource.
 		return
 	}
 
-	workloadclusterI, err := r.p.Client().GetWorkloadCluster(ctx, id.Value)
+	workloadclusterI, err := r.p.Client().GetWorkloadCluster(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -358,7 +358,7 @@ func (r resourceTeleportWorkloadCluster) Delete(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.p.Client().DeleteWorkloadCluster(ctx, id.Value)
+	err := r.p.Client().DeleteWorkloadCluster(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting WorkloadCluster", trace.Wrap(err), "workload_cluster"))
 		return
@@ -393,7 +393,7 @@ func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req re
 	}
 	id := workloadcluster.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -442,7 +442,7 @@ func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

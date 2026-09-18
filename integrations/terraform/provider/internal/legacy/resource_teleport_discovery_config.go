@@ -156,7 +156,7 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: discoveryConfig.Header.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(discoveryConfig.Header.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -181,7 +181,7 @@ func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req resource.
 		return
 	}
 
-	discoveryConfigI, err := r.p.Client().DiscoveryConfigClient().GetDiscoveryConfig(ctx, id.Value)
+	discoveryConfigI, err := r.p.Client().DiscoveryConfigClient().GetDiscoveryConfig(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -303,7 +303,7 @@ func (r resourceTeleportDiscoveryConfig) Delete(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.p.Client().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, id.Value)
+	err := r.p.Client().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting DiscoveryConfig", trace.Wrap(err), "discovery_config"))
 		return
@@ -338,7 +338,7 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req re
 	}
 	id := discoveryConfig.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -391,7 +391,7 @@ func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

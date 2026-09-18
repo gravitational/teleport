@@ -106,9 +106,9 @@ func (r dataSource[T, I]) Read(ctx context.Context, req datasource.ReadRequest, 
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = types.String{Value: id.String()}
+		state.Attributes()["id"] = types.StringValue(id.String())
 	}
 
 	diags = r.dataSource.Codec.ToState(ctx, obj, &state)

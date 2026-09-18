@@ -69,7 +69,7 @@ func (r dataSourceTeleportIntegration) Read(ctx context.Context, req datasource.
 		return
 	}
 
-	integrationI, err := r.p.Client().GetIntegration(ctx, id.Value)
+	integrationI, err := r.p.Client().GetIntegration(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Integration", trace.Wrap(err), "integration"))
 		return
@@ -85,9 +85,9 @@ func (r dataSourceTeleportIntegration) Read(ctx context.Context, req datasource.
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 	}
 
 	

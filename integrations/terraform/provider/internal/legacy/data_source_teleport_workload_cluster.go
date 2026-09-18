@@ -69,7 +69,7 @@ func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req datasou
 		return
 	}
 
-	workloadclusterI, err := r.p.Client().GetWorkloadCluster(ctx, id.Value)
+	workloadclusterI, err := r.p.Client().GetWorkloadCluster(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading WorkloadCluster", trace.Wrap(err), "workload_cluster"))
 		return
@@ -85,9 +85,9 @@ func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req datasou
 	// terraform-plugin-testing version <1.5.0 requires data resources to
 	// implement the 'id' attribute.
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
-	v, ok := state.Attrs["id"]
+	v, ok := state.Attributes()["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = id
+		state.Attributes()["id"] = id
 	}
 
 	workloadcluster := workloadclusterI

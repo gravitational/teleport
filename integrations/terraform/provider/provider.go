@@ -486,14 +486,14 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 
 // stringFromConfigOrEnv returns value from config or from env var if config value is empty, default otherwise
 func stringFromConfigOrEnv(value types.String, env string, def string) string {
-	if value.Unknown || value.Null {
+	if value.IsUnknown() || value.IsNull() {
 		value := os.Getenv(env)
 		if value != "" {
 			return value
 		}
 	}
 
-	configValue := strings.TrimSpace(value.Value)
+	configValue := strings.TrimSpace(value.ValueString())
 
 	if configValue == "" {
 		return def
@@ -504,12 +504,12 @@ func stringFromConfigOrEnv(value types.String, env string, def string) string {
 
 func boolFromConfigOrEnv(value types.Bool, env string) bool {
 	envVar := os.Getenv(env)
-	if envVar != "" && (value.Unknown || value.Null) {
+	if envVar != "" && (value.IsUnknown() || value.IsNull()) {
 		if b, err := strconv.ParseBool(envVar); err == nil {
 			return b
 		}
 	}
-	return value.Value
+	return value.ValueBool()
 }
 
 // validateAddr validates passed addr

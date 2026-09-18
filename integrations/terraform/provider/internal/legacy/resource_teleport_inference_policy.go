@@ -152,7 +152,7 @@ func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: inferencePolicy.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(inferencePolicy.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -177,7 +177,7 @@ func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req resource.
 		return
 	}
 
-	inferencePolicyI, err := r.p.Client().SummarizerClient().GetInferencePolicy(ctx, id.Value)
+	inferencePolicyI, err := r.p.Client().SummarizerClient().GetInferencePolicy(ctx, id.ValueString())
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -296,7 +296,7 @@ func (r resourceTeleportInferencePolicy) Delete(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.p.Client().SummarizerClient().DeleteInferencePolicy(ctx, id.Value)
+	err := r.p.Client().SummarizerClient().DeleteInferencePolicy(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting InferencePolicy", trace.Wrap(err), "inference_policy"))
 		return
@@ -331,7 +331,7 @@ func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req re
 	}
 	id := inferencePolicy.Metadata.Name
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -380,7 +380,7 @@ func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

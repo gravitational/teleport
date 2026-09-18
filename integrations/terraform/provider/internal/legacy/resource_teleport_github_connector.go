@@ -160,7 +160,7 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req resourc
 		return
 	}
 
-	plan.Attrs["id"] = types.String{Value: githubConnector.Metadata.Name}
+	plan.Attributes()["id"] = types.StringValue(githubConnector.Metadata.Name)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -185,7 +185,7 @@ func (r resourceTeleportGithubConnector) Read(ctx context.Context, req resource.
 		return
 	}
 
-	githubConnectorI, err := r.p.Client().GetGithubConnector(ctx, id.Value, true)
+	githubConnectorI, err := r.p.Client().GetGithubConnector(ctx, id.ValueString(), true)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -312,7 +312,7 @@ func (r resourceTeleportGithubConnector) Delete(ctx context.Context, req resourc
 		return
 	}
 
-	err := r.p.Client().DeleteGithubConnector(ctx, id.Value)
+	err := r.p.Client().DeleteGithubConnector(ctx, id.ValueString())
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting GithubConnectorV3", trace.Wrap(err), "github"))
 		return
@@ -347,7 +347,7 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req re
 	}
 	id := githubConnectorResource.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attributes()["id"] = types.StringValue(id)
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -400,7 +400,7 @@ func (r resourceTeleportGithubConnector) ModifyPlan(ctx context.Context, req res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.Attrs["spec"] = config.Attrs["spec"]
+	plan.Attributes()["spec"] = config.Attributes()["spec"]
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

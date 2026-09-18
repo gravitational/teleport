@@ -126,7 +126,7 @@ func NameIdentifierFromPath(p path.Path) TerraformIdentifierExtractor[NameIdenti
 			return NameIdentifier{}, diags
 		}
 
-		return NameIdentifier{Name: identifier.Value}, diags
+		return NameIdentifier{Name: identifier.ValueString()}, diags
 	}
 }
 
@@ -194,7 +194,7 @@ func ScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) TerraformIdentif
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
 
-		sqn := scopes.QualifiedName{Name: identifier.Value, Scope: scope.Value}
+		sqn := scopes.QualifiedName{Name: identifier.ValueString(), Scope: scope.ValueString()}
 		if err := sqn.WeakValidate(); err != nil {
 			diags.Append(tfdiag.DiagFromErr("malformed scope qualified name", err))
 			return ScopeQualifiedNameIdentifier{}, diags
@@ -220,11 +220,11 @@ func PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(p ScopeQualifiedPath) 
 			return ScopeQualifiedNameIdentifier{}, diags
 		}
 
-		if scope.Null || scope.Unknown || scope.Value == "" {
-			return ScopeQualifiedNameIdentifier{Name: identifier.Value}, diags
+		if scope.IsNull() || scope.IsUnknown() || scope.ValueString() == "" {
+			return ScopeQualifiedNameIdentifier{Name: identifier.ValueString()}, diags
 		}
 
-		sqn := scopes.QualifiedName{Name: identifier.Value, Scope: scope.Value}
+		sqn := scopes.QualifiedName{Name: identifier.ValueString(), Scope: scope.ValueString()}
 		if err := sqn.WeakValidate(); err != nil {
 			diags.Append(tfdiag.DiagFromErr("malformed scope qualified name", err))
 			return ScopeQualifiedNameIdentifier{}, diags
@@ -299,7 +299,7 @@ func CompositeIdentifierFromPath(p CompositeIdentifierPath) TerraformIdentifierE
 			return CompositeIdentifier{}, diags
 		}
 
-		return CompositeIdentifier{Prefix: prefix.Value, Name: id.Value}, diags
+		return CompositeIdentifier{Prefix: prefix.ValueString(), Name: id.ValueString()}, diags
 	}
 }
 
@@ -392,13 +392,13 @@ func ScopeQualifiedCompositeIdentifierFromPath(p CompositeIdentifierPath) Terraf
 			return ScopeQualifiedCompositeIdentifier{}, diags
 		}
 
-		prefixSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(prefix.Value)
+		prefixSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(prefix.ValueString())
 		if err != nil {
 			diags.Append(tfdiag.DiagFromErr("malformed scope qualified prefix", err))
 			return ScopeQualifiedCompositeIdentifier{}, diags
 		}
 
-		nameSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(name.Value)
+		nameSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(name.ValueString())
 		if err != nil {
 			diags.Append(tfdiag.DiagFromErr("malformed scope qualified name", err))
 			return ScopeQualifiedCompositeIdentifier{}, diags
