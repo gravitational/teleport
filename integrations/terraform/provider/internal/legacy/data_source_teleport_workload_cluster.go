@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportWorkloadCluster{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportWorkloadCluster{}
 
 // dataSourceTeleportWorkloadClusterType is the data source metadata type
 type dataSourceTeleportWorkloadClusterType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportWorkloadCluster) Metadata(_ context.Context, _ datasou
 	resp.TypeName = "teleport_workload_cluster"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaWorkloadClusterDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportWorkloadCluster) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaWorkloadClusterDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport WorkloadCluster

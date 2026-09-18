@@ -30,7 +30,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	token "github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -38,6 +37,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportProvisionToken{}
+var _ resource.ResourceWithSchema = &resourceTeleportProvisionToken{}
 
 // resourceTeleportProvisionTokenType is the resource metadata type
 type resourceTeleportProvisionTokenType struct{}
@@ -59,9 +59,11 @@ func (r resourceTeleportProvisionToken) Metadata(_ context.Context, _ resource.M
 	resp.TypeName = "teleport_provision_token"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return token.GenSchemaProvisionTokenV2Resource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportProvisionToken) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := token.GenSchemaProvisionTokenV2Resource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the ProvisionToken

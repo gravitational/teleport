@@ -29,8 +29,10 @@ import (
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
+	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	_ "google.golang.org/protobuf/types/known/durationpb"
@@ -44,25 +46,25 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 // GenSchemaInferenceModelResource returns Terraform Framework resource schema definition for InferenceModel
-func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Should always be set to \"inference_model\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -74,20 +76,20 @@ func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description:   "name is an object name.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -98,25 +100,25 @@ func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"bedrock": {
+				"bedrock": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"bedrock_model_id": {
+						"bedrock_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"integration": {
+						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"region": {
+						"region": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Region is the AWS region which will be used for inference.",
 							Optional:      true,
@@ -127,30 +129,30 @@ func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the inference provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
-				"max_session_length_bytes": {
+				"max_session_length_bytes": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
-				"openai": {
+				"openai": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"api_key_secret_ref": {
+						"api_key_secret_ref": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"base_url": {
+						"base_url": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"openai_model_id": {
+						"openai_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
 							Optional:      true,
@@ -165,14 +167,14 @@ func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is the resource sub-kind. Should be empty.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Version is the resource version. Should be set to \"v1\".",
 			Optional:      true,
@@ -183,23 +185,23 @@ func GenSchemaInferenceModelResource(ctx context.Context) (github_com_hashicorp_
 }
 
 // GenSchemaInferenceModelDataSource returns Terraform Framework datasource schema definition for InferenceModel
-func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Should always be set to \"inference_model\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -210,18 +212,18 @@ func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicor
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "name is an object name.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -231,23 +233,23 @@ func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicor
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"bedrock": {
+				"bedrock": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"bedrock_model_id": {
+						"bedrock_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"integration": {
+						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"region": {
+						"region": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Region is the AWS region which will be used for inference.",
 							Optional:    true,
@@ -257,27 +259,27 @@ func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicor
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the inference provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
-				"max_session_length_bytes": {
+				"max_session_length_bytes": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "MaxSessionLengthBytes is the maximum session length that can be sent to inference provider. Currently, it's determined by the size of model's context window; future versions of Teleport will allow summarizing larger sessions by splitting them.  Inference providers will reject requests that are larger than given model's context window. Since context windows are usually sized in tokens, this value is an approximation. Assuming 2 bytes per input token should be safe.  Currently, Teleport will outright reject sessions larger than this limit; future versions will split sessions in chunks, treating this size as a maximum.  If unset or set to 0, defaults to 1MB.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
-				"openai": {
+				"openai": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"api_key_secret_ref": {
+						"api_key_secret_ref": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"base_url": {
+						"base_url": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"openai_model_id": {
+						"openai_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
 							Optional:    true,
@@ -291,13 +293,13 @@ func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicor
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is the resource sub-kind. Should be empty.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Version is the resource version. Should be set to \"v1\".",
 			Optional:    true,
@@ -307,25 +309,25 @@ func GenSchemaInferenceModelDataSource(ctx context.Context) (github_com_hashicor
 }
 
 // GenSchemaInferenceSecretResource returns Terraform Framework resource schema definition for InferenceSecret
-func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Should always be set to \"inference_secret\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -337,20 +339,20 @@ func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description:   "name is an object name.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -361,8 +363,8 @@ func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				Description: "Value is the secret value, such as an API key.",
 				Required:    true,
 				Sensitive:   true,
@@ -372,14 +374,14 @@ func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp
 			Required:    true,
 			Sensitive:   true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is the resource sub-kind. Should be empty.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Version is the resource version. Should be set to \"v1\".",
 			Optional:      true,
@@ -390,23 +392,23 @@ func GenSchemaInferenceSecretResource(ctx context.Context) (github_com_hashicorp
 }
 
 // GenSchemaInferenceSecretDataSource returns Terraform Framework datasource schema definition for InferenceSecret
-func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Should always be set to \"inference_secret\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -417,18 +419,18 @@ func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashico
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "name is an object name.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -438,8 +440,8 @@ func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashico
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				Description: "Value is the secret value, such as an API key.",
 				Required:    true,
 				Sensitive:   true,
@@ -449,13 +451,13 @@ func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashico
 			Required:    true,
 			Sensitive:   true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is the resource sub-kind. Should be empty.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Version is the resource version. Should be set to \"v1\".",
 			Optional:    true,
@@ -465,25 +467,25 @@ func GenSchemaInferenceSecretDataSource(ctx context.Context) (github_com_hashico
 }
 
 // GenSchemaInferencePolicyResource returns Terraform Framework resource schema definition for InferencePolicy
-func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Should always be set to \"inference_policy\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -495,20 +497,20 @@ func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description:   "name is an object name.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -519,21 +521,21 @@ func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"filter": {
+				"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"kinds": {
+				"kinds": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"model": {
+				"model": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Model is the name of the `InferenceModel` resource to be used for summarization.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -542,14 +544,14 @@ func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is the resource sub-kind. Should be empty.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Version is the resource version. Should be set to \"v1\".",
 			Optional:      true,
@@ -560,23 +562,23 @@ func GenSchemaInferencePolicyResource(ctx context.Context) (github_com_hashicorp
 }
 
 // GenSchemaInferencePolicyDataSource returns Terraform Framework datasource schema definition for InferencePolicy
-func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Should always be set to \"inference_policy\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -587,18 +589,18 @@ func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashico
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "name is an object name.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -608,20 +610,20 @@ func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashico
 			Description: "",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"filter": {
+				"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"kinds": {
+				"kinds": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Kinds are session kinds matched by this policy, e.g., \"ssh\", \"k8s\", \"db\"",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"model": {
+				"model": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Model is the name of the `InferenceModel` resource to be used for summarization.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -630,13 +632,13 @@ func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashico
 			Description: "",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is the resource sub-kind. Should be empty.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Version is the resource version. Should be set to \"v1\".",
 			Optional:    true,
@@ -646,25 +648,25 @@ func GenSchemaInferencePolicyDataSource(ctx context.Context) (github_com_hashico
 }
 
 // GenSchemaClassifierResource returns Terraform Framework resource schema definition for Classifier
-func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Should always be set to \"classifier\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -676,20 +678,20 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description:   "name is an object name.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -700,9 +702,9 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 			Description: "Metadata is the resource metadata.",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"actions": {
+				"actions": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"emit_audit_event": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
@@ -726,33 +728,33 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 					Description: "Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary.",
 					Optional:    true,
 				},
-				"criteria": {
+				"criteria": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"disabled": {
+				"disabled": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "Disabled, if true, excludes the classifier from evaluation without deleting it.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
-				"filter": {
+				"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels[\"env\"], \"prod\")`. If empty, the classifier applies to all sessions of matching kinds.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"kinds": {
+				"kinds": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Kinds are session kinds matched by this classifier, e.g., \"ssh\", \"k8s\", \"db\".",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"rules": {
+				"rules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"actions": {
+						"actions": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"emit_audit_event": GenSchemaClassifierActionModeResource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
@@ -776,21 +778,21 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 							Description: "Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule.",
 							Optional:    true,
 						},
-						"criteria": {
+						"criteria": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"filter": {
+						"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"name": {
+						"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.",
 							Required:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -805,14 +807,14 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 			Description: "Spec selects the sessions that this classifier applies to and defines what the classifier matches.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is the resource sub-kind. Should be empty.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Version is the resource version. Should be set to \"v1\".",
 			Optional:      true,
@@ -823,23 +825,23 @@ func GenSchemaClassifierResource(ctx context.Context) (github_com_hashicorp_terr
 }
 
 // GenSchemaClassifierDataSource returns Terraform Framework datasource schema definition for Classifier
-func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Should always be set to \"classifier\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -850,18 +852,18 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "name is an object name.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -871,9 +873,9 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 			Description: "Metadata is the resource metadata.",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"actions": {
+				"actions": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"emit_audit_event": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
@@ -894,31 +896,31 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 					Description: "Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary.",
 					Optional:    true,
 				},
-				"criteria": {
+				"criteria": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"disabled": {
+				"disabled": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "Disabled, if true, excludes the classifier from evaluation without deleting it.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
-				"filter": {
+				"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels[\"env\"], \"prod\")`. If empty, the classifier applies to all sessions of matching kinds.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"kinds": {
+				"kinds": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "Kinds are session kinds matched by this classifier, e.g., \"ssh\", \"k8s\", \"db\".",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"rules": {
+				"rules": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"actions": {
+						"actions": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"emit_audit_event": GenSchemaClassifierActionModeDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:    true,
@@ -939,19 +941,19 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 							Description: "Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule.",
 							Optional:    true,
 						},
-						"criteria": {
+						"criteria": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"filter": {
+						"filter": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"name": {
+						"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.",
 							Required:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -965,13 +967,13 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 			Description: "Spec selects the sessions that this classifier applies to and defines what the classifier matches.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is the resource sub-kind. Should be empty.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Version is the resource version. Should be set to \"v1\".",
 			Optional:    true,
@@ -981,25 +983,25 @@ func GenSchemaClassifierDataSource(ctx context.Context) (github_com_hashicorp_te
 }
 
 // GenSchemaRetrievalModelResource returns Terraform Framework resource schema definition for RetrievalModel
-func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Should always be set to \"retrieval_model\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -1011,14 +1013,14 @@ func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -1031,25 +1033,25 @@ func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"bedrock": {
+				"bedrock": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"bedrock_model_id": {
+						"bedrock_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"integration": {
+						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"region": {
+						"region": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Region is the AWS region which will be used for inference.",
 							Optional:      true,
@@ -1060,30 +1062,30 @@ func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the embeddings provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
-				"inference_model_name": {
+				"inference_model_name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "inference_model_name is the name of the model used to convert natural language search queries into API requests and generate prose from a session summary.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"openai": {
+				"openai": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"api_key_secret_ref": {
+						"api_key_secret_ref": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"base_url": {
+						"base_url": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"openai_model_id": {
+						"openai_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
 							Optional:      true,
@@ -1098,14 +1100,14 @@ func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_
 			Description: "spec contains the configuration for the retrieval model, including the embeddings provider and the search inference model. In the future it can be extended with re-rankers configuration and other settings.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is the resource sub-kind. Should be empty.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Version is the resource version. Should be set to \"v1\".",
 			Optional:      true,
@@ -1116,23 +1118,23 @@ func GenSchemaRetrievalModelResource(ctx context.Context) (github_com_hashicorp_
 }
 
 // GenSchemaRetrievalModelDataSource returns Terraform Framework datasource schema definition for RetrievalModel
-func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Should always be set to \"retrieval_model\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -1143,13 +1145,13 @@ func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicor
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -1160,23 +1162,23 @@ func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicor
 			Description: "",
 			Optional:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"bedrock": {
+				"bedrock": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"bedrock_model_id": {
+						"bedrock_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "BedrockModelId specifies a model ID or an inference profile as understood by the Bedrock API.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"integration": {
+						"integration": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"region": {
+						"region": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Region is the AWS region which will be used for inference.",
 							Optional:    true,
@@ -1186,27 +1188,27 @@ func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicor
 					Description: "Bedrock indicates that this model uses Amazon Bedrock as the embeddings provider and specifies Bedrock-specific parameters.",
 					Optional:    true,
 				},
-				"inference_model_name": {
+				"inference_model_name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "inference_model_name is the name of the model used to convert natural language search queries into API requests and generate prose from a session summary.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"openai": {
+				"openai": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"api_key_secret_ref": {
+						"api_key_secret_ref": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "ApiKeySecretRef is a reference to an InferenceSecret that contains the OpenAI API key.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"base_url": {
+						"base_url": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "BaseUrl is the OpenAI API base URL. Optional, defaults to the public OpenAI API URL. May be used to point to a custom OpenAI-compatible API, such as LiteLLM. In such case, the `api_key_secret_ref` must point to a secret that contains the API key for that custom API.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"openai_model_id": {
+						"openai_model_id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "OpenaiModelId specifies the model ID, as understood by the OpenAI API.",
 							Optional:    true,
@@ -1220,13 +1222,13 @@ func GenSchemaRetrievalModelDataSource(ctx context.Context) (github_com_hashicor
 			Description: "spec contains the configuration for the retrieval model, including the embeddings provider and the search inference model. In the future it can be extended with re-rankers configuration and other settings.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is the resource sub-kind. Should be empty.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Version is the resource version. Should be set to \"v1\".",
 			Optional:    true,

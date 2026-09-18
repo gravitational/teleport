@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportSAMLIdPServiceProvider{}
+var _ resource.ResourceWithSchema = &resourceTeleportSAMLIdPServiceProvider{}
 
 // resourceTeleportSAMLIdPServiceProviderType is the resource metadata type
 type resourceTeleportSAMLIdPServiceProviderType struct{}
@@ -57,9 +57,11 @@ func (r resourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ re
 	resp.TypeName = "teleport_saml_idp_service_provider"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSAMLIdPServiceProviderV1Resource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportSAMLIdPServiceProvider) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaSAMLIdPServiceProviderV1Resource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the SAMLIdPServiceProvider

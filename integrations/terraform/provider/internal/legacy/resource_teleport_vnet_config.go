@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportVnetConfig{}
+var _ resource.ResourceWithSchema = &resourceTeleportVnetConfig{}
 
 
 // resourceTeleportVnetConfigType is the resource metadata type
@@ -58,9 +58,11 @@ func (r resourceTeleportVnetConfig) Metadata(_ context.Context, _ resource.Metad
 	resp.TypeName = "teleport_vnet_config"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaVnetConfigResource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportVnetConfig) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaVnetConfigResource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the VnetConfig

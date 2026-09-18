@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package tfdriver
 
 import (
@@ -23,15 +22,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
 var _ datasource.DataSource = &dataSource[any, Identifier]{}
+var _ datasource.DataSourceWithSchema = &dataSource[any, Identifier]{}
 
 // DataSourceClient reads a Teleport resource for a data source.
 type DataSourceClient[T any, I Identifier] interface {
@@ -48,8 +48,8 @@ type DataSourceType[T any, I Identifier] struct {
 	Identifier          TerraformIdentifierExtractor[I]
 }
 
-// GetSchema returns the data source schema.
-func (r DataSourceType[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+// Schema returns the data source schema.
+func (r DataSourceType[T, I]) Schema(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 	return r.Codec.Schema(ctx)
 }
 
@@ -71,9 +71,11 @@ func (r dataSource[T, I]) Metadata(ctx context.Context, req datasource.MetadataR
 	resp.TypeName = req.ProviderTypeName + "_" + r.dataSource.Name
 }
 
-// GetSchema returns the data source schema.
-func (r dataSource[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return r.dataSource.GetSchema(ctx)
+// Schema returns the data source schema.
+func (r dataSource[T, I]) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := r.dataSource.Schema(ctx)
+	resp.Schema = schema
+	resp.Diagnostics = diags
 }
 
 // Read reads the Teleport resource.

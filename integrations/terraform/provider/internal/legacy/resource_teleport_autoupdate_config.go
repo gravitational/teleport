@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportAutoUpdateConfig{}
+var _ resource.ResourceWithSchema = &resourceTeleportAutoUpdateConfig{}
 
 
 // resourceTeleportAutoUpdateConfigType is the resource metadata type
@@ -58,9 +58,11 @@ func (r resourceTeleportAutoUpdateConfig) Metadata(_ context.Context, _ resource
 	resp.TypeName = "teleport_autoupdate_config"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportAutoUpdateConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaAutoUpdateConfigResource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportAutoUpdateConfig) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaAutoUpdateConfigResource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the AutoUpdateConfig

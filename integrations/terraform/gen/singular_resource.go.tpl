@@ -41,7 +41,6 @@ import (
 {{- end }}
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	{{ schemaImport . }}
@@ -49,6 +48,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleport{{.Name}}{}
+var _ resource.ResourceWithSchema = &resourceTeleport{{.Name}}{}
 
 
 // resourceTeleport{{.Name}}Type is the resource metadata type
@@ -71,9 +71,11 @@ func (r resourceTeleport{{.Name}}) Metadata(_ context.Context, _ resource.Metada
 	resp.TypeName = "{{.TerraformResourceType}}"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return {{.SchemaPackage}}.GenSchema{{.TypeName}}Resource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleport{{.Name}}) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := {{.SchemaPackage}}.GenSchema{{.TypeName}}Resource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the {{.Name}}

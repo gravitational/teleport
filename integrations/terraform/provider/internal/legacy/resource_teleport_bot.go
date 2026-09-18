@@ -27,6 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -56,29 +57,29 @@ import (
 // attributes.
 //
 // See resourceTeleportBot.botFromProto for more information.
-func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Attributes: map[string]tfsdk.Attribute{
-			"id": {
+func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": tfsdk.Attribute{
 				Computed:      true,
 				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
-			"kind": {
+			"kind": tfsdk.Attribute{
 				Computed:      true,
 				Description:   "The kind of resource represented.",
 				Optional:      true,
 				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
-			"sub_kind": {
+			"sub_kind": tfsdk.Attribute{
 				Computed:      true,
 				Description:   "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
 				Optional:      true,
 				PlanModifiers: []tfsdk.AttributePlanModifier{resource.UseStateForUnknown()},
 				Type:          types.StringType,
 			},
-			"version": {
+			"version": tfsdk.Attribute{
 				Computed:      true,
 				Description:   "The version of the resource being represented.",
 				Optional:      true,
@@ -86,7 +87,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Type:          types.StringType,
 				Validators:    []tfsdk.AttributeValidator{tfschema.UseVersionBetween(1, 1)},
 			},
-			"metadata": {
+			"metadata": tfsdk.Attribute{
 				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
 					"description": {
 						Description: "Description is object description",
@@ -130,7 +131,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 					requiredUnlessLegacyValidator{},
 				},
 			},
-			"spec": {
+			"spec": tfsdk.Attribute{
 				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
 					"traits": tfschema.GenSchemaTraitsResource(ctx, tfsdk.Attribute{
 						Description: "The traits that will be associated with the bot for the purposes of role templating.\n\nWhere multiple specified with the same name, these will be merged by the server.",
@@ -153,7 +154,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 					requiredUnlessLegacyValidator{},
 				},
 			},
-			"status": {
+			"status": tfsdk.Attribute{
 				Attributes: tfsdk.SingleNestedAttributes(map[string]tfsdk.Attribute{
 					"user_name": {
 						Description: "The name of the user associated with the bot.",
@@ -169,7 +170,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Description: "Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
 			},
-			"scope": {
+			"scope": tfsdk.Attribute{
 				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
 				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
 				Optional:      true,
@@ -177,7 +178,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 			},
 
 			// Deprecated fields.
-			"name": {
+			"name": tfsdk.Attribute{
 				Type:               types.StringType,
 				Optional:           true,
 				Description:        "The name of the bot, i.e. the unprefixed User name",
@@ -187,25 +188,25 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				},
 				PlanModifiers: []tfsdk.AttributePlanModifier{resource.RequiresReplace()},
 			},
-			"user_name": {
+			"user_name": tfsdk.Attribute{
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot user",
 				DeprecationMessage: "Deprecated. Use `status.user_name` instead.",
 			},
-			"role_name": {
+			"role_name": tfsdk.Attribute{
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot role",
 				DeprecationMessage: "Deprecated. Use `status.role_name` instead.",
 			},
-			"token_ttl": {
+			"token_ttl": tfsdk.Attribute{
 				Type:               types.StringType,
 				Optional:           true,
 				Computed:           true,
 				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
 			},
-			"token_id": {
+			"token_id": tfsdk.Attribute{
 				Type: types.StringType,
 				// Implementation note: this is not used anymore, we can skip this
 				// This will go away eventually when we'll generate the bot provider instead
@@ -213,7 +214,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Sensitive:          true,
 				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
 			},
-			"roles": {
+			"roles": tfsdk.Attribute{
 				Type: types.ListType{
 					ElemType: types.StringType,
 				},
@@ -235,6 +236,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 }
 
 var _ resource.Resource = &resourceTeleportBot{}
+var _ resource.ResourceWithSchema = &resourceTeleportBot{}
 
 // resourceTeleportBotType is the resource metadata type
 type resourceTeleportBotType struct{}
@@ -256,11 +258,13 @@ func (r resourceTeleportBot) Metadata(_ context.Context, _ resource.MetadataRequ
 	resp.TypeName = "teleport_bot"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportBot) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+// Schema returns the resource schema
+func (r resourceTeleportBot) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	// It's unusual for this provider, but we'll hand-write the schema here as
 	// bots do not have any server-side resources of their own.
-	return GenSchemaBot(ctx)
+	schema, diags := GenSchemaBot(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 func (r resourceTeleportBot) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -332,14 +336,25 @@ func (r resourceTeleportBot) Read(ctx context.Context, req resource.ReadRequest,
 // plan and apply, even in benign ways such as null becoming an empty list, so
 // exercise caution!
 func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.Bot, base Bot, importState bool) (Bot, diag.Diagnostics) {
-	schema, _ := GenSchemaBot(ctx)
+	botSchema, diags := GenSchemaBot(ctx)
+	if diags.HasError() {
+		return Bot{}, diags
+	}
 
-	attrTypes := func(key string) map[string]attr.Type {
+	attributes := botSchema.GetAttributes()
+	nestedAttrTypes := func(key string) (map[string]attr.Type, diag.Diagnostic) {
+		attribute, ok := attributes[key].(schema.NestedAttribute)
+		if !ok {
+			return nil, diag.NewErrorDiagnostic(
+				"failed to get attribute types",
+				fmt.Sprintf("expected nested attribute, got: %T", attributes[key]))
+		}
+
 		result := make(map[string]attr.Type)
-		for k, v := range schema.Attributes[key].Attributes.GetAttributes() {
+		for k, v := range attribute.GetNestedObject().GetAttributes() {
 			result[k] = v.GetType()
 		}
-		return result
+		return result, nil
 	}
 
 	stringValue := func(v string) types.String {
@@ -374,7 +389,13 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		return !ok || attr.IsNull()
 	}
 
-	statusValue, diags := types.ObjectValue(attrTypes("status"), map[string]attr.Value{
+	statusTypes, errDiag := nestedAttrTypes("status")
+	diags.Append(errDiag)
+	if diags.HasError() {
+		return Bot{}, diags
+	}
+
+	statusValue, diags := types.ObjectValue(statusTypes, map[string]attr.Value{
 		"user_name": stringValue(bot.GetStatus().GetUserName()),
 		"role_name": stringValue(bot.GetStatus().GetRoleName()),
 	})
@@ -384,11 +405,23 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 
 	sqn := scopes.QualifiedName{Name: bot.GetMetadata().GetName(), Scope: bot.GetScope()}
 
+	metadataTypes, errDiag := nestedAttrTypes("metadata")
+	diags.Append(errDiag)
+	if diags.HasError() {
+		return Bot{}, diags
+	}
+
+	specTypes, errDiag := nestedAttrTypes("spec")
+	diags.Append(errDiag)
+	if diags.HasError() {
+		return Bot{}, diags
+	}
+
 	result := Bot{
 		// User-provided attributes. Will be marked as null based on whether the
 		// user provided legacy or RFD 153-style attributes.
-		Metadata: types.ObjectNull(attrTypes("metadata")),
-		Spec:     types.ObjectNull(attrTypes("spec")),
+		Metadata: types.ObjectNull(metadataTypes),
+		Spec:     types.ObjectNull(specTypes),
 		Scope:    stringValue(bot.GetScope()),
 
 		// Deprecated user-provided attributes.
@@ -436,7 +469,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 			}
 		}
 
-		result.Metadata, diags = types.ObjectValue(attrTypes("metadata"), map[string]attr.Value{
+		result.Metadata, diags = types.ObjectValue(metadataTypes, map[string]attr.Value{
 			"description": stringValue(bot.GetMetadata().GetDescription()),
 			"expires":     timeValue(bot.GetMetadata().GetExpires()),
 			"name":        stringValue(bot.GetMetadata().GetName()),
@@ -449,7 +482,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		}
 
 	} else {
-		result.Metadata = types.ObjectNull(attrTypes("metadata"))
+		result.Metadata = types.ObjectNull(metadataTypes)
 		result.Name = types.StringValue(bot.GetMetadata().GetName())
 	}
 
@@ -497,7 +530,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 			}
 		}
 
-		result.Spec, diags = types.ObjectValue(attrTypes("spec"), map[string]attr.Value{
+		result.Spec, diags = types.ObjectValue(specTypes, map[string]attr.Value{
 			"traits":          traits,
 			"roles":           roles,
 			"max_session_ttl": durationValue(bot.GetSpec().GetMaxSessionTtl()),
@@ -530,7 +563,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 
 		result.Traits = types.MapNull(types.ListType{ElemType: types.StringType})
 	} else {
-		result.Spec = types.ObjectNull(attrTypes("spec"))
+		result.Spec = types.ObjectNull(specTypes)
 		result.Traits = traits
 
 		if len(bot.GetSpec().GetRoles()) != 0 || base.Roles != nil {

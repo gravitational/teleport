@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1"
@@ -33,6 +32,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportAutoUpdateConfig{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportAutoUpdateConfig{}
 
 // dataSourceTeleportAutoUpdateConfigType is the data source metadata type
 type dataSourceTeleportAutoUpdateConfigType struct{}
@@ -54,9 +54,11 @@ func (r dataSourceTeleportAutoUpdateConfig) Metadata(_ context.Context, _ dataso
 	resp.TypeName = "teleport_autoupdate_config"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportAutoUpdateConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaAutoUpdateConfigDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportAutoUpdateConfig) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaAutoUpdateConfigDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport AutoUpdateConfig

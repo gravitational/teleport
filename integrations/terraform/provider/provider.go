@@ -31,8 +31,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	schema "github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
@@ -119,7 +119,7 @@ type RetryConfig struct {
 	MaxTries int
 }
 
-var _ provider.ProviderWithMetadata = &Provider{}
+var _ provider.Provider = &Provider{}
 
 // Provider Teleport Provider
 type Provider struct {
@@ -196,140 +196,117 @@ func (p *Provider) Metadata(_ context.Context, _ provider.MetadataRequest, resp 
 	resp.TypeName = "teleport"
 }
 
-// GetSchema returns the Terraform provider schema
-func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfsdk.Schema{
-		Attributes: map[string]tfsdk.Attribute{
-			attributeTerraformAddress: {
-				Type:        types.StringType,
+// Schema returns the Terraform provider schema
+func (p *Provider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			attributeTerraformAddress: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 3080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
 			},
-			attributeTerraformCertificates: {
-				Type:        types.StringType,
+			attributeTerraformCertificates: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Path to Teleport auth certificate file. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCertificates),
 			},
-			attributeTerraformCertificatesBase64: {
-				Type:        types.StringType,
+			attributeTerraformCertificatesBase64: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Base64 encoded TLS auth certificate. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCertificatesBase64),
 			},
-			attributeTerraformKey: {
-				Type:        types.StringType,
+			attributeTerraformKey: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Path to Teleport auth key file. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformKey),
 			},
-			attributeTerraformKeyBase64: {
-				Type:        types.StringType,
+			attributeTerraformKeyBase64: schema.StringAttribute{
 				Sensitive:   true,
 				Optional:    true,
 				Description: fmt.Sprintf("Base64 encoded TLS auth key. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformKeyBase64),
 			},
-			attributeTerraformRootCertificates: {
-				Type:        types.StringType,
+			attributeTerraformRootCertificates: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Path to Teleport Root CA. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRootCertificates),
 			},
-			attributeTerraformRootCertificatesBase64: {
-				Type:        types.StringType,
+			attributeTerraformRootCertificatesBase64: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Base64 encoded Root CA. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRootCertificatesBase64),
 			},
-			attributeTerraformProfileName: {
-				Type:        types.StringType,
+			attributeTerraformProfileName: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport profile name. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformProfileName),
 			},
-			attributeTerraformProfilePath: {
-				Type:        types.StringType,
+			attributeTerraformProfilePath: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport profile path. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformProfilePath),
 			},
-			attributeTerraformIdentityFilePath: {
-				Type:        types.StringType,
+			attributeTerraformIdentityFilePath: schema.StringAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport identity file path. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFilePath),
 			},
-			attributeTerraformIdentityFile: {
-				Type:        types.StringType,
+			attributeTerraformIdentityFile: schema.StringAttribute{
 				Sensitive:   true,
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport identity file content. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFile),
 			},
-			attributeTerraformIdentityFileBase64: {
-				Type:        types.StringType,
+			attributeTerraformIdentityFileBase64: schema.StringAttribute{
 				Sensitive:   true,
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport identity file content base64 encoded. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFileBase64),
 			},
-			attributeTerraformInsecure: {
-				Type:        types.BoolType,
+			attributeTerraformInsecure: schema.BoolAttribute{
 				Optional:    true,
 				Description: fmt.Sprintf("Skip proxy certificate verification when joining the Teleport cluster. This is not recommended for production use. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformInsecure),
 			},
-			attributeTerraformRetryBaseDuration: {
-				Type:        types.StringType,
+			attributeTerraformRetryBaseDuration: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryBaseDuration),
 			},
-			attributeTerraformRetryCapDuration: {
-				Type:        types.StringType,
+			attributeTerraformRetryCapDuration: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': max duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryCapDuration),
 			},
-			attributeTerraformRetryMaxTries: {
-				Type:        types.StringType,
+			attributeTerraformRetryMaxTries: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformRetryMaxTries),
 			},
-			attributeTerraformDialTimeoutDuration: {
-				Type:        types.StringType,
+			attributeTerraformDialTimeoutDuration: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("DialTimeout sets timeout when trying to connect to the server. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformDialTimeoutDuration),
 			},
-			attributeTerraformJoinMethod: {
-				Type:        types.StringType,
+			attributeTerraformJoinMethod: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../../deployment/join-methods.mdx) for possible values. You must use [a delegated join method](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
 			},
-			attributeTerraformJoinToken: {
-				Type:        types.StringType,
+			attributeTerraformJoinToken: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
 			},
-			attributeTerraformJoinAudienceTag: {
-				Type:        types.StringType,
+			attributeTerraformJoinAudienceTag: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCloudJoinAudienceTag),
 			},
-			attributeTerraformGitlabIDTokenEnvVar: {
-				Type:        types.StringType,
+			attributeTerraformGitlabIDTokenEnvVar: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
 			},
-			attributeKubernetesTokenPath: {
-				Type:        types.StringType,
+			attributeKubernetesTokenPath: schema.StringAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
 			},
-			attributeScoped: {
-				Type:        types.BoolType,
+			attributeScoped: schema.BoolAttribute{
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Scoped indicates that the Terraform Operator will join with a scoped token. This only takes effect when the operator performs native MachineID joining (i.e. join method and join token are specified). This must be set when using a scoped join token. This can also be set with the environment variable `%s`", constants.EnvVarTerraformScoped),
 			},
 		},
-	}, nil
+	}
 }
 
 // IsConfigured checks if provider is configured, adds diagnostics if not

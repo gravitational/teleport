@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportInferencePolicy{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportInferencePolicy{}
 
 // dataSourceTeleportInferencePolicyType is the data source metadata type
 type dataSourceTeleportInferencePolicyType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportInferencePolicy) Metadata(_ context.Context, _ datasou
 	resp.TypeName = "teleport_inference_policy"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportInferencePolicy) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferencePolicyDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportInferencePolicy) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaInferencePolicyDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport InferencePolicy

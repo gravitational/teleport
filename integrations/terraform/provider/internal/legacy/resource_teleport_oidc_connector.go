@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportOIDCConnector{}
+var _ resource.ResourceWithSchema = &resourceTeleportOIDCConnector{}
 
 // resourceTeleportOIDCConnectorType is the resource metadata type
 type resourceTeleportOIDCConnectorType struct{}
@@ -57,9 +57,11 @@ func (r resourceTeleportOIDCConnector) Metadata(_ context.Context, _ resource.Me
 	resp.TypeName = "teleport_oidc_connector"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportOIDCConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaOIDCConnectorV3Resource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportOIDCConnector) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaOIDCConnectorV3Resource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the OIDCConnector

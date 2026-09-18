@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1"
@@ -33,6 +32,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportVnetConfig{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportVnetConfig{}
 
 // dataSourceTeleportVnetConfigType is the data source metadata type
 type dataSourceTeleportVnetConfigType struct{}
@@ -54,9 +54,11 @@ func (r dataSourceTeleportVnetConfig) Metadata(_ context.Context, _ datasource.M
 	resp.TypeName = "teleport_vnet_config"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaVnetConfigDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportVnetConfig) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaVnetConfigDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport VnetConfig

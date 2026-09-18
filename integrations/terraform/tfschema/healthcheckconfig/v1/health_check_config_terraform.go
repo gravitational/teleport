@@ -31,8 +31,10 @@ import (
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
+	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
+	github_com_hashicorp_terraform_plugin_framework_resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	_ "google.golang.org/protobuf/types/known/durationpb"
@@ -44,25 +46,25 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 // GenSchemaHealthCheckConfigResource returns Terraform Framework resource schema definition for HealthCheckConfig
-func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_resource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Optional:      false,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "Kind is the resource kind. Must be \"health_check_config\".",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "description is object description.",
 					Optional:      true,
@@ -74,20 +76,20 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "labels is a set of labels.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description:   "name is an object name.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:      true,
@@ -98,9 +100,9 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 			Description: "Metadata is the health check config resource's metadata.",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"healthy_threshold": {
+				"healthy_threshold": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "HealthyThreshold is the number of consecutive passing health checks after which a target's health status becomes \"healthy\".",
 					Optional:      true,
@@ -111,18 +113,18 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 					Description: "Interval is the time between each health check.",
 					Optional:    true,
 				}),
-				"match": {
+				"match": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"db_labels": {
+						"db_labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"name": {
+								"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "The name of the label.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"values": {
+								"values": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "The values associated with the label.",
 									Optional:      true,
@@ -135,30 +137,30 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"db_labels_expression": {
+						"db_labels_expression": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "DBLabelsExpression is a label predicate expression to match databases. An empty value is ignored. The match result is logically ANDed with DBLabels, if both are non-empty.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"disabled": {
+						"disabled": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "Disabled disables matches for all labels and expressions.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"kubernetes_labels": {
+						"kubernetes_labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"name": {
+								"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "The name of the label.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"values": {
+								"values": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:      true,
 									Description:   "The values associated with the label.",
 									Optional:      true,
@@ -171,7 +173,7 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 						},
-						"kubernetes_labels_expression": {
+						"kubernetes_labels_expression": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
 							Description:   "KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An empty value is ignored. The match result is logically ANDed with KubernetesLabels, if both are non-empty.",
 							Optional:      true,
@@ -186,7 +188,7 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 					Description: "Timeout is the health check connection establishment timeout. An attempt that times out is a failed attempt.",
 					Optional:    true,
 				}),
-				"unhealthy_threshold": {
+				"unhealthy_threshold": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "UnhealthyThreshold is the number of consecutive failing health checks after which a target's health status becomes \"unhealthy\".",
 					Optional:      true,
@@ -197,14 +199,14 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 			Description: "Spec is the health check config specification.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:      true,
 			Description:   "SubKind is an optional resource sub kind.",
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_resource.UseStateForUnknown()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Description: "Version is the health check config version.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -213,23 +215,23 @@ func GenSchemaHealthCheckConfigResource(ctx context.Context) (github_com_hashico
 }
 
 // GenSchemaHealthCheckConfigDataSource returns Terraform Framework datasource schema definition for HealthCheckConfig
-func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
-	return github_com_hashicorp_terraform_plugin_framework_tfsdk.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-		"id": {
+func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	return github_com_hashicorp_terraform_plugin_framework_datasource_schema.Schema{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+		"id": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed: true,
 			Optional: false,
 			Required: false,
 			Type:     github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"kind": {
+		"kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "Kind is the resource kind. Must be \"health_check_config\".",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"metadata": {
+		"metadata": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"description": {
+				"description": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "description is object description.",
 					Optional:    true,
@@ -240,18 +242,18 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 					Optional:    true,
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
-				"labels": {
+				"labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "labels is a set of labels.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
-				"name": {
+				"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "name is an object name.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
+				"namespace": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 					Optional:    true,
@@ -261,9 +263,9 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 			Description: "Metadata is the health check config resource's metadata.",
 			Required:    true,
 		},
-		"spec": {
+		"spec": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"healthy_threshold": {
+				"healthy_threshold": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "HealthyThreshold is the number of consecutive passing health checks after which a target's health status becomes \"healthy\".",
 					Optional:    true,
@@ -273,17 +275,17 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 					Description: "Interval is the time between each health check.",
 					Optional:    true,
 				}),
-				"match": {
+				"match": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"db_labels": {
+						"db_labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"name": {
+								"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:    true,
 									Description: "The name of the label.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"values": {
+								"values": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:    true,
 									Description: "The values associated with the label.",
 									Optional:    true,
@@ -294,27 +296,27 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 							Description: "DBLabels matches database labels. An empty value is ignored. The match result is logically ANDed with DBLabelsExpression, if both are non-empty.",
 							Optional:    true,
 						},
-						"db_labels_expression": {
+						"db_labels_expression": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "DBLabelsExpression is a label predicate expression to match databases. An empty value is ignored. The match result is logically ANDed with DBLabels, if both are non-empty.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"disabled": {
+						"disabled": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "Disabled disables matches for all labels and expressions.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"kubernetes_labels": {
+						"kubernetes_labels": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"name": {
+								"name": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:    true,
 									Description: "The name of the label.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"values": {
+								"values": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Computed:    true,
 									Description: "The values associated with the label.",
 									Optional:    true,
@@ -325,7 +327,7 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 							Description: "KubernetesLabels matches Kubernetes labels. An empty value is ignored. The match result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.",
 							Optional:    true,
 						},
-						"kubernetes_labels_expression": {
+						"kubernetes_labels_expression": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:    true,
 							Description: "KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An empty value is ignored. The match result is logically ANDed with KubernetesLabels, if both are non-empty.",
 							Optional:    true,
@@ -339,7 +341,7 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 					Description: "Timeout is the health check connection establishment timeout. An attempt that times out is a failed attempt.",
 					Optional:    true,
 				}),
-				"unhealthy_threshold": {
+				"unhealthy_threshold": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:    true,
 					Description: "UnhealthyThreshold is the number of consecutive failing health checks after which a target's health status becomes \"unhealthy\".",
 					Optional:    true,
@@ -349,13 +351,13 @@ func GenSchemaHealthCheckConfigDataSource(ctx context.Context) (github_com_hashi
 			Description: "Spec is the health check config specification.",
 			Required:    true,
 		},
-		"sub_kind": {
+		"sub_kind": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Computed:    true,
 			Description: "SubKind is an optional resource sub kind.",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
-		"version": {
+		"version": github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 			Description: "Version is the health check config version.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,

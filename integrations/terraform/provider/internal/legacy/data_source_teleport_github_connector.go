@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportGithubConnector{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportGithubConnector{}
 
 // dataSourceTeleportGithubConnectorType is the data source metadata type
 type dataSourceTeleportGithubConnectorType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportGithubConnector) Metadata(_ context.Context, _ datasou
 	resp.TypeName = "teleport_github_connector"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportGithubConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaGithubConnectorV3DataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportGithubConnector) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaGithubConnectorV3DataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport GithubConnector

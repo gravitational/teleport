@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package tfdriver
 
 import (
@@ -25,7 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ resource.Resource = &Resource[any, Identifier]{}
+var _ resource.ResourceWithSchema = &Resource[any, Identifier]{}
 
 // Runtime provides provider settings for Terraform resources.
 type Runtime interface {
@@ -84,8 +84,8 @@ type ResourceType[T any, I Identifier] struct {
 	Identifier IdentifierPolicy[T, I]
 }
 
-// GetSchema returns the resource schema.
-func (r ResourceType[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+// Schema returns the resource schema.
+func (r ResourceType[T, I]) Schema(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 	return r.Codec.Schema(ctx)
 }
 
@@ -110,9 +110,11 @@ func (r Resource[T, I]) Metadata(ctx context.Context, req resource.MetadataReque
 	resp.TypeName = req.ProviderTypeName + "_" + r.resource.Name
 }
 
-// GetSchema returns the resource schema.
-func (r Resource[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return r.resource.GetSchema(ctx)
+// Schema returns the resource schema.
+func (r Resource[T, I]) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := r.resource.Schema(ctx)
+	resp.Schema = schema
+	resp.Diagnostics = diags
 }
 
 func (r Resource[T, I]) normalizeCreate(ctx context.Context, resource *T) error {

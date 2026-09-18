@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportIntegration{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportIntegration{}
 
 // dataSourceTeleportIntegrationType is the data source metadata type
 type dataSourceTeleportIntegrationType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportIntegration) Metadata(_ context.Context, _ datasource.
 	resp.TypeName = "teleport_integration"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaIntegrationV1DataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportIntegration) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaIntegrationV1DataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport Integration

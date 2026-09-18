@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportSAMLIdPServiceProvider{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportSAMLIdPServiceProvider{}
 
 // dataSourceTeleportSAMLIdPServiceProviderType is the data source metadata type
 type dataSourceTeleportSAMLIdPServiceProviderType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ 
 	resp.TypeName = "teleport_saml_idp_service_provider"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSAMLIdPServiceProviderV1DataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportSAMLIdPServiceProvider) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaSAMLIdPServiceProviderV1DataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport SAMLIdPServiceProvider

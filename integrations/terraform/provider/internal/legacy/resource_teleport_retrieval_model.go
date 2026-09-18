@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportRetrievalModel{}
+var _ resource.ResourceWithSchema = &resourceTeleportRetrievalModel{}
 
 
 // resourceTeleportRetrievalModelType is the resource metadata type
@@ -58,9 +58,11 @@ func (r resourceTeleportRetrievalModel) Metadata(_ context.Context, _ resource.M
 	resp.TypeName = "teleport_retrieval_model"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaRetrievalModelResource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportRetrievalModel) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaRetrievalModelResource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the RetrievalModel

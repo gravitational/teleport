@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	{{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
@@ -39,6 +38,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleport{{.Name}}{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleport{{.Name}}{}
 
 // dataSourceTeleport{{.Name}}Type is the data source metadata type
 type dataSourceTeleport{{.Name}}Type struct{}
@@ -60,9 +60,11 @@ func (r dataSourceTeleport{{.Name}}) Metadata(_ context.Context, _ datasource.Me
 	resp.TypeName = "{{.TerraformResourceType}}"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return {{.SchemaPackage}}.GenSchema{{.TypeName}}DataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleport{{.Name}}) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := {{.SchemaPackage}}.GenSchema{{.TypeName}}DataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport {{.Name}}

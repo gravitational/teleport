@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -36,6 +35,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportIntegration{}
+var _ resource.ResourceWithSchema = &resourceTeleportIntegration{}
 
 // resourceTeleportIntegrationType is the resource metadata type
 type resourceTeleportIntegrationType struct{}
@@ -57,9 +57,11 @@ func (r resourceTeleportIntegration) Metadata(_ context.Context, _ resource.Meta
 	resp.TypeName = "teleport_integration"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportIntegration) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaIntegrationV1Resource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportIntegration) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaIntegrationV1Resource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the Integration

@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -33,6 +32,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportClusterMaintenanceConfig{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportClusterMaintenanceConfig{}
 
 // dataSourceTeleportClusterMaintenanceConfigType is the data source metadata type
 type dataSourceTeleportClusterMaintenanceConfigType struct{}
@@ -54,9 +54,11 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Metadata(_ context.Context, 
 	resp.TypeName = "teleport_cluster_maintenance_config"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportClusterMaintenanceConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaClusterMaintenanceConfigV1DataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportClusterMaintenanceConfig) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := tfschema.GenSchemaClusterMaintenanceConfigV1DataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport ClusterMaintenanceConfig

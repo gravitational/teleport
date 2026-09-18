@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1"
@@ -33,6 +32,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportRetrievalModel{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportRetrievalModel{}
 
 // dataSourceTeleportRetrievalModelType is the data source metadata type
 type dataSourceTeleportRetrievalModelType struct{}
@@ -54,9 +54,11 @@ func (r dataSourceTeleportRetrievalModel) Metadata(_ context.Context, _ datasour
 	resp.TypeName = "teleport_retrieval_model"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportRetrievalModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaRetrievalModelDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportRetrievalModel) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaRetrievalModelDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport RetrievalModel

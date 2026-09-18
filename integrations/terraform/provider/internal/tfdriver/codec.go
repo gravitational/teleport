@@ -14,21 +14,21 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint:staticcheck // SA1019 TODO: migrate legacy Terraform schemas away from deprecated tfsdk.Schema.
 package tfdriver
 
 import (
 	"context"
 
+	datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // ResourceCodec converts between Terraform values and a Teleport resource.
 type ResourceCodec[T any] interface {
 	// Schema returns the Terraform schema.
-	Schema(context.Context) (tfsdk.Schema, diag.Diagnostics)
+	Schema(context.Context) (resource_schema.Schema, diag.Diagnostics)
 	// FromPlan copies Terraform plan values into a Teleport resource.
 	FromPlan(context.Context, types.Object, *T) diag.Diagnostics
 	// FromState copies Terraform state values into a Teleport resource.
@@ -40,7 +40,7 @@ type ResourceCodec[T any] interface {
 // DataSourceCodec converts Terraform data source values to and from Teleport resources.
 type DataSourceCodec[T any] interface {
 	// Schema returns the Terraform schema.
-	Schema(context.Context) (tfsdk.Schema, diag.Diagnostics)
+	Schema(context.Context) (datasource_schema.Schema, diag.Diagnostics)
 	// FromConfig copies Terraform config values into a Teleport resource.
 	FromConfig(context.Context, types.Object, *T) diag.Diagnostics
 	// ToState copies a Teleport resource into Terraform state values.
@@ -48,7 +48,7 @@ type DataSourceCodec[T any] interface {
 }
 
 // SchemaFunc returns a Terraform schema.
-type SchemaFunc func(context.Context) (tfsdk.Schema, diag.Diagnostics)
+type SchemaFunc[T any] func(context.Context) (T, diag.Diagnostics)
 
 // FromTerraformFunc copies Terraform values into a Teleport resource.
 type FromTerraformFunc[T any] func(context.Context, types.Object, *T) diag.Diagnostics
@@ -58,14 +58,14 @@ type ToTerraformFunc[T any] func(context.Context, *T, *types.Object) (types.Obje
 
 // ResourceCodecFuncs adapts functions to ResourceCodec.
 type ResourceCodecFuncs[T any] struct {
-	SchemaFunc    SchemaFunc
+	SchemaFunc    SchemaFunc[resource_schema.Schema]
 	FromPlanFunc  FromTerraformFunc[T]
 	FromStateFunc FromTerraformFunc[T]
 	ToStateFunc   ToTerraformFunc[T]
 }
 
 // Schema returns the Terraform schema.
-func (c ResourceCodecFuncs[T]) Schema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (c ResourceCodecFuncs[T]) Schema(ctx context.Context) (resource_schema.Schema, diag.Diagnostics) {
 	return c.SchemaFunc(ctx)
 }
 
@@ -86,13 +86,13 @@ func (c ResourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object 
 
 // DataSourceCodecFuncs adapts functions to DataSourceCodec.
 type DataSourceCodecFuncs[T any] struct {
-	SchemaFunc     SchemaFunc
+	SchemaFunc     SchemaFunc[datasource_schema.Schema]
 	FromConfigFunc FromTerraformFunc[T]
 	ToStateFunc    ToTerraformFunc[T]
 }
 
 // Schema returns the Terraform schema.
-func (c DataSourceCodecFuncs[T]) Schema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+func (c DataSourceCodecFuncs[T]) Schema(ctx context.Context) (datasource_schema.Schema, diag.Diagnostics) {
 	return c.SchemaFunc(ctx)
 }
 

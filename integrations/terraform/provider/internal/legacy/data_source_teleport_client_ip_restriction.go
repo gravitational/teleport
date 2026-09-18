@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/clientiprestriction/v1"
@@ -33,6 +32,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportClientIPRestriction{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportClientIPRestriction{}
 
 // dataSourceTeleportClientIPRestrictionType is the data source metadata type
 type dataSourceTeleportClientIPRestrictionType struct{}
@@ -54,9 +54,11 @@ func (r dataSourceTeleportClientIPRestriction) Metadata(_ context.Context, _ dat
 	resp.TypeName = "teleport_client_ip_restriction"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportClientIPRestriction) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaClientIPRestrictionDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportClientIPRestriction) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaClientIPRestrictionDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport ClientIPRestriction

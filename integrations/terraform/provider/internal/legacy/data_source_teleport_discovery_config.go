@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/discoveryconfig/v1"
@@ -34,6 +33,7 @@ import (
 )
 
 var _ datasource.DataSource = &dataSourceTeleportDiscoveryConfig{}
+var _ datasource.DataSourceWithSchema = &dataSourceTeleportDiscoveryConfig{}
 
 // dataSourceTeleportDiscoveryConfigType is the data source metadata type
 type dataSourceTeleportDiscoveryConfigType struct{}
@@ -55,9 +55,11 @@ func (r dataSourceTeleportDiscoveryConfig) Metadata(_ context.Context, _ datasou
 	resp.TypeName = "teleport_discovery_config"
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportDiscoveryConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaDiscoveryConfigDataSource(ctx)
+// Schema returns the data source schema
+func (r dataSourceTeleportDiscoveryConfig) Schema(ctx context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaDiscoveryConfigDataSource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Read reads teleport DiscoveryConfig

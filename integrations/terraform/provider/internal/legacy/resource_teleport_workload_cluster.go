@@ -30,7 +30,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 
@@ -39,6 +38,7 @@ import (
 )
 
 var _ resource.Resource = &resourceTeleportWorkloadCluster{}
+var _ resource.ResourceWithSchema = &resourceTeleportWorkloadCluster{}
 
 // resourceTeleportWorkloadClusterType is the resource metadata type
 type resourceTeleportWorkloadClusterType struct{}
@@ -60,9 +60,11 @@ func (r resourceTeleportWorkloadCluster) Metadata(_ context.Context, _ resource.
 	resp.TypeName = "teleport_workload_cluster"
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaWorkloadClusterResource(ctx)
+// Schema returns the resource schema
+func (r resourceTeleportWorkloadCluster) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	schema, diags := schemav1.GenSchemaWorkloadClusterResource(ctx)
+	resp.Diagnostics.Append(diags...)
+	resp.Schema = schema
 }
 
 // Create creates the WorkloadCluster
