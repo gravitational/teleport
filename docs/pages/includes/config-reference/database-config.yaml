@@ -215,7 +215,7 @@ db_service:
 
     # Settings specific to Active Directory authentication e.g. for SQL Server.
     ad:
-      # Path to Kerberos keytab file.
+      # Path to Kerberos keytab file. Omit this field to use PKINIT.
       keytab_file: /path/to/keytab
       # Active Directory domain name.
       domain: EXAMPLE.COM
@@ -223,11 +223,32 @@ db_service:
       spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
       # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
       krb5_file: /etc/krb5.conf
+      # Hostname expected in the KDC certificate. Required for PKINIT.
+      # Also used as the LDAP host unless ldap_host is set.
+      kdc_host_name: DOMAIN-CONTROLLER.EXAMPLE.COM
+      # PEM encoded certificate of the LDAP CA. Required for PKINIT.
+      ldap_cert: |
+        -----BEGIN CERTIFICATE-----
+            *certificate data*
+        -----END CERTIFICATE-----
       # Name of the service account Teleport uses to perform LDAP queries for retrieving user SIDs.
       ldap_service_account_name: 'EXAMPLE\svc-teleport'
       # SID of the above service account. Teleport uses this to authenticate LDAP queries.
       # Also required for PKINIT if the user SID must be included in the certificate.
       ldap_service_account_sid: "S-1-5-21-1111111111-2222222222-3333333333-4444"
+      # Optional domain used to construct the CRL distribution point in issued
+      # certificates. Defaults to domain. For a child domain, set this to the
+      # forest root domain.
+      pki_domain: EXAMPLE.COM
+      # Optional host used for LDAP queries, with an optional port. Defaults to
+      # kdc_host_name. Useful when the LDAP server and the KDC are reachable
+      # under different names.
+      ldap_host: 10.0.0.1:636
+      # Optional server name to use when validating the LDAP server's
+      # certificate. Defaults to the host part of ldap_host, falling back to
+      # kdc_host_name. Useful in cases where ldap_host is an IP address but the
+      # server presents a certificate with some other hostname.
+      ldap_tls_server_name: ldap.example.com
 
     # Optional configuration for Azure hosted databases.
     azure:
