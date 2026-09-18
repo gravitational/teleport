@@ -35,10 +35,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportClientIPRestrictionType{}
-	_ resource.Resource     = &resourceTeleportClientIPRestriction{}
-)
+var _ resource.Resource = &resourceTeleportClientIPRestriction{}
+
 
 // resourceTeleportClientIPRestrictionType is the resource metadata type
 type resourceTeleportClientIPRestrictionType struct{}
@@ -48,16 +46,21 @@ type resourceTeleportClientIPRestriction struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportClientIPRestrictionType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaClientIPRestriction(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportClientIPRestrictionType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportClientIPRestriction{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportClientIPRestriction) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_client_ip_restriction"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportClientIPRestriction) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaClientIPRestriction(ctx)
 }
 
 // Create creates the ClientIPRestriction

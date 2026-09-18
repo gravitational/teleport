@@ -35,6 +35,7 @@ func NewKubernetesClusterDataSourceType() tfdriver.DataSourceType[apitypes.Kuber
 			return teleport.NewKubernetesClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindKubernetesCluster,
+		Name: apitypes.KindKubernetesCluster,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.KubernetesClusterV3]{
 			SchemaFunc:  tfschema.GenSchemaKubernetesClusterV3,
 			ToStateFunc: tfschema.CopyKubernetesClusterV3ToTerraform,
@@ -55,6 +56,7 @@ func NewKubernetesClusterResourceType() tfdriver.ResourceType[apitypes.Kubernete
 			return teleport.NewKubernetesClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindKubernetesCluster,
+		Name: apitypes.KindKubernetesCluster,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.KubernetesClusterV3]{
 			SchemaFunc:   tfschema.GenSchemaKubernetesClusterV3,
 			ToStateFunc:  tfschema.CopyKubernetesClusterV3ToTerraform,

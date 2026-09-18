@@ -34,10 +34,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportClusterMaintenanceConfigType{}
-	_ resource.Resource     = &resourceTeleportClusterMaintenanceConfig{}
-)
+var _ resource.Resource = &resourceTeleportClusterMaintenanceConfig{}
+
 
 // resourceTeleportClusterMaintenanceConfigType is the resource metadata type
 type resourceTeleportClusterMaintenanceConfigType struct{}
@@ -47,16 +45,21 @@ type resourceTeleportClusterMaintenanceConfig struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportClusterMaintenanceConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaClusterMaintenanceConfigV1(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportClusterMaintenanceConfigType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportClusterMaintenanceConfig{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportClusterMaintenanceConfig) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_cluster_maintenance_config"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportClusterMaintenanceConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfschema.GenSchemaClusterMaintenanceConfigV1(ctx)
 }
 
 // Create creates the ClusterMaintenanceConfig

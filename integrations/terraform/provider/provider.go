@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"os"
 	"strconv"
@@ -28,8 +27,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/grpc"
@@ -117,6 +118,8 @@ type RetryConfig struct {
 	MaxTries int
 }
 
+var _ provider.ProviderWithMetadata = &Provider{}
+
 // Provider Teleport Provider
 type Provider struct {
 	configured  bool
@@ -185,6 +188,11 @@ type providerData struct {
 // New returns an empty provider struct
 func New() provider.Provider {
 	return &Provider{}
+}
+
+// Metadata returns the metadata for the provider.
+func (p *Provider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "teleport"
 }
 
 // GetSchema returns the Terraform provider schema
@@ -560,90 +568,92 @@ func (p *Provider) configureLog() {
 	}
 }
 
-// GetResources returns the map of provider resources
-func (p *Provider) GetResources(_ context.Context) (map[string]provider.ResourceType, diag.Diagnostics) {
-	resourceTypes := legacy.ResourceTypes()
-
-	genericResourceTypes := map[string]provider.ResourceType{
-		"teleport_access_list":               resources.NewAccessListResourceType(),
-		"teleport_access_list_member":        resources.NewAccessListMemberResourceType(),
-		"teleport_access_monitoring_rule":    resources.NewAccessMonitoringRuleResourceType(),
-		"teleport_app":                       resources.NewAppResourceType(),
-		"teleport_auth_preference":           resources.NewAuthPreferenceResourceType(),
-		"teleport_autoupdate_version":        resources.NewAutoUpdateVersionResourceType(),
-		"teleport_cert_authority_override":   resources.NewCertAuthorityOverrideResourceType(),
-		"teleport_classifier":                resources.NewClassifierResourceType(),
-		"teleport_cluster_networking_config": resources.NewClusterNetworkingConfigResourceType(),
-		"teleport_database":                  resources.NewDatabaseResourceType(),
-		"teleport_db_object_import_rule":     resources.NewDatabaseObjectImportRuleResourceType(),
-		"teleport_dynamic_windows_desktop":   resources.NewDynamicWindowsDesktopResourceType(),
-		"teleport_health_check_config":       resources.NewHealthCheckConfigResourceType(),
-		"teleport_installer":                 resources.NewInstallerResourceType(),
-		"teleport_kube_cluster":              resources.NewKubernetesClusterResourceType(),
-		"teleport_lock":                      resources.NewLockResourceType(),
-		"teleport_login_rule":                resources.NewLoginRuleResourceType(),
-		"teleport_okta_import_rule":          resources.NewOktaImportRuleResourceType(),
-		"teleport_role":                      resources.NewRoleResourceType(),
-		"teleport_saml_connector":            resources.NewSAMLConnectorResourceType(),
-		"teleport_scoped_role":               resources.NewScopedRoleResourceType(),
-		"teleport_scoped_role_assignment":    resources.NewScopedRoleAssignmentResourceType(),
-		"teleport_scoped_token":              resources.NewScopedTokenResourceType(),
-		"teleport_server":                    resources.NewSSHServerResourceType(),
-		"teleport_session_recording_config":  resources.NewSessionRecordingConfigResourceType(),
-		"teleport_static_host_user":          resources.NewStaticHostUserResourceType(),
-		"teleport_trusted_cluster":           resources.NewTrustedClusterResourceType(),
-		"teleport_trusted_device":            resources.NewTrustedDeviceResourceType(),
-		"teleport_ui_config":                 resources.NewUIConfigResourceType(),
-		"teleport_user":                      resources.NewUserResourceType(),
-		"teleport_workload_identity":         resources.NewWorkloadIdentityResourceType(),
-	}
-
-	maps.Insert(resourceTypes, maps.All(genericResourceTypes))
-
-	return resourceTypes, nil
+// Resources returns the provider resources
+func (p *Provider) Resources(ctx context.Context) []func() resource.Resource {
+	legacyResources := legacy.Resources(ctx, p)
+	genericResources := legacy.ResourcesFromTypes(ctx, p, getResources())
+	return append(legacyResources, genericResources...)
 }
 
-// GetDataSources returns the map of provider data sources
-func (p *Provider) GetDataSources(_ context.Context) (map[string]provider.DataSourceType, diag.Diagnostics) {
-	dataSourceTypes := legacy.DataSourceTypes()
-
-	genericDataSourceTypes := map[string]provider.DataSourceType{
-		"teleport_access_list":               resources.NewAccessListDataSourceType(),
-		"teleport_access_list_member":        resources.NewAccessListMemberDataSourceType(),
-		"teleport_access_monitoring_rule":    resources.NewAccessMonitoringRuleDataSourceType(),
-		"teleport_app":                       resources.NewAppDataSourceType(),
-		"teleport_auth_preference":           resources.NewAuthPreferenceDataSourceType(),
-		"teleport_autoupdate_version":        resources.NewAutoUpdateVersionDataSourceType(),
-		"teleport_cert_authority_override":   resources.NewCertAuthorityOverrideDataSourceType(),
-		"teleport_cluster_networking_config": resources.NewClusterNetworkingConfigDataSourceType(),
-		"teleport_classifier":                resources.NewClassifierDataSourceType(),
-		"teleport_database":                  resources.NewDatabaseDataSourceType(),
-		"teleport_db_object_import_rule":     resources.NewDatabaseObjectImportRuleDataSourceType(),
-		"teleport_dynamic_windows_desktop":   resources.NewDynamicWindowsDesktopDataSourceType(),
-		"teleport_health_check_config":       resources.NewHealthCheckConfigDataSourceType(),
-		"teleport_installer":                 resources.NewInstallerDataSourceType(),
-		"teleport_kube_cluster":              resources.NewKubernetesClusterDataSourceType(),
-		"teleport_lock":                      resources.NewLockDataSourceType(),
-		"teleport_login_rule":                resources.NewLoginRuleDataSourceType(),
-		"teleport_okta_import_rule":          resources.NewOktaImportRuleDataSourceType(),
-		"teleport_role":                      resources.NewRoleDataSourceType(),
-		"teleport_saml_connector":            resources.NewSAMLConnectorDataSourceType(),
-		"teleport_scoped_role":               resources.NewScopedRoleDataSourceType(),
-		"teleport_scoped_role_assignment":    resources.NewScopedRoleAssignmentDataSourceType(),
-		"teleport_scoped_token":              resources.NewScopedTokenDataSourceType(),
-		"teleport_server":                    resources.NewSSHServerDataSourceType(),
-		"teleport_session_recording_config":  resources.NewSessionRecordingConfigDataSourceType(),
-		"teleport_static_host_user":          resources.NewStaticHostUserDataSourceType(),
-		"teleport_trusted_cluster":           resources.NewTrustedClusterDataSourceType(),
-		"teleport_trusted_device":            resources.NewTrustedDeviceDataSourceType(),
-		"teleport_ui_config":                 resources.NewUIConfigDataSourceType(),
-		"teleport_user":                      resources.NewUserDataSourceType(),
-		"teleport_workload_identity":         resources.NewWorkloadIdentityDataSourceType(),
+// getResources returns the map of provider resources
+func getResources() []legacy.ResourceType {
+	return []legacy.ResourceType{
+		resources.NewAccessListResourceType(),
+		resources.NewAccessListMemberResourceType(),
+		resources.NewAccessMonitoringRuleResourceType(),
+		resources.NewAppResourceType(),
+		resources.NewAuthPreferenceResourceType(),
+		resources.NewAutoUpdateVersionResourceType(),
+		resources.NewCertAuthorityOverrideResourceType(),
+		resources.NewClassifierResourceType(),
+		resources.NewClusterNetworkingConfigResourceType(),
+		resources.NewDatabaseResourceType(),
+		resources.NewDatabaseObjectImportRuleResourceType(),
+		resources.NewDynamicWindowsDesktopResourceType(),
+		resources.NewHealthCheckConfigResourceType(),
+		resources.NewInstallerResourceType(),
+		resources.NewKubernetesClusterResourceType(),
+		resources.NewLockResourceType(),
+		resources.NewLoginRuleResourceType(),
+		resources.NewOktaImportRuleResourceType(),
+		resources.NewRoleResourceType(),
+		resources.NewSAMLConnectorResourceType(),
+		resources.NewScopedRoleResourceType(),
+		resources.NewScopedRoleAssignmentResourceType(),
+		resources.NewScopedTokenResourceType(),
+		resources.NewSSHServerResourceType(),
+		resources.NewSessionRecordingConfigResourceType(),
+		resources.NewStaticHostUserResourceType(),
+		resources.NewTrustedClusterResourceType(),
+		resources.NewTrustedDeviceResourceType(),
+		resources.NewUIConfigResourceType(),
+		resources.NewUserResourceType(),
+		resources.NewWorkloadIdentityResourceType(),
 	}
+}
 
-	maps.Insert(dataSourceTypes, maps.All(genericDataSourceTypes))
+// DataSources returns the provider data sources
+func (p *Provider) DataSources(ctx context.Context) []func() datasource.DataSource {
+	legacyDataSources := legacy.DataSources(ctx, p)
+	genericDataSources := legacy.DataSourcesFromTypes(ctx, p, getDataSources())
+	return append(legacyDataSources, genericDataSources...)
+}
 
-	return dataSourceTypes, nil
+// getDataSources returns the map of provider data sources
+func getDataSources() []legacy.DataSourceType {
+	return []legacy.DataSourceType{
+		resources.NewAccessListDataSourceType(),
+		resources.NewAccessListMemberDataSourceType(),
+		resources.NewAccessMonitoringRuleDataSourceType(),
+		resources.NewAppDataSourceType(),
+		resources.NewAuthPreferenceDataSourceType(),
+		resources.NewAutoUpdateVersionDataSourceType(),
+		resources.NewCertAuthorityOverrideDataSourceType(),
+		resources.NewClusterNetworkingConfigDataSourceType(),
+		resources.NewClassifierDataSourceType(),
+		resources.NewDatabaseDataSourceType(),
+		resources.NewDatabaseObjectImportRuleDataSourceType(),
+		resources.NewDynamicWindowsDesktopDataSourceType(),
+		resources.NewHealthCheckConfigDataSourceType(),
+		resources.NewInstallerDataSourceType(),
+		resources.NewKubernetesClusterDataSourceType(),
+		resources.NewLockDataSourceType(),
+		resources.NewLoginRuleDataSourceType(),
+		resources.NewOktaImportRuleDataSourceType(),
+		resources.NewRoleDataSourceType(),
+		resources.NewSAMLConnectorDataSourceType(),
+		resources.NewScopedRoleDataSourceType(),
+		resources.NewScopedRoleAssignmentDataSourceType(),
+		resources.NewScopedTokenDataSourceType(),
+		resources.NewSSHServerDataSourceType(),
+		resources.NewSessionRecordingConfigDataSourceType(),
+		resources.NewStaticHostUserDataSourceType(),
+		resources.NewTrustedClusterDataSourceType(),
+		resources.NewTrustedDeviceDataSourceType(),
+		resources.NewUIConfigDataSourceType(),
+		resources.NewUserDataSourceType(),
+		resources.NewWorkloadIdentityDataSourceType(),
+	}
 }
 
 // Close closes the provider's client and cancels its context.

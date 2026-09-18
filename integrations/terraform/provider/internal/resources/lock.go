@@ -34,6 +34,7 @@ func NewLockDataSourceType() tfdriver.DataSourceType[types.LockV2, tfdriver.Name
 			return teleport.NewLockClient(clientFromProvider(p))
 		},
 		Kind: types.KindLock,
+		Name: types.KindLock,
 		Codec: tfdriver.DataSourceCodecFuncs[types.LockV2]{
 			SchemaFunc:  tfschema.GenSchemaLockV2,
 			ToStateFunc: tfschema.CopyLockV2ToTerraform,
@@ -49,6 +50,7 @@ func NewLockResourceType() tfdriver.ResourceType[types.LockV2, tfdriver.NameIden
 			return teleport.NewLockClient(clientFromProvider(p))
 		},
 		Kind: types.KindLock,
+		Name: types.KindLock,
 		Codec: tfdriver.ResourceCodecFuncs[types.LockV2]{
 			SchemaFunc:   tfschema.GenSchemaLockV2,
 			ToStateFunc:  tfschema.CopyLockV2ToTerraform,

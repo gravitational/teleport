@@ -36,10 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportInferenceModelType{}
-	_ resource.Resource     = &resourceTeleportInferenceModel{}
-)
+var _ resource.Resource = &resourceTeleportInferenceModel{}
 
 // resourceTeleportInferenceModelType is the resource metadata type
 type resourceTeleportInferenceModelType struct{}
@@ -49,16 +46,21 @@ type resourceTeleportInferenceModel struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportInferenceModelType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaInferenceModel(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportInferenceModelType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportInferenceModel{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportInferenceModel) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_inference_model"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportInferenceModel) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaInferenceModel(ctx)
 }
 
 // Create creates the InferenceModel

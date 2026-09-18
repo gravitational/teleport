@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
+var _ datasource.DataSource = &dataSource[any, Identifier]{}
+
 // DataSourceClient reads a Teleport resource for a data source.
 type DataSourceClient[T any, I Identifier] interface {
 	// Get reads a Teleport resource by identifier.
@@ -40,6 +42,7 @@ type DataSourceClient[T any, I Identifier] interface {
 type DataSourceType[T any, I Identifier] struct {
 	NewDataSourceClient func(provider.Provider) DataSourceClient[T, I]
 	Kind                string
+	Name                string
 	Codec               DataSourceCodec[T]
 	Identifier          TerraformIdentifierExtractor[I]
 }
@@ -60,6 +63,16 @@ func (r DataSourceType[T, I]) NewDataSource(_ context.Context, p provider.Provid
 type dataSource[T any, I Identifier] struct {
 	dataSourceClient DataSourceClient[T, I]
 	dataSource       DataSourceType[T, I]
+}
+
+// Metadata returns the full name of the data source.
+func (r dataSource[T, I]) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_" + r.dataSource.Name
+}
+
+// GetSchema returns the data source schema.
+func (r dataSource[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return r.dataSource.GetSchema(ctx)
 }
 
 // Read reads the Teleport resource.

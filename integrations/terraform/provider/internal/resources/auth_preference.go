@@ -38,6 +38,7 @@ func NewAuthPreferenceDataSourceType() tfdriver.DataSourceType[types.AuthPrefere
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,
+		Name: "auth_preference",
 		Codec: tfdriver.DataSourceCodecFuncs[types.AuthPreferenceV2]{
 			SchemaFunc:  tfschema.GenSchemaAuthPreferenceV2,
 			ToStateFunc: tfschema.CopyAuthPreferenceV2ToTerraform,
@@ -53,6 +54,7 @@ func NewAuthPreferenceResourceType() tfdriver.ResourceType[types.AuthPreferenceV
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,
+		Name: "auth_preference",
 		Codec: tfdriver.ResourceCodecFuncs[types.AuthPreferenceV2]{
 			SchemaFunc:   tfschema.GenSchemaAuthPreferenceV2,
 			ToStateFunc:  tfschema.CopyAuthPreferenceV2ToTerraform,

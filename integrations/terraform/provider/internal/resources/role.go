@@ -34,6 +34,7 @@ func NewRoleDataSourceType() tfdriver.DataSourceType[apitypes.RoleV6, tfdriver.N
 			return teleport.NewRoleClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindRole,
+		Name: apitypes.KindRole,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.RoleV6]{
 			SchemaFunc:  tfschema.GenSchemaRoleV6,
 			ToStateFunc: tfschema.CopyRoleV6ToTerraform,
@@ -49,6 +50,7 @@ func NewRoleResourceType() tfdriver.ResourceType[apitypes.RoleV6, tfdriver.NameI
 			return teleport.NewRoleClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindRole,
+		Name: apitypes.KindRole,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.RoleV6]{
 			SchemaFunc:   tfschema.GenSchemaRoleV6,
 			ToStateFunc:  tfschema.CopyRoleV6ToTerraform,

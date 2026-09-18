@@ -34,6 +34,7 @@ func NewDynamicWindowsDesktopDataSourceType() tfdriver.DataSourceType[types.Dyna
 			return teleport.NewDynamicWindowsDesktopClient(clientFromProvider(p))
 		},
 		Kind: types.KindDynamicWindowsDesktop,
+		Name: types.KindDynamicWindowsDesktop,
 		Codec: tfdriver.DataSourceCodecFuncs[types.DynamicWindowsDesktopV1]{
 			SchemaFunc:  tfschema.GenSchemaDynamicWindowsDesktopV1,
 			ToStateFunc: tfschema.CopyDynamicWindowsDesktopV1ToTerraform,
@@ -49,6 +50,7 @@ func NewDynamicWindowsDesktopResourceType() tfdriver.ResourceType[types.DynamicW
 			return teleport.NewDynamicWindowsDesktopClient(clientFromProvider(p))
 		},
 		Kind: types.KindDynamicWindowsDesktop,
+		Name: types.KindDynamicWindowsDesktop,
 		Codec: tfdriver.ResourceCodecFuncs[types.DynamicWindowsDesktopV1]{
 			SchemaFunc:   tfschema.GenSchemaDynamicWindowsDesktopV1,
 			ToStateFunc:  tfschema.CopyDynamicWindowsDesktopV1ToTerraform,

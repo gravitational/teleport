@@ -38,6 +38,7 @@ func NewClusterNetworkingConfigDataSourceType() tfdriver.DataSourceType[types.Cl
 			return teleport.NewClusterNetworkingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterNetworkingConfig,
+		Name: types.KindClusterNetworkingConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.ClusterNetworkingConfigV2]{
 			SchemaFunc:  tfschema.GenSchemaClusterNetworkingConfigV2,
 			ToStateFunc: tfschema.CopyClusterNetworkingConfigV2ToTerraform,
@@ -53,6 +54,7 @@ func NewClusterNetworkingConfigResourceType() tfdriver.ResourceType[types.Cluste
 			return teleport.NewClusterNetworkingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterNetworkingConfig,
+		Name: types.KindClusterNetworkingConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.ClusterNetworkingConfigV2]{
 			SchemaFunc:   tfschema.GenSchemaClusterNetworkingConfigV2,
 			ToStateFunc:  tfschema.CopyClusterNetworkingConfigV2ToTerraform,

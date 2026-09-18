@@ -35,6 +35,7 @@ func NewClassifierDataSourceType() tfdriver.DataSourceType[summarizerv1.Classifi
 			return teleport.NewClassifierClient(clientFromProvider(p))
 		},
 		Kind: types.KindClassifier,
+		Name: types.KindClassifier,
 		Codec: tfdriver.DataSourceCodecFuncs[summarizerv1.Classifier]{
 			SchemaFunc:  schemav1.GenSchemaClassifier,
 			ToStateFunc: schemav1.CopyClassifierToTerraform,
@@ -50,6 +51,7 @@ func NewClassifierResourceType() tfdriver.ResourceType[summarizerv1.Classifier, 
 			return teleport.NewClassifierClient(clientFromProvider(p))
 		},
 		Kind: types.KindClassifier,
+		Name: types.KindClassifier,
 		Codec: tfdriver.ResourceCodecFuncs[summarizerv1.Classifier]{
 			SchemaFunc:   schemav1.GenSchemaClassifier,
 			ToStateFunc:  schemav1.CopyClassifierToTerraform,

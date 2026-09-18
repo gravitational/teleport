@@ -35,10 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportGithubConnectorType{}
-	_ resource.Resource     = &resourceTeleportGithubConnector{}
-)
+var _ resource.Resource = &resourceTeleportGithubConnector{}
 
 // resourceTeleportGithubConnectorType is the resource metadata type
 type resourceTeleportGithubConnectorType struct{}
@@ -48,16 +45,21 @@ type resourceTeleportGithubConnector struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportGithubConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaGithubConnectorV3(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportGithubConnectorType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportGithubConnector{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportGithubConnector) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_github_connector"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportGithubConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfschema.GenSchemaGithubConnectorV3(ctx)
 }
 
 // Create creates the GithubConnector

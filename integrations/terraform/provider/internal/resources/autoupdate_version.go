@@ -34,6 +34,7 @@ func NewAutoUpdateVersionDataSourceType() tfdriver.DataSourceType[autoupdatev1.A
 			return teleport.NewAutoUpdateVersionClient(clientFromProvider(p))
 		},
 		Kind: types.KindAutoUpdateVersion,
+		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.DataSourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
 			SchemaFunc:  schemav1.GenSchemaAutoUpdateVersion,
 			ToStateFunc: schemav1.CopyAutoUpdateVersionToTerraform,
@@ -49,6 +50,7 @@ func NewAutoUpdateVersionResourceType() tfdriver.ResourceType[autoupdatev1.AutoU
 			return teleport.NewAutoUpdateVersionClient(clientFromProvider(p))
 		},
 		Kind: types.KindAutoUpdateVersion,
+		Name: types.KindAutoUpdateVersion,
 		Codec: tfdriver.ResourceCodecFuncs[autoupdatev1.AutoUpdateVersion]{
 			SchemaFunc:   schemav1.GenSchemaAutoUpdateVersion,
 			ToStateFunc:  schemav1.CopyAutoUpdateVersionToTerraform,

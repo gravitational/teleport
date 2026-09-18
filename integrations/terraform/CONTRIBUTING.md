@@ -133,6 +133,7 @@ func NewFooDataSourceType() tfdriver.DataSourceType[apitypes.FooV1, tfdriver.Nam
             return teleport.NewFooClient(clientFromProvider(p))
         },
         Kind: apitypes.KindFoo,
+        Name: "foo",
         Codec: tfdriver.DataSourceCodecFuncs[apitypes.FooV1]{
             SchemaFunc:  tfschema.GenSchemaFooV1,
             ToStateFunc: tfschema.CopyFooV1ToTerraform,
@@ -147,6 +148,7 @@ func NewFooResourceType() tfdriver.ResourceType[apitypes.FooV1, tfdriver.NameIde
             return teleport.NewFooClient(clientFromProvider(p))
         },
         Kind: apitypes.KindFoo,
+        Name: "foo",
         Codec: tfdriver.ResourceCodecFuncs[apitypes.FooV1]{
             SchemaFunc:   tfschema.GenSchemaFooV1,
             FromPlanFunc: tfschema.CopyFooV1FromTerraform,
@@ -179,17 +181,20 @@ Use `tfdriver.ForceKind` when the API type needs a kind set but Terraform should
 
 Update `provider/provider.go`.
 
-Add the resource to `genericResourceTypes` in `GetResources`:
+Add the resource type to the slice returned by `getResources`:
 
 ```go
-"teleport_foo": resources.NewFooResourceType(),
+resources.NewFooResourceType(),
 ```
 
-If the resource has a data source, add it to `genericDataSourceTypes` in `GetDataSources`:
+If the resource has a data source, add the data source type to the slice returned by `getDataSources`:
 
 ```go
-"teleport_foo": resources.NewFooDataSourceType(),
+resources.NewFooDataSourceType(),
 ```
+
+The Terraform type name is derived from the provider type name and the descriptor's `Name` field. For example,
+`Name: "foo"` registers `teleport_foo`.
 
 ### 5. Add tests and fixtures
 

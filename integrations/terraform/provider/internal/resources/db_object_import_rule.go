@@ -35,6 +35,7 @@ func NewDatabaseObjectImportRuleDataSourceType() tfdriver.DataSourceType[dbobjec
 			return teleport.NewDatabaseObjectImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindDatabaseObjectImportRule,
+		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
 			SchemaFunc:  schemav1.GenSchemaDatabaseObjectImportRule,
 			ToStateFunc: schemav1.CopyDatabaseObjectImportRuleToTerraform,
@@ -50,6 +51,7 @@ func NewDatabaseObjectImportRuleResourceType() tfdriver.ResourceType[dbobjectimp
 			return teleport.NewDatabaseObjectImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindDatabaseObjectImportRule,
+		Name: types.KindDatabaseObjectImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[dbobjectimportrulev1.DatabaseObjectImportRule]{
 			SchemaFunc:   schemav1.GenSchemaDatabaseObjectImportRule,
 			ToStateFunc:  schemav1.CopyDatabaseObjectImportRuleToTerraform,

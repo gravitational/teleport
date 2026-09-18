@@ -35,10 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportOIDCConnectorType{}
-	_ resource.Resource     = &resourceTeleportOIDCConnector{}
-)
+var _ resource.Resource = &resourceTeleportOIDCConnector{}
 
 // resourceTeleportOIDCConnectorType is the resource metadata type
 type resourceTeleportOIDCConnectorType struct{}
@@ -48,16 +45,21 @@ type resourceTeleportOIDCConnector struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportOIDCConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaOIDCConnectorV3(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportOIDCConnectorType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportOIDCConnector{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportOIDCConnector) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_oidc_connector"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportOIDCConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfschema.GenSchemaOIDCConnectorV3(ctx)
 }
 
 // Create creates the OIDCConnector

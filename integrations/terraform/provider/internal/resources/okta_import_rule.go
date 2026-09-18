@@ -34,6 +34,7 @@ func NewOktaImportRuleDataSourceType() tfdriver.DataSourceType[types.OktaImportR
 			return teleport.NewOktaImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindOktaImportRule,
+		Name: types.KindOktaImportRule,
 		Codec: tfdriver.DataSourceCodecFuncs[types.OktaImportRuleV1]{
 			SchemaFunc:  tfschema.GenSchemaOktaImportRuleV1,
 			ToStateFunc: tfschema.CopyOktaImportRuleV1ToTerraform,
@@ -49,6 +50,7 @@ func NewOktaImportRuleResourceType() tfdriver.ResourceType[types.OktaImportRuleV
 			return teleport.NewOktaImportRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindOktaImportRule,
+		Name: types.KindOktaImportRule,
 		Codec: tfdriver.ResourceCodecFuncs[types.OktaImportRuleV1]{
 			SchemaFunc:   tfschema.GenSchemaOktaImportRuleV1,
 			ToStateFunc:  tfschema.CopyOktaImportRuleV1ToTerraform,

@@ -34,6 +34,7 @@ func NewInstallerDataSourceType() tfdriver.DataSourceType[types.InstallerV1, tfd
 			return teleport.NewInstallerClient(clientFromProvider(p))
 		},
 		Kind: types.KindInstaller,
+		Name: types.KindInstaller,
 		Codec: tfdriver.DataSourceCodecFuncs[types.InstallerV1]{
 			SchemaFunc:  tfschema.GenSchemaInstallerV1,
 			ToStateFunc: tfschema.CopyInstallerV1ToTerraform,
@@ -49,6 +50,7 @@ func NewInstallerResourceType() tfdriver.ResourceType[types.InstallerV1, tfdrive
 			return teleport.NewInstallerClient(clientFromProvider(p))
 		},
 		Kind: types.KindInstaller,
+		Name: types.KindInstaller,
 		Codec: tfdriver.ResourceCodecFuncs[types.InstallerV1]{
 			SchemaFunc:   tfschema.GenSchemaInstallerV1,
 			ToStateFunc:  tfschema.CopyInstallerV1ToTerraform,

@@ -234,20 +234,10 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 	}, nil
 }
 
-var (
-	_ provider.ResourceType = &resourceTeleportBotType{}
-	_ resource.Resource     = &resourceTeleportBot{}
-)
+var _ resource.Resource = &resourceTeleportBot{}
 
 // resourceTeleportBotType is the resource metadata type
 type resourceTeleportBotType struct{}
-
-// GetSchema returns the resource schema
-func (r resourceTeleportBotType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	// It's unusual for this provider, but we'll hand-write the schema here as
-	// bots do not have any server-side resources of their own.
-	return GenSchemaBot(ctx)
-}
 
 // NewResource creates the empty resource
 func (r resourceTeleportBotType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
@@ -259,6 +249,18 @@ func (r resourceTeleportBotType) NewResource(_ context.Context, p provider.Provi
 // resourceTeleportBot is the resource
 type resourceTeleportBot struct {
 	p Provider
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportBot) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_bot"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportBot) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	// It's unusual for this provider, but we'll hand-write the schema here as
+	// bots do not have any server-side resources of their own.
+	return GenSchemaBot(ctx)
 }
 
 func (r resourceTeleportBot) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

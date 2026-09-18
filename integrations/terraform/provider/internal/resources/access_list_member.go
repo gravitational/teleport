@@ -41,6 +41,7 @@ func NewAccessListMemberDataSourceType() tfdriver.DataSourceType[accesslist.Acce
 			return teleport.NewAccessListMemberClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessListMember,
+		Name: apitypes.KindAccessListMember,
 		Codec: tfdriver.DataSourceCodecFuncs[accesslist.AccessListMember]{
 			SchemaFunc: schemav1.GenSchemaMember,
 			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {
@@ -62,6 +63,7 @@ func NewAccessListMemberResourceType() tfdriver.ResourceType[accesslist.AccessLi
 			return teleport.NewAccessListMemberClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessListMember,
+		Name: apitypes.KindAccessListMember,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessListMember]{
 			SchemaFunc: schemav1.GenSchemaMember,
 			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {

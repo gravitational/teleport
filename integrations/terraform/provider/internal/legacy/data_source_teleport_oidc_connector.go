@@ -33,10 +33,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.DataSourceType = &dataSourceTeleportOIDCConnectorType{}
-	_ datasource.DataSource   = &dataSourceTeleportOIDCConnector{}
-)
+var _ datasource.DataSource = &dataSourceTeleportOIDCConnector{}
 
 // dataSourceTeleportOIDCConnectorType is the data source metadata type
 type dataSourceTeleportOIDCConnectorType struct{}
@@ -46,16 +43,21 @@ type dataSourceTeleportOIDCConnector struct {
 	p Provider
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportOIDCConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaOIDCConnectorV3(ctx)
-}
-
 // NewDataSource creates the empty data source
 func (r dataSourceTeleportOIDCConnectorType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportOIDCConnector{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the data source
+func (r dataSourceTeleportOIDCConnector) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_oidc_connector"
+}
+
+// GetSchema returns the data source schema
+func (r dataSourceTeleportOIDCConnector) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfschema.GenSchemaOIDCConnectorV3(ctx)
 }
 
 // Read reads teleport OIDCConnector

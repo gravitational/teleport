@@ -35,10 +35,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportAutoUpdateConfigType{}
-	_ resource.Resource     = &resourceTeleportAutoUpdateConfig{}
-)
+var _ resource.Resource = &resourceTeleportAutoUpdateConfig{}
+
 
 // resourceTeleportAutoUpdateConfigType is the resource metadata type
 type resourceTeleportAutoUpdateConfigType struct{}
@@ -48,16 +46,21 @@ type resourceTeleportAutoUpdateConfig struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportAutoUpdateConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaAutoUpdateConfig(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportAutoUpdateConfigType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportAutoUpdateConfig{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportAutoUpdateConfig) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_autoupdate_config"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportAutoUpdateConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaAutoUpdateConfig(ctx)
 }
 
 // Create creates the AutoUpdateConfig

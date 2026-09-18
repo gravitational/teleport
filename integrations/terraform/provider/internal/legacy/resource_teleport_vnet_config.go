@@ -35,10 +35,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleportVnetConfigType{}
-	_ resource.Resource     = &resourceTeleportVnetConfig{}
-)
+var _ resource.Resource = &resourceTeleportVnetConfig{}
+
 
 // resourceTeleportVnetConfigType is the resource metadata type
 type resourceTeleportVnetConfigType struct{}
@@ -48,16 +46,21 @@ type resourceTeleportVnetConfig struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleportVnetConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaVnetConfig(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleportVnetConfigType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportVnetConfig{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleportVnetConfig) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "teleport_vnet_config"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleportVnetConfig) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaVnetConfig(ctx)
 }
 
 // Create creates the VnetConfig

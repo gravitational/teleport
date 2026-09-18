@@ -38,6 +38,7 @@ func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.Ses
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,
+		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.SessionRecordingConfigV2]{
 			SchemaFunc:  tfschema.GenSchemaSessionRecordingConfigV2,
 			ToStateFunc: tfschema.CopySessionRecordingConfigV2ToTerraform,
@@ -53,6 +54,7 @@ func NewSessionRecordingConfigResourceType() tfdriver.ResourceType[types.Session
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,
+		Name: types.KindSessionRecordingConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.SessionRecordingConfigV2]{
 			SchemaFunc:   tfschema.GenSchemaSessionRecordingConfigV2,
 			ToStateFunc:  tfschema.CopySessionRecordingConfigV2ToTerraform,

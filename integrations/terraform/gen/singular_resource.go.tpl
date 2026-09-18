@@ -48,10 +48,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.ResourceType = &resourceTeleport{{.Name}}Type{}
-	_ resource.Resource     = &resourceTeleport{{.Name}}{}
-)
+var _ resource.Resource = &resourceTeleport{{.Name}}{}
+
 
 // resourceTeleport{{.Name}}Type is the resource metadata type
 type resourceTeleport{{.Name}}Type struct{}
@@ -61,16 +59,21 @@ type resourceTeleport{{.Name}} struct {
 	p Provider
 }
 
-// GetSchema returns the resource schema
-func (r resourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
-}
-
 // NewResource creates the empty resource
 func (r resourceTeleport{{.Name}}Type) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleport{{.Name}}{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the resource
+func (r resourceTeleport{{.Name}}) Metadata(_ context.Context, _ resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = "{{.TerraformResourceType}}"
+}
+
+// GetSchema returns the resource schema
+func (r resourceTeleport{{.Name}}) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
 }
 
 // Create creates the {{.Name}}

@@ -34,6 +34,7 @@ func NewTrustedDeviceDataSourceType() tfdriver.DataSourceType[types.DeviceV1, tf
 			return teleport.NewTrustedDeviceClient(clientFromProvider(p))
 		},
 		Kind: types.KindDevice,
+		Name: "trusted_device",
 		Codec: tfdriver.DataSourceCodecFuncs[types.DeviceV1]{
 			SchemaFunc:  schemav1.GenSchemaDeviceV1,
 			ToStateFunc: schemav1.CopyDeviceV1ToTerraform,
@@ -49,6 +50,7 @@ func NewTrustedDeviceResourceType() tfdriver.ResourceType[types.DeviceV1, tfdriv
 			return teleport.NewTrustedDeviceClient(clientFromProvider(p))
 		},
 		Kind: types.KindDevice,
+		Name: "trusted_device",
 		Codec: tfdriver.ResourceCodecFuncs[types.DeviceV1]{
 			SchemaFunc:   schemav1.GenSchemaDeviceV1,
 			ToStateFunc:  schemav1.CopyDeviceV1ToTerraform,

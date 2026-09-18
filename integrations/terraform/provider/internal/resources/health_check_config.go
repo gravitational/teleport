@@ -35,6 +35,7 @@ func NewHealthCheckConfigDataSourceType() tfdriver.DataSourceType[healthcheckcon
 			return teleport.NewHealthCheckConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindHealthCheckConfig,
+		Name: types.KindHealthCheckConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[healthcheckconfigv1.HealthCheckConfig]{
 			SchemaFunc:  schemav1.GenSchemaHealthCheckConfig,
 			ToStateFunc: schemav1.CopyHealthCheckConfigToTerraform,
@@ -50,6 +51,7 @@ func NewHealthCheckConfigResourceType() tfdriver.ResourceType[healthcheckconfigv
 			return teleport.NewHealthCheckConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindHealthCheckConfig,
+		Name: types.KindHealthCheckConfig,
 		Codec: tfdriver.ResourceCodecFuncs[healthcheckconfigv1.HealthCheckConfig]{
 			SchemaFunc:   schemav1.GenSchemaHealthCheckConfig,
 			ToStateFunc:  schemav1.CopyHealthCheckConfigToTerraform,

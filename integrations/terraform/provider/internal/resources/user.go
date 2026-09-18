@@ -34,6 +34,7 @@ func NewUserDataSourceType() tfdriver.DataSourceType[types.UserV2, tfdriver.Name
 			return teleport.NewUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindUser,
+		Name: types.KindUser,
 		Codec: tfdriver.DataSourceCodecFuncs[types.UserV2]{
 			SchemaFunc:  tfschema.GenSchemaUserV2,
 			ToStateFunc: tfschema.CopyUserV2ToTerraform,
@@ -49,6 +50,7 @@ func NewUserResourceType() tfdriver.ResourceType[types.UserV2, tfdriver.NameIden
 			return teleport.NewUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindUser,
+		Name: types.KindUser,
 		Codec: tfdriver.ResourceCodecFuncs[types.UserV2]{
 			SchemaFunc:   tfschema.GenSchemaUserV2,
 			ToStateFunc:  tfschema.CopyUserV2ToTerraform,

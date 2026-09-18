@@ -33,10 +33,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.DataSourceType = &dataSourceTeleportProvisionTokenType{}
-	_ datasource.DataSource   = &dataSourceTeleportProvisionToken{}
-)
+var _ datasource.DataSource = &dataSourceTeleportProvisionToken{}
 
 // dataSourceTeleportProvisionTokenType is the data source metadata type
 type dataSourceTeleportProvisionTokenType struct{}
@@ -46,16 +43,21 @@ type dataSourceTeleportProvisionToken struct {
 	p Provider
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return token.GenSchemaProvisionTokenV2(ctx)
-}
-
 // NewDataSource creates the empty data source
 func (r dataSourceTeleportProvisionTokenType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportProvisionToken{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the data source
+func (r dataSourceTeleportProvisionToken) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_provision_token"
+}
+
+// GetSchema returns the data source schema
+func (r dataSourceTeleportProvisionToken) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return token.GenSchemaProvisionTokenV2(ctx)
 }
 
 // Read reads teleport ProvisionToken

@@ -34,6 +34,7 @@ func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.Nam
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
+		Name: apitypes.KindApp,
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.AppV3]{
 			SchemaFunc:  tfschema.GenSchemaAppV3,
 			ToStateFunc: tfschema.CopyAppV3ToTerraform,
@@ -49,6 +50,7 @@ func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIde
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
+		Name: apitypes.KindApp,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.AppV3]{
 			SchemaFunc:   tfschema.GenSchemaAppV3,
 			ToStateFunc:  tfschema.CopyAppV3ToTerraform,

@@ -33,10 +33,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.DataSourceType = &dataSourceTeleportWorkloadClusterType{}
-	_ datasource.DataSource   = &dataSourceTeleportWorkloadCluster{}
-)
+var _ datasource.DataSource = &dataSourceTeleportWorkloadCluster{}
 
 // dataSourceTeleportWorkloadClusterType is the data source metadata type
 type dataSourceTeleportWorkloadClusterType struct{}
@@ -46,16 +43,21 @@ type dataSourceTeleportWorkloadCluster struct {
 	p Provider
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportWorkloadClusterType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return schemav1.GenSchemaWorkloadCluster(ctx)
-}
-
 // NewDataSource creates the empty data source
 func (r dataSourceTeleportWorkloadClusterType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportWorkloadCluster{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the data source
+func (r dataSourceTeleportWorkloadCluster) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_workload_cluster"
+}
+
+// GetSchema returns the data source schema
+func (r dataSourceTeleportWorkloadCluster) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaWorkloadCluster(ctx)
 }
 
 // Read reads teleport WorkloadCluster

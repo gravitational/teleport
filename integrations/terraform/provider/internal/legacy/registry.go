@@ -17,21 +17,41 @@
 package legacy
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-// DataSourceTypes returns all legacy Teleport data source types.
-func DataSourceTypes() map[string]provider.DataSourceType {
-	return map[string]provider.DataSourceType{
-		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
-		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
-		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
-		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
-		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
-		"teleport_integration":                dataSourceTeleportIntegrationType{},
+// DataSourceType is a data source type used to instantiate a new DataSource.
+type DataSourceType interface {
+	NewDataSource(context.Context, provider.Provider) (datasource.DataSource, diag.Diagnostics)
+}
+
+// ResourceType is a resource type used to instantiate a new Resource.
+type ResourceType interface {
+	NewResource(context.Context, provider.Provider) (resource.Resource, diag.Diagnostics)
+}
+
+// DataSources returns all legacy Teleport data sources.
+func DataSources(ctx context.Context, p provider.Provider) []func() datasource.DataSource {
+	return DataSourcesFromTypes(ctx, p, dataSourceTypes())
+}
+
+// dataSourceTypes returns all legacy Teleport data source types.
+func dataSourceTypes() []DataSourceType {
+	return []DataSourceType{
+		dataSourceTeleportClusterMaintenanceConfigType{},
+		dataSourceTeleportDiscoveryConfigType{},
+		dataSourceTeleportGithubConnectorType{},
+		dataSourceTeleportProvisionTokenType{},
+		dataSourceTeleportOIDCConnectorType{},
+		dataSourceTeleportSAMLIdPServiceProviderType{},
+		dataSourceTeleportAutoUpdateConfigType{},
+		dataSourceTeleportVnetConfigType{},
+		dataSourceTeleportIntegrationType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -39,29 +59,60 @@ func DataSourceTypes() map[string]provider.DataSourceType {
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
-		"teleport_workload_cluster":      dataSourceTeleportWorkloadClusterType{},
-		"teleport_client_ip_restriction": dataSourceTeleportClientIPRestrictionType{},
+		dataSourceTeleportWorkloadClusterType{},
+		dataSourceTeleportClientIPRestrictionType{},
 	}
 }
 
-// ResourceTypes returns all legacy Teleport resource types.
-func ResourceTypes() map[string]provider.ResourceType {
-	return map[string]provider.ResourceType{
-		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
-		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
-		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
-		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
-		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_bot":                        resourceTeleportBotType{},
-		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
-		"teleport_integration":                resourceTeleportIntegrationType{},
-		"teleport_inference_model":            resourceTeleportInferenceModelType{},
-		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
-		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
-		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
+// DataSourcesFromTypes returns data sources from types
+func DataSourcesFromTypes(ctx context.Context, p provider.Provider, dtypes []DataSourceType) []func() datasource.DataSource {
+	dataSources := make([]func() datasource.DataSource, 0, len(dtypes))
+	for _, dtype := range dtypes {
+		dataSources = append(dataSources, func() datasource.DataSource {
+			// Returned diagnostics is always nil
+			dataSource, _ := dtype.NewDataSource(ctx, p)
+			return dataSource
+		})
 	}
+	return dataSources
+}
+
+// Resources returns all legacy Teleport resources.
+func Resources(ctx context.Context, p provider.Provider) []func() resource.Resource {
+	return ResourcesFromTypes(ctx, p, resourceTypes())
+}
+
+// resourceTypes returns all legacy Teleport resource types.
+func resourceTypes() []ResourceType {
+	return []ResourceType{
+		resourceTeleportClusterMaintenanceConfigType{},
+		resourceTeleportDiscoveryConfigType{},
+		resourceTeleportGithubConnectorType{},
+		resourceTeleportProvisionTokenType{},
+		resourceTeleportOIDCConnectorType{},
+		resourceTeleportSAMLIdPServiceProviderType{},
+		resourceTeleportBotType{},
+		resourceTeleportAutoUpdateConfigType{},
+		resourceTeleportVnetConfigType{},
+		resourceTeleportIntegrationType{},
+		resourceTeleportInferenceModelType{},
+		resourceTeleportInferenceSecretType{},
+		resourceTeleportInferencePolicyType{},
+		resourceTeleportRetrievalModelType{},
+		resourceTeleportWorkloadClusterType{},
+		resourceTeleportClientIPRestrictionType{},
+	}
+}
+
+// ResourcesFromTypes returns resources from types
+func ResourcesFromTypes(ctx context.Context, p provider.Provider, rtypes []ResourceType) []func() resource.Resource {
+	resources := make([]func() resource.Resource, 0, len(rtypes))
+	for _, rtype := range rtypes {
+		resources = append(resources, func() resource.Resource {
+			// Returned diagnostics is always nil
+			resource, _ := rtype.NewResource(ctx, p)
+			return resource
+		})
+	}
+	return resources
 }

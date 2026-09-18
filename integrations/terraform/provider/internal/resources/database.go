@@ -34,6 +34,7 @@ func NewDatabaseDataSourceType() tfdriver.DataSourceType[apitypes.DatabaseV3, tf
 			return teleport.NewDatabaseClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindDatabase,
+		Name: "database",
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.DatabaseV3]{
 			SchemaFunc:  tfschema.GenSchemaDatabaseV3,
 			ToStateFunc: tfschema.CopyDatabaseV3ToTerraform,
@@ -49,6 +50,7 @@ func NewDatabaseResourceType() tfdriver.ResourceType[apitypes.DatabaseV3, tfdriv
 			return teleport.NewDatabaseClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindDatabase,
+		Name: "database",
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.DatabaseV3]{
 			SchemaFunc:   tfschema.GenSchemaDatabaseV3,
 			ToStateFunc:  tfschema.CopyDatabaseV3ToTerraform,

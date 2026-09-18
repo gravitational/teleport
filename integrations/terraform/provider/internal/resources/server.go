@@ -35,6 +35,7 @@ func NewSSHServerDataSourceType() tfdriver.DataSourceType[apitypes.ServerV2, tfd
 			return teleport.NewServerClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindNode,
+		Name: "server",
 		Codec: tfdriver.DataSourceCodecFuncs[apitypes.ServerV2]{
 			SchemaFunc:  tfschema.GenSchemaServerV2,
 			ToStateFunc: tfschema.CopyServerV2ToTerraform,
@@ -55,6 +56,7 @@ func NewSSHServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdrive
 			return teleport.NewServerClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindNode,
+		Name: "server",
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.ServerV2]{
 			SchemaFunc:   tfschema.GenSchemaServerV2,
 			ToStateFunc:  tfschema.CopyServerV2ToTerraform,

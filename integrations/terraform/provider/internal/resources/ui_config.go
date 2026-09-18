@@ -38,6 +38,7 @@ func NewUIConfigDataSourceType() tfdriver.DataSourceType[types.UIConfigV1, tfdri
 			return teleport.NewUIConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindUIConfig,
+		Name: types.KindUIConfig,
 		Codec: tfdriver.DataSourceCodecFuncs[types.UIConfigV1]{
 			SchemaFunc:  tfschema.GenSchemaUIConfigV1,
 			ToStateFunc: tfschema.CopyUIConfigV1ToTerraform,
@@ -53,6 +54,7 @@ func NewUIConfigResourceType() tfdriver.ResourceType[types.UIConfigV1, tfdriver.
 			return teleport.NewUIConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindUIConfig,
+		Name: types.KindUIConfig,
 		Codec: tfdriver.ResourceCodecFuncs[types.UIConfigV1]{
 			SchemaFunc:   tfschema.GenSchemaUIConfigV1,
 			ToStateFunc:  tfschema.CopyUIConfigV1ToTerraform,

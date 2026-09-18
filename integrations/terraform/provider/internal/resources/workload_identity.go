@@ -36,6 +36,7 @@ func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentit
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,
+		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.DataSourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
 			SchemaFunc:  schemav1.GenSchemaWorkloadIdentity,
 			ToStateFunc: schemav1.CopyWorkloadIdentityToTerraform,
@@ -54,6 +55,7 @@ func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,
+		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.ResourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
 			SchemaFunc:   schemav1.GenSchemaWorkloadIdentity,
 			ToStateFunc:  schemav1.CopyWorkloadIdentityToTerraform,

@@ -42,6 +42,7 @@ func NewAccessListDataSourceType() tfdriver.DataSourceType[accesslist.AccessList
 			return teleport.NewAccessListClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessList,
+		Name: apitypes.KindAccessList,
 		Codec: tfdriver.DataSourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
 			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
@@ -64,6 +65,7 @@ func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tf
 			return teleport.NewAccessListClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindAccessList,
+		Name: apitypes.KindAccessList,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
 			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {

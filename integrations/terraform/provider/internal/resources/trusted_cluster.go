@@ -34,6 +34,7 @@ func NewTrustedClusterDataSourceType() tfdriver.DataSourceType[types.TrustedClus
 			return teleport.NewTrustedClusterClient(clientFromProvider(p))
 		},
 		Kind: types.KindTrustedCluster,
+		Name: types.KindTrustedCluster,
 		Codec: tfdriver.DataSourceCodecFuncs[types.TrustedClusterV2]{
 			SchemaFunc:  tfschema.GenSchemaTrustedClusterV2,
 			ToStateFunc: tfschema.CopyTrustedClusterV2ToTerraform,
@@ -49,6 +50,7 @@ func NewTrustedClusterResourceType() tfdriver.ResourceType[types.TrustedClusterV
 			return teleport.NewTrustedClusterClient(clientFromProvider(p))
 		},
 		Kind: types.KindTrustedCluster,
+		Name: types.KindTrustedCluster,
 		Codec: tfdriver.ResourceCodecFuncs[types.TrustedClusterV2]{
 			SchemaFunc:   tfschema.GenSchemaTrustedClusterV2,
 			ToStateFunc:  tfschema.CopyTrustedClusterV2ToTerraform,

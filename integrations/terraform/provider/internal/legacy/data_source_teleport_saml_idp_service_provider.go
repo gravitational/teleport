@@ -33,10 +33,7 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
-var (
-	_ provider.DataSourceType = &dataSourceTeleportSAMLIdPServiceProviderType{}
-	_ datasource.DataSource   = &dataSourceTeleportSAMLIdPServiceProvider{}
-)
+var _ datasource.DataSource = &dataSourceTeleportSAMLIdPServiceProvider{}
 
 // dataSourceTeleportSAMLIdPServiceProviderType is the data source metadata type
 type dataSourceTeleportSAMLIdPServiceProviderType struct{}
@@ -46,16 +43,21 @@ type dataSourceTeleportSAMLIdPServiceProvider struct {
 	p Provider
 }
 
-// GetSchema returns the data source schema
-func (r dataSourceTeleportSAMLIdPServiceProviderType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
-}
-
 // NewDataSource creates the empty data source
 func (r dataSourceTeleportSAMLIdPServiceProviderType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportSAMLIdPServiceProvider{
 		p: p.(Provider),
 	}, nil
+}
+
+// Metadata returns the full name of the data source
+func (r dataSourceTeleportSAMLIdPServiceProvider) Metadata(_ context.Context, _ datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = "teleport_saml_idp_service_provider"
+}
+
+// GetSchema returns the data source schema
+func (r dataSourceTeleportSAMLIdPServiceProvider) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return tfschema.GenSchemaSAMLIdPServiceProviderV1(ctx)
 }
 
 // Read reads teleport SAMLIdPServiceProvider

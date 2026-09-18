@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
 )
 
+var _ resource.Resource = &Resource[any, Identifier]{}
+
 // Runtime provides provider settings for Terraform resources.
 type Runtime interface {
 	// IsConfigured reports whether the provider is ready to use.
@@ -66,6 +68,8 @@ type ResourceType[T any, I Identifier] struct {
 	NewResourceClient func(provider.Provider) ResourceClient[T, I]
 	// Kind determines the Teleport resource variant.
 	Kind string
+	// Name specifies the Teleport resource name.
+	Name string
 	// Codec converts Teleport resources to/from terraform resources.
 	Codec ResourceCodec[T]
 	// Normalizer prepares a Teleport resource prior to writes.
@@ -98,6 +102,16 @@ type Resource[T any, I Identifier] struct {
 	resourceClient ResourceClient[T, I]
 	resource       ResourceType[T, I]
 	runtime        Runtime
+}
+
+// Metadata returns the full name of the resource.
+func (r Resource[T, I]) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_" + r.resource.Name
+}
+
+// GetSchema returns the resource schema.
+func (r Resource[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return r.resource.GetSchema(ctx)
 }
 
 func (r Resource[T, I]) normalizeCreate(ctx context.Context, resource *T) error {

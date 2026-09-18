@@ -35,6 +35,7 @@ func NewStaticHostUserDataSourceType() tfdriver.DataSourceType[userprovisioningv
 			return teleport.NewStaticHostUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindStaticHostUser,
+		Name: types.KindStaticHostUser,
 		Codec: tfdriver.DataSourceCodecFuncs[userprovisioningv2.StaticHostUser]{
 			SchemaFunc:  schemav1.GenSchemaStaticHostUser,
 			ToStateFunc: schemav1.CopyStaticHostUserToTerraform,
@@ -50,6 +51,7 @@ func NewStaticHostUserResourceType() tfdriver.ResourceType[userprovisioningv2.St
 			return teleport.NewStaticHostUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindStaticHostUser,
+		Name: types.KindStaticHostUser,
 		Codec: tfdriver.ResourceCodecFuncs[userprovisioningv2.StaticHostUser]{
 			SchemaFunc:   schemav1.GenSchemaStaticHostUser,
 			ToStateFunc:  schemav1.CopyStaticHostUserToTerraform,

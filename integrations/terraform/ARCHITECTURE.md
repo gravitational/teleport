@@ -30,8 +30,10 @@ Resource registration is split into two groups:
 - `internal/legacy`: existing generated resource and data source implementations.
 - `internal/resources`: resources implemented with the generic driver.
 
-`GetResources` and `GetDataSources` start with the legacy registry and then insert generic-driver resources. This lets
-migrated resources replace legacy registrations without changing the provider's public Terraform resource names.
+`Resources` and `DataSources` start with the legacy registry and then append generic-driver resources. Resource and data
+source implementations publish their Terraform type names through `Metadata`; generic-driver types derive names from the
+provider type name and the descriptor's `Name` field. This lets migrated resources preserve public Terraform resource
+names.
 
 ### `internal/tfdriver`
 
