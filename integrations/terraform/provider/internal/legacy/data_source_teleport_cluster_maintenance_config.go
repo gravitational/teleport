@@ -22,12 +22,19 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportClusterMaintenanceConfigType{}
+	_ datasource.DataSource   = &dataSourceTeleportClusterMaintenanceConfig{}
 )
 
 // dataSourceTeleportClusterMaintenanceConfigType is the data source metadata type
@@ -44,14 +51,14 @@ func (r dataSourceTeleportClusterMaintenanceConfigType) GetSchema(ctx context.Co
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportClusterMaintenanceConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportClusterMaintenanceConfigType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportClusterMaintenanceConfig{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport ClusterMaintenanceConfig
-func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	clusterMaintenanceConfigI, err := r.p.Client().GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))

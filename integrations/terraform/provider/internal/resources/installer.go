@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,7 +30,7 @@ import (
 // NewInstallerDataSourceType returns the installer data source type.
 func NewInstallerDataSourceType() tfdriver.DataSourceType[types.InstallerV1, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.InstallerV1, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.InstallerV1, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.InstallerV1, tfdriver.NameIdentifier] {
 			return teleport.NewInstallerClient(clientFromProvider(p))
 		},
 		Kind: types.KindInstaller,
@@ -45,7 +45,7 @@ func NewInstallerDataSourceType() tfdriver.DataSourceType[types.InstallerV1, tfd
 // NewInstallerResourceType returns the installer resource type.
 func NewInstallerResourceType() tfdriver.ResourceType[types.InstallerV1, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.InstallerV1, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.InstallerV1, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.InstallerV1, tfdriver.NameIdentifier] {
 			return teleport.NewInstallerClient(clientFromProvider(p))
 		},
 		Kind: types.KindInstaller,

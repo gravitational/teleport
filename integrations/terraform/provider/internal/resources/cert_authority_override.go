@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +31,7 @@ import (
 // NewCertAuthorityOverrideDataSourceType returns the cert authority override data source type.
 func NewCertAuthorityOverrideDataSourceType() tfdriver.DataSourceType[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
 			return teleport.NewCertAuthorityOverrideClient(clientFromProvider(p))
 		},
 		Kind: types.KindCertAuthorityOverride,
@@ -46,7 +46,7 @@ func NewCertAuthorityOverrideDataSourceType() tfdriver.DataSourceType[subcav1.Ce
 // NewCertAuthorityOverrideResourceType returns the cert authority override resource type.
 func NewCertAuthorityOverrideResourceType() tfdriver.ResourceType[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[subcav1.CertAuthorityOverride, tfdriver.NameIdentifier] {
 			return teleport.NewCertAuthorityOverrideClient(clientFromProvider(p))
 		},
 		Kind: types.KindCertAuthorityOverride,

@@ -17,7 +17,7 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -34,7 +34,7 @@ const sessionRecordingConfigID = "session_recording_config"
 // NewSessionRecordingConfigDataSourceType returns the session recording config data source type.
 func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,
@@ -49,7 +49,7 @@ func NewSessionRecordingConfigDataSourceType() tfdriver.DataSourceType[types.Ses
 // NewSessionRecordingConfigResourceType returns the session recording config resource type.
 func NewSessionRecordingConfigResourceType() tfdriver.ResourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.SessionRecordingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewSessionRecordingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindSessionRecordingConfig,

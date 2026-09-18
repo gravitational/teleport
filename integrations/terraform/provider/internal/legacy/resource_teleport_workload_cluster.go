@@ -28,12 +28,19 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	sdkresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.ResourceType = &resourceTeleportWorkloadClusterType{}
+	_ resource.Resource     = &resourceTeleportWorkloadCluster{}
 )
 
 // resourceTeleportWorkloadClusterType is the resource metadata type
@@ -50,14 +57,14 @@ func (r resourceTeleportWorkloadClusterType) GetSchema(ctx context.Context) (tfs
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportWorkloadClusterType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportWorkloadClusterType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportWorkloadCluster{
 		p: p.(Provider),
 	}, nil
 }
 
 // Create creates the WorkloadCluster
-func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -153,7 +160,7 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req tfsdk.C
 		return
 	}
 
-	stateConf := resource.StateChangeConf{
+	stateConf := sdkresource.StateChangeConf{
 		Pending: []string{
 			"creating",
 		},
@@ -185,7 +192,7 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req tfsdk.C
 }
 
 // Read reads teleport WorkloadCluster
-func (r resourceTeleportWorkloadCluster) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportWorkloadCluster) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -225,7 +232,7 @@ func (r resourceTeleportWorkloadCluster) Read(ctx context.Context, req tfsdk.Rea
 }
 
 // Update updates teleport WorkloadCluster
-func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -309,7 +316,7 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.U
 		return
 	}
 
-	stateConf := resource.StateChangeConf{
+	stateConf := sdkresource.StateChangeConf{
 		Pending: []string{
 			"creating",
 		},
@@ -341,7 +348,7 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.U
 }
 
 // Delete deletes Teleport WorkloadCluster
-func (r resourceTeleportWorkloadCluster) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportWorkloadCluster) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -359,7 +366,7 @@ func (r resourceTeleportWorkloadCluster) Delete(ctx context.Context, req tfsdk.D
 }
 
 // ImportState imports WorkloadCluster state
-func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	workloadcluster, err := r.p.Client().GetWorkloadCluster(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading WorkloadCluster", trace.Wrap(err), "workload_cluster"))
@@ -394,7 +401,7 @@ func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req tf
 }
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

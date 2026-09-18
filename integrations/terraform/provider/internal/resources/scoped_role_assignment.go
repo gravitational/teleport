@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/scopes"
@@ -32,7 +32,7 @@ import (
 // NewScopedRoleAssignmentDataSourceType returns the scoped token data source type.
 func NewScopedRoleAssignmentDataSourceType() tfdriver.DataSourceType[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleAssignmentClient(clientFromProvider(p))
 		},
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierFromPath(
@@ -51,7 +51,7 @@ func NewScopedRoleAssignmentDataSourceType() tfdriver.DataSourceType[accessv1.Sc
 // NewScopedRoleAssignmentResourceType returns the scoped token resource type.
 func NewScopedRoleAssignmentResourceType() tfdriver.ResourceType[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[accessv1.ScopedRoleAssignment, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewScopedRoleAssignmentClient(clientFromProvider(p))
 		},
 		Kind: scopedaccess.KindScopedRoleAssignment,

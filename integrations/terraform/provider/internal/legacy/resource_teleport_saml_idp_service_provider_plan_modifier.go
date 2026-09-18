@@ -30,7 +30,7 @@ import (
 	"github.com/beevik/etree"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -141,7 +141,7 @@ func replaceACSURLInSamlIdPDescriptor(descriptor, newACSURL string) (string, err
 // https://github.com/gravitational/teleport/issues/64651 is fixed. As-is,
 // the provider's codegen fails to preserve API updates to fields, but only on
 // update calls.
-func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Destroy: no op
 	if req.Plan.Raw.IsNull() {
 		return
@@ -251,7 +251,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 }
 
 // modifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +31,7 @@ import (
 // NewAccessMonitoringRuleDataSourceType returns the access monitoring rule data source type.
 func NewAccessMonitoringRuleDataSourceType() tfdriver.DataSourceType[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
 			return teleport.NewAccessMonitoringRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindAccessMonitoringRule,
@@ -46,7 +46,7 @@ func NewAccessMonitoringRuleDataSourceType() tfdriver.DataSourceType[accessmonit
 // NewAccessMonitoringRuleResourceType returns the access monitoring rule resource type.
 func NewAccessMonitoringRuleResourceType() tfdriver.ResourceType[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[accessmonitoringrulesv1.AccessMonitoringRule, tfdriver.NameIdentifier] {
 			return teleport.NewAccessMonitoringRuleClient(clientFromProvider(p))
 		},
 		Kind: types.KindAccessMonitoringRule,

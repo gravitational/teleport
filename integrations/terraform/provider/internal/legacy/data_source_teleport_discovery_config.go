@@ -22,13 +22,20 @@ import (
 
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/discoveryconfig/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportDiscoveryConfigType{}
+	_ datasource.DataSource   = &dataSourceTeleportDiscoveryConfig{}
 )
 
 // dataSourceTeleportDiscoveryConfigType is the data source metadata type
@@ -45,14 +52,14 @@ func (r dataSourceTeleportDiscoveryConfigType) GetSchema(ctx context.Context) (t
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportDiscoveryConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportDiscoveryConfigType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportDiscoveryConfig{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport DiscoveryConfig
-func (r dataSourceTeleportDiscoveryConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportDiscoveryConfig) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

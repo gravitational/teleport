@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/grpc"
@@ -182,7 +183,7 @@ type providerData struct {
 }
 
 // New returns an empty provider struct
-func New() tfsdk.Provider {
+func New() provider.Provider {
 	return &Provider{}
 }
 
@@ -335,7 +336,7 @@ func (p *Provider) IsConfigured(diags diag.Diagnostics) bool {
 }
 
 // Configure configures the Teleport client
-func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
+func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	p.configureLog()
 
 	// We wrap the provider's context into a cancellable one.
@@ -451,7 +452,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 }
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
-func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
+func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *provider.ConfigureResponse) bool {
 	slog.DebugContext(ctx, "Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
@@ -504,7 +505,7 @@ func boolFromConfigOrEnv(value types.Bool, env string) bool {
 }
 
 // validateAddr validates passed addr
-func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderResponse) bool {
+func (p *Provider) validateAddr(addr string, resp *provider.ConfigureResponse) bool {
 	if addr == "" {
 		resp.Diagnostics.AddError(
 			"Teleport address is empty",
@@ -560,10 +561,10 @@ func (p *Provider) configureLog() {
 }
 
 // GetResources returns the map of provider resources
-func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
+func (p *Provider) GetResources(_ context.Context) (map[string]provider.ResourceType, diag.Diagnostics) {
 	resourceTypes := legacy.ResourceTypes()
 
-	genericResourceTypes := map[string]tfsdk.ResourceType{
+	genericResourceTypes := map[string]provider.ResourceType{
 		"teleport_access_list":               resources.NewAccessListResourceType(),
 		"teleport_access_list_member":        resources.NewAccessListMemberResourceType(),
 		"teleport_access_monitoring_rule":    resources.NewAccessMonitoringRuleResourceType(),
@@ -603,10 +604,10 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 }
 
 // GetDataSources returns the map of provider data sources
-func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
+func (p *Provider) GetDataSources(_ context.Context) (map[string]provider.DataSourceType, diag.Diagnostics) {
 	dataSourceTypes := legacy.DataSourceTypes()
 
-	genericDataSourceTypes := map[string]tfsdk.DataSourceType{
+	genericDataSourceTypes := map[string]provider.DataSourceType{
 		"teleport_access_list":               resources.NewAccessListDataSourceType(),
 		"teleport_access_list_member":        resources.NewAccessListMemberDataSourceType(),
 		"teleport_access_monitoring_rule":    resources.NewAccessMonitoringRuleDataSourceType(),

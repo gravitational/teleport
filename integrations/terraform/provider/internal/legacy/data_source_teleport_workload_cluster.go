@@ -22,13 +22,20 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportWorkloadClusterType{}
+	_ datasource.DataSource   = &dataSourceTeleportWorkloadCluster{}
 )
 
 // dataSourceTeleportWorkloadClusterType is the data source metadata type
@@ -45,14 +52,14 @@ func (r dataSourceTeleportWorkloadClusterType) GetSchema(ctx context.Context) (t
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportWorkloadClusterType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportWorkloadClusterType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportWorkloadCluster{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport WorkloadCluster
-func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

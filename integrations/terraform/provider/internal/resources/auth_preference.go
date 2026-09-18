@@ -17,7 +17,7 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -34,7 +34,7 @@ const authPreferenceID = "auth_preference"
 // NewAuthPreferenceDataSourceType returns the cluster auth preference data source type.
 func NewAuthPreferenceDataSourceType() tfdriver.DataSourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,
@@ -49,7 +49,7 @@ func NewAuthPreferenceDataSourceType() tfdriver.DataSourceType[types.AuthPrefere
 // NewAuthPreferenceResourceType returns the cluster auth preference resource type.
 func NewAuthPreferenceResourceType() tfdriver.ResourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.AuthPreferenceV2, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.AuthPreferenceV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewAuthPreferenceClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterAuthPreference,

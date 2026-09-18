@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/scopes"
@@ -32,7 +32,7 @@ import (
 // NewWorkloadIdentityDataSourceType returns the workload identity data source type.
 func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,
@@ -50,7 +50,7 @@ func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentit
 // NewWorkloadIdentityResourceType returns the workload identity resource type.
 func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[workloadidentityv1.WorkloadIdentity, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewWorkloadIdentityClient(clientFromProvider(p))
 		},
 		Kind: types.KindWorkloadIdentity,

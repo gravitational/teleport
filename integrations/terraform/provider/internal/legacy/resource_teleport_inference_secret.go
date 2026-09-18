@@ -27,11 +27,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.ResourceType = &resourceTeleportInferenceSecretType{}
+	_ resource.Resource     = &resourceTeleportInferenceSecret{}
 )
 
 // resourceTeleportInferenceSecretType is the resource metadata type
@@ -48,14 +55,14 @@ func (r resourceTeleportInferenceSecretType) GetSchema(ctx context.Context) (tfs
 }
 
 // NewResource creates the empty resource
-func (r resourceTeleportInferenceSecretType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r resourceTeleportInferenceSecretType) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return resourceTeleportInferenceSecret{
 		p: p.(Provider),
 	}, nil
 }
 
 // Create creates the InferenceSecret
-func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var err error
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
@@ -161,7 +168,7 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 }
 
 // Read reads teleport InferenceSecret
-func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -201,7 +208,7 @@ func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req tfsdk.Rea
 }
 
 // Update updates teleport InferenceSecret
-func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.p.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -301,7 +308,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 }
 
 // Delete deletes Teleport InferenceSecret
-func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var id types.String
 	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -321,7 +328,7 @@ func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req tfsdk.D
 
 
 // ModifyPlan modifies the planned value, normalizing null values.
-func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		return

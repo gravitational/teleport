@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +31,7 @@ import (
 // NewHealthCheckConfigDataSourceType returns the health check config data source type.
 func NewHealthCheckConfigDataSourceType() tfdriver.DataSourceType[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
 			return teleport.NewHealthCheckConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindHealthCheckConfig,
@@ -46,7 +46,7 @@ func NewHealthCheckConfigDataSourceType() tfdriver.DataSourceType[healthcheckcon
 // NewHealthCheckConfigResourceType returns the health check config resource type.
 func NewHealthCheckConfigResourceType() tfdriver.ResourceType[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[healthcheckconfigv1.HealthCheckConfig, tfdriver.NameIdentifier] {
 			return teleport.NewHealthCheckConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindHealthCheckConfig,

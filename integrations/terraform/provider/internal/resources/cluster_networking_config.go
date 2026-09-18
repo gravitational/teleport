@@ -17,7 +17,7 @@
 package resources
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -34,7 +34,7 @@ const clusterNetworkingConfigID = "cluster_networking_config"
 // NewClusterNetworkingConfigDataSourceType returns the cluster networking config data source type.
 func NewClusterNetworkingConfigDataSourceType() tfdriver.DataSourceType[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.DataSourceType[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewClusterNetworkingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterNetworkingConfig,
@@ -49,7 +49,7 @@ func NewClusterNetworkingConfigDataSourceType() tfdriver.DataSourceType[types.Cl
 // NewClusterNetworkingConfigResourceType returns the cluster networking config resource type.
 func NewClusterNetworkingConfigResourceType() tfdriver.ResourceType[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
 	return tfdriver.ResourceType[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.ClusterNetworkingConfigV2, tfdriver.SingletonIdentifier] {
 			return teleport.NewClusterNetworkingConfigClient(clientFromProvider(p))
 		},
 		Kind: types.KindClusterNetworkingConfig,

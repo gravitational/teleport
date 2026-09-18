@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,7 +30,7 @@ import (
 // NewUserDataSourceType returns the user data source type.
 func NewUserDataSourceType() tfdriver.DataSourceType[types.UserV2, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.UserV2, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.UserV2, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.UserV2, tfdriver.NameIdentifier] {
 			return teleport.NewUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindUser,
@@ -45,7 +45,7 @@ func NewUserDataSourceType() tfdriver.DataSourceType[types.UserV2, tfdriver.Name
 // NewUserResourceType returns the user resource type.
 func NewUserResourceType() tfdriver.ResourceType[types.UserV2, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.UserV2, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.UserV2, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.UserV2, tfdriver.NameIdentifier] {
 			return teleport.NewUserClient(clientFromProvider(p))
 		},
 		Kind: types.KindUser,

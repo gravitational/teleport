@@ -22,13 +22,20 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportInferencePolicyType{}
+	_ datasource.DataSource   = &dataSourceTeleportInferencePolicy{}
 )
 
 // dataSourceTeleportInferencePolicyType is the data source metadata type
@@ -45,14 +52,14 @@ func (r dataSourceTeleportInferencePolicyType) GetSchema(ctx context.Context) (t
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportInferencePolicyType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportInferencePolicyType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportInferencePolicy{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport InferencePolicy
-func (r dataSourceTeleportInferencePolicy) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportInferencePolicy) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)

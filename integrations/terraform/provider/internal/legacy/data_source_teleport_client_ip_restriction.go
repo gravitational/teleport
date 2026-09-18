@@ -22,12 +22,19 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/clientiprestriction/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportClientIPRestrictionType{}
+	_ datasource.DataSource   = &dataSourceTeleportClientIPRestriction{}
 )
 
 // dataSourceTeleportClientIPRestrictionType is the data source metadata type
@@ -44,14 +51,14 @@ func (r dataSourceTeleportClientIPRestrictionType) GetSchema(ctx context.Context
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportClientIPRestrictionType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportClientIPRestrictionType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportClientIPRestriction{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport ClientIPRestriction
-func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	clientIPRestrictionI, err := r.p.Client().GetClientIPRestriction(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ClientIPRestriction", trace.Wrap(err), "client_ip_restriction"))

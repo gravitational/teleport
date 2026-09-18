@@ -22,12 +22,19 @@ import (
 
 	
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleportAutoUpdateConfigType{}
+	_ datasource.DataSource   = &dataSourceTeleportAutoUpdateConfig{}
 )
 
 // dataSourceTeleportAutoUpdateConfigType is the data source metadata type
@@ -44,14 +51,14 @@ func (r dataSourceTeleportAutoUpdateConfigType) GetSchema(ctx context.Context) (
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportAutoUpdateConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleportAutoUpdateConfigType) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleportAutoUpdateConfig{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport AutoUpdateConfig
-func (r dataSourceTeleportAutoUpdateConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleportAutoUpdateConfig) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	autoUpdateConfigI, err := r.p.Client().GetAutoUpdateConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading AutoUpdateConfig", trace.Wrap(err), "autoupdate_config"))

@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -61,7 +63,7 @@ type UpdatePreparer[T any] interface {
 type ResourceType[T any, I Identifier] struct {
 	// NewResourceClient generates a ResoureClient used to alter
 	// the Teleport resource.
-	NewResourceClient func(tfsdk.Provider) ResourceClient[T, I]
+	NewResourceClient func(provider.Provider) ResourceClient[T, I]
 	// Kind determines the Teleport resource variant.
 	Kind string
 	// Codec converts Teleport resources to/from terraform resources.
@@ -83,7 +85,7 @@ func (r ResourceType[T, I]) GetSchema(ctx context.Context) (tfsdk.Schema, diag.D
 }
 
 // NewResource creates the resource.
-func (r ResourceType[T, I]) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+func (r ResourceType[T, I]) NewResource(_ context.Context, p provider.Provider) (resource.Resource, diag.Diagnostics) {
 	return Resource[T, I]{
 		resourceClient: r.NewResourceClient(p),
 		resource:       r,
@@ -115,7 +117,7 @@ func (r Resource[T, I]) normalizeUpdate(ctx context.Context, resource *T) error 
 }
 
 // Create creates the Teleport resource.
-func (r Resource[T, I]) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+func (r Resource[T, I]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.runtime.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -210,7 +212,7 @@ func (r Resource[T, I]) Create(ctx context.Context, req tfsdk.CreateResourceRequ
 }
 
 // Read reads the Teleport resource.
-func (r Resource[T, I]) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+func (r Resource[T, I]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state types.Object
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -248,7 +250,7 @@ func (r Resource[T, I]) Read(ctx context.Context, req tfsdk.ReadResourceRequest,
 }
 
 // Update updates the Teleport resource.
-func (r Resource[T, I]) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+func (r Resource[T, I]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	if !r.runtime.IsConfigured(resp.Diagnostics) {
 		return
 	}
@@ -335,7 +337,7 @@ func (r Resource[T, I]) Update(ctx context.Context, req tfsdk.UpdateResourceRequ
 }
 
 // Delete deletes the Teleport resource.
-func (r Resource[T, I]) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+func (r Resource[T, I]) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	id, diags := r.resource.Identifier.FromState(ctx, req.State)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -351,7 +353,7 @@ func (r Resource[T, I]) Delete(ctx context.Context, req tfsdk.DeleteResourceRequ
 }
 
 // ImportState imports the Teleport resource state.
-func (r Resource[T, I]) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+func (r Resource[T, I]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	id, err := r.resource.Identifier.FromImportID(req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr(fmt.Sprintf("Invalid identifier for %q", r.resource.Kind), trace.Wrap(err), r.resource.Kind))

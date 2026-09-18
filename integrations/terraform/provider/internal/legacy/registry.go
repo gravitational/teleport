@@ -16,11 +16,13 @@
 
 package legacy
 
-import "github.com/hashicorp/terraform-plugin-framework/tfsdk"
+import (
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+)
 
 // DataSourceTypes returns all legacy Teleport data source types.
-func DataSourceTypes() map[string]tfsdk.DataSourceType {
-	return map[string]tfsdk.DataSourceType{
+func DataSourceTypes() map[string]provider.DataSourceType {
+	return map[string]provider.DataSourceType{
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
@@ -43,8 +45,8 @@ func DataSourceTypes() map[string]tfsdk.DataSourceType {
 }
 
 // ResourceTypes returns all legacy Teleport resource types.
-func ResourceTypes() map[string]tfsdk.ResourceType {
-	return map[string]tfsdk.ResourceType{
+func ResourceTypes() map[string]provider.ResourceType {
+	return map[string]provider.ResourceType{
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},

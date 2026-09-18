@@ -38,154 +38,154 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   AuthPreferenceV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   ClusterMaintenanceConfigV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   ClusterNetworkingConfigV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   DatabaseV3:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   GithubConnectorV3:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   KubernetesClusterV3:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   LockV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   OIDCConnectorV3:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   OktaImportRuleV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   ProvisionTokenV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   RoleV6:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   SAMLConnectorV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   SAMLIdPServiceProviderV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   ServerV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   SessionRecordingConfigV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   TrustedClusterV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   UIConfigV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   UserV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   InstallerV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   DynamicWindowsDesktopV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
   IntegrationV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
 
 # These fields will be excluded
 exclude_fields:
@@ -527,20 +527,20 @@ suffixes:
 plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
     # Scope is part of the scoped resource identity and must not be updated in-place.
     AppV3.scope:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
     KubernetesClusterV3.scope:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
     ServerV2.scope:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
     ServerV2.Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
     ProvisionTokenV2.Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
     RoleV6.Spec.Options:
       - "DefaultRoleOptions()"
     RoleV6.Spec.Allow.KubernetesResources:
@@ -548,13 +548,13 @@ plan_modifiers:
     # The API populates these SAML IdP fields if unset. UseStateForUnknown()
     # makes them idempotent.
     SAMLIdPServiceProviderV1.Spec.EntityDescriptor:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.EntityID:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.Preset:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.RelayState:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
 
 validators:
   # Expires must be in the future

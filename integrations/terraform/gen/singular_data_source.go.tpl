@@ -24,15 +24,22 @@ import (
     {{- protoImport . }}
     {{- end }}
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 {{- if .DefaultSubKind }}
 	"github.com/hashicorp/terraform-plugin-framework/path"
 {{- end }}
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	{{ schemaImport . }}
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+)
+
+var (
+	_ provider.DataSourceType = &dataSourceTeleport{{.Name}}Type{}
+	_ datasource.DataSource   = &dataSourceTeleport{{.Name}}{}
 )
 
 // dataSourceTeleport{{.Name}}Type is the data source metadata type
@@ -49,14 +56,14 @@ func (r dataSourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.S
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p provider.Provider) (datasource.DataSource, diag.Diagnostics) {
 	return dataSourceTeleport{{.Name}}{
 		p: p.(Provider),
 	}, nil
 }
 
 // Read reads teleport {{.Name}}
-func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 {{- if .DefaultSubKind}}
 	var subKind types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)...)

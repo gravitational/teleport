@@ -18,7 +18,7 @@ package resources
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -30,7 +30,7 @@ import (
 // NewLockDataSourceType returns the lock data source type.
 func NewLockDataSourceType() tfdriver.DataSourceType[types.LockV2, tfdriver.NameIdentifier] {
 	return tfdriver.DataSourceType[types.LockV2, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.LockV2, tfdriver.NameIdentifier] {
+		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[types.LockV2, tfdriver.NameIdentifier] {
 			return teleport.NewLockClient(clientFromProvider(p))
 		},
 		Kind: types.KindLock,
@@ -45,7 +45,7 @@ func NewLockDataSourceType() tfdriver.DataSourceType[types.LockV2, tfdriver.Name
 // NewLockResourceType returns the lock resource type.
 func NewLockResourceType() tfdriver.ResourceType[types.LockV2, tfdriver.NameIdentifier] {
 	return tfdriver.ResourceType[types.LockV2, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.LockV2, tfdriver.NameIdentifier] {
+		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[types.LockV2, tfdriver.NameIdentifier] {
 			return teleport.NewLockClient(clientFromProvider(p))
 		},
 		Kind: types.KindLock,
