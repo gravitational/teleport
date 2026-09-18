@@ -92,7 +92,7 @@ func (r dataSourceTeleportOIDCConnector) Read(ctx context.Context, req datasourc
 
 	
 	oidcConnector := oidcConnectorI.(*apitypes.OIDCConnectorV3)
-	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
+	state, diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

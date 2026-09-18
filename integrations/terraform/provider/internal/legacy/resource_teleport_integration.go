@@ -154,7 +154,7 @@ func (r resourceTeleportIntegration) Create(ctx context.Context, req resource.Cr
 	}
 	integration = integrationResource
 
-	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
+	plan, diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -197,7 +197,7 @@ func (r resourceTeleportIntegration) Read(ctx context.Context, req resource.Read
 	}
 	
 	integration := integrationI.(*apitypes.IntegrationV1)
-	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
+	state, diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -290,7 +290,7 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req resource.Up
 	}
 	integration = integrationResource
 
-	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
+	plan, diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -340,7 +340,7 @@ func (r resourceTeleportIntegration) ImportState(ctx context.Context, req resour
 		return
 	}
 
-	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integrationResource, &state)
+	state, diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integrationResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -390,7 +390,8 @@ func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req resourc
 	integration = integrationResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraformPreserveUnknown(ctx, integration, &config, preserveUnknown)...)
+	config, diags := tfschema.CopyIntegrationV1ToTerraformPreserveUnknown(ctx, integration, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

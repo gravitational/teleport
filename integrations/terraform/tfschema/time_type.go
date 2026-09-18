@@ -162,6 +162,30 @@ func (t TimeType) Validate(ctx context.Context, in tftypes.Value, path path.Path
 	return diags
 }
 
+// NewTime creates a TimeValue with a known value using format RFC3339.
+func NewTime(value time.Time) TimeValue {
+	return TimeValue{
+		Value:  value,
+		Format: time.RFC3339,
+	}
+}
+
+// NullTime creates a TimeValue with a null value.
+func NullTime() TimeValue {
+	return TimeValue{
+		Null:   true,
+		Format: time.RFC3339,
+	}
+}
+
+// UnknownTime creates a TimeValue with an unknown value.
+func UnknownTime() TimeValue {
+	return TimeValue{
+		Unknown: true,
+		Format:  time.RFC3339,
+	}
+}
+
 // Type returns value type
 func (t TimeValue) Type(_ context.Context) attr.Type {
 	return TimeType{Format: t.Format}
@@ -218,4 +242,9 @@ func (t TimeValue) String() string {
 	}
 
 	return t.Value.String()
+}
+
+// ValueTime returns the underlying time value.
+func (t TimeValue) ValueTime() time.Time {
+	return t.Value
 }

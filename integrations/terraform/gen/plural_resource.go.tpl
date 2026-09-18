@@ -286,7 +286,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 	{{.VarName}} = {{.VarName}}Resource
 	{{- end }}
 
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
+	plan, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -457,7 +457,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req resource.ReadRe
 	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{end -}}
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
+	state, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -659,7 +659,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 	{{.VarName}} = {{.VarName}}Resource
 {{- end }}
 
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
+	plan, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -864,7 +864,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 		return
 	}
 
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}Resource, &state)
+	state, diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}Resource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -947,7 +947,8 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 {{- end }}
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraformPreserveUnknown(ctx, {{.VarName}}, &config, preserveUnknown)...)
+	config, diags := {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraformPreserveUnknown(ctx, {{.VarName}}, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

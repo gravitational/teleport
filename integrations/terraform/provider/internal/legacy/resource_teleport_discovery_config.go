@@ -150,7 +150,7 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req resourc
 	discoveryConfig = convert.ToProto(discoveryConfigResource)
 	
 
-	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
+	plan, diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -192,7 +192,7 @@ func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req resource.
 		return
 	}
 	discoveryConfig := convert.ToProto(discoveryConfigI)
-	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &state)
+	state, diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -281,7 +281,7 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req resourc
 	
 	discoveryConfig = convert.ToProto(discoveryConfigResource)
 
-	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
+	plan, diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -331,7 +331,7 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req re
 		return
 	}
 
-	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfigResource, &state)
+	state, diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfigResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -381,7 +381,8 @@ func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req res
 	discoveryConfig = convert.ToProto(discoveryConfigResource)
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyDiscoveryConfigToTerraformPreserveUnknown(ctx, discoveryConfig, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyDiscoveryConfigToTerraformPreserveUnknown(ctx, discoveryConfig, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

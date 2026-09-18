@@ -92,7 +92,7 @@ func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req datasou
 
 	
 	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
+	state, diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -164,7 +164,7 @@ func (r resourceTeleportAutoUpdateConfig) Create(ctx context.Context, req resour
 	autoUpdateConfig = autoUpdateConfigI
 	
 
-	diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &plan)
+	plan, diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -199,7 +199,7 @@ func (r resourceTeleportAutoUpdateConfig) Read(ctx context.Context, req resource
 	}
 
 	autoUpdateConfig := autoUpdateConfigI
-	diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
+	state, diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,7 +286,7 @@ func (r resourceTeleportAutoUpdateConfig) Update(ctx context.Context, req resour
 	}
 
 	autoUpdateConfig = autoUpdateConfigI
-	diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &plan)
+	plan, diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -327,7 +327,7 @@ func (r resourceTeleportAutoUpdateConfig) ImportState(ctx context.Context, req r
 		return
 	}
 
-	diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
+	state, diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,7 +373,8 @@ func (r resourceTeleportAutoUpdateConfig) ModifyPlan(ctx context.Context, req re
 	autoUpdateConfig = autoUpdateConfigResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx, autoUpdateConfig, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyAutoUpdateConfigToTerraformPreserveUnknown(ctx, autoUpdateConfig, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

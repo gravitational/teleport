@@ -283,7 +283,8 @@ func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, 
 
 	samlIdPServiceProvider = samlIdPServiceProviderResource
 
-	resp.Diagnostics.Append(tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &config)...)
+	config, diags := tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &config)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

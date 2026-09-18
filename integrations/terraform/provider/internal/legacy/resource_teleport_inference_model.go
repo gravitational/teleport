@@ -146,7 +146,7 @@ func (r resourceTeleportInferenceModel) Create(ctx context.Context, req resource
 	
 	inferenceModel = inferenceModelResource
 
-	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
+	plan, diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -188,7 +188,7 @@ func (r resourceTeleportInferenceModel) Read(ctx context.Context, req resource.R
 		return
 	}
 	inferenceModel := inferenceModelI
-	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &state)
+	state, diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -274,7 +274,7 @@ func (r resourceTeleportInferenceModel) Update(ctx context.Context, req resource
 	
 	inferenceModel = inferenceModelResource
 
-	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
+	plan, diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -324,7 +324,7 @@ func (r resourceTeleportInferenceModel) ImportState(ctx context.Context, req res
 		return
 	}
 
-	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModelResource, &state)
+	state, diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModelResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -370,7 +370,8 @@ func (r resourceTeleportInferenceModel) ModifyPlan(ctx context.Context, req reso
 	inferenceModel = inferenceModelResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyInferenceModelToTerraformPreserveUnknown(ctx, inferenceModel, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyInferenceModelToTerraformPreserveUnknown(ctx, inferenceModel, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

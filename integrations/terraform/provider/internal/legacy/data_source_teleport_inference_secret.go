@@ -92,7 +92,7 @@ func (r dataSourceTeleportInferenceSecret) Read(ctx context.Context, req datasou
 
 	inferenceSecret := inferenceSecretI
 	
-	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &state)
+	state, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

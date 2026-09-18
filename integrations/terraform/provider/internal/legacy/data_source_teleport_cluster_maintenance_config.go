@@ -74,7 +74,7 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, re
 	}
 
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
-	diags := tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
+	state, diags := tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

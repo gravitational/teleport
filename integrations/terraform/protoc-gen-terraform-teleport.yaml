@@ -39,6 +39,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   AuthPreferenceV2:
     -
       name: id
@@ -46,6 +47,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ClusterMaintenanceConfigV1:
     -
       name: id
@@ -53,6 +55,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ClusterNetworkingConfigV2:
     -
       name: id
@@ -60,6 +63,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   DatabaseV3:
     -
       name: id
@@ -67,6 +71,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   GithubConnectorV3:
     -
       name: id
@@ -74,6 +79,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   KubernetesClusterV3:
     -
       name: id
@@ -81,6 +87,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   LockV2:
     -
       name: id
@@ -88,6 +95,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   OIDCConnectorV3:
     -
       name: id
@@ -95,6 +103,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   OktaImportRuleV1:
     -
       name: id
@@ -102,6 +111,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ProvisionTokenV2:
     -
       name: id
@@ -109,6 +119,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   RoleV6:
     -
       name: id
@@ -116,6 +127,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SAMLConnectorV2:
     -
       name: id
@@ -123,6 +135,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SAMLIdPServiceProviderV1:
     -
       name: id
@@ -130,6 +143,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ServerV2:
     -
       name: id
@@ -137,6 +151,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SessionRecordingConfigV2:
     -
       name: id
@@ -144,6 +159,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   TrustedClusterV2:
     -
       name: id
@@ -151,6 +167,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   UIConfigV1:
     -
       name: id
@@ -158,6 +175,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   UserV2:
     -
       name: id
@@ -165,6 +183,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   InstallerV1:
     -
       name: id
@@ -172,6 +191,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   DynamicWindowsDesktopV1:
     -
       name: id
@@ -179,6 +199,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   IntegrationV1:
     -
       name: id
@@ -186,6 +207,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 # These fields will be excluded
 exclude_fields:
@@ -622,6 +644,10 @@ validators:
 time_type:
     type: "TimeType"
     value_type: "TimeValue"
+    value_from_method: "ValueTime"
+    value_to_method: "NewTime"
+    null_value_method: "NullTime"
+    unknown_value_method: "UnknownTime"
     cast_to_type: "time.Time"
     cast_from_type: "time.Time"
     type_constructor: UseRFC3339Time()
@@ -629,5 +655,9 @@ time_type:
 duration_type:
     type: "DurationType"
     value_type: "DurationValue"
+    value_from_method: "ValueDuration"
+    value_to_method: "NewDuration"
+    null_value_method: "NullDuration"
+    unknown_value_method: "UnknownDuration"
     cast_to_type: "time.Duration"
     cast_from_type: "time.Duration"

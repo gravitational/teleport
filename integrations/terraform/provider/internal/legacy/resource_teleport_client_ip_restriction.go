@@ -164,7 +164,7 @@ func (r resourceTeleportClientIPRestriction) Create(ctx context.Context, req res
 	clientIPRestriction = clientIPRestrictionI
 	
 
-	diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &plan)
+	plan, diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -199,7 +199,7 @@ func (r resourceTeleportClientIPRestriction) Read(ctx context.Context, req resou
 	}
 
 	clientIPRestriction := clientIPRestrictionI
-	diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
+	state, diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,7 +286,7 @@ func (r resourceTeleportClientIPRestriction) Update(ctx context.Context, req res
 	}
 
 	clientIPRestriction = clientIPRestrictionI
-	diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &plan)
+	plan, diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -327,7 +327,7 @@ func (r resourceTeleportClientIPRestriction) ImportState(ctx context.Context, re
 		return
 	}
 
-	diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
+	state, diags = schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,7 +373,8 @@ func (r resourceTeleportClientIPRestriction) ModifyPlan(ctx context.Context, req
 	clientIPRestriction = clientIPRestrictionResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyClientIPRestrictionToTerraformPreserveUnknown(ctx, clientIPRestriction, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyClientIPRestrictionToTerraformPreserveUnknown(ctx, clientIPRestriction, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

@@ -154,7 +154,7 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req resource.
 	}
 	oidcConnector = oidcConnectorResource
 
-	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
+	plan, diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -197,7 +197,7 @@ func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req resource.Re
 	}
 	
 	oidcConnector := oidcConnectorI.(*apitypes.OIDCConnectorV3)
-	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
+	state, diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -290,7 +290,7 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req resource.
 	}
 	oidcConnector = oidcConnectorResource
 
-	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
+	plan, diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -340,7 +340,7 @@ func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req reso
 		return
 	}
 
-	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnectorResource, &state)
+	state, diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnectorResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -390,7 +390,8 @@ func (r resourceTeleportOIDCConnector) ModifyPlan(ctx context.Context, req resou
 	oidcConnector = oidcConnectorResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(tfschema.CopyOIDCConnectorV3ToTerraformPreserveUnknown(ctx, oidcConnector, &config, preserveUnknown)...)
+	config, diags := tfschema.CopyOIDCConnectorV3ToTerraformPreserveUnknown(ctx, oidcConnector, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

@@ -74,7 +74,7 @@ func (r dataSourceTeleportAutoUpdateConfig) Read(ctx context.Context, req dataso
 	}
 
 	autoUpdateConfig := autoUpdateConfigI
-	diags := schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
+	state, diags := schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

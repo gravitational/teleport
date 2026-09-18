@@ -164,7 +164,7 @@ func (r resourceTeleportRetrievalModel) Create(ctx context.Context, req resource
 	retrievalModel = retrievalModelI
 	
 
-	diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &plan)
+	plan, diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -199,7 +199,7 @@ func (r resourceTeleportRetrievalModel) Read(ctx context.Context, req resource.R
 	}
 
 	retrievalModel := retrievalModelI
-	diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
+	state, diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,7 +286,7 @@ func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req resource
 	}
 
 	retrievalModel = retrievalModelI
-	diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &plan)
+	plan, diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -327,7 +327,7 @@ func (r resourceTeleportRetrievalModel) ImportState(ctx context.Context, req res
 		return
 	}
 
-	diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
+	state, diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,7 +373,8 @@ func (r resourceTeleportRetrievalModel) ModifyPlan(ctx context.Context, req reso
 	retrievalModel = retrievalModelResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyRetrievalModelToTerraformPreserveUnknown(ctx, retrievalModel, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyRetrievalModelToTerraformPreserveUnknown(ctx, retrievalModel, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

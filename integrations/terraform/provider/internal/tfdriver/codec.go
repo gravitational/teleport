@@ -33,7 +33,7 @@ type ResourceCodec[T any] interface {
 	// FromState copies Terraform state values into a Teleport resource.
 	FromState(context.Context, types.Object, *T) diag.Diagnostics
 	// ToState copies a Teleport resource into Terraform state values.
-	ToState(context.Context, *T, *types.Object) diag.Diagnostics
+	ToState(context.Context, *T, *types.Object) (types.Object, diag.Diagnostics)
 }
 
 // DataSourceCodec converts Terraform data source values to and from Teleport resources.
@@ -43,7 +43,7 @@ type DataSourceCodec[T any] interface {
 	// FromConfig copies Terraform config values into a Teleport resource.
 	FromConfig(context.Context, types.Object, *T) diag.Diagnostics
 	// ToState copies a Teleport resource into Terraform state values.
-	ToState(context.Context, *T, *types.Object) diag.Diagnostics
+	ToState(context.Context, *T, *types.Object) (types.Object, diag.Diagnostics)
 }
 
 // SchemaFunc returns a Terraform schema.
@@ -53,7 +53,7 @@ type SchemaFunc func(context.Context) (tfsdk.Schema, diag.Diagnostics)
 type FromTerraformFunc[T any] func(context.Context, types.Object, *T) diag.Diagnostics
 
 // ToTerraformFunc copies a Teleport resource into Terraform values.
-type ToTerraformFunc[T any] func(context.Context, *T, *types.Object) diag.Diagnostics
+type ToTerraformFunc[T any] func(context.Context, *T, *types.Object) (types.Object, diag.Diagnostics)
 
 // ResourceCodecFuncs adapts functions to ResourceCodec.
 type ResourceCodecFuncs[T any] struct {
@@ -79,7 +79,7 @@ func (c ResourceCodecFuncs[T]) FromState(ctx context.Context, object types.Objec
 }
 
 // ToState copies a Teleport resource into Terraform state values.
-func (c ResourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object *types.Object) diag.Diagnostics {
+func (c ResourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object *types.Object) (types.Object, diag.Diagnostics) {
 	return c.ToStateFunc(ctx, resource, object)
 }
 
@@ -104,6 +104,6 @@ func (c DataSourceCodecFuncs[T]) FromConfig(ctx context.Context, object types.Ob
 }
 
 // ToState copies a Teleport resource into Terraform state values.
-func (c DataSourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object *types.Object) diag.Diagnostics {
+func (c DataSourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object *types.Object) (types.Object, diag.Diagnostics) {
 	return c.ToStateFunc(ctx, resource, object)
 }

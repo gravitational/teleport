@@ -148,7 +148,7 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req resourc
 	
 	workloadcluster = workloadclusterResource
 
-	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &plan)
+	plan, diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -220,7 +220,7 @@ func (r resourceTeleportWorkloadCluster) Read(ctx context.Context, req resource.
 		return
 	}
 	workloadcluster := workloadclusterI
-	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &state)
+	state, diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -306,7 +306,7 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req resourc
 	
 	workloadcluster = workloadclusterResource
 
-	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &plan)
+	plan, diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -386,7 +386,7 @@ func (r resourceTeleportWorkloadCluster) ImportState(ctx context.Context, req re
 		return
 	}
 
-	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadclusterResource, &state)
+	state, diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadclusterResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -432,7 +432,8 @@ func (r resourceTeleportWorkloadCluster) ModifyPlan(ctx context.Context, req res
 	workloadcluster = workloadclusterResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyWorkloadClusterToTerraformPreserveUnknown(ctx, workloadcluster, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyWorkloadClusterToTerraformPreserveUnknown(ctx, workloadcluster, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

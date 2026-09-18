@@ -92,7 +92,7 @@ func (r dataSourceTeleportWorkloadCluster) Read(ctx context.Context, req datasou
 
 	workloadcluster := workloadclusterI
 	
-	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &state)
+	state, diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

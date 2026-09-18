@@ -152,7 +152,7 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req resourc
 	
 	inferenceSecret = inferenceSecretResource
 
-	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
+	plan, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -196,7 +196,7 @@ func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req resource.
 		return
 	}
 	inferenceSecret := inferenceSecretI
-	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &state)
+	state, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -294,7 +294,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req resourc
 	
 	inferenceSecret = inferenceSecretResource
 
-	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
+	plan, diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -359,7 +359,8 @@ func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req res
 	inferenceSecret = inferenceSecretResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyInferenceSecretToTerraformPreserveUnknown(ctx, inferenceSecret, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyInferenceSecretToTerraformPreserveUnknown(ctx, inferenceSecret, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

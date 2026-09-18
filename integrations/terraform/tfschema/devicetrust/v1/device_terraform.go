@@ -32,7 +32,6 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
-	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -144,7 +143,7 @@ func GenSchemaDeviceV1(ctx context.Context) (github_com_hashicorp_terraform_plug
 func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_types.DeviceV1) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	{
-		a, ok := tf.Attrs["kind"]
+		a, ok := tf.Attributes()["kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"DeviceV1.Kind"})
 		} else {
@@ -153,15 +152,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 				diags.Append(attrReadConversionFailureDiag{"DeviceV1.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Kind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["version"]
+		a, ok := tf.Attributes()["version"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"DeviceV1.Version"})
 		} else {
@@ -170,15 +169,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 				diags.Append(attrReadConversionFailureDiag{"DeviceV1.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Version = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["metadata"]
+		a, ok := tf.Attributes()["metadata"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"DeviceV1.Metadata"})
 		} else {
@@ -187,11 +186,11 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 				diags.Append(attrReadConversionFailureDiag{"DeviceV1.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Metadata = github_com_gravitational_teleport_api_types.Metadata{}
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj := &obj.Metadata
 					{
-						a, ok := tf.Attrs["name"]
+						a, ok := tf.Attributes()["name"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.Metadata.Name"})
 						} else {
@@ -200,15 +199,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.Metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Name = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["labels"]
+						a, ok := tf.Attributes()["labels"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.Metadata.Labels"})
 						} else {
@@ -216,16 +215,16 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Labels = make(map[string]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Labels = make(map[string]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"DeviceV1.Metadata.Labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Labels[k] = t
 										}
@@ -239,7 +238,7 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 		}
 	}
 	{
-		a, ok := tf.Attrs["spec"]
+		a, ok := tf.Attributes()["spec"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"DeviceV1.spec"})
 		} else {
@@ -248,12 +247,12 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 				diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Spec = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Spec = &github_com_gravitational_teleport_api_types.DeviceSpec{}
 					obj := obj.Spec
 					{
-						a, ok := tf.Attrs["os_type"]
+						a, ok := tf.Attributes()["os_type"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.spec.os_type"})
 						} else {
@@ -262,15 +261,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.os_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.OsType = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["asset_tag"]
+						a, ok := tf.Attributes()["asset_tag"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.spec.asset_tag"})
 						} else {
@@ -279,15 +278,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.asset_tag", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.AssetTag = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["enroll_status"]
+						a, ok := tf.Attributes()["enroll_status"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.spec.enroll_status"})
 						} else {
@@ -296,15 +295,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.enroll_status", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.EnrollStatus = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["source"]
+						a, ok := tf.Attributes()["source"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.spec.source"})
 						} else {
@@ -313,12 +312,12 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.source", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
 								obj.Source = nil
-								if !v.Null && !v.Unknown {
+								if !v.IsNull() && !v.IsUnknown() {
 									tf := v
 									obj.Source = &github_com_gravitational_teleport_api_types.DeviceSource{}
 									obj := obj.Source
 									{
-										a, ok := tf.Attrs["name"]
+										a, ok := tf.Attributes()["name"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"DeviceV1.spec.source.name"})
 										} else {
@@ -327,15 +326,15 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 												diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.source.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Name = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["origin"]
+										a, ok := tf.Attributes()["origin"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"DeviceV1.spec.source.origin"})
 										} else {
@@ -344,8 +343,8 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 												diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.source.origin", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Origin = t
 											}
@@ -356,7 +355,7 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 						}
 					}
 					{
-						a, ok := tf.Attrs["owner"]
+						a, ok := tf.Attributes()["owner"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"DeviceV1.spec.owner"})
 						} else {
@@ -365,8 +364,8 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 								diags.Append(attrReadConversionFailureDiag{"DeviceV1.spec.owner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Owner = t
 							}
@@ -379,432 +378,257 @@ func CopyDeviceV1FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 	return diags
 }
 
-// CopyDeviceV1ToTerraform copies contents of the source Terraform object into a target struct
-func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+// CopyDeviceV1ToTerraform copies contents of source struct into a Terraform object.
+func CopyDeviceV1ToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return CopyDeviceV1ToTerraformPreserveUnknown(ctx, obj, tf, false)
 }
 
-// CopyDeviceV1ToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// CopyDeviceV1ToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
-func CopyDeviceV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
-	tf.Null = false
-	tf.Unknown = false
-	if tf.Attrs == nil {
-		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+func CopyDeviceV1ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_types.DeviceV1, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	schema, diags := GenSchemaDeviceV1(ctx)
+	if diags.HasError() {
+		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
+	}
+	attrType := schema.Type().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+	var attrs map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value
+	if tf == nil || tf.Attributes() == nil {
+		attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	} else {
+		attrs = tf.Attributes()
 	}
 	{
-		t, ok := tf.AttrTypes["kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"DeviceV1.Kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"DeviceV1.Kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Kind))
 		}
+		attrs["kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["version"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"DeviceV1.Version"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["version"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"DeviceV1.Version", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["version"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Version))
 		}
+		attrs["version"] = v
 	}
 	{
-		a, ok := tf.AttrTypes["metadata"]
+		attrType, ok := attrType.AttributeTypes()["metadata"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"DeviceV1.Metadata"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				{
-					v.Null = false
-					obj := obj.Metadata
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.Metadata.Name"})
-						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.Metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DeviceV1.Metadata.Name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Metadata.Name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+				existing := attrs["metadata"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						{
+							obj := obj.Metadata
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["labels"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.Metadata.Labels"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
-										Null:     true,
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["name"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
 								}
-								{
-									t := o.ElemType
-									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"DeviceV1.Metadata.Labels", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["labels"] = c
+								attrs["name"] = v
 							}
+							{
+								attrType, ok := attrType.AttributeTypes()["labels"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"DeviceV1.Metadata.Labels"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"DeviceV1.Metadata.Labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["labels"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											for k, a := range obj.Labels {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := oldElems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["labels"] = v
+									}
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["metadata"] = v
+				}()
+				attrs["metadata"] = v
 			}
 		}
 	}
 	{
-		a, ok := tf.AttrTypes["spec"]
+		attrType, ok := attrType.AttributeTypes()["spec"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"DeviceV1.spec"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Spec == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Spec
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["os_type"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.spec.os_type"})
+				existing := attrs["spec"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Spec == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							v, ok := tf.Attrs["os_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["os_type"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.os_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DeviceV1.spec.os_type", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.os_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+							obj := obj.Spec
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.OsType)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["os_type"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["asset_tag"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.spec.asset_tag"})
-						} else {
-							v, ok := tf.Attrs["asset_tag"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["asset_tag"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.asset_tag", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DeviceV1.spec.asset_tag", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.asset_tag", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.AssetTag)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["asset_tag"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["enroll_status"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.spec.enroll_status"})
-						} else {
-							v, ok := tf.Attrs["enroll_status"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["enroll_status"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.enroll_status", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DeviceV1.spec.enroll_status", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.enroll_status", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.EnrollStatus)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["enroll_status"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["source"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.spec.source"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.source", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-							} else {
-								v, ok := tf.Attrs["source"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-								if !ok {
-									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-										AttrTypes: o.AttrTypes,
-										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["os_type"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if v.Attrs == nil {
-										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.OsType))
 								}
-								if obj.Source == nil {
-									v.Null = true
+								attrs["os_type"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["asset_tag"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									v.Null = false
-									obj := obj.Source
-									tf := &v
-									{
-										t, ok := tf.AttrTypes["name"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"DeviceV1.spec.source.name"})
-										} else {
-											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["name"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.source.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"DeviceV1.spec.source.name", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.source.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.Name)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["name"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["origin"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"DeviceV1.spec.source.origin"})
-										} else {
-											v, ok := tf.Attrs["origin"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["origin"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.source.origin", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"DeviceV1.spec.source.origin", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.source.origin", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.Origin)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["origin"] = v
-										}
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.AssetTag))
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
-								tf.Attrs["source"] = v
+								attrs["asset_tag"] = v
 							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["owner"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DeviceV1.spec.owner"})
-						} else {
-							v, ok := tf.Attrs["owner"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["owner"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DeviceV1.spec.owner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["enroll_status"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.EnrollStatus))
 								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DeviceV1.spec.owner", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								attrs["enroll_status"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["source"]
 								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.owner", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+									diags.Append(attrWriteMissingDiag{"DeviceV1.spec.source"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"DeviceV1.spec.source", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["source"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Source == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Source
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["name"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+														}
+														attrs["name"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["origin"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Origin))
+														}
+														attrs["origin"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["source"] = v
+									}
 								}
 							}
-
-							v.Null = false
-							v.Value = string(obj.Owner)
-							if !preserveUnknown {
-								v.Unknown = false
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["owner"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Owner))
+								}
+								attrs["owner"] = v
 							}
-							tf.Attrs["owner"] = v
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["spec"] = v
+				}()
+				attrs["spec"] = v
 			}
 		}
 	}
-	return diags
+	_, ok := attrs["id"]
+	if !ok {
+		attrs["id"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
+	}
+	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+	diags.Append(resultDiags...)
+	return result, diags
 }
 
 // attrReadMissingDiag represents diagnostic message on an attribute missing in the source object
@@ -821,7 +645,7 @@ func (d attrReadMissingDiag) Summary() string {
 }
 
 func (d attrReadMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attrs", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attributes", d.Path)
 }
 
 func (d attrReadMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
@@ -864,7 +688,7 @@ func (d attrWriteMissingDiag) Summary() string {
 }
 
 func (d attrWriteMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttrTypes", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttributeTypes", d.Path)
 }
 
 func (d attrWriteMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {

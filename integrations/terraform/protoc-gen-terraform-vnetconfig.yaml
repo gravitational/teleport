@@ -28,6 +28,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - 'github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()'
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 # These fields will be excluded
 exclude_fields:
@@ -53,6 +54,10 @@ time_type:
 duration_type:
   type: "DurationType"
   value_type: "DurationValue"
+  value_from_method: "ValueDuration"
+  value_to_method: "NewDuration"
+  null_value_method: "NullDuration"
+  unknown_value_method: "UnknownDuration"
   cast_to_type: "time.Duration"
   cast_from_type: "time.Duration"
 validators:

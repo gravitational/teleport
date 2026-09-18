@@ -165,7 +165,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req resource
 	}
 	provisionToken = provisionTokenResource
 
-	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
+	plan, diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -208,7 +208,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req resource.R
 	}
 	
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
-	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
+	state, diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -301,7 +301,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req resource
 	}
 	provisionToken = provisionTokenResource
 
-	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
+	plan, diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -351,7 +351,7 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req res
 		return
 	}
 
-	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionTokenResource, &state)
+	state, diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionTokenResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -401,7 +401,8 @@ func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req reso
 	provisionToken = provisionTokenResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx, provisionToken, &config, preserveUnknown)...)
+	config, diags := token.CopyProvisionTokenV2ToTerraformPreserveUnknown(ctx, provisionToken, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

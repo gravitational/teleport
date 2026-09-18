@@ -164,7 +164,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req resource.Cre
 	vnetConfig = vnetConfigI
 	
 
-	diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &plan)
+	plan, diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -199,7 +199,7 @@ func (r resourceTeleportVnetConfig) Read(ctx context.Context, req resource.ReadR
 	}
 
 	vnetConfig := vnetConfigI
-	diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
+	state, diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -286,7 +286,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req resource.Upd
 	}
 
 	vnetConfig = vnetConfigI
-	diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &plan)
+	plan, diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -327,7 +327,7 @@ func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req resourc
 		return
 	}
 
-	diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
+	state, diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,7 +373,8 @@ func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req resource
 	vnetConfig = vnetConfigResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyVnetConfigToTerraformPreserveUnknown(ctx, vnetConfig, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyVnetConfigToTerraformPreserveUnknown(ctx, vnetConfig, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

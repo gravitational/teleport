@@ -33,7 +33,6 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
-	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -242,7 +241,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	{
-		a, ok := tf.Attrs["metadata"]
+		a, ok := tf.Attributes()["metadata"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata"})
 		} else {
@@ -251,12 +250,12 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 				diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Metadata = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Metadata = &github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1.Metadata{}
 					obj := obj.Metadata
 					{
-						a, ok := tf.Attrs["name"]
+						a, ok := tf.Attributes()["name"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata.name"})
 						} else {
@@ -265,15 +264,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Name = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
+						a, ok := tf.Attributes()["namespace"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata.namespace"})
 						} else {
@@ -282,15 +281,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Namespace = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["description"]
+						a, ok := tf.Attributes()["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata.description"})
 						} else {
@@ -299,15 +298,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Description = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["labels"]
+						a, ok := tf.Attributes()["labels"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata.labels"})
 						} else {
@@ -315,16 +314,16 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Labels = make(map[string]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Labels = make(map[string]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Labels[k] = t
 										}
@@ -334,7 +333,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["expires"]
+						a, ok := tf.Attributes()["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.metadata.expires"})
 						}
@@ -345,7 +344,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 		}
 	}
 	{
-		a, ok := tf.Attrs["kind"]
+		a, ok := tf.Attributes()["kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"AccessMonitoringRule.kind"})
 		} else {
@@ -354,15 +353,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 				diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Kind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["sub_kind"]
+		a, ok := tf.Attributes()["sub_kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"AccessMonitoringRule.sub_kind"})
 		} else {
@@ -371,15 +370,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 				diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.SubKind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["version"]
+		a, ok := tf.Attributes()["version"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"AccessMonitoringRule.version"})
 		} else {
@@ -388,15 +387,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 				diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Version = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["spec"]
+		a, ok := tf.Attributes()["spec"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec"})
 		} else {
@@ -405,12 +404,12 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 				diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Spec = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Spec = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRuleSpec{}
 					obj := obj.Spec
 					{
-						a, ok := tf.Attrs["subjects"]
+						a, ok := tf.Attributes()["subjects"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.subjects"})
 						} else {
@@ -418,16 +417,16 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 							} else {
-								obj.Subjects = make([]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Subjects = make([]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Subjects[k] = t
 										}
@@ -437,7 +436,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["states"]
+						a, ok := tf.Attributes()["states"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.states"})
 						} else {
@@ -445,16 +444,16 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 							} else {
-								obj.States = make([]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.States = make([]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.states", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.States[k] = t
 										}
@@ -464,7 +463,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["condition"]
+						a, ok := tf.Attributes()["condition"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.condition"})
 						} else {
@@ -473,15 +472,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.condition", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Condition = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["notification"]
+						a, ok := tf.Attributes()["notification"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.notification"})
 						} else {
@@ -490,12 +489,12 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.notification", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
 								obj.Notification = nil
-								if !v.Null && !v.Unknown {
+								if !v.IsNull() && !v.IsUnknown() {
 									tf := v
 									obj.Notification = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Notification{}
 									obj := obj.Notification
 									{
-										a, ok := tf.Attrs["name"]
+										a, ok := tf.Attributes()["name"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.notification.name"})
 										} else {
@@ -504,15 +503,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.notification.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Name = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["recipients"]
+										a, ok := tf.Attributes()["recipients"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.notification.recipients"})
 										} else {
@@ -520,16 +519,16 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 											} else {
-												obj.Recipients = make([]string, len(v.Elems))
-												if !v.Null && !v.Unknown {
-													for k, a := range v.Elems {
+												obj.Recipients = make([]string, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
 														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 														} else {
 															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
 															}
 															obj.Recipients[k] = t
 														}
@@ -543,7 +542,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["automatic_review"]
+						a, ok := tf.Attributes()["automatic_review"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review"})
 						} else {
@@ -552,12 +551,12 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
 								obj.AutomaticReview = nil
-								if !v.Null && !v.Unknown {
+								if !v.IsNull() && !v.IsUnknown() {
 									tf := v
 									obj.AutomaticReview = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AutomaticReview{}
 									obj := obj.AutomaticReview
 									{
-										a, ok := tf.Attrs["integration"]
+										a, ok := tf.Attributes()["integration"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.integration"})
 										} else {
@@ -566,15 +565,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Integration = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["decision"]
+										a, ok := tf.Attributes()["decision"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.decision"})
 										} else {
@@ -583,15 +582,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Decision = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["reason"]
+										a, ok := tf.Attributes()["reason"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.reason"})
 										} else {
@@ -600,8 +599,8 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.Reason = t
 											}
@@ -612,7 +611,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["desired_state"]
+						a, ok := tf.Attributes()["desired_state"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.desired_state"})
 						} else {
@@ -621,15 +620,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.DesiredState = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["schedules"]
+						a, ok := tf.Attributes()["schedules"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules"})
 						} else {
@@ -637,20 +636,20 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Schedules = make(map[string]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Schedules = make(map[string]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 										} else {
 											var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule
-											if !v.Null && !v.Unknown {
+											if !v.IsNull() && !v.IsUnknown() {
 												tf := v
 												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule{}
 												obj := t
 												{
-													a, ok := tf.Attrs["time"]
+													a, ok := tf.Attributes()["time"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time"})
 													} else {
@@ -659,12 +658,12 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 															diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 														} else {
 															obj.Time = nil
-															if !v.Null && !v.Unknown {
+															if !v.IsNull() && !v.IsUnknown() {
 																tf := v
 																obj.Time = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule{}
 																obj := obj.Time
 																{
-																	a, ok := tf.Attrs["shifts"]
+																	a, ok := tf.Attributes()["shifts"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts"})
 																	} else {
@@ -672,20 +671,20 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																		if !ok {
 																			diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 																		} else {
-																			obj.Shifts = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift, len(v.Elems))
-																			if !v.Null && !v.Unknown {
-																				for k, a := range v.Elems {
+																			obj.Shifts = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift, len(v.Elements()))
+																			if !v.IsNull() && !v.IsUnknown() {
+																				for k, a := range v.Elements() {
 																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																					if !ok {
 																						diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 																					} else {
 																						var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift
-																						if !v.Null && !v.Unknown {
+																						if !v.IsNull() && !v.IsUnknown() {
 																							tf := v
 																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift{}
 																							obj := t
 																							{
-																								a, ok := tf.Attrs["weekday"]
+																								a, ok := tf.Attributes()["weekday"]
 																								if !ok {
 																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday"})
 																								} else {
@@ -694,15 +693,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									} else {
 																										var t string
-																										if !v.Null && !v.Unknown {
-																											t = string(v.Value)
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
 																										}
 																										obj.Weekday = t
 																									}
 																								}
 																							}
 																							{
-																								a, ok := tf.Attrs["start"]
+																								a, ok := tf.Attributes()["start"]
 																								if !ok {
 																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start"})
 																								} else {
@@ -711,15 +710,15 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									} else {
 																										var t string
-																										if !v.Null && !v.Unknown {
-																											t = string(v.Value)
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
 																										}
 																										obj.Start = t
 																									}
 																								}
 																							}
 																							{
-																								a, ok := tf.Attrs["end"]
+																								a, ok := tf.Attributes()["end"]
 																								if !ok {
 																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end"})
 																								} else {
@@ -728,8 +727,8 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																									} else {
 																										var t string
-																										if !v.Null && !v.Unknown {
-																											t = string(v.Value)
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
 																										}
 																										obj.End = t
 																									}
@@ -744,7 +743,7 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["timezone"]
+																	a, ok := tf.Attributes()["timezone"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
 																	} else {
@@ -753,8 +752,8 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																			diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
 																			}
 																			obj.Timezone = t
 																		}
@@ -779,1013 +778,626 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 	return diags
 }
 
-// CopyAccessMonitoringRuleToTerraform copies contents of the source Terraform object into a target struct
-func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+// CopyAccessMonitoringRuleToTerraform copies contents of source struct into a Terraform object.
+func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx, obj, tf, false)
 }
 
-// CopyAccessMonitoringRuleToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// CopyAccessMonitoringRuleToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
-func CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
-	tf.Null = false
-	tf.Unknown = false
-	if tf.Attrs == nil {
-		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+func CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.AccessMonitoringRule, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	schema, diags := GenSchemaAccessMonitoringRule(ctx)
+	if diags.HasError() {
+		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
+	}
+	attrType := schema.Type().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+	var attrs map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value
+	if tf == nil || tf.Attributes() == nil {
+		attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	} else {
+		attrs = tf.Attributes()
 	}
 	{
-		a, ok := tf.AttrTypes["metadata"]
+		attrType, ok := attrType.AttributeTypes()["metadata"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Metadata == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Metadata
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.name"})
+				existing := attrs["metadata"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Metadata == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+							obj := obj.Metadata
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["namespace"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Namespace)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["description"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.description"})
-						} else {
-							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.description", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["description"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["labels"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.labels"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
-										Null:     true,
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["name"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
 								}
-								{
-									t := o.ElemType
-									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.labels", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["labels"] = c
+								attrs["name"] = v
 							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["namespace"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Namespace))
+								}
+								attrs["namespace"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["description"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Description))
+								}
+								attrs["description"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["labels"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.labels"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["labels"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											for k, a := range obj.Labels {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := oldElems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["labels"] = v
+									}
+								}
+							}
+							{
+								t, ok := attrType.AttributeTypes()["expires"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.expires"})
+								} else {
+									v := CopyToTimestamp(diags, obj.Expires, t, attrs["expires"], preserveUnknown)
+									attrs["expires"] = v
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["expires"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.metadata.expires"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
-							tf.Attrs["expires"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["metadata"] = v
+				}()
+				attrs["metadata"] = v
 			}
 		}
 	}
 	{
-		t, ok := tf.AttrTypes["kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Kind))
 		}
+		attrs["kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["sub_kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.sub_kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["sub_kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.sub_kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["sub_kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.SubKind))
 		}
+		attrs["sub_kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["version"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.version"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["version"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.version", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["version"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Version))
 		}
+		attrs["version"] = v
 	}
 	{
-		a, ok := tf.AttrTypes["spec"]
+		attrType, ok := attrType.AttributeTypes()["spec"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Spec == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Spec
-					tf := &v
-					{
-						a, ok := tf.AttrTypes["subjects"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.subjects"})
+				existing := attrs["spec"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Spec == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-							} else {
-								c, ok := tf.Attrs["subjects"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-										ElemType: o.ElemType,
-										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects)),
-										Null:     true,
-									}
-								} else {
-									if c.Elems == nil {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
-									}
-								}
-								{
-									t := o.ElemType
-									if len(obj.Subjects) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
-									}
-									for k, a := range obj.Subjects {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.subjects", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["subjects"] = c
+							obj := obj.Spec
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["states"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.states"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-							} else {
-								c, ok := tf.Attrs["states"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+							{
+								attrType, ok := attrType.AttributeTypes()["subjects"]
 								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-										ElemType: o.ElemType,
-										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States)),
-										Null:     true,
-									}
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.subjects"})
 								} else {
-									if c.Elems == nil {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
-									}
-								}
-								{
-									t := o.ElemType
-									if len(obj.States) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
-									}
-									for k, a := range obj.States {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.states", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["states"] = c
-							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["condition"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.condition"})
-						} else {
-							v, ok := tf.Attrs["condition"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["condition"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.condition", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.condition", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.condition", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Condition)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["condition"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["notification"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.notification"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-							} else {
-								v, ok := tf.Attrs["notification"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-								if !ok {
-									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-										AttrTypes: o.AttrTypes,
-										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-									}
-								} else {
-									if v.Attrs == nil {
-										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-									}
-								}
-								if obj.Notification == nil {
-									v.Null = true
-								} else {
-									v.Null = false
-									obj := obj.Notification
-									tf := &v
-									{
-										t, ok := tf.AttrTypes["name"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.notification.name"})
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["subjects"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
 										} else {
-											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["name"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.notification.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.notification.name", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
+											oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
 											}
-
-											v.Null = false
-											v.Value = string(obj.Name)
-											if !preserveUnknown {
-												v.Unknown = false
+											elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
+											copy(elems, oldElems)
+											for k, a := range obj.Subjects {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := elems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
 											}
-											tf.Attrs["name"] = v
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
 										}
+										attrs["subjects"] = v
 									}
-									{
-										a, ok := tf.AttrTypes["recipients"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.notification.recipients"})
+								}
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["states"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.states"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["states"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
 										} else {
-											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
+											copy(elems, oldElems)
+											for k, a := range obj.States {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := elems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["states"] = v
+									}
+								}
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["condition"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Condition))
+								}
+								attrs["condition"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["notification"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.notification"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["notification"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
 											} else {
-												c, ok := tf.Attrs["recipients"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-												if !ok {
-													c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-														ElemType: o.ElemType,
-														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients)),
-														Null:     true,
-													}
+												if obj.Notification == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 												} else {
-													if c.Elems == nil {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
+													obj := obj.Notification
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
 													}
-												}
-												{
-													t := o.ElemType
-													if len(obj.Recipients) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["name"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+														}
+														attrs["name"] = v
 													}
-													for k, a := range obj.Recipients {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													{
+														attrType, ok := attrType.AttributeTypes()["recipients"]
 														if !ok {
-															if c.Elems[k] != nil {
-																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-															}
-															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-															if err != nil {
-																diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.notification.recipients", err})
-															}
-															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.notification.recipients"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
 															if !ok {
-																diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-															}
-														}
-
-														v.Null = false
-														v.Value = string(a)
-														if !preserveUnknown {
-															v.Unknown = false
-														}
-														c.Elems[k] = v
-													}
-												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
-												tf.Attrs["recipients"] = c
-											}
-										}
-									}
-								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
-								tf.Attrs["notification"] = v
-							}
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["automatic_review"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-							} else {
-								v, ok := tf.Attrs["automatic_review"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-								if !ok {
-									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-										AttrTypes: o.AttrTypes,
-										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-									}
-								} else {
-									if v.Attrs == nil {
-										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-									}
-								}
-								if obj.AutomaticReview == nil {
-									v.Null = true
-								} else {
-									v.Null = false
-									obj := obj.AutomaticReview
-									tf := &v
-									{
-										t, ok := tf.AttrTypes["integration"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.integration"})
-										} else {
-											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["integration"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.integration", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.Integration)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["integration"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["decision"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.decision"})
-										} else {
-											v, ok := tf.Attrs["decision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["decision"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.decision", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.Decision)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["decision"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["reason"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.reason"})
-										} else {
-											v, ok := tf.Attrs["reason"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["reason"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.automatic_review.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.reason", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.Reason)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["reason"] = v
-										}
-									}
-								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
-								tf.Attrs["automatic_review"] = v
-							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["desired_state"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.desired_state"})
-						} else {
-							v, ok := tf.Attrs["desired_state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["desired_state"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.desired_state", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.DesiredState)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["desired_state"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["schedules"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules)),
-										Null:     true,
-									}
-								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
-									}
-								}
-								{
-									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-									for k, a := range obj.Schedules {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-										if !ok {
-											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-												AttrTypes: o.AttrTypes,
-												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-											}
-										} else {
-											if v.Attrs == nil {
-												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-											}
-										}
-										if a == nil {
-											v.Null = true
-										} else {
-											v.Null = false
-											obj := a
-											tf := &v
-											{
-												a, ok := tf.AttrTypes["time"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time"})
-												} else {
-													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-													if !ok {
-														diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-													} else {
-														v, ok := tf.Attrs["time"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-														if !ok {
-															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																AttrTypes: o.AttrTypes,
-																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-															}
-														} else {
-															if v.Attrs == nil {
-																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-															}
-														}
-														if obj.Time == nil {
-															v.Null = true
-														} else {
-															v.Null = false
-															obj := obj.Time
-															tf := &v
-															{
-																a, ok := tf.AttrTypes["shifts"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts"})
+																diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["recipients"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
 																} else {
-																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-																	} else {
-																		c, ok := tf.Attrs["shifts"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-																		if !ok {
-																			c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																				ElemType: o.ElemType,
-																				Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts)),
-																				Null:     true,
-																			}
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
+																	copy(elems, oldElems)
+																	for k, a := range obj.Recipients {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := elems[k]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 																		} else {
-																			if c.Elems == nil {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
-																			}
+																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
 																		}
-																		{
-																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-																			if len(obj.Shifts) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
-																			}
-																			for k, a := range obj.Shifts {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-																				if !ok {
-																					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																						AttrTypes: o.AttrTypes,
-																						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-																					}
-																				} else {
-																					if v.Attrs == nil {
-																						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-																					}
-																				}
-																				if a == nil {
-																					v.Null = true
-																				} else {
-																					v.Null = false
-																					obj := a
-																					tf := &v
-																					{
-																						t, ok := tf.AttrTypes["weekday"]
-																						if !ok {
-																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday"})
-																						} else {
-																							v, ok := tf.Attrs["weekday"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																							if !ok {
-																								if tf.Attrs["weekday"] != nil {
-																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																								if err != nil {
-																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", err})
-																								}
-																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																								if !ok {
-																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																							}
-
-																							v.Null = false
-																							v.Value = string(obj.Weekday)
-																							if !preserveUnknown {
-																								v.Unknown = false
-																							}
-																							tf.Attrs["weekday"] = v
-																						}
-																					}
-																					{
-																						t, ok := tf.AttrTypes["start"]
-																						if !ok {
-																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start"})
-																						} else {
-																							v, ok := tf.Attrs["start"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																							if !ok {
-																								if tf.Attrs["start"] != nil {
-																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																								if err != nil {
-																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.start", err})
-																								}
-																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																								if !ok {
-																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																							}
-
-																							v.Null = false
-																							v.Value = string(obj.Start)
-																							if !preserveUnknown {
-																								v.Unknown = false
-																							}
-																							tf.Attrs["start"] = v
-																						}
-																					}
-																					{
-																						t, ok := tf.AttrTypes["end"]
-																						if !ok {
-																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end"})
-																						} else {
-																							v, ok := tf.Attrs["end"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																							if !ok {
-																								if tf.Attrs["end"] != nil {
-																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																								if err != nil {
-																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.end", err})
-																								}
-																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																								if !ok {
-																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																								}
-																							}
-
-																							v.Null = false
-																							v.Value = string(obj.End)
-																							if !preserveUnknown {
-																								v.Unknown = false
-																							}
-																							tf.Attrs["end"] = v
-																						}
-																					}
-																				}
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
-																				c.Elems[k] = v
-																			}
-																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
-																		tf.Attrs["shifts"] = c
+																		elems[k] = v
 																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
 																}
-															}
-															{
-																t, ok := tf.AttrTypes["timezone"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
-																} else {
-																	v, ok := tf.Attrs["timezone"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		if tf.Attrs["timezone"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.timezone", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																	}
-
-																	v.Null = false
-																	v.Value = string(obj.Timezone)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
-																	tf.Attrs["timezone"] = v
-																}
+																attrs["recipients"] = v
 															}
 														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
-														tf.Attrs["time"] = v
 													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
 												}
 											}
-										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
+										}()
+										attrs["notification"] = v
 									}
 								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["schedules"] = c
 							}
+							{
+								attrType, ok := attrType.AttributeTypes()["automatic_review"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["automatic_review"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.AutomaticReview == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.AutomaticReview
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["integration"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Integration))
+														}
+														attrs["integration"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["decision"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Decision))
+														}
+														attrs["decision"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["reason"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Reason))
+														}
+														attrs["reason"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["automatic_review"] = v
+									}
+								}
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["desired_state"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DesiredState))
+								}
+								attrs["desired_state"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["schedules"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["schedules"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
+											for k, a := range obj.Schedules {
+												attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+												existing := oldElems[k]
+												v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+													if preserveUnknown && existing != nil && existing.IsUnknown() {
+														return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+													} else {
+														if a == nil {
+															return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+														} else {
+															obj := a
+															attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+															v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if ok && v.Attributes() != nil {
+																attrs = v.Attributes()
+															}
+															{
+																attrType, ok := attrType.AttributeTypes()["time"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time"})
+																} else {
+																	attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																	} else {
+																		existing := attrs["time"]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if obj.Time == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := obj.Time
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["shifts"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																							} else {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["shifts"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																								} else {
+																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
+																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if ok && c.Elements() != nil {
+																										oldElems = c.Elements()
+																									}
+																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
+																									copy(elems, oldElems)
+																									for k, a := range obj.Shifts {
+																										attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																										existing := elems[k]
+																										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																											if preserveUnknown && existing != nil && existing.IsUnknown() {
+																												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																											} else {
+																												if a == nil {
+																													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																												} else {
+																													obj := a
+																													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																													if ok && v.Attributes() != nil {
+																														attrs = v.Attributes()
+																													}
+																													{
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["weekday"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																														} else {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Weekday))
+																														}
+																														attrs["weekday"] = v
+																													}
+																													{
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["start"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																														} else {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Start))
+																														}
+																														attrs["start"] = v
+																													}
+																													{
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["end"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																														} else {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.End))
+																														}
+																														attrs["end"] = v
+																													}
+																													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																													diags.Append(resultDiags...)
+																													return result
+																												}
+																											}
+																										}()
+																										elems[k] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																									diags.Append(resultDiags...)
+																									v = result
+																								}
+																								attrs["shifts"] = v
+																							}
+																						}
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["timezone"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Timezone))
+																						}
+																						attrs["timezone"] = v
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		attrs["time"] = v
+																	}
+																}
+															}
+															result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+															diags.Append(resultDiags...)
+															return result
+														}
+													}
+												}()
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["schedules"] = v
+									}
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["spec"] = v
+				}()
+				attrs["spec"] = v
 			}
 		}
 	}
-	return diags
+	_, ok := attrs["id"]
+	if !ok {
+		attrs["id"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
+	}
+	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+	diags.Append(resultDiags...)
+	return result, diags
 }
 
 // attrReadMissingDiag represents diagnostic message on an attribute missing in the source object
@@ -1802,7 +1414,7 @@ func (d attrReadMissingDiag) Summary() string {
 }
 
 func (d attrReadMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attrs", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attributes", d.Path)
 }
 
 func (d attrReadMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
@@ -1845,7 +1457,7 @@ func (d attrWriteMissingDiag) Summary() string {
 }
 
 func (d attrWriteMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttrTypes", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttributeTypes", d.Path)
 }
 
 func (d attrWriteMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {

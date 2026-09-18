@@ -92,7 +92,7 @@ func (r dataSourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req 
 
 	
 	samlIdPServiceProvider := samlIdPServiceProviderI.(*apitypes.SAMLIdPServiceProviderV1)
-	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &state)
+	state, diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

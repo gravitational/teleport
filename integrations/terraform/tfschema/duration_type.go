@@ -92,6 +92,27 @@ func (t DurationType) ValueFromTerraform(ctx context.Context, in tftypes.Value) 
 	return DurationValue{Value: current, rawValue: raw}, nil
 }
 
+// NewDuration creates a DurationValue with a known value.
+func NewDuration(value time.Duration) DurationValue {
+	return DurationValue{
+		Value: value,
+	}
+}
+
+// NullDuration creates a DurationValue with a null value.
+func NullDuration() DurationValue {
+	return DurationValue{
+		Null: true,
+	}
+}
+
+// UnknownDuration creates a DurationValue with an unknown value.
+func UnknownDuration() DurationValue {
+	return DurationValue{
+		Unknown: true,
+	}
+}
+
 // Type returns value type
 func (t DurationValue) Type(_ context.Context) attr.Type {
 	return DurationType{}
@@ -168,4 +189,9 @@ func (t DurationValue) String() string {
 	}
 
 	return t.Value.String()
+}
+
+// ValueDuration returns the underlying duration value.
+func (t DurationValue) ValueDuration() time.Duration {
+	return t.Value
 }

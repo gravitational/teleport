@@ -170,7 +170,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		return
 	}
 
-	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
+	plan, diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -206,7 +206,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req 
 
 	
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
-	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
+	state, diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -294,7 +294,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 
 	
 	clusterMaintenanceConfig = clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
-	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
+	plan, diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -335,7 +335,7 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 		return
 	}
 
-	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
+	state, diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -385,7 +385,8 @@ func (r resourceTeleportClusterMaintenanceConfig) ModifyPlan(ctx context.Context
 	clusterMaintenanceConfig = clusterMaintenanceConfigResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(tfschema.CopyClusterMaintenanceConfigV1ToTerraformPreserveUnknown(ctx, clusterMaintenanceConfig, &config, preserveUnknown)...)
+	config, diags := tfschema.CopyClusterMaintenanceConfigV1ToTerraformPreserveUnknown(ctx, clusterMaintenanceConfig, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

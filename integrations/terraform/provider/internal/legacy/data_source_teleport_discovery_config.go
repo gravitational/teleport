@@ -92,7 +92,7 @@ func (r dataSourceTeleportDiscoveryConfig) Read(ctx context.Context, req datasou
 
 	discoveryConfig := convert.ToProto(discoveryConfigI)
 	
-	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &state)
+	state, diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

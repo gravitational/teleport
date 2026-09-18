@@ -19,7 +19,6 @@ package resource153
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -56,22 +55,14 @@ func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Tim
 // [tfschema.TimeValue]. Set `preserveUnknown` to preserve unknown values.
 func CopyToTimestamp(_ diag.Diagnostics, o *timestamppb.Timestamp, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
 	if preserveUnknown && v != nil && v.IsUnknown() {
-		return tfschema.TimeValue{Unknown: true}
+		return tfschema.UnknownTime()
 	}
-
-	format := time.RFC3339
 
 	if o == nil {
-		return tfschema.TimeValue{
-			Null:   true,
-			Format: format,
-		}
+		return tfschema.NullTime()
 	}
 
-	return tfschema.TimeValue{
-		Value:  o.AsTime(),
-		Format: format,
-	}
+	return tfschema.NewTime(o.AsTime())
 }
 
 func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {

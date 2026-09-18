@@ -92,7 +92,7 @@ func (r dataSourceTeleportIntegration) Read(ctx context.Context, req datasource.
 
 	
 	integration := integrationI.(*apitypes.IntegrationV1)
-	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
+	state, diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

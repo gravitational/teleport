@@ -33,4 +33,8 @@ var (
 	GenSchemaLabels = resource153.GenSchemaLabels
 	CopyFromLabels  = resource153.CopyFromLabels
 	CopyToLabels    = resource153.CopyToLabels
+
+	NewDuration     = tfschema.NewDuration
+	NullDuration    = tfschema.NullDuration
+	UnknownDuration = tfschema.UnknownDuration
 )

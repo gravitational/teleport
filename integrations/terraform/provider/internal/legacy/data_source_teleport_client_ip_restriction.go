@@ -74,7 +74,7 @@ func (r dataSourceTeleportClientIPRestriction) Read(ctx context.Context, req dat
 	}
 
 	clientIPRestriction := clientIPRestrictionI
-	diags := schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
+	state, diags := schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

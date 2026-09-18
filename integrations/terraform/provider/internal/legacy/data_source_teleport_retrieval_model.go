@@ -74,7 +74,7 @@ func (r dataSourceTeleportRetrievalModel) Read(ctx context.Context, req datasour
 	}
 
 	retrievalModel := retrievalModelI
-	diags := schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
+	state, diags := schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

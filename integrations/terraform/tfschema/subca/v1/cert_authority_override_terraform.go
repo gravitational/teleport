@@ -33,7 +33,6 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
-	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -158,7 +157,7 @@ func GenSchemaCertAuthorityOverride(ctx context.Context) (github_com_hashicorp_t
 func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	{
-		a, ok := tf.Attrs["kind"]
+		a, ok := tf.Attributes()["kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"CertAuthorityOverride.kind"})
 		} else {
@@ -167,15 +166,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 				diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Kind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["sub_kind"]
+		a, ok := tf.Attributes()["sub_kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"CertAuthorityOverride.sub_kind"})
 		} else {
@@ -184,15 +183,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 				diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.SubKind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["version"]
+		a, ok := tf.Attributes()["version"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"CertAuthorityOverride.version"})
 		} else {
@@ -201,15 +200,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 				diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Version = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["metadata"]
+		a, ok := tf.Attributes()["metadata"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata"})
 		} else {
@@ -218,12 +217,12 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 				diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Metadata = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Metadata = &github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1.Metadata{}
 					obj := obj.Metadata
 					{
-						a, ok := tf.Attrs["name"]
+						a, ok := tf.Attributes()["name"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata.name"})
 						} else {
@@ -232,15 +231,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 								diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Name = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
+						a, ok := tf.Attributes()["namespace"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata.namespace"})
 						} else {
@@ -249,15 +248,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 								diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Namespace = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["description"]
+						a, ok := tf.Attributes()["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata.description"})
 						} else {
@@ -266,15 +265,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 								diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Description = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["labels"]
+						a, ok := tf.Attributes()["labels"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata.labels"})
 						} else {
@@ -282,16 +281,16 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Labels = make(map[string]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Labels = make(map[string]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.metadata.labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Labels[k] = t
 										}
@@ -301,7 +300,7 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 						}
 					}
 					{
-						a, ok := tf.Attrs["expires"]
+						a, ok := tf.Attributes()["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.metadata.expires"})
 						}
@@ -312,7 +311,7 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 		}
 	}
 	{
-		a, ok := tf.Attrs["spec"]
+		a, ok := tf.Attributes()["spec"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec"})
 		} else {
@@ -321,12 +320,12 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 				diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Spec = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Spec = &github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverrideSpec{}
 					obj := obj.Spec
 					{
-						a, ok := tf.Attrs["certificate_overrides"]
+						a, ok := tf.Attributes()["certificate_overrides"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec.certificate_overrides"})
 						} else {
@@ -334,20 +333,20 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 							} else {
-								obj.CertificateOverrides = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertificateOverride, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.CertificateOverrides = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertificateOverride, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 										} else {
 											var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertificateOverride
-											if !v.Null && !v.Unknown {
+											if !v.IsNull() && !v.IsUnknown() {
 												tf := v
 												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertificateOverride{}
 												obj := t
 												{
-													a, ok := tf.Attrs["public_key"]
+													a, ok := tf.Attributes()["public_key"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.public_key"})
 													} else {
@@ -356,15 +355,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 															diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														} else {
 															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
 															}
 															obj.PublicKey = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["certificate"]
+													a, ok := tf.Attributes()["certificate"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.certificate"})
 													} else {
@@ -373,15 +372,15 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 															diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.certificate", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														} else {
 															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
 															}
 															obj.Certificate = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["chain"]
+													a, ok := tf.Attributes()["chain"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.chain"})
 													} else {
@@ -389,16 +388,16 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 														} else {
-															obj.Chain = make([]string, len(v.Elems))
-															if !v.Null && !v.Unknown {
-																for k, a := range v.Elems {
+															obj.Chain = make([]string, len(v.Elements()))
+															if !v.IsNull() && !v.IsUnknown() {
+																for k, a := range v.Elements() {
 																	v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																	} else {
 																		var t string
-																		if !v.Null && !v.Unknown {
-																			t = string(v.Value)
+																		if !v.IsNull() && !v.IsUnknown() {
+																			t = (v.ValueString())
 																		}
 																		obj.Chain[k] = t
 																	}
@@ -408,7 +407,7 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 													}
 												}
 												{
-													a, ok := tf.Attrs["disabled"]
+													a, ok := tf.Attributes()["disabled"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.disabled"})
 													} else {
@@ -417,8 +416,8 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 															diags.Append(attrReadConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 														} else {
 															var t bool
-															if !v.Null && !v.Unknown {
-																t = bool(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueBool())
 															}
 															obj.Disabled = t
 														}
@@ -439,532 +438,327 @@ func CopyCertAuthorityOverrideFromTerraform(_ context.Context, tf github_com_has
 	return diags
 }
 
-// CopyCertAuthorityOverrideToTerraform copies contents of the source Terraform object into a target struct
-func CopyCertAuthorityOverrideToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+// CopyCertAuthorityOverrideToTerraform copies contents of source struct into a Terraform object.
+func CopyCertAuthorityOverrideToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return CopyCertAuthorityOverrideToTerraformPreserveUnknown(ctx, obj, tf, false)
 }
 
-// CopyCertAuthorityOverrideToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// CopyCertAuthorityOverrideToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
-func CopyCertAuthorityOverrideToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
-	tf.Null = false
-	tf.Unknown = false
-	if tf.Attrs == nil {
-		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+func CopyCertAuthorityOverrideToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_subca_v1.CertAuthorityOverride, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	schema, diags := GenSchemaCertAuthorityOverride(ctx)
+	if diags.HasError() {
+		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
+	}
+	attrType := schema.Type().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+	var attrs map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value
+	if tf == nil || tf.Attributes() == nil {
+		attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	} else {
+		attrs = tf.Attributes()
 	}
 	{
-		t, ok := tf.AttrTypes["kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"CertAuthorityOverride.kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Kind))
 		}
+		attrs["kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["sub_kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.sub_kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["sub_kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"CertAuthorityOverride.sub_kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["sub_kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.SubKind))
 		}
+		attrs["sub_kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["version"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.version"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["version"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"CertAuthorityOverride.version", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["version"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Version))
 		}
+		attrs["version"] = v
 	}
 	{
-		a, ok := tf.AttrTypes["metadata"]
+		attrType, ok := attrType.AttributeTypes()["metadata"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Metadata == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Metadata
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.name"})
+				existing := attrs["metadata"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Metadata == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"CertAuthorityOverride.metadata.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+							obj := obj.Metadata
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["namespace"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"CertAuthorityOverride.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Namespace)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["description"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.description"})
-						} else {
-							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"CertAuthorityOverride.metadata.description", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["description"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["labels"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.labels"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
-										Null:     true,
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["name"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
 								}
-								{
-									t := o.ElemType
-									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"CertAuthorityOverride.metadata.labels", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["labels"] = c
+								attrs["name"] = v
 							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["namespace"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Namespace))
+								}
+								attrs["namespace"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["description"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Description))
+								}
+								attrs["description"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["labels"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.labels"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["labels"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											for k, a := range obj.Labels {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := oldElems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["labels"] = v
+									}
+								}
+							}
+							{
+								t, ok := attrType.AttributeTypes()["expires"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.expires"})
+								} else {
+									v := CopyToTimestamp(diags, obj.Expires, t, attrs["expires"], preserveUnknown)
+									attrs["expires"] = v
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["expires"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.metadata.expires"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
-							tf.Attrs["expires"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["metadata"] = v
+				}()
+				attrs["metadata"] = v
 			}
 		}
 	}
 	{
-		a, ok := tf.AttrTypes["spec"]
+		attrType, ok := attrType.AttributeTypes()["spec"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Spec == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Spec
-					tf := &v
-					{
-						a, ok := tf.AttrTypes["certificate_overrides"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides"})
+				existing := attrs["spec"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Spec == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-							} else {
-								c, ok := tf.Attrs["certificate_overrides"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-										ElemType: o.ElemType,
-										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CertificateOverrides)),
-										Null:     true,
-									}
-								} else {
-									if c.Elems == nil {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CertificateOverrides))
-									}
-								}
-								{
-									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-									if len(obj.CertificateOverrides) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CertificateOverrides))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
-									}
-									for k, a := range obj.CertificateOverrides {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-										if !ok {
-											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-												AttrTypes: o.AttrTypes,
-												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-											}
-										} else {
-											if v.Attrs == nil {
-												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-											}
-										}
-										if a == nil {
-											v.Null = true
-										} else {
-											v.Null = false
-											obj := a
-											tf := &v
-											{
-												t, ok := tf.AttrTypes["public_key"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.public_key"})
-												} else {
-													v, ok := tf.Attrs["public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-													if !ok {
-														if tf.Attrs["public_key"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.spec.certificate_overrides.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"CertAuthorityOverride.spec.certificate_overrides.public_key", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.public_key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-													}
-
-													v.Null = false
-													v.Value = string(obj.PublicKey)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["public_key"] = v
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["certificate"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.certificate"})
-												} else {
-													v, ok := tf.Attrs["certificate"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-													if !ok {
-														if tf.Attrs["certificate"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.spec.certificate_overrides.certificate", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"CertAuthorityOverride.spec.certificate_overrides.certificate", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.certificate", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-													}
-
-													v.Null = false
-													v.Value = string(obj.Certificate)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["certificate"] = v
-												}
-											}
-											{
-												a, ok := tf.AttrTypes["chain"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.chain"})
-												} else {
-													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-													if !ok {
-														diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-													} else {
-														c, ok := tf.Attrs["chain"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-														if !ok {
-															c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																ElemType: o.ElemType,
-																Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain)),
-																Null:     true,
-															}
-														} else {
-															if c.Elems == nil {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
-															}
-														}
-														{
-															t := o.ElemType
-															if len(obj.Chain) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
-															}
-															for k, a := range obj.Chain {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																	if err != nil {
-																		diags.Append(attrWriteGeneralError{"CertAuthorityOverride.spec.certificate_overrides.chain", err})
-																	}
-																	v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																}
-
-																v.Null = false
-																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
-																c.Elems[k] = v
-															}
-														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
-														tf.Attrs["chain"] = c
-													}
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["disabled"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.disabled"})
-												} else {
-													v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-													if !ok {
-														if tf.Attrs["disabled"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"CertAuthorityOverride.spec.certificate_overrides.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"CertAuthorityOverride.spec.certificate_overrides.disabled", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-														}
-													}
-
-													v.Null = false
-													v.Value = bool(obj.Disabled)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["disabled"] = v
-												}
-											}
-										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["certificate_overrides"] = c
+							obj := obj.Spec
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
+							{
+								attrType, ok := attrType.AttributeTypes()["certificate_overrides"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["certificate_overrides"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+										} else {
+											oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CertificateOverrides))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.CertificateOverrides))
+											copy(elems, oldElems)
+											for k, a := range obj.CertificateOverrides {
+												attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+												existing := elems[k]
+												v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+													if preserveUnknown && existing != nil && existing.IsUnknown() {
+														return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+													} else {
+														if a == nil {
+															return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+														} else {
+															obj := a
+															attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+															v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if ok && v.Attributes() != nil {
+																attrs = v.Attributes()
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["public_key"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.PublicKey))
+																}
+																attrs["public_key"] = v
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["certificate"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Certificate))
+																}
+																attrs["certificate"] = v
+															}
+															{
+																attrType, ok := attrType.AttributeTypes()["chain"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"CertAuthorityOverride.spec.certificate_overrides.chain"})
+																} else {
+																	attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"CertAuthorityOverride.spec.certificate_overrides.chain", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																	} else {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := attrs["chain"]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																		} else {
+																			oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
+																			c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																			if ok && c.Elements() != nil {
+																				oldElems = c.Elements()
+																			}
+																			elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
+																			copy(elems, oldElems)
+																			for k, a := range obj.Chain {
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := elems[k]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																				}
+																				elems[k] = v
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																			diags.Append(resultDiags...)
+																			v = result
+																		}
+																		attrs["chain"] = v
+																	}
+																}
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["disabled"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.Disabled))
+																}
+																attrs["disabled"] = v
+															}
+															result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+															diags.Append(resultDiags...)
+															return result
+														}
+													}
+												}()
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["certificate_overrides"] = v
+									}
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["spec"] = v
+				}()
+				attrs["spec"] = v
 			}
 		}
 	}
-	return diags
+	_, ok := attrs["id"]
+	if !ok {
+		attrs["id"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
+	}
+	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+	diags.Append(resultDiags...)
+	return result, diags
 }
 
 // attrReadMissingDiag represents diagnostic message on an attribute missing in the source object
@@ -981,7 +775,7 @@ func (d attrReadMissingDiag) Summary() string {
 }
 
 func (d attrReadMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attrs", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attributes", d.Path)
 }
 
 func (d attrReadMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
@@ -1024,7 +818,7 @@ func (d attrWriteMissingDiag) Summary() string {
 }
 
 func (d attrWriteMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttrTypes", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttributeTypes", d.Path)
 }
 
 func (d attrWriteMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {

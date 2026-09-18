@@ -74,7 +74,7 @@ func (r dataSourceTeleportVnetConfig) Read(ctx context.Context, req datasource.R
 	}
 
 	vnetConfig := vnetConfigI
-	diags := schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
+	state, diags := schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

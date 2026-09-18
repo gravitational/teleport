@@ -92,7 +92,7 @@ func (r dataSourceTeleportInferenceModel) Read(ctx context.Context, req datasour
 
 	inferenceModel := inferenceModelI
 	
-	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &state)
+	state, diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -146,7 +146,7 @@ func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req resourc
 	
 	inferencePolicy = inferencePolicyResource
 
-	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
+	plan, diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -188,7 +188,7 @@ func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req resource.
 		return
 	}
 	inferencePolicy := inferencePolicyI
-	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &state)
+	state, diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -274,7 +274,7 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req resourc
 	
 	inferencePolicy = inferencePolicyResource
 
-	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
+	plan, diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -324,7 +324,7 @@ func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req re
 		return
 	}
 
-	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicyResource, &state)
+	state, diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicyResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -370,7 +370,8 @@ func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req res
 	inferencePolicy = inferencePolicyResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(schemav1.CopyInferencePolicyToTerraformPreserveUnknown(ctx, inferencePolicy, &config, preserveUnknown)...)
+	config, diags := schemav1.CopyInferencePolicyToTerraformPreserveUnknown(ctx, inferencePolicy, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

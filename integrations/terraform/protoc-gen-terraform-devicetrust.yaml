@@ -24,6 +24,7 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/resource.UseStateForUnknown()"
+      default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 
 
@@ -66,6 +67,10 @@ plan_modifiers:
 time_type:
     type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeType"
     value_type: "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"
+    value_from_method: "ValueTime"
+    value_to_method: "github.com/gravitational/teleport/integrations/terraform/tfschema.NewTime"
+    null_value_method: "github.com/gravitational/teleport/integrations/terraform/tfschema.NullTime"
+    unknown_value_method: "github.com/gravitational/teleport/integrations/terraform/tfschema.UnknownTime"
     cast_to_type: "time.Time"
     cast_from_type: "time.Time"
     type_constructor: "github.com/gravitational/teleport/integrations/terraform/tfschema.UseRFC3339Time()"

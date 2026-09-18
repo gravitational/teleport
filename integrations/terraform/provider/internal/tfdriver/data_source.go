@@ -111,7 +111,7 @@ func (r dataSource[T, I]) Read(ctx context.Context, req datasource.ReadRequest, 
 		state.Attributes()["id"] = types.StringValue(id.String())
 	}
 
-	diags = r.dataSource.Codec.ToState(ctx, obj, &state)
+	state, diags = r.dataSource.Codec.ToState(ctx, obj, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -35,7 +35,6 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
-	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 	_ "google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -217,7 +216,7 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	{
-		a, ok := tf.Attrs["kind"]
+		a, ok := tf.Attributes()["kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"HealthCheckConfig.kind"})
 		} else {
@@ -226,15 +225,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 				diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Kind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["sub_kind"]
+		a, ok := tf.Attributes()["sub_kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"HealthCheckConfig.sub_kind"})
 		} else {
@@ -243,15 +242,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 				diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.SubKind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["version"]
+		a, ok := tf.Attributes()["version"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"HealthCheckConfig.version"})
 		} else {
@@ -260,15 +259,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 				diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Version = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["metadata"]
+		a, ok := tf.Attributes()["metadata"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata"})
 		} else {
@@ -277,12 +276,12 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 				diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Metadata = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Metadata = &github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1.Metadata{}
 					obj := obj.Metadata
 					{
-						a, ok := tf.Attrs["name"]
+						a, ok := tf.Attributes()["name"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata.name"})
 						} else {
@@ -291,15 +290,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Name = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
+						a, ok := tf.Attributes()["namespace"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata.namespace"})
 						} else {
@@ -308,15 +307,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Namespace = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["description"]
+						a, ok := tf.Attributes()["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata.description"})
 						} else {
@@ -325,15 +324,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Description = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["labels"]
+						a, ok := tf.Attributes()["labels"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata.labels"})
 						} else {
@@ -341,16 +340,16 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Labels = make(map[string]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Labels = make(map[string]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.metadata.labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Labels[k] = t
 										}
@@ -360,7 +359,7 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 						}
 					}
 					{
-						a, ok := tf.Attrs["expires"]
+						a, ok := tf.Attributes()["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.metadata.expires"})
 						}
@@ -371,7 +370,7 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 		}
 	}
 	{
-		a, ok := tf.Attrs["spec"]
+		a, ok := tf.Attributes()["spec"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec"})
 		} else {
@@ -380,12 +379,12 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 				diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Spec = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Spec = &github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfigSpec{}
 					obj := obj.Spec
 					{
-						a, ok := tf.Attrs["match"]
+						a, ok := tf.Attributes()["match"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match"})
 						} else {
@@ -394,12 +393,12 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
 								obj.Match = nil
-								if !v.Null && !v.Unknown {
+								if !v.IsNull() && !v.IsUnknown() {
 									tf := v
 									obj.Match = &github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.Matcher{}
 									obj := obj.Match
 									{
-										a, ok := tf.Attrs["db_labels"]
+										a, ok := tf.Attributes()["db_labels"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.db_labels"})
 										} else {
@@ -407,20 +406,20 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 											} else {
-												obj.DbLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elems))
-												if !v.Null && !v.Unknown {
-													for k, a := range v.Elems {
+												obj.DbLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
 														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 														} else {
 															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label
-															if !v.Null && !v.Unknown {
+															if !v.IsNull() && !v.IsUnknown() {
 																tf := v
 																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label{}
 																obj := t
 																{
-																	a, ok := tf.Attrs["name"]
+																	a, ok := tf.Attributes()["name"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.db_labels.name"})
 																	} else {
@@ -429,15 +428,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 																			diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
 																			}
 																			obj.Name = t
 																		}
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["values"]
+																	a, ok := tf.Attributes()["values"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.db_labels.values"})
 																	} else {
@@ -445,16 +444,16 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 																		if !ok {
 																			diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 																		} else {
-																			obj.Values = make([]string, len(v.Elems))
-																			if !v.Null && !v.Unknown {
-																				for k, a := range v.Elems {
+																			obj.Values = make([]string, len(v.Elements()))
+																			if !v.IsNull() && !v.IsUnknown() {
+																				for k, a := range v.Elements() {
 																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
 																						diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																					} else {
 																						var t string
-																						if !v.Null && !v.Unknown {
-																							t = string(v.Value)
+																						if !v.IsNull() && !v.IsUnknown() {
+																							t = (v.ValueString())
 																						}
 																						obj.Values[k] = t
 																					}
@@ -472,7 +471,7 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 										}
 									}
 									{
-										a, ok := tf.Attrs["db_labels_expression"]
+										a, ok := tf.Attributes()["db_labels_expression"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.db_labels_expression"})
 										} else {
@@ -481,15 +480,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.DbLabelsExpression = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["kubernetes_labels"]
+										a, ok := tf.Attributes()["kubernetes_labels"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels"})
 										} else {
@@ -497,20 +496,20 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 											if !ok {
 												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 											} else {
-												obj.KubernetesLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elems))
-												if !v.Null && !v.Unknown {
-													for k, a := range v.Elems {
+												obj.KubernetesLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
 														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 														} else {
 															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label
-															if !v.Null && !v.Unknown {
+															if !v.IsNull() && !v.IsUnknown() {
 																tf := v
 																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label{}
 																obj := t
 																{
-																	a, ok := tf.Attrs["name"]
+																	a, ok := tf.Attributes()["name"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels.name"})
 																	} else {
@@ -519,15 +518,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 																			diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
 																			}
 																			obj.Name = t
 																		}
 																	}
 																}
 																{
-																	a, ok := tf.Attrs["values"]
+																	a, ok := tf.Attributes()["values"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values"})
 																	} else {
@@ -535,16 +534,16 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 																		if !ok {
 																			diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 																		} else {
-																			obj.Values = make([]string, len(v.Elems))
-																			if !v.Null && !v.Unknown {
-																				for k, a := range v.Elems {
+																			obj.Values = make([]string, len(v.Elements()))
+																			if !v.IsNull() && !v.IsUnknown() {
+																				for k, a := range v.Elements() {
 																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																					if !ok {
 																						diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																					} else {
 																						var t string
-																						if !v.Null && !v.Unknown {
-																							t = string(v.Value)
+																						if !v.IsNull() && !v.IsUnknown() {
+																							t = (v.ValueString())
 																						}
 																						obj.Values[k] = t
 																					}
@@ -562,7 +561,7 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 										}
 									}
 									{
-										a, ok := tf.Attrs["kubernetes_labels_expression"]
+										a, ok := tf.Attributes()["kubernetes_labels_expression"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels_expression"})
 										} else {
@@ -571,15 +570,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
 												}
 												obj.KubernetesLabelsExpression = t
 											}
 										}
 									}
 									{
-										a, ok := tf.Attrs["disabled"]
+										a, ok := tf.Attributes()["disabled"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.disabled"})
 										} else {
@@ -588,8 +587,8 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 											} else {
 												var t bool
-												if !v.Null && !v.Unknown {
-													t = bool(v.Value)
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueBool())
 												}
 												obj.Disabled = t
 											}
@@ -600,21 +599,21 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 						}
 					}
 					{
-						a, ok := tf.Attrs["timeout"]
+						a, ok := tf.Attributes()["timeout"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.timeout"})
 						}
 						CopyFromDuration(diags, a, &obj.Timeout)
 					}
 					{
-						a, ok := tf.Attrs["interval"]
+						a, ok := tf.Attributes()["interval"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.interval"})
 						}
 						CopyFromDuration(diags, a, &obj.Interval)
 					}
 					{
-						a, ok := tf.Attrs["healthy_threshold"]
+						a, ok := tf.Attributes()["healthy_threshold"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.healthy_threshold"})
 						} else {
@@ -623,15 +622,15 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.healthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 							} else {
 								var t uint32
-								if !v.Null && !v.Unknown {
-									t = uint32(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = uint32(v.ValueInt64())
 								}
 								obj.HealthyThreshold = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["unhealthy_threshold"]
+						a, ok := tf.Attributes()["unhealthy_threshold"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.unhealthy_threshold"})
 						} else {
@@ -640,8 +639,8 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 								diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.unhealthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 							} else {
 								var t uint32
-								if !v.Null && !v.Unknown {
-									t = uint32(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = uint32(v.ValueInt64())
 								}
 								obj.UnhealthyThreshold = t
 							}
@@ -654,821 +653,510 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 	return diags
 }
 
-// CopyHealthCheckConfigToTerraform copies contents of the source Terraform object into a target struct
-func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+// CopyHealthCheckConfigToTerraform copies contents of source struct into a Terraform object.
+func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return CopyHealthCheckConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
 }
 
-// CopyHealthCheckConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// CopyHealthCheckConfigToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
-func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
-	tf.Null = false
-	tf.Unknown = false
-	if tf.Attrs == nil {
-		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+func CopyHealthCheckConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_healthcheckconfig_v1.HealthCheckConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	schema, diags := GenSchemaHealthCheckConfig(ctx)
+	if diags.HasError() {
+		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
+	}
+	attrType := schema.Type().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+	var attrs map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value
+	if tf == nil || tf.Attributes() == nil {
+		attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	} else {
+		attrs = tf.Attributes()
 	}
 	{
-		t, ok := tf.AttrTypes["kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"HealthCheckConfig.kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"HealthCheckConfig.kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Kind))
 		}
+		attrs["kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["sub_kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"HealthCheckConfig.sub_kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["sub_kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"HealthCheckConfig.sub_kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["sub_kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.SubKind))
 		}
+		attrs["sub_kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["version"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"HealthCheckConfig.version"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["version"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"HealthCheckConfig.version", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["version"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Version))
 		}
+		attrs["version"] = v
 	}
 	{
-		a, ok := tf.AttrTypes["metadata"]
+		attrType, ok := attrType.AttributeTypes()["metadata"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Metadata == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Metadata
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.name"})
+				existing := attrs["metadata"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Metadata == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"HealthCheckConfig.metadata.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+							obj := obj.Metadata
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["namespace"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"HealthCheckConfig.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Namespace)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["description"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.description"})
-						} else {
-							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"HealthCheckConfig.metadata.description", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["description"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["labels"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.labels"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
-										Null:     true,
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["name"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
 								}
-								{
-									t := o.ElemType
-									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"HealthCheckConfig.metadata.labels", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["labels"] = c
+								attrs["name"] = v
 							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["namespace"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Namespace))
+								}
+								attrs["namespace"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["description"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Description))
+								}
+								attrs["description"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["labels"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.labels"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["labels"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											for k, a := range obj.Labels {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := oldElems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["labels"] = v
+									}
+								}
+							}
+							{
+								t, ok := attrType.AttributeTypes()["expires"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.expires"})
+								} else {
+									v := CopyToTimestamp(diags, obj.Expires, t, attrs["expires"], preserveUnknown)
+									attrs["expires"] = v
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["expires"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.metadata.expires"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
-							tf.Attrs["expires"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["metadata"] = v
+				}()
+				attrs["metadata"] = v
 			}
 		}
 	}
 	{
-		a, ok := tf.AttrTypes["spec"]
+		attrType, ok := attrType.AttributeTypes()["spec"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Spec == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Spec
-					tf := &v
-					{
-						a, ok := tf.AttrTypes["match"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match"})
+				existing := attrs["spec"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Spec == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-							} else {
-								v, ok := tf.Attrs["match"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							obj := obj.Spec
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["match"]
 								if !ok {
-									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-										AttrTypes: o.AttrTypes,
-										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-									}
+									diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match"})
 								} else {
-									if v.Attrs == nil {
-										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["match"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Match == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Match
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["db_labels"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["db_labels"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
+																	copy(elems, oldElems)
+																	for k, a := range obj.DbLabels {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+																						}
+																						attrs["name"] = v
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["values"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels.values"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																							} else {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["values"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																								} else {
+																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if ok && c.Elements() != nil {
+																										oldElems = c.Elements()
+																									}
+																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																									copy(elems, oldElems)
+																									for k, a := range obj.Values {
+																										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																										existing := elems[k]
+																										if preserveUnknown && existing != nil && existing.IsUnknown() {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																										} else {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																										}
+																										elems[k] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																									diags.Append(resultDiags...)
+																									v = result
+																								}
+																								attrs["values"] = v
+																							}
+																						}
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["db_labels"] = v
+															}
+														}
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["db_labels_expression"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DbLabelsExpression))
+														}
+														attrs["db_labels_expression"] = v
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["kubernetes_labels"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["kubernetes_labels"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
+																	copy(elems, oldElems)
+																	for k, a := range obj.KubernetesLabels {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+																						}
+																						attrs["name"] = v
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["values"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																							} else {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["values"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																								} else {
+																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if ok && c.Elements() != nil {
+																										oldElems = c.Elements()
+																									}
+																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																									copy(elems, oldElems)
+																									for k, a := range obj.Values {
+																										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																										existing := elems[k]
+																										if preserveUnknown && existing != nil && existing.IsUnknown() {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																										} else {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																										}
+																										elems[k] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																									diags.Append(resultDiags...)
+																									v = result
+																								}
+																								attrs["values"] = v
+																							}
+																						}
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["kubernetes_labels"] = v
+															}
+														}
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["kubernetes_labels_expression"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.KubernetesLabelsExpression))
+														}
+														attrs["kubernetes_labels_expression"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["disabled"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.Disabled))
+														}
+														attrs["disabled"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["match"] = v
 									}
 								}
-								if obj.Match == nil {
-									v.Null = true
+							}
+							{
+								t, ok := attrType.AttributeTypes()["timeout"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.timeout"})
 								} else {
-									v.Null = false
-									obj := obj.Match
-									tf := &v
-									{
-										a, ok := tf.AttrTypes["db_labels"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels"})
-										} else {
-											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-											} else {
-												c, ok := tf.Attrs["db_labels"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-												if !ok {
-													c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-														ElemType: o.ElemType,
-														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels)),
-														Null:     true,
-													}
-												} else {
-													if c.Elems == nil {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
-													}
-												}
-												{
-													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-													if len(obj.DbLabels) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DbLabels))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
-													}
-													for k, a := range obj.DbLabels {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-														if !ok {
-															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																AttrTypes: o.AttrTypes,
-																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-															}
-														} else {
-															if v.Attrs == nil {
-																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-															}
-														}
-														if a == nil {
-															v.Null = true
-														} else {
-															v.Null = false
-															obj := a
-															tf := &v
-															{
-																t, ok := tf.AttrTypes["name"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels.name"})
-																} else {
-																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		if tf.Attrs["name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.db_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.db_labels.name", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																	}
-
-																	v.Null = false
-																	v.Value = string(obj.Name)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
-																	tf.Attrs["name"] = v
-																}
-															}
-															{
-																a, ok := tf.AttrTypes["values"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels.values"})
-																} else {
-																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-																	} else {
-																		c, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-																		if !ok {
-																			c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																				ElemType: o.ElemType,
-																				Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values)),
-																				Null:     true,
-																			}
-																		} else {
-																			if c.Elems == nil {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																			}
-																		}
-																		{
-																			t := o.ElemType
-																			if len(obj.Values) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
-																			}
-																			for k, a := range obj.Values {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.db_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
-																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																					if err != nil {
-																						diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.db_labels.values", err})
-																					}
-																					v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																					if !ok {
-																						diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
-																				}
-
-																				v.Null = false
-																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
-																				c.Elems[k] = v
-																			}
-																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
-																		tf.Attrs["values"] = c
-																	}
-																}
-															}
-														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
-														c.Elems[k] = v
-													}
-												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
-												tf.Attrs["db_labels"] = c
-											}
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["db_labels_expression"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.db_labels_expression"})
-										} else {
-											v, ok := tf.Attrs["db_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["db_labels_expression"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.db_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.db_labels_expression", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.db_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.DbLabelsExpression)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["db_labels_expression"] = v
-										}
-									}
-									{
-										a, ok := tf.AttrTypes["kubernetes_labels"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels"})
-										} else {
-											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-											} else {
-												c, ok := tf.Attrs["kubernetes_labels"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-												if !ok {
-													c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-														ElemType: o.ElemType,
-														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels)),
-														Null:     true,
-													}
-												} else {
-													if c.Elems == nil {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
-													}
-												}
-												{
-													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-													if len(obj.KubernetesLabels) != len(c.Elems) {
-														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.KubernetesLabels))
-														copy(newElems, c.Elems)
-														c.Elems = newElems
-													}
-													for k, a := range obj.KubernetesLabels {
-														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-														if !ok {
-															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																AttrTypes: o.AttrTypes,
-																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-															}
-														} else {
-															if v.Attrs == nil {
-																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-															}
-														}
-														if a == nil {
-															v.Null = true
-														} else {
-															v.Null = false
-															obj := a
-															tf := &v
-															{
-																t, ok := tf.AttrTypes["name"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels.name"})
-																} else {
-																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		if tf.Attrs["name"] != nil {
-																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.kubernetes_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.kubernetes_labels.name", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																	}
-
-																	v.Null = false
-																	v.Value = string(obj.Name)
-																	if !preserveUnknown {
-																		v.Unknown = false
-																	}
-																	tf.Attrs["name"] = v
-																}
-															}
-															{
-																a, ok := tf.AttrTypes["values"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values"})
-																} else {
-																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-																	} else {
-																		c, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-																		if !ok {
-																			c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																				ElemType: o.ElemType,
-																				Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values)),
-																				Null:     true,
-																			}
-																		} else {
-																			if c.Elems == nil {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																			}
-																		}
-																		{
-																			t := o.ElemType
-																			if len(obj.Values) != len(c.Elems) {
-																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																				copy(newElems, c.Elems)
-																				c.Elems = newElems
-																			}
-																			for k, a := range obj.Values {
-																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																				if !ok {
-																					if c.Elems[k] != nil {
-																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
-																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																					if err != nil {
-																						diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.kubernetes_labels.values", err})
-																					}
-																					v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																					if !ok {
-																						diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																					}
-																				}
-
-																				v.Null = false
-																				v.Value = string(a)
-																				if !preserveUnknown {
-																					v.Unknown = false
-																				}
-																				c.Elems[k] = v
-																			}
-																		}
-																		c.Null = false
-																		if !preserveUnknown {
-																			c.Unknown = false
-																		}
-																		tf.Attrs["values"] = c
-																	}
-																}
-															}
-														}
-														if !preserveUnknown {
-															v.Unknown = false
-														}
-														c.Elems[k] = v
-													}
-												}
-												c.Null = false
-												if !preserveUnknown {
-													c.Unknown = false
-												}
-												tf.Attrs["kubernetes_labels"] = c
-											}
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["kubernetes_labels_expression"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.kubernetes_labels_expression"})
-										} else {
-											v, ok := tf.Attrs["kubernetes_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												if tf.Attrs["kubernetes_labels_expression"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.kubernetes_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.kubernetes_labels_expression", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.kubernetes_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-											}
-
-											v.Null = false
-											v.Value = string(obj.KubernetesLabelsExpression)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["kubernetes_labels_expression"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["disabled"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.disabled"})
-										} else {
-											v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-											if !ok {
-												if tf.Attrs["disabled"] != nil {
-													diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.match.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-												}
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.disabled", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-												}
-											}
-
-											v.Null = false
-											v.Value = bool(obj.Disabled)
-											if !preserveUnknown {
-												v.Unknown = false
-											}
-											tf.Attrs["disabled"] = v
-										}
-									}
+									v := CopyToDuration(diags, obj.Timeout, t, attrs["timeout"], preserveUnknown)
+									attrs["timeout"] = v
 								}
-								if !preserveUnknown {
-									v.Unknown = false
-								}
-								tf.Attrs["match"] = v
 							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["timeout"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.timeout"})
-						} else {
-							v := CopyToDuration(diags, obj.Timeout, t, tf.Attrs["timeout"], preserveUnknown)
-							tf.Attrs["timeout"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["interval"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.interval"})
-						} else {
-							v := CopyToDuration(diags, obj.Interval, t, tf.Attrs["interval"], preserveUnknown)
-							tf.Attrs["interval"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["healthy_threshold"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.healthy_threshold"})
-						} else {
-							v, ok := tf.Attrs["healthy_threshold"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								if tf.Attrs["healthy_threshold"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.healthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.healthy_threshold", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							{
+								t, ok := attrType.AttributeTypes()["interval"]
 								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.healthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+									diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.interval"})
+								} else {
+									v := CopyToDuration(diags, obj.Interval, t, attrs["interval"], preserveUnknown)
+									attrs["interval"] = v
 								}
 							}
-
-							v.Null = false
-							v.Value = int64(obj.HealthyThreshold)
-							if !preserveUnknown {
-								v.Unknown = false
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["healthy_threshold"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.HealthyThreshold))
+								}
+								attrs["healthy_threshold"] = v
 							}
-							tf.Attrs["healthy_threshold"] = v
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["unhealthy_threshold"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.UnhealthyThreshold))
+								}
+								attrs["unhealthy_threshold"] = v
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["unhealthy_threshold"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.unhealthy_threshold"})
-						} else {
-							v, ok := tf.Attrs["unhealthy_threshold"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								if tf.Attrs["unhealthy_threshold"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"HealthCheckConfig.spec.unhealthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.unhealthy_threshold", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.unhealthy_threshold", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-								}
-							}
-
-							v.Null = false
-							v.Value = int64(obj.UnhealthyThreshold)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["unhealthy_threshold"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["spec"] = v
+				}()
+				attrs["spec"] = v
 			}
 		}
 	}
-	return diags
+	_, ok := attrs["id"]
+	if !ok {
+		attrs["id"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
+	}
+	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+	diags.Append(resultDiags...)
+	return result, diags
 }
 
 // attrReadMissingDiag represents diagnostic message on an attribute missing in the source object
@@ -1485,7 +1173,7 @@ func (d attrReadMissingDiag) Summary() string {
 }
 
 func (d attrReadMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attrs", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attributes", d.Path)
 }
 
 func (d attrReadMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
@@ -1528,7 +1216,7 @@ func (d attrWriteMissingDiag) Summary() string {
 }
 
 func (d attrWriteMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttrTypes", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttributeTypes", d.Path)
 }
 
 func (d attrWriteMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {

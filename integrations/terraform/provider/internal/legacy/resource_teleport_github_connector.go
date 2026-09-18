@@ -154,7 +154,7 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req resourc
 	}
 	githubConnector = githubConnectorResource
 
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
+	plan, diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -197,7 +197,7 @@ func (r resourceTeleportGithubConnector) Read(ctx context.Context, req resource.
 	}
 	
 	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
+	state, diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -290,7 +290,7 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req resourc
 	}
 	githubConnector = githubConnectorResource
 
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
+	plan, diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -340,7 +340,7 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req re
 		return
 	}
 
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnectorResource, &state)
+	state, diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnectorResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -390,7 +390,8 @@ func (r resourceTeleportGithubConnector) ModifyPlan(ctx context.Context, req res
 	githubConnector = githubConnectorResource
 
 	const preserveUnknown = true
-	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3ToTerraformPreserveUnknown(ctx, githubConnector, &config, preserveUnknown)...)
+	config, diags := tfschema.CopyGithubConnectorV3ToTerraformPreserveUnknown(ctx, githubConnector, &config, preserveUnknown)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

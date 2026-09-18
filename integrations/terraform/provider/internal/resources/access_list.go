@@ -45,7 +45,7 @@ func NewAccessListDataSourceType() tfdriver.DataSourceType[accesslist.AccessList
 		Name: apitypes.KindAccessList,
 		Codec: tfdriver.DataSourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
-			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
+			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) (types.Object, diag.Diagnostics) {
 				return schemav1.CopyAccessListToTerraform(ctx, convertv1.ToProto(al), o)
 			},
 		},
@@ -68,7 +68,7 @@ func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tf
 		Name: apitypes.KindAccessList,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
-			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
+			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) (types.Object, diag.Diagnostics) {
 
 				return schemav1.CopyAccessListToTerraform(ctx, convertv1.ToProto(al), o)
 			},

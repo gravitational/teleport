@@ -196,7 +196,7 @@ func (r Resource[T, I]) Create(ctx context.Context, req resource.CreateRequest, 
 			resourceBefore != nil && r.resource.ResourceRevision != nil &&
 			r.resource.ResourceRevision(resourceBefore) == r.resource.ResourceRevision(retrieved):
 		default:
-			diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
+			plan, diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
 				return
@@ -250,7 +250,7 @@ func (r Resource[T, I]) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	diags = r.resource.Codec.ToState(ctx, retrieved, &state)
+	state, diags = r.resource.Codec.ToState(ctx, retrieved, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -320,7 +320,7 @@ func (r Resource[T, I]) Update(ctx context.Context, req resource.UpdateRequest, 
 		}
 
 		if r.resource.ResourceRevision == nil || r.resource.ResourceRevision(resourceBefore) != r.resource.ResourceRevision(retrieved) {
-			diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
+			plan, diags = r.resource.Codec.ToState(ctx, retrieved, &plan)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
 				return
@@ -387,7 +387,7 @@ func (r Resource[T, I]) ImportState(ctx context.Context, req resource.ImportStat
 		return
 	}
 
-	diags = r.resource.Codec.ToState(ctx, retrieved, &state)
+	state, diags = r.resource.Codec.ToState(ctx, retrieved, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

@@ -19,7 +19,6 @@ package legacy
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -351,15 +350,9 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 
 	timeValue := func(v *timestamppb.Timestamp) tfschema.TimeValue {
 		if v == nil {
-			return tfschema.TimeValue{
-				Null:   true,
-				Format: time.RFC3339,
-			}
+			return tfschema.NullTime()
 		}
-		return tfschema.TimeValue{
-			Value:  v.AsTime(),
-			Format: time.RFC3339,
-		}
+		return tfschema.NewTime(v.AsTime())
 	}
 
 	durationValue := func(v *durationpb.Duration) tfschema.DurationValue {

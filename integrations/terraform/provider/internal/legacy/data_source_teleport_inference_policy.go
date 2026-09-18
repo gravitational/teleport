@@ -92,7 +92,7 @@ func (r dataSourceTeleportInferencePolicy) Read(ctx context.Context, req datasou
 
 	inferencePolicy := inferencePolicyI
 	
-	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &state)
+	state, diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

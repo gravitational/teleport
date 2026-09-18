@@ -35,7 +35,6 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_resource "github.com/hashicorp/terraform-plugin-framework/resource"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
-	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -194,7 +193,7 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_terraform_plugin_framework_types.Object, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	{
-		a, ok := tf.Attrs["kind"]
+		a, ok := tf.Attributes()["kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"StaticHostUser.kind"})
 		} else {
@@ -203,15 +202,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 				diags.Append(attrReadConversionFailureDiag{"StaticHostUser.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Kind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["sub_kind"]
+		a, ok := tf.Attributes()["sub_kind"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"StaticHostUser.sub_kind"})
 		} else {
@@ -220,15 +219,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 				diags.Append(attrReadConversionFailureDiag{"StaticHostUser.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.SubKind = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["version"]
+		a, ok := tf.Attributes()["version"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"StaticHostUser.version"})
 		} else {
@@ -237,15 +236,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 				diags.Append(attrReadConversionFailureDiag{"StaticHostUser.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 			} else {
 				var t string
-				if !v.Null && !v.Unknown {
-					t = string(v.Value)
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
 				}
 				obj.Version = t
 			}
 		}
 	}
 	{
-		a, ok := tf.Attrs["metadata"]
+		a, ok := tf.Attributes()["metadata"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"StaticHostUser.metadata"})
 		} else {
@@ -254,12 +253,12 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 				diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Metadata = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Metadata = &github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1.Metadata{}
 					obj := obj.Metadata
 					{
-						a, ok := tf.Attrs["name"]
+						a, ok := tf.Attributes()["name"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.name"})
 						} else {
@@ -268,15 +267,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Name = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
+						a, ok := tf.Attributes()["namespace"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.namespace"})
 						} else {
@@ -285,15 +284,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Namespace = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["description"]
+						a, ok := tf.Attributes()["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.description"})
 						} else {
@@ -302,15 +301,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
+								if !v.IsNull() && !v.IsUnknown() {
+									t = (v.ValueString())
 								}
 								obj.Description = t
 							}
 						}
 					}
 					{
-						a, ok := tf.Attrs["labels"]
+						a, ok := tf.Attributes()["labels"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.labels"})
 						} else {
@@ -318,16 +317,16 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Labels = make(map[string]string, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Labels = make(map[string]string, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"StaticHostUser.metadata.labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 										} else {
 											var t string
-											if !v.Null && !v.Unknown {
-												t = string(v.Value)
+											if !v.IsNull() && !v.IsUnknown() {
+												t = (v.ValueString())
 											}
 											obj.Labels[k] = t
 										}
@@ -337,7 +336,7 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 						}
 					}
 					{
-						a, ok := tf.Attrs["expires"]
+						a, ok := tf.Attributes()["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.metadata.expires"})
 						}
@@ -348,7 +347,7 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 		}
 	}
 	{
-		a, ok := tf.Attrs["spec"]
+		a, ok := tf.Attributes()["spec"]
 		if !ok {
 			diags.Append(attrReadMissingDiag{"StaticHostUser.spec"})
 		} else {
@@ -357,12 +356,12 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 				diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 			} else {
 				obj.Spec = nil
-				if !v.Null && !v.Unknown {
+				if !v.IsNull() && !v.IsUnknown() {
 					tf := v
 					obj.Spec = &github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUserSpec{}
 					obj := obj.Spec
 					{
-						a, ok := tf.Attrs["matchers"]
+						a, ok := tf.Attributes()["matchers"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers"})
 						} else {
@@ -370,20 +369,20 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 							if !ok {
 								diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 							} else {
-								obj.Matchers = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.Matcher, len(v.Elems))
-								if !v.Null && !v.Unknown {
-									for k, a := range v.Elems {
+								obj.Matchers = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.Matcher, len(v.Elements()))
+								if !v.IsNull() && !v.IsUnknown() {
+									for k, a := range v.Elements() {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 										} else {
 											var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.Matcher
-											if !v.Null && !v.Unknown {
+											if !v.IsNull() && !v.IsUnknown() {
 												tf := v
 												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.Matcher{}
 												obj := t
 												{
-													a, ok := tf.Attrs["node_labels"]
+													a, ok := tf.Attributes()["node_labels"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.node_labels"})
 													} else {
@@ -391,20 +390,20 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 														} else {
-															obj.NodeLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elems))
-															if !v.Null && !v.Unknown {
-																for k, a := range v.Elems {
+															obj.NodeLabels = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label, len(v.Elements()))
+															if !v.IsNull() && !v.IsUnknown() {
+																for k, a := range v.Elements() {
 																	v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																	if !ok {
 																		diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 																	} else {
 																		var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label
-																		if !v.Null && !v.Unknown {
+																		if !v.IsNull() && !v.IsUnknown() {
 																			tf := v
 																			t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1.Label{}
 																			obj := t
 																			{
-																				a, ok := tf.Attrs["name"]
+																				a, ok := tf.Attributes()["name"]
 																				if !ok {
 																					diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.node_labels.name"})
 																				} else {
@@ -413,15 +412,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 																						diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					} else {
 																						var t string
-																						if !v.Null && !v.Unknown {
-																							t = string(v.Value)
+																						if !v.IsNull() && !v.IsUnknown() {
+																							t = (v.ValueString())
 																						}
 																						obj.Name = t
 																					}
 																				}
 																			}
 																			{
-																				a, ok := tf.Attrs["values"]
+																				a, ok := tf.Attributes()["values"]
 																				if !ok {
 																					diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.node_labels.values"})
 																				} else {
@@ -429,16 +428,16 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 																					if !ok {
 																						diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 																					} else {
-																						obj.Values = make([]string, len(v.Elems))
-																						if !v.Null && !v.Unknown {
-																							for k, a := range v.Elems {
+																						obj.Values = make([]string, len(v.Elements()))
+																						if !v.IsNull() && !v.IsUnknown() {
+																							for k, a := range v.Elements() {
 																								v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																								if !ok {
 																									diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																								} else {
 																									var t string
-																									if !v.Null && !v.Unknown {
-																										t = string(v.Value)
+																									if !v.IsNull() && !v.IsUnknown() {
+																										t = (v.ValueString())
 																									}
 																									obj.Values[k] = t
 																								}
@@ -456,7 +455,7 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 													}
 												}
 												{
-													a, ok := tf.Attrs["node_labels_expression"]
+													a, ok := tf.Attributes()["node_labels_expression"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.node_labels_expression"})
 													} else {
@@ -465,15 +464,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														} else {
 															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
 															}
 															obj.NodeLabelsExpression = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["groups"]
+													a, ok := tf.Attributes()["groups"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.groups"})
 													} else {
@@ -481,16 +480,16 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 														} else {
-															obj.Groups = make([]string, len(v.Elems))
-															if !v.Null && !v.Unknown {
-																for k, a := range v.Elems {
+															obj.Groups = make([]string, len(v.Elements()))
+															if !v.IsNull() && !v.IsUnknown() {
+																for k, a := range v.Elements() {
 																	v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																	} else {
 																		var t string
-																		if !v.Null && !v.Unknown {
-																			t = string(v.Value)
+																		if !v.IsNull() && !v.IsUnknown() {
+																			t = (v.ValueString())
 																		}
 																		obj.Groups[k] = t
 																	}
@@ -500,7 +499,7 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 													}
 												}
 												{
-													a, ok := tf.Attrs["sudoers"]
+													a, ok := tf.Attributes()["sudoers"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.sudoers"})
 													} else {
@@ -508,16 +507,16 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 														if !ok {
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 														} else {
-															obj.Sudoers = make([]string, len(v.Elems))
-															if !v.Null && !v.Unknown {
-																for k, a := range v.Elems {
+															obj.Sudoers = make([]string, len(v.Elements()))
+															if !v.IsNull() && !v.IsUnknown() {
+																for k, a := range v.Elements() {
 																	v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github_com_hashicorp_terraform_plugin_framework_types.String"})
 																	} else {
 																		var t string
-																		if !v.Null && !v.Unknown {
-																			t = string(v.Value)
+																		if !v.IsNull() && !v.IsUnknown() {
+																			t = (v.ValueString())
 																		}
 																		obj.Sudoers[k] = t
 																	}
@@ -527,7 +526,7 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 													}
 												}
 												{
-													a, ok := tf.Attrs["uid"]
+													a, ok := tf.Attributes()["uid"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.uid"})
 													} else {
@@ -536,15 +535,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 														} else {
 															var t int64
-															if !v.Null && !v.Unknown {
-																t = int64(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueInt64())
 															}
 															obj.Uid = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["gid"]
+													a, ok := tf.Attributes()["gid"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.gid"})
 													} else {
@@ -553,15 +552,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.gid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 														} else {
 															var t int64
-															if !v.Null && !v.Unknown {
-																t = int64(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueInt64())
 															}
 															obj.Gid = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["default_shell"]
+													a, ok := tf.Attributes()["default_shell"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.default_shell"})
 													} else {
@@ -570,15 +569,15 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.default_shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														} else {
 															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
 															}
 															obj.DefaultShell = t
 														}
 													}
 												}
 												{
-													a, ok := tf.Attrs["take_ownership_if_user_exists"]
+													a, ok := tf.Attributes()["take_ownership_if_user_exists"]
 													if !ok {
 														diags.Append(attrReadMissingDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists"})
 													} else {
@@ -587,8 +586,8 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 															diags.Append(attrReadConversionFailureDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 														} else {
 															var t bool
-															if !v.Null && !v.Unknown {
-																t = bool(v.Value)
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueBool())
 															}
 															obj.TakeOwnershipIfUserExists = t
 														}
@@ -609,801 +608,488 @@ func CopyStaticHostUserFromTerraform(_ context.Context, tf github_com_hashicorp_
 	return diags
 }
 
-// CopyStaticHostUserToTerraform copies contents of the source Terraform object into a target struct
-func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+// CopyStaticHostUserToTerraform copies contents of source struct into a Terraform object.
+func CopyStaticHostUserToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
 	return CopyStaticHostUserToTerraformPreserveUnknown(ctx, obj, tf, false)
 }
 
-// CopyStaticHostUserToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// CopyStaticHostUserToTerraformPreserveUnknown copies contents of source struct into a Terraform object.
 // Set preserveUnknown to true to preserve unknown values.
-func CopyStaticHostUserToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
-	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
-	tf.Null = false
-	tf.Unknown = false
-	if tf.Attrs == nil {
-		tf.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+func CopyStaticHostUserToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2.StaticHostUser, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) (github_com_hashicorp_terraform_plugin_framework_types.Object, github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics) {
+	schema, diags := GenSchemaStaticHostUser(ctx)
+	if diags.HasError() {
+		return github_com_hashicorp_terraform_plugin_framework_types.Object{}, diags
+	}
+	attrType := schema.Type().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+	var attrs map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value
+	if tf == nil || tf.Attributes() == nil {
+		attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value)
+	} else {
+		attrs = tf.Attributes()
 	}
 	{
-		t, ok := tf.AttrTypes["kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"StaticHostUser.kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"StaticHostUser.kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Kind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Kind))
 		}
+		attrs["kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["sub_kind"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"StaticHostUser.sub_kind"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["sub_kind"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["sub_kind"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"StaticHostUser.sub_kind", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.SubKind)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["sub_kind"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.SubKind))
 		}
+		attrs["sub_kind"] = v
 	}
 	{
-		t, ok := tf.AttrTypes["version"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"StaticHostUser.version"})
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["version"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 		} else {
-			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-			if !ok {
-				if tf.Attrs["version"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"StaticHostUser.version", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-				}
-			}
-
-			v.Null = false
-			v.Value = string(obj.Version)
-			if !preserveUnknown {
-				v.Unknown = false
-			}
-			tf.Attrs["version"] = v
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Version))
 		}
+		attrs["version"] = v
 	}
 	{
-		a, ok := tf.AttrTypes["metadata"]
+		attrType, ok := attrType.AttributeTypes()["metadata"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["metadata"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Metadata == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Metadata
-					tf := &v
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.name"})
+				existing := attrs["metadata"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Metadata == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["name"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
+							obj := obj.Metadata
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
-
-							v.Null = false
-							v.Value = string(obj.Name)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["namespace"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Namespace)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["description"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.description"})
-						} else {
-							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["description"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.description", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Description)
-							if !preserveUnknown {
-								v.Unknown = false
-							}
-							tf.Attrs["description"] = v
-						}
-					}
-					{
-						a, ok := tf.AttrTypes["labels"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.labels"})
-						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
-							} else {
-								c, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
-
-										ElemType: o.ElemType,
-										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels)),
-										Null:     true,
-									}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["name"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
 								} else {
-									if c.Elems == nil {
-										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
-									}
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
 								}
-								{
-									t := o.ElemType
-									for k, a := range obj.Labels {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-										if !ok {
-											if c.Elems[k] != nil {
-												diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-											if err != nil {
-												diags.Append(attrWriteGeneralError{"StaticHostUser.metadata.labels", err})
-											}
-											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											}
-										}
-
-										v.Null = false
-										v.Value = string(a)
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["labels"] = c
+								attrs["name"] = v
 							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["namespace"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Namespace))
+								}
+								attrs["namespace"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["description"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+								} else {
+									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Description))
+								}
+								attrs["description"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["labels"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.labels"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["labels"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+										} else {
+											oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
+											for k, a := range obj.Labels {
+												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+												existing := oldElems[k]
+												if preserveUnknown && existing != nil && existing.IsUnknown() {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+												} else {
+													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+												}
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["labels"] = v
+									}
+								}
+							}
+							{
+								t, ok := attrType.AttributeTypes()["expires"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.expires"})
+								} else {
+									v := CopyToTimestamp(diags, obj.Expires, t, attrs["expires"], preserveUnknown)
+									attrs["expires"] = v
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["expires"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.metadata.expires"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
-							tf.Attrs["expires"] = v
-						}
-					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["metadata"] = v
+				}()
+				attrs["metadata"] = v
 			}
 		}
 	}
 	{
-		a, ok := tf.AttrTypes["spec"]
+		attrType, ok := attrType.AttributeTypes()["spec"]
 		if !ok {
 			diags.Append(attrWriteMissingDiag{"StaticHostUser.spec"})
 		} else {
-			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 			if !ok {
 				diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 			} else {
-				v, ok := tf.Attrs["spec"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-				if !ok {
-					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-						AttrTypes: o.AttrTypes,
-						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-					}
-				} else {
-					if v.Attrs == nil {
-						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-					}
-				}
-				if obj.Spec == nil {
-					v.Null = true
-				} else {
-					v.Null = false
-					obj := obj.Spec
-					tf := &v
-					{
-						a, ok := tf.AttrTypes["matchers"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers"})
+				existing := attrs["spec"]
+				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+					if preserveUnknown && existing != nil && existing.IsUnknown() {
+						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+					} else {
+						if obj.Spec == nil {
+							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
 						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-							} else {
-								c, ok := tf.Attrs["matchers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-										ElemType: o.ElemType,
-										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers)),
-										Null:     true,
-									}
-								} else {
-									if c.Elems == nil {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
-									}
-								}
-								{
-									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-									if len(obj.Matchers) != len(c.Elems) {
-										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
-										copy(newElems, c.Elems)
-										c.Elems = newElems
-									}
-									for k, a := range obj.Matchers {
-										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-										if !ok {
-											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-												AttrTypes: o.AttrTypes,
-												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-											}
-										} else {
-											if v.Attrs == nil {
-												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-											}
-										}
-										if a == nil {
-											v.Null = true
-										} else {
-											v.Null = false
-											obj := a
-											tf := &v
-											{
-												a, ok := tf.AttrTypes["node_labels"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels"})
-												} else {
-													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-													if !ok {
-														diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-													} else {
-														c, ok := tf.Attrs["node_labels"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-														if !ok {
-															c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																ElemType: o.ElemType,
-																Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels)),
-																Null:     true,
-															}
-														} else {
-															if c.Elems == nil {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
-															}
-														}
-														{
-															o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-															if len(obj.NodeLabels) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
-															}
-															for k, a := range obj.NodeLabels {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-																if !ok {
-																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																		AttrTypes: o.AttrTypes,
-																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-																	}
-																} else {
-																	if v.Attrs == nil {
-																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-																	}
-																}
-																if a == nil {
-																	v.Null = true
-																} else {
-																	v.Null = false
-																	obj := a
-																	tf := &v
-																	{
-																		t, ok := tf.AttrTypes["name"]
-																		if !ok {
-																			diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels.name"})
-																		} else {
-																			v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																			if !ok {
-																				if tf.Attrs["name"] != nil {
-																					diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																				}
-																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																				if err != nil {
-																					diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels.name", err})
-																				}
-																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																				if !ok {
-																					diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																				}
-																			}
-
-																			v.Null = false
-																			v.Value = string(obj.Name)
-																			if !preserveUnknown {
-																				v.Unknown = false
-																			}
-																			tf.Attrs["name"] = v
-																		}
-																	}
-																	{
-																		a, ok := tf.AttrTypes["values"]
-																		if !ok {
-																			diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels.values"})
-																		} else {
-																			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-																			if !ok {
-																				diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-																			} else {
-																				c, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-																				if !ok {
-																					c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																						ElemType: o.ElemType,
-																						Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values)),
-																						Null:     true,
-																					}
-																				} else {
-																					if c.Elems == nil {
-																						c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																					}
-																				}
-																				{
-																					t := o.ElemType
-																					if len(obj.Values) != len(c.Elems) {
-																						newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
-																						copy(newElems, c.Elems)
-																						c.Elems = newElems
-																					}
-																					for k, a := range obj.Values {
-																						v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																						if !ok {
-																							if c.Elems[k] != nil {
-																								diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																							}
-																							i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																							if err != nil {
-																								diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels.values", err})
-																							}
-																							v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																							if !ok {
-																								diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																							}
-																						}
-
-																						v.Null = false
-																						v.Value = string(a)
-																						if !preserveUnknown {
-																							v.Unknown = false
-																						}
-																						c.Elems[k] = v
-																					}
-																				}
-																				c.Null = false
-																				if !preserveUnknown {
-																					c.Unknown = false
-																				}
-																				tf.Attrs["values"] = c
-																			}
-																		}
-																	}
-																}
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
-																c.Elems[k] = v
-															}
-														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
-														tf.Attrs["node_labels"] = c
-													}
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["node_labels_expression"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels_expression"})
-												} else {
-													v, ok := tf.Attrs["node_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-													if !ok {
-														if tf.Attrs["node_labels_expression"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.node_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.node_labels_expression", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-													}
-
-													v.Null = false
-													v.Value = string(obj.NodeLabelsExpression)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["node_labels_expression"] = v
-												}
-											}
-											{
-												a, ok := tf.AttrTypes["groups"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.groups"})
-												} else {
-													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-													if !ok {
-														diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-													} else {
-														c, ok := tf.Attrs["groups"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-														if !ok {
-															c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																ElemType: o.ElemType,
-																Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups)),
-																Null:     true,
-															}
-														} else {
-															if c.Elems == nil {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
-															}
-														}
-														{
-															t := o.ElemType
-															if len(obj.Groups) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
-															}
-															for k, a := range obj.Groups {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																	if err != nil {
-																		diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.groups", err})
-																	}
-																	v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																}
-
-																v.Null = false
-																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
-																c.Elems[k] = v
-															}
-														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
-														tf.Attrs["groups"] = c
-													}
-												}
-											}
-											{
-												a, ok := tf.AttrTypes["sudoers"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.sudoers"})
-												} else {
-													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-													if !ok {
-														diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-													} else {
-														c, ok := tf.Attrs["sudoers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
-														if !ok {
-															c = github_com_hashicorp_terraform_plugin_framework_types.List{
-
-																ElemType: o.ElemType,
-																Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers)),
-																Null:     true,
-															}
-														} else {
-															if c.Elems == nil {
-																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
-															}
-														}
-														{
-															t := o.ElemType
-															if len(obj.Sudoers) != len(c.Elems) {
-																newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
-																copy(newElems, c.Elems)
-																c.Elems = newElems
-															}
-															for k, a := range obj.Sudoers {
-																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																if !ok {
-																	if c.Elems[k] != nil {
-																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																	if err != nil {
-																		diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.sudoers", err})
-																	}
-																	v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																	}
-																}
-
-																v.Null = false
-																v.Value = string(a)
-																if !preserveUnknown {
-																	v.Unknown = false
-																}
-																c.Elems[k] = v
-															}
-														}
-														c.Null = false
-														if !preserveUnknown {
-															c.Unknown = false
-														}
-														tf.Attrs["sudoers"] = c
-													}
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["uid"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.uid"})
-												} else {
-													v, ok := tf.Attrs["uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-													if !ok {
-														if tf.Attrs["uid"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.uid", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-														}
-													}
-
-													v.Null = false
-													v.Value = int64(obj.Uid)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["uid"] = v
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["gid"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.gid"})
-												} else {
-													v, ok := tf.Attrs["gid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-													if !ok {
-														if tf.Attrs["gid"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.gid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.gid", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.gid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-														}
-													}
-
-													v.Null = false
-													v.Value = int64(obj.Gid)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["gid"] = v
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["default_shell"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.default_shell"})
-												} else {
-													v, ok := tf.Attrs["default_shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-													if !ok {
-														if tf.Attrs["default_shell"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.default_shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.default_shell", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.default_shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-													}
-
-													v.Null = false
-													v.Value = string(obj.DefaultShell)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["default_shell"] = v
-												}
-											}
-											{
-												t, ok := tf.AttrTypes["take_ownership_if_user_exists"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists"})
-												} else {
-													v, ok := tf.Attrs["take_ownership_if_user_exists"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-													if !ok {
-														if tf.Attrs["take_ownership_if_user_exists"] != nil {
-															diags.Append(attrWriteUnexpectedExistingTypeDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-														}
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.take_ownership_if_user_exists", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
-														}
-													}
-
-													v.Null = false
-													v.Value = bool(obj.TakeOwnershipIfUserExists)
-													if !preserveUnknown {
-														v.Unknown = false
-													}
-													tf.Attrs["take_ownership_if_user_exists"] = v
-												}
-											}
-										}
-										if !preserveUnknown {
-											v.Unknown = false
-										}
-										c.Elems[k] = v
-									}
-								}
-								c.Null = false
-								if !preserveUnknown {
-									c.Unknown = false
-								}
-								tf.Attrs["matchers"] = c
+							obj := obj.Spec
+							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if ok && v.Attributes() != nil {
+								attrs = v.Attributes()
 							}
+							{
+								attrType, ok := attrType.AttributeTypes()["matchers"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+									} else {
+										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+										existing := attrs["matchers"]
+										if preserveUnknown && existing != nil && existing.IsUnknown() {
+											v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+										} else {
+											oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
+											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if ok && c.Elements() != nil {
+												oldElems = c.Elements()
+											}
+											elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Matchers))
+											copy(elems, oldElems)
+											for k, a := range obj.Matchers {
+												attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+												existing := elems[k]
+												v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+													if preserveUnknown && existing != nil && existing.IsUnknown() {
+														return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+													} else {
+														if a == nil {
+															return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+														} else {
+															obj := a
+															attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+															v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if ok && v.Attributes() != nil {
+																attrs = v.Attributes()
+															}
+															{
+																attrType, ok := attrType.AttributeTypes()["node_labels"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels"})
+																} else {
+																	attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																	} else {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := attrs["node_labels"]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																		} else {
+																			oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
+																			c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																			if ok && c.Elements() != nil {
+																				oldElems = c.Elements()
+																			}
+																			elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.NodeLabels))
+																			copy(elems, oldElems)
+																			for k, a := range obj.NodeLabels {
+																				attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																				existing := elems[k]
+																				v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																					if preserveUnknown && existing != nil && existing.IsUnknown() {
+																						return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																					} else {
+																						if a == nil {
+																							return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																						} else {
+																							obj := a
+																							attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																							v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																							if ok && v.Attributes() != nil {
+																								attrs = v.Attributes()
+																							}
+																							{
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["name"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+																								}
+																								attrs["name"] = v
+																							}
+																							{
+																								attrType, ok := attrType.AttributeTypes()["values"]
+																								if !ok {
+																									diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.node_labels.values"})
+																								} else {
+																									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																									if !ok {
+																										diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.node_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																									} else {
+																										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																										existing := attrs["values"]
+																										if preserveUnknown && existing != nil && existing.IsUnknown() {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																										} else {
+																											oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																											c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																											if ok && c.Elements() != nil {
+																												oldElems = c.Elements()
+																											}
+																											elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																											copy(elems, oldElems)
+																											for k, a := range obj.Values {
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := elems[k]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																												}
+																												elems[k] = v
+																											}
+																											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																											diags.Append(resultDiags...)
+																											v = result
+																										}
+																										attrs["values"] = v
+																									}
+																								}
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																							diags.Append(resultDiags...)
+																							return result
+																						}
+																					}
+																				}()
+																				elems[k] = v
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																			diags.Append(resultDiags...)
+																			v = result
+																		}
+																		attrs["node_labels"] = v
+																	}
+																}
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["node_labels_expression"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.NodeLabelsExpression))
+																}
+																attrs["node_labels_expression"] = v
+															}
+															{
+																attrType, ok := attrType.AttributeTypes()["groups"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.groups"})
+																} else {
+																	attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.groups", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																	} else {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := attrs["groups"]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																		} else {
+																			oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																			c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																			if ok && c.Elements() != nil {
+																				oldElems = c.Elements()
+																			}
+																			elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																			copy(elems, oldElems)
+																			for k, a := range obj.Groups {
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := elems[k]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																				}
+																				elems[k] = v
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																			diags.Append(resultDiags...)
+																			v = result
+																		}
+																		attrs["groups"] = v
+																	}
+																}
+															}
+															{
+																attrType, ok := attrType.AttributeTypes()["sudoers"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"StaticHostUser.spec.matchers.sudoers"})
+																} else {
+																	attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"StaticHostUser.spec.matchers.sudoers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																	} else {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := attrs["sudoers"]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																		} else {
+																			oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
+																			c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																			if ok && c.Elements() != nil {
+																				oldElems = c.Elements()
+																			}
+																			elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Sudoers))
+																			copy(elems, oldElems)
+																			for k, a := range obj.Sudoers {
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := elems[k]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																				}
+																				elems[k] = v
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																			diags.Append(resultDiags...)
+																			v = result
+																		}
+																		attrs["sudoers"] = v
+																	}
+																}
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["uid"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.Uid))
+																}
+																attrs["uid"] = v
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["gid"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.Gid))
+																}
+																attrs["gid"] = v
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["default_shell"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DefaultShell))
+																}
+																attrs["default_shell"] = v
+															}
+															{
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["take_ownership_if_user_exists"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																} else {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.TakeOwnershipIfUserExists))
+																}
+																attrs["take_ownership_if_user_exists"] = v
+															}
+															result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+															diags.Append(resultDiags...)
+															return result
+														}
+													}
+												}()
+												elems[k] = v
+											}
+											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+											diags.Append(resultDiags...)
+											v = result
+										}
+										attrs["matchers"] = v
+									}
+								}
+							}
+							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+							diags.Append(resultDiags...)
+							return result
 						}
 					}
-				}
-				if !preserveUnknown {
-					v.Unknown = false
-				}
-				tf.Attrs["spec"] = v
+				}()
+				attrs["spec"] = v
 			}
 		}
 	}
-	return diags
+	_, ok := attrs["id"]
+	if !ok {
+		attrs["id"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
+	}
+	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+	diags.Append(resultDiags...)
+	return result, diags
 }
 
 // attrReadMissingDiag represents diagnostic message on an attribute missing in the source object
@@ -1420,7 +1106,7 @@ func (d attrReadMissingDiag) Summary() string {
 }
 
 func (d attrReadMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attrs", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object Attributes", d.Path)
 }
 
 func (d attrReadMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
@@ -1463,7 +1149,7 @@ func (d attrWriteMissingDiag) Summary() string {
 }
 
 func (d attrWriteMissingDiag) Detail() string {
-	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttrTypes", d.Path)
+	return fmt.Sprintf("A value for %v is missing in the source Terraform object AttributeTypes", d.Path)
 }
 
 func (d attrWriteMissingDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {

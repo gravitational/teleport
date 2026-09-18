@@ -44,7 +44,7 @@ func NewAccessListMemberDataSourceType() tfdriver.DataSourceType[accesslist.Acce
 		Name: apitypes.KindAccessListMember,
 		Codec: tfdriver.DataSourceCodecFuncs[accesslist.AccessListMember]{
 			SchemaFunc: schemav1.GenSchemaMember,
-			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {
+			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) (types.Object, diag.Diagnostics) {
 				return schemav1.CopyMemberToTerraform(ctx, convertv1.ToMemberProto(alm), o)
 			},
 		},
@@ -66,7 +66,7 @@ func NewAccessListMemberResourceType() tfdriver.ResourceType[accesslist.AccessLi
 		Name: apitypes.KindAccessListMember,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessListMember]{
 			SchemaFunc: schemav1.GenSchemaMember,
-			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {
+			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) (types.Object, diag.Diagnostics) {
 				return schemav1.CopyMemberToTerraform(ctx, convertv1.ToMemberProto(alm), o)
 
 			},
