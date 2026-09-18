@@ -324,6 +324,7 @@ func run() (err error) {
 		TTL:  proto.Duration(2 * time.Hour),
 		Type: "invite",
 	}
+	//nolint:staticcheck // SA1019
 	resetToken, err := childClient.CreateResetPasswordToken(ctx, &resetPasswordToken)
 	if err != nil {
 		return fmt.Errorf("error creating reset token: %w", err)

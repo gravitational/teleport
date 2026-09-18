@@ -26,6 +26,7 @@ import (
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	unsafe "unsafe"
@@ -37,6 +38,107 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// ResetUserKind is the kind of user that was reset.
+type ResetUserKind int32
+
+const (
+	// RESET_USER_KIND_UNSPECIFIED is the default/unspecified value for ResetUserKind.
+	ResetUserKind_RESET_USER_KIND_UNSPECIFIED ResetUserKind = 0
+	// RESET_USER_KIND_LOCAL is a local user.
+	ResetUserKind_RESET_USER_KIND_LOCAL ResetUserKind = 1
+	// RESET_USER_KIND_SSO is a single sign-on user.
+	ResetUserKind_RESET_USER_KIND_SSO ResetUserKind = 2
+	// RESET_USER_KIND_DELETED is a user that no longer exists, such as an SSO user who is logged out.
+	ResetUserKind_RESET_USER_KIND_DELETED ResetUserKind = 3
+)
+
+// Enum value maps for ResetUserKind.
+var (
+	ResetUserKind_name = map[int32]string{
+		0: "RESET_USER_KIND_UNSPECIFIED",
+		1: "RESET_USER_KIND_LOCAL",
+		2: "RESET_USER_KIND_SSO",
+		3: "RESET_USER_KIND_DELETED",
+	}
+	ResetUserKind_value = map[string]int32{
+		"RESET_USER_KIND_UNSPECIFIED": 0,
+		"RESET_USER_KIND_LOCAL":       1,
+		"RESET_USER_KIND_SSO":         2,
+		"RESET_USER_KIND_DELETED":     3,
+	}
+)
+
+func (x ResetUserKind) Enum() *ResetUserKind {
+	p := new(ResetUserKind)
+	*p = x
+	return p
+}
+
+func (x ResetUserKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResetUserKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_users_v1_users_service_proto_enumTypes[0].Descriptor()
+}
+
+func (ResetUserKind) Type() protoreflect.EnumType {
+	return &file_teleport_users_v1_users_service_proto_enumTypes[0]
+}
+
+func (x ResetUserKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// ResetUserTokenType is the type of token created by a reset.
+type ResetUserTokenType int32
+
+const (
+	// RESET_USER_TOKEN_TYPE_UNSPECIFIED is the default/unspecified value for ResetUserTokenType,
+	// this will be treated as RESET_USER_TOKEN_TYPE_PASSWORD.
+	ResetUserTokenType_RESET_USER_TOKEN_TYPE_UNSPECIFIED ResetUserTokenType = 0
+	// RESET_USER_TOKEN_TYPE_PASSWORD is a token for an existing user to set a new password.
+	ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD ResetUserTokenType = 1
+	// RESET_USER_TOKEN_TYPE_INVITE is a token for the invitation flow.
+	ResetUserTokenType_RESET_USER_TOKEN_TYPE_INVITE ResetUserTokenType = 2
+)
+
+// Enum value maps for ResetUserTokenType.
+var (
+	ResetUserTokenType_name = map[int32]string{
+		0: "RESET_USER_TOKEN_TYPE_UNSPECIFIED",
+		1: "RESET_USER_TOKEN_TYPE_PASSWORD",
+		2: "RESET_USER_TOKEN_TYPE_INVITE",
+	}
+	ResetUserTokenType_value = map[string]int32{
+		"RESET_USER_TOKEN_TYPE_UNSPECIFIED": 0,
+		"RESET_USER_TOKEN_TYPE_PASSWORD":    1,
+		"RESET_USER_TOKEN_TYPE_INVITE":      2,
+	}
+)
+
+func (x ResetUserTokenType) Enum() *ResetUserTokenType {
+	p := new(ResetUserTokenType)
+	*p = x
+	return p
+}
+
+func (x ResetUserTokenType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResetUserTokenType) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_users_v1_users_service_proto_enumTypes[1].Descriptor()
+}
+
+func (ResetUserTokenType) Type() protoreflect.EnumType {
+	return &file_teleport_users_v1_users_service_proto_enumTypes[1]
+}
+
+func (x ResetUserTokenType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
 
 // Request for GetUser.
 type GetUserRequest struct {
@@ -873,11 +975,213 @@ func (b0 DeleteUserRequest_builder) Build() *DeleteUserRequest {
 	return m0
 }
 
+// Request for ResetUser.
+type ResetUserRequest struct {
+	state           protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Type ResetUserTokenType     `protobuf:"varint,2,opt,name=type,proto3,enum=teleport.users.v1.ResetUserTokenType"`
+	xxx_hidden_Ttl  *durationpb.Duration   `protobuf:"bytes,3,opt,name=ttl,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ResetUserRequest) Reset() {
+	*x = ResetUserRequest{}
+	mi := &file_teleport_users_v1_users_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetUserRequest) ProtoMessage() {}
+
+func (x *ResetUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_users_v1_users_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ResetUserRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *ResetUserRequest) GetType() ResetUserTokenType {
+	if x != nil {
+		return x.xxx_hidden_Type
+	}
+	return ResetUserTokenType_RESET_USER_TOKEN_TYPE_UNSPECIFIED
+}
+
+func (x *ResetUserRequest) GetTtl() *durationpb.Duration {
+	if x != nil {
+		return x.xxx_hidden_Ttl
+	}
+	return nil
+}
+
+func (x *ResetUserRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *ResetUserRequest) SetType(v ResetUserTokenType) {
+	x.xxx_hidden_Type = v
+}
+
+func (x *ResetUserRequest) SetTtl(v *durationpb.Duration) {
+	x.xxx_hidden_Ttl = v
+}
+
+func (x *ResetUserRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Ttl != nil
+}
+
+func (x *ResetUserRequest) ClearTtl() {
+	x.xxx_hidden_Ttl = nil
+}
+
+type ResetUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Username of the user to reset.
+	Name string
+	// The type of token to create.
+	Type ResetUserTokenType
+	// Ttl of the created token.
+	// Defaults to 8h for password with a maximum of 24h, and 1h for invite with a maximum of 48h.
+	Ttl *durationpb.Duration
+}
+
+func (b0 ResetUserRequest_builder) Build() *ResetUserRequest {
+	m0 := &ResetUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Type = b.Type
+	x.xxx_hidden_Ttl = b.Ttl
+	return m0
+}
+
+// Response for ResetUser.
+type ResetUserResponse struct {
+	state                         protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PasswordResetToken *types.UserTokenV3     `protobuf:"bytes,1,opt,name=password_reset_token,json=passwordResetToken,proto3"`
+	xxx_hidden_UserKind           ResetUserKind          `protobuf:"varint,2,opt,name=user_kind,json=userKind,proto3,enum=teleport.users.v1.ResetUserKind"`
+	xxx_hidden_MfaDevicesRemoved  int32                  `protobuf:"varint,3,opt,name=mfa_devices_removed,json=mfaDevicesRemoved,proto3"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
+}
+
+func (x *ResetUserResponse) Reset() {
+	*x = ResetUserResponse{}
+	mi := &file_teleport_users_v1_users_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetUserResponse) ProtoMessage() {}
+
+func (x *ResetUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_users_v1_users_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ResetUserResponse) GetPasswordResetToken() *types.UserTokenV3 {
+	if x != nil {
+		return x.xxx_hidden_PasswordResetToken
+	}
+	return nil
+}
+
+func (x *ResetUserResponse) GetUserKind() ResetUserKind {
+	if x != nil {
+		return x.xxx_hidden_UserKind
+	}
+	return ResetUserKind_RESET_USER_KIND_UNSPECIFIED
+}
+
+func (x *ResetUserResponse) GetMfaDevicesRemoved() int32 {
+	if x != nil {
+		return x.xxx_hidden_MfaDevicesRemoved
+	}
+	return 0
+}
+
+func (x *ResetUserResponse) SetPasswordResetToken(v *types.UserTokenV3) {
+	x.xxx_hidden_PasswordResetToken = v
+}
+
+func (x *ResetUserResponse) SetUserKind(v ResetUserKind) {
+	x.xxx_hidden_UserKind = v
+}
+
+func (x *ResetUserResponse) SetMfaDevicesRemoved(v int32) {
+	x.xxx_hidden_MfaDevicesRemoved = v
+}
+
+func (x *ResetUserResponse) HasPasswordResetToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PasswordResetToken != nil
+}
+
+func (x *ResetUserResponse) ClearPasswordResetToken() {
+	x.xxx_hidden_PasswordResetToken = nil
+}
+
+type ResetUserResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token to set up new credentials with. Only set for local users.
+	PasswordResetToken *types.UserTokenV3
+	// Kind of the user that was reset.
+	UserKind ResetUserKind
+	// Number of MFA devices that were removed.
+	// This will only be set for SSO and deleted users because local users have theirs removed as part of the password reset.
+	MfaDevicesRemoved int32
+}
+
+func (b0 ResetUserResponse_builder) Build() *ResetUserResponse {
+	m0 := &ResetUserResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PasswordResetToken = b.PasswordResetToken
+	x.xxx_hidden_UserKind = b.UserKind
+	x.xxx_hidden_MfaDevicesRemoved = b.MfaDevicesRemoved
+	return m0
+}
+
 var File_teleport_users_v1_users_service_proto protoreflect.FileDescriptor
 
 const file_teleport_users_v1_users_service_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/users/v1/users_service.proto\x12\x11teleport.users.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"j\n" +
+	"%teleport/users/v1/users_service.proto\x12\x11teleport.users.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"j\n" +
 	"\x0eGetUserRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fcurrent_user\x18\x02 \x01(\bR\vcurrentUser\x12!\n" +
@@ -906,7 +1210,24 @@ const file_teleport_users_v1_users_service_proto_rawDesc = "" +
 	"\x12UpsertUserResponse\x12!\n" +
 	"\x04user\x18\x01 \x01(\v2\r.types.UserV2R\x04user\"'\n" +
 	"\x11DeleteUserRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name2\x95\x04\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x8e\x01\n" +
+	"\x10ResetUserRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x129\n" +
+	"\x04type\x18\x02 \x01(\x0e2%.teleport.users.v1.ResetUserTokenTypeR\x04type\x12+\n" +
+	"\x03ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\"\xc8\x01\n" +
+	"\x11ResetUserResponse\x12D\n" +
+	"\x14password_reset_token\x18\x01 \x01(\v2\x12.types.UserTokenV3R\x12passwordResetToken\x12=\n" +
+	"\tuser_kind\x18\x02 \x01(\x0e2 .teleport.users.v1.ResetUserKindR\buserKind\x12.\n" +
+	"\x13mfa_devices_removed\x18\x03 \x01(\x05R\x11mfaDevicesRemoved*\x81\x01\n" +
+	"\rResetUserKind\x12\x1f\n" +
+	"\x1bRESET_USER_KIND_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15RESET_USER_KIND_LOCAL\x10\x01\x12\x17\n" +
+	"\x13RESET_USER_KIND_SSO\x10\x02\x12\x1b\n" +
+	"\x17RESET_USER_KIND_DELETED\x10\x03*\x81\x01\n" +
+	"\x12ResetUserTokenType\x12%\n" +
+	"!RESET_USER_TOKEN_TYPE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1eRESET_USER_TOKEN_TYPE_PASSWORD\x10\x01\x12 \n" +
+	"\x1cRESET_USER_TOKEN_TYPE_INVITE\x10\x022\xed\x04\n" +
 	"\fUsersService\x12P\n" +
 	"\aGetUser\x12!.teleport.users.v1.GetUserRequest\x1a\".teleport.users.v1.GetUserResponse\x12V\n" +
 	"\tListUsers\x12#.teleport.users.v1.ListUsersRequest\x1a$.teleport.users.v1.ListUsersResponse\x12Y\n" +
@@ -917,52 +1238,66 @@ const file_teleport_users_v1_users_service_proto_rawDesc = "" +
 	"\n" +
 	"UpsertUser\x12$.teleport.users.v1.UpsertUserRequest\x1a%.teleport.users.v1.UpsertUserResponse\x12J\n" +
 	"\n" +
-	"DeleteUser\x12$.teleport.users.v1.DeleteUserRequest\x1a\x16.google.protobuf.EmptyBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1;usersv1b\x06proto3"
+	"DeleteUser\x12$.teleport.users.v1.DeleteUserRequest\x1a\x16.google.protobuf.Empty\x12V\n" +
+	"\tResetUser\x12#.teleport.users.v1.ResetUserRequest\x1a$.teleport.users.v1.ResetUserResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1;usersv1b\x06proto3"
 
-var file_teleport_users_v1_users_service_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_teleport_users_v1_users_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_users_v1_users_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_users_v1_users_service_proto_goTypes = []any{
-	(*GetUserRequest)(nil),     // 0: teleport.users.v1.GetUserRequest
-	(*GetUserResponse)(nil),    // 1: teleport.users.v1.GetUserResponse
-	(*ListUsersRequest)(nil),   // 2: teleport.users.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),  // 3: teleport.users.v1.ListUsersResponse
-	(*CreateUserRequest)(nil),  // 4: teleport.users.v1.CreateUserRequest
-	(*CreateUserResponse)(nil), // 5: teleport.users.v1.CreateUserResponse
-	(*UpdateUserRequest)(nil),  // 6: teleport.users.v1.UpdateUserRequest
-	(*UpdateUserResponse)(nil), // 7: teleport.users.v1.UpdateUserResponse
-	(*UpsertUserRequest)(nil),  // 8: teleport.users.v1.UpsertUserRequest
-	(*UpsertUserResponse)(nil), // 9: teleport.users.v1.UpsertUserResponse
-	(*DeleteUserRequest)(nil),  // 10: teleport.users.v1.DeleteUserRequest
-	(*types.UserV2)(nil),       // 11: types.UserV2
-	(*types.UserFilter)(nil),   // 12: types.UserFilter
-	(*emptypb.Empty)(nil),      // 13: google.protobuf.Empty
+	(ResetUserKind)(0),          // 0: teleport.users.v1.ResetUserKind
+	(ResetUserTokenType)(0),     // 1: teleport.users.v1.ResetUserTokenType
+	(*GetUserRequest)(nil),      // 2: teleport.users.v1.GetUserRequest
+	(*GetUserResponse)(nil),     // 3: teleport.users.v1.GetUserResponse
+	(*ListUsersRequest)(nil),    // 4: teleport.users.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),   // 5: teleport.users.v1.ListUsersResponse
+	(*CreateUserRequest)(nil),   // 6: teleport.users.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),  // 7: teleport.users.v1.CreateUserResponse
+	(*UpdateUserRequest)(nil),   // 8: teleport.users.v1.UpdateUserRequest
+	(*UpdateUserResponse)(nil),  // 9: teleport.users.v1.UpdateUserResponse
+	(*UpsertUserRequest)(nil),   // 10: teleport.users.v1.UpsertUserRequest
+	(*UpsertUserResponse)(nil),  // 11: teleport.users.v1.UpsertUserResponse
+	(*DeleteUserRequest)(nil),   // 12: teleport.users.v1.DeleteUserRequest
+	(*ResetUserRequest)(nil),    // 13: teleport.users.v1.ResetUserRequest
+	(*ResetUserResponse)(nil),   // 14: teleport.users.v1.ResetUserResponse
+	(*types.UserV2)(nil),        // 15: types.UserV2
+	(*types.UserFilter)(nil),    // 16: types.UserFilter
+	(*durationpb.Duration)(nil), // 17: google.protobuf.Duration
+	(*types.UserTokenV3)(nil),   // 18: types.UserTokenV3
+	(*emptypb.Empty)(nil),       // 19: google.protobuf.Empty
 }
 var file_teleport_users_v1_users_service_proto_depIdxs = []int32{
-	11, // 0: teleport.users.v1.GetUserResponse.user:type_name -> types.UserV2
-	12, // 1: teleport.users.v1.ListUsersRequest.filter:type_name -> types.UserFilter
-	11, // 2: teleport.users.v1.ListUsersResponse.users:type_name -> types.UserV2
-	11, // 3: teleport.users.v1.CreateUserRequest.user:type_name -> types.UserV2
-	11, // 4: teleport.users.v1.CreateUserResponse.user:type_name -> types.UserV2
-	11, // 5: teleport.users.v1.UpdateUserRequest.user:type_name -> types.UserV2
-	11, // 6: teleport.users.v1.UpdateUserResponse.user:type_name -> types.UserV2
-	11, // 7: teleport.users.v1.UpsertUserRequest.user:type_name -> types.UserV2
-	11, // 8: teleport.users.v1.UpsertUserResponse.user:type_name -> types.UserV2
-	0,  // 9: teleport.users.v1.UsersService.GetUser:input_type -> teleport.users.v1.GetUserRequest
-	2,  // 10: teleport.users.v1.UsersService.ListUsers:input_type -> teleport.users.v1.ListUsersRequest
-	4,  // 11: teleport.users.v1.UsersService.CreateUser:input_type -> teleport.users.v1.CreateUserRequest
-	6,  // 12: teleport.users.v1.UsersService.UpdateUser:input_type -> teleport.users.v1.UpdateUserRequest
-	8,  // 13: teleport.users.v1.UsersService.UpsertUser:input_type -> teleport.users.v1.UpsertUserRequest
-	10, // 14: teleport.users.v1.UsersService.DeleteUser:input_type -> teleport.users.v1.DeleteUserRequest
-	1,  // 15: teleport.users.v1.UsersService.GetUser:output_type -> teleport.users.v1.GetUserResponse
-	3,  // 16: teleport.users.v1.UsersService.ListUsers:output_type -> teleport.users.v1.ListUsersResponse
-	5,  // 17: teleport.users.v1.UsersService.CreateUser:output_type -> teleport.users.v1.CreateUserResponse
-	7,  // 18: teleport.users.v1.UsersService.UpdateUser:output_type -> teleport.users.v1.UpdateUserResponse
-	9,  // 19: teleport.users.v1.UsersService.UpsertUser:output_type -> teleport.users.v1.UpsertUserResponse
-	13, // 20: teleport.users.v1.UsersService.DeleteUser:output_type -> google.protobuf.Empty
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	15, // 0: teleport.users.v1.GetUserResponse.user:type_name -> types.UserV2
+	16, // 1: teleport.users.v1.ListUsersRequest.filter:type_name -> types.UserFilter
+	15, // 2: teleport.users.v1.ListUsersResponse.users:type_name -> types.UserV2
+	15, // 3: teleport.users.v1.CreateUserRequest.user:type_name -> types.UserV2
+	15, // 4: teleport.users.v1.CreateUserResponse.user:type_name -> types.UserV2
+	15, // 5: teleport.users.v1.UpdateUserRequest.user:type_name -> types.UserV2
+	15, // 6: teleport.users.v1.UpdateUserResponse.user:type_name -> types.UserV2
+	15, // 7: teleport.users.v1.UpsertUserRequest.user:type_name -> types.UserV2
+	15, // 8: teleport.users.v1.UpsertUserResponse.user:type_name -> types.UserV2
+	1,  // 9: teleport.users.v1.ResetUserRequest.type:type_name -> teleport.users.v1.ResetUserTokenType
+	17, // 10: teleport.users.v1.ResetUserRequest.ttl:type_name -> google.protobuf.Duration
+	18, // 11: teleport.users.v1.ResetUserResponse.password_reset_token:type_name -> types.UserTokenV3
+	0,  // 12: teleport.users.v1.ResetUserResponse.user_kind:type_name -> teleport.users.v1.ResetUserKind
+	2,  // 13: teleport.users.v1.UsersService.GetUser:input_type -> teleport.users.v1.GetUserRequest
+	4,  // 14: teleport.users.v1.UsersService.ListUsers:input_type -> teleport.users.v1.ListUsersRequest
+	6,  // 15: teleport.users.v1.UsersService.CreateUser:input_type -> teleport.users.v1.CreateUserRequest
+	8,  // 16: teleport.users.v1.UsersService.UpdateUser:input_type -> teleport.users.v1.UpdateUserRequest
+	10, // 17: teleport.users.v1.UsersService.UpsertUser:input_type -> teleport.users.v1.UpsertUserRequest
+	12, // 18: teleport.users.v1.UsersService.DeleteUser:input_type -> teleport.users.v1.DeleteUserRequest
+	13, // 19: teleport.users.v1.UsersService.ResetUser:input_type -> teleport.users.v1.ResetUserRequest
+	3,  // 20: teleport.users.v1.UsersService.GetUser:output_type -> teleport.users.v1.GetUserResponse
+	5,  // 21: teleport.users.v1.UsersService.ListUsers:output_type -> teleport.users.v1.ListUsersResponse
+	7,  // 22: teleport.users.v1.UsersService.CreateUser:output_type -> teleport.users.v1.CreateUserResponse
+	9,  // 23: teleport.users.v1.UsersService.UpdateUser:output_type -> teleport.users.v1.UpdateUserResponse
+	11, // 24: teleport.users.v1.UsersService.UpsertUser:output_type -> teleport.users.v1.UpsertUserResponse
+	19, // 25: teleport.users.v1.UsersService.DeleteUser:output_type -> google.protobuf.Empty
+	14, // 26: teleport.users.v1.UsersService.ResetUser:output_type -> teleport.users.v1.ResetUserResponse
+	20, // [20:27] is the sub-list for method output_type
+	13, // [13:20] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_users_v1_users_service_proto_init() }
@@ -975,13 +1310,14 @@ func file_teleport_users_v1_users_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_users_v1_users_service_proto_rawDesc), len(file_teleport_users_v1_users_service_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   11,
+			NumEnums:      2,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_users_v1_users_service_proto_goTypes,
 		DependencyIndexes: file_teleport_users_v1_users_service_proto_depIdxs,
+		EnumInfos:         file_teleport_users_v1_users_service_proto_enumTypes,
 		MessageInfos:      file_teleport_users_v1_users_service_proto_msgTypes,
 	}.Build()
 	File_teleport_users_v1_users_service_proto = out.File
