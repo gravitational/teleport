@@ -95,6 +95,7 @@ type UserNotificationCache struct {
 	initC        chan struct{}
 	closeContext context.Context
 	cancel       context.CancelFunc
+	notificationCacheUpdates
 }
 
 // GlobalNotificationCache is a custom cache for user-specific notifications, this is to allow
@@ -107,6 +108,27 @@ type GlobalNotificationCache struct {
 	initC        chan struct{}
 	closeContext context.Context
 	cancel       context.CancelFunc
+	notificationCacheUpdates
+}
+
+// notificationCacheUpdates allows a caller to wait for cache updates
+type notificationCacheUpdates struct {
+	mu sync.Mutex
+	ch chan struct{}
+}
+
+// Updated returns a channel that is closed once the cache next processes a watch event
+func (u *notificationCacheUpdates) Updated() <-chan struct{} {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.ch
+}
+
+func (u *notificationCacheUpdates) broadcast() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	close(u.ch)
+	u.ch = make(chan struct{})
 }
 
 // NewUserNotificationCache sets up a new [UserNotificationCache] instance based on the supplied
@@ -135,6 +157,8 @@ func NewUserNotificationCache(cfg NotificationCacheConfig) (*UserNotificationCac
 		initC:        make(chan struct{}),
 		closeContext: ctx,
 		cancel:       cancel,
+
+		notificationCacheUpdates: notificationCacheUpdates{ch: make(chan struct{})},
 	}
 
 	if _, err := newResourceWatcher(ctx, c, ResourceWatcherConfig{
@@ -174,6 +198,8 @@ func NewGlobalNotificationCache(cfg NotificationCacheConfig) (*GlobalNotificatio
 		initC:        make(chan struct{}),
 		closeContext: ctx,
 		cancel:       cancel,
+
+		notificationCacheUpdates: notificationCacheUpdates{ch: make(chan struct{})},
 	}
 
 	if _, err := newResourceWatcher(ctx, c, ResourceWatcherConfig{
@@ -438,6 +464,7 @@ func (c *UserNotificationCache) getResourcesAndUpdateCurrent(ctx context.Context
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
+	c.broadcast()
 	return nil
 }
 func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
@@ -449,6 +476,7 @@ func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Conte
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
+	c.broadcast()
 	return nil
 }
 
@@ -486,6 +514,8 @@ func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Contex
 			slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 		}
 	}
+
+	c.broadcast()
 }
 
 func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
@@ -518,6 +548,8 @@ func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Cont
 			slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 		}
 	}
+
+	c.broadcast()
 }
 
 // notifyStale is part of the resourceCollector interface and is used to inform
