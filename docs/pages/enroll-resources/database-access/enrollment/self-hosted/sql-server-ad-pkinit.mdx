@@ -241,6 +241,19 @@ database section below as appropriate:
 - `ldap_service_account_name`: Name of the service account Teleport uses to query LDAP for user SIDs.
 - `ldap_service_account_sid`: SID corresponding to the specified `ldap_service_account_name`.
 
+The following fields are optional. Leave them unset unless your Active
+Directory environment requires them:
+
+- `pki_domain`: The domain used to construct the CRL distribution point in
+  issued certificates. Defaults to `domain`. For a child domain, set this to the
+  forest root domain. See
+  [Configuring the CRL location for a child domain](#configuring-the-crl-location-for-a-child-domain).
+- `ldap_host`: The host Teleport queries over LDAP, with an optional port.
+  Defaults to `kdc_host_name`. See [Serving LDAP from a different host](#serving-ldap-from-a-different-host).
+- `ldap_tls_server_name`: The server name Teleport expects in the LDAP server's
+  certificate. Defaults to the host part of `ldap_host`, falling back to
+  `kdc_host_name`.
+
 <Admonition type="note" title="LDAP service account">
   Teleport will attempt to authenticate to LDAP with `ldap_service_account_name` username using x509 certificate issued
   with the Teleport CA. LDAP should trust this certificate thanks to the previous step ("Publish the Teleport CA").
@@ -289,6 +302,56 @@ db_service:
   If you don't see the Attribute Editor tab, make sure that the "View > Advanced Features"
   toggle is enabled.
 </Admonition>
+
+### Configuring the CRL location for a child domain
+
+Teleport includes an LDAP CRL distribution point in the certificates it issues.
+Active Directory stores the CRL in the forest's configuration partition, which
+Teleport locates using `domain`. If `domain` is a child domain, set `pki_domain`
+to the forest root domain so the certificate points to the correct CRL location.
+For example, if the forest root is `ad.teleport.dev` and the database is in
+`dev.ad.teleport.dev`:
+
+```diff
+      ad:
+        domain: dev.ad.teleport.dev
++       # Use the forest root domain in the CRL distribution point.
++       pki_domain: ad.teleport.dev
+```
+
+Publish the Teleport CRL as described in Step 2. This setting controls the
+location embedded in certificates; it does not itself publish the CRL.
+
+`pki_domain` changes the CRL distribution point in issued certificates. It does
+not change the Kerberos realm or the domain used for LDAP user lookups.
+
+For the corresponding Windows desktop access configuration, see
+[Multiple domains](../../../desktop-access/active-directory.mdx#multiple-domains).
+
+### Serving LDAP from a different host
+
+By default, Teleport connects to LDAPS on `kdc_host_name` over port `636` and
+expects the LDAP server's certificate to match that name. If your LDAP server is
+reachable under a different name or port, set `ldap_host`. Teleport always uses
+LDAPS, including on a custom port:
+
+```diff
+      ad:
+        kdc_host_name: DOMAIN-CONTROLLER.ad.teleport.dev
++       ldap_host: ldap.ad.teleport.dev:3269
+```
+
+If the LDAP certificate identifies the server by a DNS name that differs from
+the host part of `ldap_host`, set `ldap_tls_server_name` to that DNS name. For
+example, use this setting when connecting by IP address to a server whose
+certificate identifies it as `ldap.ad.teleport.dev`:
+
+```diff
+      ad:
+        kdc_host_name: DOMAIN-CONTROLLER.ad.teleport.dev
+        ldap_host: 10.0.0.1:636
++       ldap_tls_server_name: ldap.ad.teleport.dev
+```
 
 ## Step 5/7. Start the Database Service
 
@@ -366,6 +429,10 @@ credentials`. This happens when the Teleport Database CA is not imported
 correctly or propagated yet. You can force the propagation by running
 `certutil -pulse` and trying to connect to your database.
 
+If the database is in a child domain, verify that `pki_domain` is set to the
+forest root domain. See
+[Configuring the CRL location for a child domain](#configuring-the-crl-location-for-a-child-domain).
+
 ### Invalid KDC hostname
 
 If you’re connecting to your database and receive the error `Error message:
@@ -376,6 +443,10 @@ that the KDC hostname is wrong. You can verify your domain controller’s SPN to
 see if they’re set correctly and update the value on the field `kdc_host_name` on
 your database's configuration.
 
+If `kdc_host_name` matches the KDC certificate but the logs show an LDAP
+connection failure, check whether LDAP requires a different hostname or port.
+See [Serving LDAP from a different host](#serving-ldap-from-a-different-host).
+
 ### PKINIT authentication fails due to missing SID
 
 If PKINIT authentication fails and the Teleport Database Service logs show errors related to a missing user SID or failed LDAP queries,
@@ -384,6 +455,10 @@ verify that the `ldap_service_account_name` and `ldap_service_account_sid` field
 Verify that there are no errors due to invalid certificate in `ldap_cert` field.
 
 Ensure that the service account exists, has correct name and SID and has access to specified attributes.
+
+If the logs show an LDAP connection or TLS hostname-verification error, check
+`ldap_host` and `ldap_tls_server_name`. See
+[Serving LDAP from a different host](#serving-ldap-from-a-different-host).
 
 ### Teleport cannot verify database CA
 
