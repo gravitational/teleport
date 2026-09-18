@@ -7,6 +7,17 @@ If Installs are showing failed or instances are failing to appear check the
 Command history in AWS Systems Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
+### Installation retry backoff
+
+After an EC2 installation attempt completes, the Discovery Service delays
+further attempts for the same instance and enrollment configuration.
+
+Updating any Discovery Config monitored by the same Discovery Service resets
+all of that process's EC2 installation backoff state. The update does not need
+to affect EC2 resources. For example, changing an RDS matcher can make
+backed-off EC2 installations eligible for retry during the next discovery
+scan.
+
 ### Installation script exit codes
 
 When enrolling an instance into Teleport, the installation script returns a specific exit code when facing well-known issues:
