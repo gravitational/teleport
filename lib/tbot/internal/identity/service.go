@@ -766,7 +766,15 @@ func botIdentityFromToken(
 		JoinMethod: cfg.Onboarding.JoinMethod,
 		Expires:    &expires,
 		Log:        log,
-
+		OnVersionCallback: func(
+			ctx context.Context,
+			serverVersion joinclient.VersionInfo,
+		) error {
+			// the server version is the version of the proxy when joining via the proxy.
+			versionWarning(ctx, log, teleport.Version, serverVersion)
+			// return nil as join is always allowed on version mismatch
+			return nil
+		},
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Connection.Insecure,
 		CAPins:             cfg.Onboarding.CAPins,
@@ -874,6 +882,36 @@ func botIdentityFromToken(
 	}
 
 	return ident, nil
+}
+
+// versionWarning warns about unsupported version skew without preventing tbot
+// from joining. The Auth Server remains responsible for enforcing its minimum
+// client version.
+func versionWarning(
+	ctx context.Context,
+	log *slog.Logger,
+	clientVersion string,
+	info joinclient.VersionInfo,
+) {
+	if info.ServerVersion != "" {
+		if err := utils.CheckMaxVersion(clientVersion, info.ServerVersion); trace.IsBadParameter(err) {
+			log.WarnContext(ctx,
+				"tbot is newer than the cluster and may not be compatible. Use a tbot version that is the same as or older than the cluster version.",
+				"tbot_version", clientVersion,
+				"cluster_version", info.ServerVersion,
+			)
+		}
+	}
+
+	if info.MinClientVersion != "" {
+		if err := utils.CheckMinVersion(clientVersion, info.MinClientVersion); trace.IsBadParameter(err) {
+			log.WarnContext(ctx,
+				"tbot is older than the minimum version supported by the cluster and may not be compatible. Upgrade tbot to a supported version.",
+				"tbot_version", clientVersion,
+				"minimum_version", info.MinClientVersion,
+			)
+		}
+	}
 }
 
 // validateTokenValue checks if the token value is valid within the current scoped mode of the bot.
