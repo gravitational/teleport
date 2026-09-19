@@ -511,6 +511,41 @@ func validateCircleCI(spec *joiningv1.CircleCI) error {
 	return nil
 }
 
+// validateBitbucket validates the Bitbucket-specific scoped token
+// configuration. Checks here were replicated from
+// ProvisionTokenSpecV2Bitbucket.checkAndSetDefaults().
+func validateBitbucket(spec *joiningv1.Bitbucket) error {
+	if spec == nil {
+		return trace.BadParameter("bitbucket: .spec.bitbucket is required for this join method")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("bitbucket: .spec.bitbucket.allow requires at least one rule")
+	}
+
+	if spec.GetAudience() == "" {
+		return trace.BadParameter("bitbucket: .spec.bitbucket.audience must contain an OIDC audience")
+	}
+
+	if spec.GetIdentityProviderUrl() == "" {
+		return trace.BadParameter("bitbucket: .spec.bitbucket.identity_provider_url must contain an issuer URL")
+	}
+
+	for i, rule := range spec.GetAllow() {
+		workspaceSet := rule.GetWorkspaceUuid() != ""
+		repositorySet := rule.GetRepositoryUuid() != ""
+
+		if !workspaceSet && !repositorySet {
+			return trace.BadParameter(
+				"bitbucket: .spec.bitbucket.allow[%d]: at least one of ['workspace_uuid', 'repository_uuid'] must be set",
+				i,
+			)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -546,6 +581,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateTPM(token.GetSpec().GetTpm()), "tpm join method")
 	case types.JoinMethodCircleCI:
 		return trace.Wrap(validateCircleCI(token.GetSpec().GetCircleci()), "circleci join method")
+	case types.JoinMethodBitbucket:
+		return trace.Wrap(validateBitbucket(token.GetSpec().GetBitbucket()), "bitbucket join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1280,6 +1317,26 @@ func (t *Token) GetCircleCI() *types.ProvisionTokenSpecV2CircleCI {
 	return &types.ProvisionTokenSpecV2CircleCI{
 		OrganizationID: spec.GetOrganizationId(),
 		Allow:          allow,
+	}
+}
+
+func (t *Token) GetBitbucket() *types.ProvisionTokenSpecV2Bitbucket {
+	spec := t.scoped.GetSpec().GetBitbucket()
+
+	allow := make([]*types.ProvisionTokenSpecV2Bitbucket_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Bitbucket_Rule{
+			WorkspaceUUID:             rule.GetWorkspaceUuid(),
+			RepositoryUUID:            rule.GetRepositoryUuid(),
+			DeploymentEnvironmentUUID: rule.GetDeploymentEnvironmentUuid(),
+			BranchName:                rule.GetBranchName(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Bitbucket{
+		Audience:            spec.GetAudience(),
+		IdentityProviderURL: spec.GetIdentityProviderUrl(),
+		Allow:               allow,
 	}
 }
 

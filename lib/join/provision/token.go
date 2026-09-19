@@ -87,4 +87,6 @@ type Token interface {
 	GetTPM() *types.ProvisionTokenSpecV2TPM
 	// GetCircleCI returns the CircleCI-specific configuration for this token.
 	GetCircleCI() *types.ProvisionTokenSpecV2CircleCI
+	// GetBitbucket returns the Bitbucket-specific configuration for this token.
+	GetBitbucket() *types.ProvisionTokenSpecV2Bitbucket
 }

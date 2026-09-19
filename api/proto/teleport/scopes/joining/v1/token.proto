@@ -120,6 +120,9 @@ message ScopedTokenSpec {
 
   // Configuration specific to the "circleci" join method
   CircleCI circleci = 20;
+
+  // Configuration specific to the "bitbucket" join method.
+  Bitbucket bitbucket = 21;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -907,4 +910,43 @@ message CircleCI {
 
   // The unique identifier of the organization. Required.
   string organization_id = 2;
+}
+
+// Configuration specific to Bitbucket tokens.
+message Bitbucket {
+  // A Bitbucket joining rule.
+  message Rule {
+    // The UUID of the workspace for which this token was issued. This value may
+    // be found in the "Pipelines -> OpenID Connect" section of the repository
+    // settings.
+    string workspace_uuid = 1;
+
+    // The UUID of the repository for which this token was issued. Bitbucket
+    // UUIDs must begin and end with braces, e.g. `{...}`. This value may be
+    // found in the "Pipelines -> OpenID Connect" section of the repository
+    // settings.
+    string repository_uuid = 2;
+
+    // The UUID of the deployment environment targeted by this pipelines run, if
+    // any. These values may be found in the "Pipelines -> OpenID Connect ->
+    // Deployment environments" section of the repository settings.
+    string deployment_environment_uuid = 3;
+
+    // The name of the branch on which this pipeline executed.
+    string branch_name = 4;
+  }
+
+  // A list of rules. Workloads trying to join must match at least one allow
+  // rule for the join attempt to be allowed.
+  repeated Rule allow = 1;
+
+  // The Bitbucket-specified audience value for this token. It is unique to each
+  // Bitbucket repository, and must be set to the value as written in the
+  // "Pipelines -> OpenID Connect" section of the repository settings.
+  string audience = 2;
+
+  // A Bitbucket-specified issuer URL for the incoming OIDC tokens. It is unique
+  // to each Bitbucket repository, and must be set to the value as written in
+  // the "Pipelines -> OpenID Connect" section of the repository settings.
+  string identity_provider_url = 3;
 }

@@ -132,13 +132,10 @@ func CheckIDToken(
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("bitbucket join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
-	}
+	spec := params.ProvisionToken.GetBitbucket()
 
 	claims, err := params.Validator.Validate(
-		ctx, token.Spec.Bitbucket.IdentityProviderURL, token.Spec.Bitbucket.Audience, string(params.IDToken),
+		ctx, spec.IdentityProviderURL, spec.Audience, string(params.IDToken),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -149,12 +146,12 @@ func CheckIDToken(
 		"token", params.ProvisionToken.GetName(),
 	)
 
-	return claims, trace.Wrap(checkBitbucketAllowRules(token, claims))
+	return claims, trace.Wrap(checkBitbucketAllowRules(spec, claims))
 }
 
-func checkBitbucketAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkBitbucketAllowRules(spec *types.ProvisionTokenSpecV2Bitbucket, claims *IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.Bitbucket.Allow {
+	for _, rule := range spec.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2Bitbucket proto spec.
 

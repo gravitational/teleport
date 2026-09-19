@@ -237,6 +237,48 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Description: "The Azure Devops-specific configuration used with the \"azure_devops\" join method.",
 					Optional:    true,
 				},
+				"bitbucket": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"branch_name": {
+									Description: "The name of the branch on which this pipeline executed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"deployment_environment_uuid": {
+									Description: "The UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the \"Pipelines -> OpenID Connect -> Deployment environments\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"repository_uuid": {
+									Description: "The UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"workspace_uuid": {
+									Description: "The UUID of the workspace for which this token was issued. This value may be found in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "A list of rules. Workloads trying to join must match at least one allow rule for the join attempt to be allowed.",
+							Optional:    true,
+						},
+						"audience": {
+							Description: "The Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"identity_provider_url": {
+							Description: "A Bitbucket-specified issuer URL for the incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the \"Pipelines -> OpenID Connect\" section of the repository settings.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "Configuration specific to the \"bitbucket\" join method.",
+					Optional:    true,
+				},
 				"bot": {
 					Description: "The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
 					Optional:    true,
@@ -3386,6 +3428,155 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 													t = string(v.Value)
 												}
 												obj.OrganizationId = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["bitbucket"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Bitbucket = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Bitbucket = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Bitbucket{}
+									obj := obj.Bitbucket
+									{
+										a, ok := tf.Attrs["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Bitbucket_Rule, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Bitbucket_Rule
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Bitbucket_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["workspace_uuid"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.allow.workspace_uuid"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.workspace_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.WorkspaceUuid = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["repository_uuid"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.allow.repository_uuid"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.repository_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RepositoryUuid = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["deployment_environment_uuid"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.allow.deployment_environment_uuid"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.deployment_environment_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.DeploymentEnvironmentUuid = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["branch_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.allow.branch_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.branch_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.BranchName = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["audience"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.audience"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Audience = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["identity_provider_url"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.bitbucket.identity_provider_url"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.bitbucket.identity_provider_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.IdentityProviderUrl = t
 											}
 										}
 									}
@@ -7494,6 +7685,228 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 								}
 								v.Unknown = false
 								tf.Attrs["circleci"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["bitbucket"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["bitbucket"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Bitbucket == nil {
+									v.Null = true
+								} else {
+									obj := obj.Bitbucket
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["allow"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.allow"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+												}
+												if obj.Allow != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Allow) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+													for k, a := range obj.Allow {
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["workspace_uuid"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.allow.workspace_uuid"})
+																} else {
+																	v, ok := tf.Attrs["workspace_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.allow.workspace_uuid", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.workspace_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.WorkspaceUuid) == ""
+																	}
+																	v.Value = string(obj.WorkspaceUuid)
+																	v.Unknown = false
+																	tf.Attrs["workspace_uuid"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["repository_uuid"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.allow.repository_uuid"})
+																} else {
+																	v, ok := tf.Attrs["repository_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.allow.repository_uuid", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.repository_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RepositoryUuid) == ""
+																	}
+																	v.Value = string(obj.RepositoryUuid)
+																	v.Unknown = false
+																	tf.Attrs["repository_uuid"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["deployment_environment_uuid"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.allow.deployment_environment_uuid"})
+																} else {
+																	v, ok := tf.Attrs["deployment_environment_uuid"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.allow.deployment_environment_uuid", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.deployment_environment_uuid", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.DeploymentEnvironmentUuid) == ""
+																	}
+																	v.Value = string(obj.DeploymentEnvironmentUuid)
+																	v.Unknown = false
+																	tf.Attrs["deployment_environment_uuid"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["branch_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.allow.branch_name"})
+																} else {
+																	v, ok := tf.Attrs["branch_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.allow.branch_name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.allow.branch_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.BranchName) == ""
+																	}
+																	v.Value = string(obj.BranchName)
+																	v.Unknown = false
+																	tf.Attrs["branch_name"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allow"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["audience"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.audience"})
+										} else {
+											v, ok := tf.Attrs["audience"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.audience", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Audience) == ""
+											}
+											v.Value = string(obj.Audience)
+											v.Unknown = false
+											tf.Attrs["audience"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["identity_provider_url"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.bitbucket.identity_provider_url"})
+										} else {
+											v, ok := tf.Attrs["identity_provider_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedToken.spec.bitbucket.identity_provider_url", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.bitbucket.identity_provider_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.IdentityProviderUrl) == ""
+											}
+											v.Value = string(obj.IdentityProviderUrl)
+											v.Unknown = false
+											tf.Attrs["identity_provider_url"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["bitbucket"] = v
 							}
 						}
 					}
