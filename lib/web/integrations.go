@@ -90,7 +90,8 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		ig, err = types.NewIntegrationGitHub(types.Metadata{
 			Name: req.Name,
 		}, &types.GitHubIntegrationSpecV1{
-			Organization: req.Integration.GitHub.Organization,
+			Organization:     req.Integration.GitHub.Organization,
+			OAuthCallbackURL: req.Integration.GitHub.OAuthCallbackURL,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -208,6 +209,15 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 		if err := integration.SetCredentials(&cred); err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+	if req.GitHub != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindGitHub {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindGitHub, integration.GetSubKind())
+		}
+		spec := integration.GetGitHubIntegrationSpec()
+		if spec != nil {
+			spec.OAuthCallbackURL = req.GitHub.OAuthCallbackURL
 		}
 	}
 
