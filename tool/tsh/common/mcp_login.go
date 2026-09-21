@@ -76,8 +76,8 @@ type mcpOAuthLoginConfig struct {
 	// CallbackPort selects a fixed callback port. When it and RedirectURI are
 	// empty, the OS selects an available port.
 	CallbackPort uint16
-	// RedirectURI reuses the callback address stored by an earlier login. It is
-	// mutually exclusive with CallbackPort.
+	// RedirectURI is the exact loopback redirect URI to use, from --redirect-uri
+	// or an earlier login. It is mutually exclusive with CallbackPort.
 	RedirectURI string
 	OAuthScopes []string
 	// StoredCredentials bind automatic reauthorization to the existing resource and issuer.
@@ -95,6 +95,7 @@ type mcpLoginCommand struct {
 	clientID     string
 	promptSecret bool
 	callbackPort uint16
+	redirectURI  string
 	scopes       []string
 }
 
@@ -110,6 +111,8 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		BoolVar(&cmd.promptSecret)
 	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
 		Uint16Var(&cmd.callbackPort)
+	cmd.Flag("redirect-uri", "Loopback OAuth redirect URI registered with the OAuth provider, such as http://localhost:3118/callback. Use it instead of --callback-port when the registered redirect URI does not use 127.0.0.1.").
+		StringVar(&cmd.redirectURI)
 	cmd.Flag("oauth-scope", "OAuth scopes to request, separated by commas or spaces. This flag can be specified multiple times.").
 		StringsVar(&cmd.scopes)
 	cmd.Flag("browser", browserHelp).StringVar(&cf.Browser)
@@ -149,6 +152,7 @@ func (c *mcpLoginCommand) run() error {
 		ClientID:        clientID,
 		ClientSecret:    clientSecret,
 		CallbackPort:    c.callbackPort,
+		RedirectURI:     c.redirectURI,
 		OAuthScopes:     utils.SplitIdentifiers(strings.Join(c.scopes, " ")),
 		Browser:         c.cf.Browser,
 		Stdout:          c.cf.Stdout(),
@@ -450,16 +454,16 @@ func listenMCPOAuthCallback(callbackPort uint16, redirectURI string) (net.Listen
 		}
 		parsed, err := url.Parse(redirectURI)
 		if err != nil {
-			return nil, "", trace.Wrap(err, "parsing stored MCP OAuth redirect URI")
+			return nil, "", trace.Wrap(err, "parsing MCP OAuth redirect URI")
 		}
 		hostname := parsed.Hostname()
 		isLoopback := hostname == "localhost" || net.ParseIP(hostname).IsLoopback()
 		if parsed.String() != fmt.Sprintf("http://%s/callback", parsed.Host) || parsed.Port() == "" || !isLoopback {
-			return nil, "", trace.BadParameter("stored MCP OAuth redirect URI %q is not a loopback callback URL", redirectURI)
+			return nil, "", trace.BadParameter("MCP OAuth redirect URI %q is not a loopback callback URL, such as http://localhost:3118/callback", redirectURI)
 		}
 		listener, err := net.Listen("tcp", parsed.Host)
 		if err != nil {
-			return nil, "", trace.Wrap(err, "binding stored MCP OAuth callback address %q", parsed.Host)
+			return nil, "", trace.Wrap(err, "binding MCP OAuth callback address %q", parsed.Host)
 		}
 		return listener, parsed.String(), nil
 	}
@@ -743,7 +747,7 @@ func getMCPOAuthServerMetadata(ctx context.Context, handler *mcpclienttransport.
 	}
 	// mcp-go guesses root endpoints when discovery fails. we keep those endpoints
 	// bound to the authorization server selected by the protected resource.
-	if advertised := discovery.advertisedAuthorizationServer; advertised != "" && metadata.Issuer != advertised {
+	if advertised := discovery.advertisedAuthorizationServer; advertised != "" && strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(advertised, "/") {
 		return nil, trace.BadParameter("OAuth authorization server metadata identifies issuer %q, but protected resource metadata advertised %q", metadata.Issuer, advertised)
 	}
 	for _, endpoint := range []struct {
@@ -935,11 +939,8 @@ func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, ex
 		return trace.Wrap(err, "decoding OAuth metadata")
 	}
 	if rootPath == mcputils.OAuthProtectedResourceMetadataPath {
-		// RFC 9728 section 3.3 requires the returned resource identifier to
-		// exactly match the resource used to locate its metadata.
-		// https://www.rfc-editor.org/rfc/rfc9728.html#section-3.3
-		if metadata.Resource != expectedResource {
-			return trace.BadParameter("OAuth protected resource metadata identifies resource %q, expected %q", metadata.Resource, expectedResource)
+		if !mcpOAuthResourceCoversServer(metadata.Resource, expectedResource) {
+			return trace.BadParameter("OAuth protected resource metadata identifies resource %q, expected %q or a parent of it", metadata.Resource, expectedResource)
 		}
 		if discovery, ok := req.Context().Value(mcpOAuthDiscoveryStateKey{}).(*mcpOAuthDiscoveryState); ok && len(metadata.AuthorizationServers) > 0 {
 			discovery.advertisedAuthorizationServer = metadata.AuthorizationServers[0]
@@ -950,10 +951,35 @@ func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, ex
 	// discovered from, so a document cannot impersonate another provider.
 	// https://www.rfc-editor.org/rfc/rfc8414.html#section-3.3
 	expectedIssuer := metadataURL.Scheme + "://" + metadataURL.Host + strings.TrimPrefix(metadataURL.EscapedPath(), rootPath)
-	if metadata.Issuer != expectedIssuer {
+	if strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(expectedIssuer, "/") {
 		return trace.BadParameter("OAuth authorization server metadata identifies issuer %q, expected %q", metadata.Issuer, expectedIssuer)
 	}
 	return nil
+}
+
+// mcpOAuthResourceCoversServer reports whether a protected resource metadata
+// resource identifier is the MCP server URL or a parent of it on the same
+// origin. RFC 9728 section 3.3 asks for an exact match, but servers commonly
+// publish one document for the whole origin, and the official MCP SDKs accept
+// that. Pinning the origin still keeps metadata from naming another service as
+// the token audience.
+// https://www.rfc-editor.org/rfc/rfc9728.html#section-3.3
+func mcpOAuthResourceCoversServer(resource, serverURL string) bool {
+	parsedResource, err := url.Parse(resource)
+	if err != nil {
+		return false
+	}
+	parsedServerURL, err := url.Parse(serverURL)
+	if err != nil {
+		return false
+	}
+	if !utils.SameHTTPOrigin(parsedResource, parsedServerURL) {
+		return false
+	}
+	// Compare whole path segments so "/mcp" does not cover "/mcp2".
+	resourcePath := strings.TrimSuffix(parsedResource.EscapedPath(), "/") + "/"
+	serverPath := strings.TrimSuffix(parsedServerURL.EscapedPath(), "/") + "/"
+	return strings.HasPrefix(serverPath, resourcePath)
 }
 
 func (t *hostRoutingTransport) roundTrip(r *http.Request) (*http.Response, error) {
