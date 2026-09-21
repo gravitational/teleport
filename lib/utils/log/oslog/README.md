@@ -13,7 +13,7 @@ os_log supports [five log
 types](https://developer.apple.com/documentation/os/oslogtype?language=objc): debug, info, default,
 error, fault. The documentation and os_log(5) state that debug level logging is disabled by default,
 but as of macOS 15.4 this doesn't seem to be the case – debug messages are stored in memory. Info
-messages are not peristed to disk by default, every other level is logged and persisted to disk. In
+messages are not persisted to disk by default, every other level is logged and persisted to disk. In
 our codebase, default is functionally equivalent to warn.
 
 os_log_t can be distinguished by subsystem and category. Think of subsystem as a program (though

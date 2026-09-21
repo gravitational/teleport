@@ -54,7 +54,7 @@ through the steps here unless you are trying to recreate parts of the skeleton
    https://developer.apple.com/account/resources/profiles/list
 
     In order to create the profile, a Developer ID certificate and a Developer
-    ID app are necesary.
+    ID app are necessary.
 
     For `tshdev` we use:
 

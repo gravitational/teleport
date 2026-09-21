@@ -98,7 +98,7 @@ comments), which Go uses to re-construct the `rdpclient.Client`.
 
 ##### A note on "why not reconstruct the Rust client from a pointer as well?"
 
-While this may seem at first glance like a very indirect way of communicating between the Go and Rust halfs of the `Client`,
+While this may seem at first glance like a very indirect way of communicating between the Go and Rust halves of the `Client`,
 it has the virtue of saving us a lot of Rust concurrency enforcement headaches as compared to passing a Rust pointer from Go.
 
 See a [previous iteration of this document](https://github.com/gravitational/teleport/pull/26874/commits/c2edddfcd84a41d4a5554c52fd0688e235128d7c)
