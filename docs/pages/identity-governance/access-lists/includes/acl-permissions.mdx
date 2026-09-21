@@ -1,4 +1,6 @@
-- Permissions to create Access Lists, users, and roles. These are included in the preset
+- Permissions to create Access Lists, users, and roles. If you use the local
+  Terraform workflow, you also need permission to create temporary bots and
+  provisioning tokens. These permissions are included in the preset
   [`editor`](../../../reference/access-controls/roles.mdx#preset-roles) role,
   or you can copy and paste the following into your own role:
   ```yaml
@@ -14,4 +16,15 @@
       - create
       - update
       - delete
+
+    # Required only when using the local Terraform workflow.
+    - resources:
+      - bot
+      verbs:
+      - create
+    - resources:
+      - token
+      verbs:
+      - create
+      - update
   ```
