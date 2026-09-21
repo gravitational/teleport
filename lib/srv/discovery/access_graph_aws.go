@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	grpcutil "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
 const (
@@ -177,8 +177,7 @@ func (s *Server) reconcileAccessGraph(
 	}
 
 	if pushErr != nil {
-		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
-		return nil
+		return trace.Wrap(pushErr, "Error pushing TAGs")
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
 	*currentTAGResources = *result
@@ -438,7 +437,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// before it tries to send any events to the access graph service.
 	wg.Go(func() {
 		defer cancel()
-		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+		if grpcutil.WaitForConnectionLoss(ctx, accessGraphConn) {
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
 	})
@@ -477,6 +476,10 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
+			return trace.Wrap(err)
+		} else if err != nil {
+			// A push error means the stream is broken and no future push can
+			// succeed. Return so the caller re-establishes the connection/stream.
 			return trace.Wrap(err)
 		}
 		if !timer.Stop() {
@@ -740,14 +743,12 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer cancel()
-		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+		if grpcutil.WaitForConnectionLoss(ctx, accessGraphConn) {
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
-	}()
+	})
 
 	filePayload := make(chan payloadChannelMessage, 1)
 	type mapPayload struct {
