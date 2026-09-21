@@ -127,6 +127,9 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	// Initialize the fnCache
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: s.effectiveLifetime.RenewalInterval,
+		// Otherwise a failed issuance is served to every request for that
+		// app until the TTL expires.
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return trace.Wrap(err, "initializing cache")
@@ -374,6 +377,10 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// TODO(noah): We could cache the httpClient itself for each upstream, this
 	// would potentially allow performance improvements by caching connections.
 	transport := &http.Transport{
+		// The transport is discarded after this request, so a kept-alive
+		// connection would otherwise linger until the proxy closes it.
+		// This eliminates the need to defer a call to transport.CloseIdleConns()
+		DisableKeepAlives: true,
 		// The ALPN dialer's conn has already completed its TLS handshake, so
 		// it is wired in as DialTLSContext rather than DialContext.
 		DialTLSContext: apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
