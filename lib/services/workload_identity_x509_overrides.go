@@ -33,16 +33,6 @@ type WorkloadIdentityX509Overrides interface {
 	// token until it's empty.
 	ListX509IssuerOverrides(ctx context.Context, pageSize int, pageToken string) (_ []*workloadidentityv1pb.X509IssuerOverride, nextPageToken string, _ error)
 
-	// CreateX509IssuerOverride creates a new override. A
-	// [*trace.AlreadyExistsError] will be returned if an override with the same
-	// name already exists.
-	CreateX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error)
-	// UpdateX509IssuerOverride updates an override; an override with the same
-	// name and revision as the one passed in must already exist, or a
-	// [*trace.CompareFailedError] will be returned.
-	UpdateX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error)
-	// UpsertX509IssuerOverride creates or updates an override unconditionally.
-	UpsertX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error)
 	// DeleteX509IssuerOverride deletes an existing override by name. If no
 	// override with such a name exists, a [*trace.NotFoundError] is returned.
 	DeleteX509IssuerOverride(ctx context.Context, name string) error

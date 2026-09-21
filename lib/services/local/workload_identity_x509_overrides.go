@@ -68,21 +68,6 @@ func (s *WorkloadIdentityX509OverridesService) ListX509IssuerOverrides(ctx conte
 	return s.issuer.ListResources(ctx, pageSize, pageToken)
 }
 
-// CreateX509IssuerOverride implements [services.WorkloadIdentityX509Overrides].
-func (s *WorkloadIdentityX509OverridesService) CreateX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	return s.issuer.CreateResource(ctx, resource)
-}
-
-// UpdateX509IssuerOverride implements [services.WorkloadIdentityX509Overrides].
-func (s *WorkloadIdentityX509OverridesService) UpdateX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	return s.issuer.ConditionalUpdateResource(ctx, resource)
-}
-
-// UpsertX509IssuerOverride implements [services.WorkloadIdentityX509Overrides].
-func (s *WorkloadIdentityX509OverridesService) UpsertX509IssuerOverride(ctx context.Context, resource *workloadidentityv1pb.X509IssuerOverride) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	return s.issuer.UpsertResource(ctx, resource)
-}
-
 // DeleteX509IssuerOverride implements [services.WorkloadIdentityX509Overrides].
 func (s *WorkloadIdentityX509OverridesService) DeleteX509IssuerOverride(ctx context.Context, name string) error {
 	return s.issuer.DeleteResource(ctx, name)
