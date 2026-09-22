@@ -4067,6 +4067,120 @@ func (c *Client) DeleteAllApps(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// GetApplication returns a scoped or unscoped application by name.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+func (c *Client) GetApplication(ctx context.Context, req *presencepb.GetApplicationRequest) (types.Application, error) {
+	resp, err := c.PresenceServiceClient().GetApplication(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return nil, trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return nil, trace.BadParameter("requesting a scoped application from an outdated Teleport control plane that does not support it")
+		}
+		return c.GetApp(ctx, req.GetName())
+	}
+	return resp.GetApplication(), nil
+}
+
+// ListApplications returns a page of registered applications respecting scope filters.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+func (c *Client) ListApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) ([]types.Application, string, error) {
+	res, err := c.PresenceServiceClient().ListApplications(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// only allow fallback if the request is not expecting results to be scope filtered
+		if req.GetScopeFilter().GetScope() != "" {
+			return nil, "", trace.BadParameter("requesting list of scoped applications from an outdated Teleport control plane that does not support it")
+		}
+
+		return c.ListApps(ctx, int(req.GetPageSize()), req.GetPageToken())
+	}
+
+	apps := make([]types.Application, 0, len(res.GetApplications()))
+	for _, app := range res.GetApplications() {
+		apps = append(apps, app)
+	}
+	return apps, res.GetNextPageToken(), nil
+}
+
+// RangeApplications returns a sequence of applications filtered by the given
+// [*presencepb.ListApplicationsRequest].
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+func (c *Client) RangeApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) iter.Seq2[types.Application, error] {
+	if req == nil {
+		req = presencepb.ListApplicationsRequest_builder{}.Build()
+	}
+
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
+		req.SetPageToken(pageToken)
+		req.SetPageSize(int32(pageSize))
+		return c.ListApplications(ctx, req)
+	}
+	return func(yield func(app types.Application, err error) bool) {
+		var fallback bool
+		for app, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Application.GetName) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListApplications, fall back to ListApps
+				fallback = true
+				break
+			}
+			if !yield(app, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		if req.GetScopeFilter().GetScope() != "" {
+			// only allow fallback if the request is not expecting results to be scope filtered
+			yield(nil, trace.BadParameter("requesting range of scoped applications from an outdated Teleport control plane that does not support it"))
+			return
+		}
+		// fallback iterator
+		for app, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.ListApps, nil) {
+			if !yield(app, err) {
+				return
+			}
+		}
+	}
+}
+
+// DeleteApplication deletes a scoped or unscoped application by name.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+func (c *Client) DeleteApplication(ctx context.Context, req *presencepb.DeleteApplicationRequest) error {
+	_, err := c.PresenceServiceClient().DeleteApplication(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of a scoped application from an outdated Teleport control plane that does not support it")
+		}
+		return c.DeleteApp(ctx, req.GetName())
+	}
+	return nil
+}
+
 // ListAuthServers returns a paginated list of auth servers registered in the cluster.
 func (c *Client) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 	resp, err := c.PresenceServiceClient().ListAuthServers(ctx, &presencepb.ListAuthServersRequest{
