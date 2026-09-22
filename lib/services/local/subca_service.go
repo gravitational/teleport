@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -78,6 +79,7 @@ type SubCAServiceParams struct {
 // Follows RFD 153 / generic.Service semantics.
 type SubCAService struct {
 	clock      clockwork.Clock
+	backend    backend.Backend
 	service    *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
 	csrService *generic.ServiceWrapper[*subcav1.PendingCSRRequest]
 }
@@ -122,6 +124,7 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 
 	return &SubCAService{
 		clock:      clock,
+		backend:    p.Backend,
 		service:    service,
 		csrService: csrService,
 	}, nil
@@ -135,6 +138,11 @@ func (s *SubCAService) CreateCertAuthorityOverride(
 	service, err := s.serviceForResource(resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
+	if resource.GetSubKind() == subca.SPIFFETLSCA {
+		return s.writeSPIFFETLSOverride(ctx, resource, backend.NotExists())
 	}
 
 	created, err := service.CreateResource(ctx, resource)
@@ -165,6 +173,11 @@ func (s *SubCAService) UpsertCertAuthorityOverride(
 	service, err := s.serviceForResource(resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(cthach): DELETE IN v20.0.0 when workload_identity_x509_issuer_override resources are no longer supported.
+	if resource.GetSubKind() == subca.SPIFFETLSCA {
+		return s.writeSPIFFETLSOverride(ctx, resource, backend.Whatever())
 	}
 
 	updated, err := service.UpsertResource(ctx, resource)
@@ -338,6 +351,47 @@ func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*ba
 		Expires:  expires,
 		Revision: resource.GetMetadata().GetRevision(),
 	}, nil
+}
+
+func (s *SubCAService) writeSPIFFETLSOverride(
+	ctx context.Context,
+	resource *subcav1.CertAuthorityOverride,
+	cond backend.Condition,
+) (*subcav1.CertAuthorityOverride, error) {
+	item, err := itemFromCertAuthorityOverride(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{Key: workloadIdentityX509IssuerOverrideDefaultKey, Condition: backend.NotExists(), Action: backend.Nop()},
+		{Key: item.Key, Condition: cond, Action: backend.Put(*item)},
+	})
+	switch {
+	case errors.Is(err, backend.ErrConditionFailed):
+		// Best effort attempt to classify the error so the user can take appropriate action.
+		if cond.Kind == backend.KindNotExists {
+			if _, getErr := s.backend.Get(ctx, item.Key); getErr == nil {
+				return nil, trace.AlreadyExists(
+					"cert_authority_override %s/%s already exists",
+					resource.GetSubKind(), resource.GetMetadata().GetName(),
+				)
+			}
+		}
+		return nil, trace.BadParameter(
+			"cannot write cert_authority_override %s/%s: %s/%s already exists. "+
+				"Delete it first (tctl rm %s/%s), then retry.",
+			resource.GetSubKind(), resource.GetMetadata().GetName(),
+			types.KindWorkloadIdentityX509IssuerOverride, workloadIdentityX509IssuerOverrideDefaultName,
+			types.KindWorkloadIdentityX509IssuerOverride, workloadIdentityX509IssuerOverrideDefaultName,
+		)
+
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	resource.GetMetadata().SetRevision(revision)
+	return resource, nil
 }
 
 // CreatePendingCSRRequest creates a PendingCSRRequest.

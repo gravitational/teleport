@@ -28,7 +28,15 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const workloadIdentityX509IssuerOverridePrefix = "workload_identity_x509_issuer_override"
+const (
+	workloadIdentityX509IssuerOverridePrefix      = "workload_identity_x509_issuer_override"
+	workloadIdentityX509IssuerOverrideDefaultName = "default"
+)
+
+var workloadIdentityX509IssuerOverrideDefaultKey = backend.NewKey(
+	workloadIdentityX509IssuerOverridePrefix,
+	workloadIdentityX509IssuerOverrideDefaultName,
+)
 
 func NewWorkloadIdentityX509OverridesService(b backend.Backend) (*WorkloadIdentityX509OverridesService, error) {
 	// issuer overrides can be a bit bulky in terms of size, so we deviate from
