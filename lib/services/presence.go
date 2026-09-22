@@ -135,7 +135,7 @@ type Presence interface {
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetServerInfos returns a stream of ServerInfos.
-	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+	GetServerInfos(ctx context.Context) iter.Seq2[types.ServerInfo, error]
 
 	// GetServerInfo returns a ServerInfo by name.
 	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)

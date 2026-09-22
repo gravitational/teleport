@@ -3757,17 +3757,21 @@ func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream authpb.AuthService_
 		return trace.Wrap(err)
 	}
 
-	infos := auth.GetServerInfos(stream.Context())
-	for infos.Next() {
-		si, ok := infos.Item().(*types.ServerInfoV1)
+	for infos, err := range auth.GetServerInfos(stream.Context()) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		si, ok := infos.(*types.ServerInfoV1)
 		if !ok {
 			g.logger.WarnContext(stream.Context(), "expected type ServerInfoV1, got unexpected type",
-				"server_info_type", logutils.TypeAttr(infos.Item()),
-				"server_info_name", infos.Item().GetName(),
+				"server_info_type", logutils.TypeAttr(infos),
+				"server_info_name", infos.GetName(),
 			)
+			continue
 		}
+
 		if err := stream.Send(si); err != nil {
-			infos.Done()
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -3775,7 +3779,7 @@ func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream authpb.AuthService_
 		}
 	}
 
-	return trace.Wrap(infos.Done())
+	return nil
 }
 
 // GetServerInfo returns a ServerInfo by name.

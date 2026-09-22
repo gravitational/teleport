@@ -35,7 +35,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -184,10 +183,10 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (s *PresenceService) GetServerInfos(ctx context.Context) apistream.Stream[types.ServerInfo] {
+func (s *PresenceService) GetServerInfos(ctx context.Context) iter.Seq2[types.ServerInfo, error] {
 	startKey := backend.ExactKey(serverInfoPrefix)
 	endKey := backend.RangeEnd(startKey)
-	return stream.IntoLegacy(stream.FilterMap(
+	return stream.FilterMap(
 		s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}),
 		func(item backend.Item) (types.ServerInfo, bool) {
 			si, err := services.UnmarshalServerInfo(
@@ -204,7 +203,7 @@ func (s *PresenceService) GetServerInfos(ctx context.Context) apistream.Stream[t
 			}
 			return si, true
 		},
-	))
+	)
 }
 
 // GetServerInfo returns a ServerInfo by name.

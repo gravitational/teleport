@@ -6343,9 +6343,9 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (a *ServerWithRoles) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+func (a *ServerWithRoles) GetServerInfos(ctx context.Context) iter.Seq2[types.ServerInfo, error] {
 	if err := a.authorizeAction(types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
-		return stream.Fail[types.ServerInfo](trace.Wrap(err))
+		return iterstream.Fail[types.ServerInfo](err)
 	}
 
 	return a.authServer.GetServerInfos(ctx)

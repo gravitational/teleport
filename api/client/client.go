@@ -124,7 +124,6 @@ import (
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -2579,27 +2578,34 @@ func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authRequestKind strin
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
-	// set up cancelable context so that Stream.Done can close the stream if the caller
-	// halts early.
-	ctx, cancel := context.WithCancel(ctx)
+func (c *Client) GetServerInfos(ctx context.Context) iter.Seq2[types.ServerInfo, error] {
+	return func(yield func(types.ServerInfo, error) bool) {
+		// set up cancelable context so that the stream is closed if iteration
+		// halts early.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-	serverInfos, err := c.grpc.GetServerInfos(ctx, &emptypb.Empty{})
-	if err != nil {
-		cancel()
-		return stream.Fail[types.ServerInfo](trace.Wrap(err))
-	}
-	return stream.Func(func() (types.ServerInfo, error) {
-		si, err := serverInfos.Recv()
+		serverInfos, err := c.grpc.GetServerInfos(ctx, &emptypb.Empty{})
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// io.EOF signals that stream has completed successfully
-				return nil, io.EOF
-			}
-			return nil, trace.Wrap(err)
+			yield(nil, trace.Wrap(err))
+			return
 		}
-		return si, nil
-	}, cancel)
+		for {
+			si, err := serverInfos.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			if !yield(si, nil) {
+				return
+			}
+		}
+	}
 }
 
 // GetServerInfo returns a ServerInfo by name.
