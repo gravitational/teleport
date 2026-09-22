@@ -15,9 +15,9 @@ page_type: how-to
 ## How it works
 
 The Teleport Database Service runs on an Azure virtual machine with an attached
-Azure identity with permissions to retrieve authentication tokens from Microsoft
-Entra ID. When a user connects to SQL Server with Teleport, the Teleport
-Database service authenticates with Microsoft Entra ID, then uses an
+Azure identity with permissions to retrieve authentication tokens from
+**Microsoft Entra ID**. When a user connects to SQL Server with Teleport, the
+Teleport Database Service authenticates with Microsoft Entra ID, then uses an
 authentication token to connect to SQL Server. The Database Service then
 forwards user traffic to the database.
 
@@ -37,6 +37,12 @@ forwards user traffic to the database.
 
 - SQL Server running on Azure.
 - The Teleport Database Service running on an Azure virtual instance.
+- A SQL client that supports Microsoft Entra ID authentication, for example
+  `sqlcmd` with the Microsoft ODBC Driver 18 for SQL Server, or Azure Data
+  Studio. You will use this later in the guide to create database users for your
+  managed identities. Follow the [installation instructions for `sqlcmd` and
+  the ODBC driver](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility)
+  in Microsoft's documentation for your platform.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Create a Teleport token and user
@@ -53,20 +59,18 @@ Go to the [Azure Portal](https://portal.azure.com/), select **Database
 servers**, and select the database you wish to enable the Microsoft Entra ID
 authentication.
 
-Select **Microsoft Entra ID** under "Settings" in the left-hand column.
+Select **Microsoft Entra ID** under "Settings" in the left-hand column.
 
-Select **Set Admin**, and choose an account that will be added as an admin
+Select **Set Admin**, and choose an account that will be added as an admin
 login to SQL Server.
 
 ![Azure SQL Server Microsoft Entra ID admin page](../../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
-## Step 3/8. Configure IAM permissions for Teleport
+## Step 3/8. Create an Azure role for Teleport
 
 The Teleport Database Service needs Azure IAM permissions to:
 - Discover and register SQL Server instances.
 - Fetch virtual machine managed identities used for login.
-
-### Configure an Azure service principal
 
 Teleport requires the following permissions:
 - `<resource-type>/read` permissions for discovery, but only for the resource
@@ -101,37 +105,40 @@ and **Azure SQL Managed Instances**:
 ```
 
 The `assignableScopes` field above includes a subscription
-(`/subscriptions/<subscription>`), allowing the role to be assigned at any
-resource scope within that subscription or the subscription scope itself.
-If you want to further limit the `assignableScopes`, you can use a resource
-group (`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
+(`/subscriptions/<subscription>`), which allows the role to be assigned at
+any resource scope within that subscription or at the subscription scope
+itself. To further limit `assignableScopes`, use a resource group
+(`/subscriptions/<subscription>/resourceGroups/<group>`) or a management
 group (`/providers/Microsoft.Management/managementGroups/<group>`) instead.
+
+You will assign this role to the Database Service's virtual machine identity
+in the next step.
 
 Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade)
 page and select a subscription.
 
-Click on **Access control (IAM)** in the subscription and select **Add** >
+Click **Access control (IAM)** in the subscription and select **Add** >
 **Add custom role**:
 
 ![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
 
 In the custom role creation page, click the **JSON** tab and click **Edit**,
 then paste the JSON example and replace the subscription in `assignableScopes`
-with your own subscription id:
+with your own subscription ID:
 
 ![Create JSON role](../../../../../img/database-access/guides/sqlserver/create-role-from-json.png)
 
 ## Step 4/8. Configure virtual machine identities
 
 In the Teleport Database Service virtual machine's **Identity**
-section, enable the system assigned identity. This is used by Teleport to access
-Azure APIs.
+section, enable the system assigned identity. Teleport uses this identity to
+access Azure APIs.
 
 ![System assigned identity page](../../../../../img/database-access/guides/sqlserver/system-managed-identity.png)
 
-To grant Teleport permissions, the custom role you created must be assigned to
-the virtual machine system assigned identity. On the same page, click on the **Azure
-role assignments**, then on **Add role assignment**. Select the custom role and
+To grant Teleport permissions, assign the custom role you created to the
+virtual machine's system assigned identity. On the same page, click **Azure
+role assignments**, then **Add role assignment**. Select the custom role and
 save.
 
 <Admonition type="note" title="Azure Role Assignments">
@@ -144,19 +151,17 @@ for more information about Azure scopes and creating role assignments.
 ### Login identities
 
 The Teleport Database Service needs access tokens from Microsoft Entra ID to
-authenticate with SQL Server databases.
-
-It uses the managed identities attached to its Virtual Machine to fetch the
-authentication token.
+authenticate with SQL Server databases. It uses the managed identities
+attached to its virtual machine to fetch the authentication token.
 
 To create a new user-assigned managed identity, go to the **Managed Identities**
 page in your [Azure Portal](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
-and click on *Create*. Choose a name and resource group for it and create:
+and click **Create**. Choose a name and resource group for it and create:
 
 ![Azure Create user managed identity page](../../../../../img/database-access/guides/sqlserver/azure-user-managed-identity.png)
 
 Next, go to the **Teleport Database Service virtual machine instance**,
-**Identity** section, select **User assigned**, and add the identity we just
+**Identity** section, select **User assigned**, and add the identity you just
 created:
 
 ![Azure Virtual machine user managed identities page](../../../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
@@ -164,19 +169,26 @@ created:
 ## Step 5/8. Enable managed identities login on SQL Server
 
 The Microsoft Entra ID SQL Server integration uses database-level authentication
-(contained users), meaning we must create a user for our identities on each
-database we want to access.
+(contained users), meaning you must create a user for each identity on every
+database you want to access.
 
-To create contained users for the identities, connect to your SQL server using
-its Active Directory Admin and execute the query:
+Connect to your SQL server as its Active Directory Admin using a SQL client
+that supports Microsoft Entra ID authentication. For example, with `sqlcmd`:
+
+```code
+$ sqlcmd -S <server-name>.database.windows.net -d MyDatabase -G -U <entra-admin-upn>
+``` 
+
+Once connected, create a contained user for the identity and execute the
+query:
 
 ```sql
 USE MyDatabase;
 CREATE USER [sqlserver-identity] FROM EXTERNAL PROVIDER;
 ```
 
-The newly created user will be attached to the public role, which might not
-have enough permissions to perform queries. Consider granting individual
+The newly created user is attached to the public role, which might not have
+enough permissions to perform queries. Consider granting individual
 permissions to the user or assigning it to an existing role. For example, add
 the user as a member of the `db_datareader` role:
 
@@ -192,7 +204,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
 Set the `--proxy` command-line option to the address for your Teleport cluster
-and the `--azure-sqlserver-discovery` to the appropriate region:
+and `--azure-sqlserver-discovery` to the appropriate region:
 
 ```code
 $ sudo teleport db configure create \
@@ -202,9 +214,9 @@ $ sudo teleport db configure create \
    --azure-sqlserver-discovery=eastus
 ```
 
-The command will generate a Database Service configuration with Azure SQL
-Server auto-discovery enabled in the `eastus` region and place it at the
-`/etc/teleport.yaml` location.
+The command generates a Database Service configuration with Azure SQL
+Server auto-discovery enabled in the `eastus` region and places it at
+`/etc/teleport.yaml`.
 
 ## Step 7/8. Start Teleport Database Service
 
@@ -239,7 +251,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=sqlserver-identity --db-name=master sqlserver
 ```
 
-Where `--db-user` is the managed identity name.
+`--db-user` is the managed identity name.
 
 (!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
@@ -248,11 +260,11 @@ Where `--db-user` is the managed identity name.
 ### Could not find identity
 
 If you see the error `could not find identity "my-identity" attached to the
-instance` when connecting to your database, then the identity you’re trying to
+instance` when connecting to your database, then the identity you're trying to
 connect with is not attached to the Teleport Database Service virtual machine.
 You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines) page within Azure Portal,
 open the **Teleport instance**, **Identity** section, and choose **User
-assigned** to see all identities you can connect with. If you don’t see your
+assigned** to see all identities you can connect with. If you don't see your
 identity check [Step 4](#login-identities) to see how
 to add it.
 
@@ -260,7 +272,7 @@ to add it.
 
 When connecting to your database, and you see the error `mssql: login error: Login
 failed for user '<token-identified principal>'`, it means your managed identity
-login is not present on the SQL database. You’ll need to create their users as
+login is not present on the SQL database. You'll need to create their users as
 described in [Step 5](#step-58-enable-managed-identities-login-on-sql-server).
 Remember: you must create the users on all databases you want to connect.
 
