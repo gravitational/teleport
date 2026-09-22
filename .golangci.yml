@@ -369,6 +369,9 @@ linters:
       comparison: true
     forbidigo:
       forbid:
+        - pattern: ^tls\.X509KeyPair$
+          pkg: ^crypto/tls$
+          msg: use api/utils/keys.TLSCertificateForSigner with the existing crypto.Signer to avoid multiple hardware key taps; crypto/tls does not support hardware keys. Use api/utils/keys.X509KeyPair if no signer is available
         - pattern: ^rsa\.GenerateKey$
           pkg: ^crypto/rsa$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
@@ -491,6 +494,14 @@ linters:
           - staticcheck
         path: integration/integration_test.go
         text: grpc.WithBlock is deprecated
+      - linters:
+          - forbidigo
+        path: '(^|/)(tool/tsh|lib/client|api)/.*_test\.go$'
+        text: 'use api/utils/keys\.TLSCertificateForSigner with the existing crypto\.Signer to avoid multiple hardware key taps; crypto/tls does not support hardware keys\. Use api/utils/keys\.X509KeyPair if no signer is available'
+      - linters:
+          - forbidigo
+        path-except: '(^|/)(tool/tsh|lib/client|api)/'
+        text: 'use api/utils/keys\.TLSCertificateForSigner with the existing crypto\.Signer to avoid multiple hardware key taps; crypto/tls does not support hardware keys\. Use api/utils/keys\.X509KeyPair if no signer is available'
       - linters:
           - staticcheck
         path: lib/multiplexer/multiplexer_test.go
