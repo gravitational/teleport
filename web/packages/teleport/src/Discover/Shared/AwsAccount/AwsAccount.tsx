@@ -105,6 +105,10 @@ export function AwsAccount() {
 
   const [healthCheckAttempt, healthCheckSelectedIntegration] = useAsync(
     async () => {
+      if (!selectedAwsIntegration) {
+        return;
+      }
+
       await integrationService.pingAwsOidcIntegration(
         {
           clusterId,
@@ -207,7 +211,7 @@ export function AwsAccount() {
   }
 
   async function proceedWithExistingIntegration(validator: Validator) {
-    if (!validator.validate()) {
+    if (!selectedAwsIntegration || !validator.validate()) {
       return;
     }
 

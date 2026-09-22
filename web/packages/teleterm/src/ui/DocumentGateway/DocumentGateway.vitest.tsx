@@ -17,6 +17,7 @@
  */
 
 import userEvent from '@testing-library/user-event';
+import { expect, test, vi } from 'vitest';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -54,8 +55,7 @@ test('it allows reconnecting when the gateway fails to be created', async () => 
   };
   appContext.addRootClusterWithDoc(cluster, doc);
 
-  jest
-    .spyOn(appContext.tshd, 'createGateway')
+  vi.spyOn(appContext.tshd, 'createGateway')
     .mockReturnValueOnce(
       new MockedUnaryCall(undefined, new Error('Something went wrong'))
     )

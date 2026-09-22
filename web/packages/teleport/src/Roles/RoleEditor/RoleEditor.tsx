@@ -320,7 +320,7 @@ export const RoleEditor = ({
             <ShowHide flexDirection="column" flex="1" hidden={minimized}>
               {selectedEditorTab === EditorTab.Standard && (
                 <Flex flexDirection="column" flex="1" id={standardEditorId}>
-                  <CatchError fallbackFn={StandardEditorRenderingError}>
+                  <CatchError FallbackComponent={StandardEditorRenderingError}>
                     <StandardEditor
                       originalRole={originalRole}
                       onSave={object => handleSave({ object })}

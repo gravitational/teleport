@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ReactNode } from 'react';
+
 import { Box, Button, ButtonPrimary, Flex, H3, Indicator, Link } from 'design';
 import { Danger } from 'design/Alert';
 import Card from 'design/Card';
@@ -41,6 +43,7 @@ export default function TrustedClusters() {
   const isEmpty = attempt.status === 'success' && items.length === 0;
   const hasClusters = attempt.status === 'success' && items.length > 0;
   const resources = useResources(items, templates);
+  const item = resources.item;
 
   const title =
     resources.status === 'creating'
@@ -48,13 +51,47 @@ export default function TrustedClusters() {
       : 'Edit trusted root cluster';
 
   function onRemove() {
-    return remove(resources.item.name);
+    if (!item) {
+      return Promise.resolve();
+    }
+
+    return remove(item.name);
   }
 
   function onSave(content: string) {
-    const name = resources.item.name;
+    if (!item) {
+      return Promise.resolve();
+    }
+
+    const name = item.name;
     const isNew = resources.status === 'creating';
     return save(name, content, isNew);
+  }
+
+  let editor: ReactNode;
+  let deleteDialog: ReactNode;
+  if (item) {
+    if (resources.status === 'creating' || resources.status === 'editing') {
+      editor = (
+        <ResourceEditor
+          onSave={onSave}
+          title={title}
+          onClose={resources.disregard}
+          text={item.content}
+          name={item.name}
+          isNew={resources.status === 'creating'}
+        />
+      );
+    }
+    if (resources.status === 'removing') {
+      deleteDialog = (
+        <DeleteTrust
+          name={item.name}
+          onClose={resources.disregard}
+          onDelete={onRemove}
+        />
+      );
+    }
   }
 
   return (
@@ -103,23 +140,8 @@ export default function TrustedClusters() {
           />
         </Flex>
       )}
-      {(resources.status === 'creating' || resources.status === 'editing') && (
-        <ResourceEditor
-          onSave={onSave}
-          title={title}
-          onClose={resources.disregard}
-          text={resources.item.content}
-          name={resources.item.name}
-          isNew={resources.status === 'creating'}
-        />
-      )}
-      {resources.status === 'removing' && (
-        <DeleteTrust
-          name={resources.item.name}
-          onClose={resources.disregard}
-          onDelete={onRemove}
-        />
-      )}
+      {editor}
+      {deleteDialog}
     </FeatureBox>
   );
 }

@@ -183,6 +183,39 @@ export function Roles(props: State & RolesProps) {
 
   const canCreate = rolesAcl.create;
 
+  const item = resources.item;
+  let oldEditor: React.ReactNode;
+  let deleteDialog: React.ReactNode;
+  if (item) {
+    if (
+      !useNewRoleEditor &&
+      (resources.status === 'creating' || resources.status === 'editing')
+    ) {
+      oldEditor = (
+        <ResourceEditor
+          docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
+          title={title}
+          text={item.content}
+          name={item.name}
+          isNew={resources.status === 'creating'}
+          onSave={yaml => handleSave({ yaml })}
+          onClose={resources.disregard}
+          directions={<Directions />}
+          kind={item.kind}
+        />
+      );
+    }
+    if (resources.status === 'removing') {
+      deleteDialog = (
+        <DeleteRole
+          name={item.name}
+          onClose={resources.disregard}
+          onDelete={handleDelete}
+        />
+      );
+    }
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
@@ -251,29 +284,8 @@ export function Roles(props: State & RolesProps) {
         )}
       </Flex>
 
-      {/* Old editor. */}
-      {!useNewRoleEditor &&
-        (resources.status === 'creating' || resources.status === 'editing') && (
-          <ResourceEditor
-            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
-            title={title}
-            text={resources.item.content}
-            name={resources.item.name}
-            isNew={resources.status === 'creating'}
-            onSave={yaml => handleSave({ yaml })}
-            onClose={resources.disregard}
-            directions={<Directions />}
-            kind={resources.item.kind}
-          />
-        )}
-
-      {resources.status === 'removing' && (
-        <DeleteRole
-          name={resources.item.name}
-          onClose={resources.disregard}
-          onDelete={handleDelete}
-        />
-      )}
+      {oldEditor}
+      {deleteDialog}
     </FeatureBox>
   );
 }

@@ -17,6 +17,8 @@
  */
 
 import { screen, within } from '@testing-library/react';
+import { useState } from 'react';
+import { expect, test } from 'vitest';
 
 import { fireEvent, render } from 'design/utils/testing';
 
@@ -95,4 +97,33 @@ test('render provided placeholder in the search box', () => {
   );
 
   expect(screen.getByPlaceholderText(placeholder)).toBeInTheDocument();
+});
+
+test('renders stateful item components while the filtered list changes', () => {
+  function StatefulItem({ item }: { item: TestItem }) {
+    const [count, setCount] = useState(0);
+    return (
+      <li>
+        <button onClick={() => setCount(count + 1)}>
+          {item.title}: {count}
+        </button>
+      </li>
+    );
+  }
+  render(
+    <FilterableList
+      items={[{ title: 'alice' }, { title: 'bob' }]}
+      filterBy="title"
+      Node={StatefulItem}
+    />
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'alice: 0' }));
+  expect(screen.getByRole('button', { name: 'alice: 1' })).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('searchbox'), {
+    target: { value: 'alice' },
+  });
+  expect(screen.getByRole('button', { name: 'alice: 1' })).toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'bob: 0' })
+  ).not.toBeInTheDocument();
 });

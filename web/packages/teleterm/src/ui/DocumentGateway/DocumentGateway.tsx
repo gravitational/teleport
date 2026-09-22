@@ -53,6 +53,10 @@ export function DocumentGateway(props: {
   } = useGateway(doc);
 
   const runCliCommand = () => {
+    if (!gateway) {
+      return;
+    }
+
     const command = getCliCommandArgv0(gateway.gatewayCliCommand);
     const title = `${command} · ${doc.targetName} (${doc.targetUser})`;
 

@@ -313,6 +313,10 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   async function enroll() {
+    if (!selectedCluster) {
+      return;
+    }
+
     const integrationName = (agentMeta as EksMeta).awsIntegration.name;
     setEnrollmentState({ status: 'enrolling' });
 
@@ -378,6 +382,10 @@ export function EnrollEksCluster(props: AgentStepProps) {
   }
 
   async function handleOnProceed() {
+    if (!confirmedCluster) {
+      return;
+    }
+
     updateAgentMeta({
       ...props.agentMeta,
       kube: confirmedCluster,
@@ -413,6 +421,10 @@ export function EnrollEksCluster(props: AgentStepProps) {
 
   const setJoinTokenAndGetCommand = useCallback(
     (token: JoinToken) => {
+      if (!selectedCluster) {
+        return '';
+      }
+
       setJoinToken(token);
       return generateCmd({
         namespace: 'teleport-agent',

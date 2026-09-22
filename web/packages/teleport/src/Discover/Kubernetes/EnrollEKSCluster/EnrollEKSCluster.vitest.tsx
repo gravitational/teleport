@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
@@ -47,17 +49,18 @@ const defaultIsCloud = cfg.isCloud;
 describe('test EnrollEksCluster.tsx', () => {
   let createDiscoveryConfig;
   beforeEach(() => {
+    vi.restoreAllMocks();
     cfg.isCloud = true;
-    jest
-      .spyOn(KubeService.prototype, 'fetchKubernetes')
-      .mockResolvedValue({ agents: [] });
-    jest
-      .spyOn(userEventService, 'captureDiscoverEvent')
-      .mockResolvedValue(undefined as never);
-    jest
-      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
-      .mockResolvedValue(undefined);
-    createDiscoveryConfig = jest
+    vi.spyOn(KubeService.prototype, 'fetchKubernetes').mockResolvedValue({
+      agents: [],
+    });
+    vi.spyOn(userEventService, 'captureDiscoverEvent').mockResolvedValue(
+      undefined as never
+    );
+    vi.spyOn(auth, 'getMfaChallengeResponseForAdminAction').mockResolvedValue(
+      undefined
+    );
+    createDiscoveryConfig = vi
       .spyOn(discoveryService, 'createDiscoveryConfig')
       .mockResolvedValue({
         name: '',
@@ -68,13 +71,13 @@ describe('test EnrollEksCluster.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('without EKS clusters available, does not attempt to fetch kube clusters', async () => {
-    jest
-      .spyOn(integrationService, 'fetchEksClusters')
-      .mockResolvedValue({ clusters: [] });
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+      clusters: [],
+    });
 
     render(<Component />);
 
@@ -92,7 +95,7 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('with EKS clusters available, makes a fetch request for kube clusters', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
 
@@ -112,10 +115,10 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('auto enroll (cloud) is on by default', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClustersV2');
+    vi.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -152,10 +155,10 @@ describe('test EnrollEksCluster.tsx', () => {
 
   test('auto enroll (self-hosted) is on by default', async () => {
     cfg.isCloud = false;
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClustersV2');
+    vi.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -192,15 +195,15 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('auto enroll disabled, enrolls cluster without labels', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest
-      .spyOn(integrationService, 'enrollEksClustersV2')
-      .mockResolvedValue({} as any); // value doesn't matter
-    jest
-      .spyOn(integrationService, 'enrollEksClusters')
-      .mockResolvedValue({} as any); // value doesn't matter
+    vi.spyOn(integrationService, 'enrollEksClustersV2').mockResolvedValue(
+      {} as any
+    ); // value doesn't matter
+    vi.spyOn(integrationService, 'enrollEksClusters').mockResolvedValue(
+      {} as any
+    ); // value doesn't matter
 
     render(<Component />);
 
@@ -225,13 +228,15 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('enroll eks without labels with v1 fallback', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest
-      .spyOn(integrationService, 'enrollEksClustersV2')
-      .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-    jest.spyOn(integrationService, 'enrollEksClusters');
+    vi.spyOn(integrationService, 'enrollEksClustersV2').mockRejectedValueOnce(
+      new Error(ProxyRequiresUpgrade)
+    );
+    vi.spyOn(integrationService, 'enrollEksClusters').mockResolvedValue({
+      results: [],
+    });
 
     render(<Component />);
 
@@ -251,7 +256,14 @@ describe('test EnrollEksCluster.tsx', () => {
     await screen.findByTestId('dialogbox');
 
     expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
-    expect(integrationService.enrollEksClusters).toHaveBeenCalledTimes(1);
+    expect(
+      integrationService.enrollEksClusters
+    ).toHaveBeenCalledExactlyOnceWith('test-integration', {
+      region: 'us-east-2',
+      enableAppDiscovery: true,
+      clusterNames: ['EKS1'],
+      extraLabels: [],
+    });
   });
 });
 

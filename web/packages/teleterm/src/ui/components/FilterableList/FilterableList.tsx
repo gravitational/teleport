@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment, ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
 import { Input } from 'design';
@@ -54,7 +54,7 @@ export function FilterableList<T>(props: FilterableListProps<T>) {
       />
       <UnorderedList>
         {filteredItems.map((item, index) => (
-          <Fragment key={index}>{props.Node({ item, index })}</Fragment>
+          <props.Node key={index} item={item} index={index} />
         ))}
       </UnorderedList>
     </>

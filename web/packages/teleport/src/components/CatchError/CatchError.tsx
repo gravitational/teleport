@@ -41,6 +41,13 @@ export class CatchError extends React.PureComponent<Props, State> {
 
   render() {
     if (this.state.error) {
+      const { FallbackComponent } = this.props;
+      if (FallbackComponent) {
+        return (
+          <FallbackComponent error={this.state.error} retry={this.retry} />
+        );
+      }
+
       if (this.props.fallbackFn) {
         return this.props.fallbackFn({
           error: this.state.error,
@@ -58,7 +65,7 @@ export class CatchError extends React.PureComponent<Props, State> {
   }
 }
 
-type FallbackFnProp = {
+type FallbackProps = {
   error: Error;
   retry(): void;
 };
@@ -70,5 +77,7 @@ type State = {
 type Props = {
   children: React.ReactNode;
   onRetry?(): void;
-  fallbackFn?(props: FallbackFnProp): React.ReactNode;
+  FallbackComponent?: React.ComponentType<FallbackProps>;
+  /** Render callback. Pass React components through FallbackComponent instead. */
+  fallbackFn?(props: FallbackProps): React.ReactNode;
 };

@@ -152,6 +152,10 @@ export function useCreateDatabase() {
   // fetchDatabaseServer is the callback that is run every interval by the poller.
   // The poller will stop polling once a result returns (a dbServer).
   function fetchDatabaseServer(signal: AbortSignal) {
+    if (!createdDb) {
+      return Promise.resolve(null);
+    }
+
     const request = {
       search: createdDb.name,
       limit: 1,

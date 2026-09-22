@@ -271,6 +271,10 @@ export function DiscoverProvider({
   // The location.state.discover should contain all the state that allows
   // the user to resume from where they left of.
   function resumeDiscoverFlow() {
+    if (!location.state?.discover) {
+      return;
+    }
+
     const { discover, integration } = location.state;
 
     updateAgentMeta({ awsIntegration: integration });

@@ -15,8 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 import userEvent from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -30,13 +32,13 @@ import { JoinTokens } from './JoinTokens';
 
 describe('JoinTokens', () => {
   beforeEach(() => {
-    jest
-      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
-      .mockResolvedValue(undefined);
+    vi.spyOn(auth, 'getMfaChallengeResponseForAdminAction').mockResolvedValue(
+      undefined
+    );
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test('create dialog opens', async () => {
@@ -298,11 +300,11 @@ const Component = ({
 }) => {
   const ctx = createTeleportContext();
 
-  jest
-    .spyOn(ctx.joinTokenService, 'fetchJoinTokens')
-    .mockResolvedValue({ items: tokenList.map(makeJoinToken) });
+  vi.spyOn(ctx.joinTokenService, 'fetchJoinTokens').mockResolvedValue({
+    items: tokenList.map(makeJoinToken),
+  });
 
-  jest.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
+  vi.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
     parseYamlMock ?? {
       spec: {
         join_method: 'iam',
@@ -311,7 +313,7 @@ const Component = ({
     }
   );
 
-  jest.spyOn(ctx.joinTokenService, 'createJoinToken').mockResolvedValue(
+  vi.spyOn(ctx.joinTokenService, 'createJoinToken').mockResolvedValue(
     makeJoinToken({
       id: 'the_token',
       safeName: 'the_token',

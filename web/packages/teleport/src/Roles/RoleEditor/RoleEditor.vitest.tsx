@@ -18,6 +18,7 @@
 
 import { UserEvent } from '@testing-library/user-event';
 import ace from 'ace-builds';
+import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
@@ -54,37 +55,38 @@ let user: UserEvent;
 
 beforeEach(() => {
   user = userEvent.setup();
-  jest.spyOn(yamlService, 'parse').mockImplementation(async (kind, req) => {
+  vi.spyOn(yamlService, 'parse').mockImplementation(async (kind, req) => {
     if (kind != YamlSupportedResourceKind.Role) {
       throw new Error(`Wrong kind: ${kind}`);
     }
     return withDefaults(fromFauxYaml(req.yaml));
   });
-  jest
-    .spyOn(yamlService, 'stringify')
-    .mockImplementation(async (kind, req: YamlStringifyRequest<Role>) => {
+  vi.spyOn(yamlService, 'stringify').mockImplementation(
+    async (kind, req: YamlStringifyRequest<Role>) => {
       if (kind != YamlSupportedResourceKind.Role) {
         throw new Error(`Wrong kind: ${kind}`);
       }
       return toFauxYaml(withDefaults(req.resource));
-    });
-  jest.spyOn(userEventService, 'captureUserEvent').mockImplementation(() => {});
-  jest
-    .spyOn(userEventService, 'captureCreateNewRoleSaveClickEvent')
-    .mockImplementation(() => {});
-  jest
-    .spyOn(ResourceService.prototype, 'fetchRole')
-    .mockImplementation(async name => {
+    }
+  );
+  vi.spyOn(userEventService, 'captureUserEvent').mockImplementation(() => {});
+  vi.spyOn(
+    userEventService,
+    'captureCreateNewRoleSaveClickEvent'
+  ).mockImplementation(() => {});
+  vi.spyOn(ResourceService.prototype, 'fetchRole').mockImplementation(
+    async name => {
       // Pretend that we never have a name collision.
       throw new ApiError({
         message: `role ${name} is not found`,
         response: { status: 404 } as Response,
       });
-    });
+    }
+  );
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
 });
 
@@ -130,7 +132,7 @@ test('rendering and switching tabs for new role', async () => {
 }, 10000);
 
 test('rendering and switching tabs for a non-standard role', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   const originalRole = withDefaults({
     metadata: {
       name: 'some-role',
@@ -193,7 +195,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 
 it('calls onRoleUpdate on each modification in the standard editor', async () => {
   cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
-  const onRoleUpdate = jest.fn();
+  const onRoleUpdate = vi.fn();
   render(<TestRoleEditor demoMode onRoleUpdate={onRoleUpdate} />);
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({ metadata: { name: 'new_role_name' } })
@@ -209,7 +211,7 @@ it('calls onRoleUpdate on each modification in the standard editor', async () =>
 
 it('calls onRoleUpdate after the first rendering of a non-standard role', async () => {
   cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
-  const onRoleUpdate = jest.fn();
+  const onRoleUpdate = vi.fn();
   const nonStandardRole = withDefaults({
     unsupportedField: true,
   } as any as Role);
@@ -289,7 +291,7 @@ test('no double conversions when clicking already active tabs', async () => {
 
 describe('closing the editor', () => {
   function setup(props: Partial<RoleEditorProps> = {}) {
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
     render(<TestRoleEditor onCancel={onCancel} {...props} />);
     return onCancel;
   }
@@ -383,7 +385,7 @@ describe('closing the editor', () => {
 });
 
 test('saving a new role', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(<TestRoleEditor onSave={onSave} />);
 
   await user.clear(screen.getByLabelText('Role Name *'));
@@ -424,7 +426,7 @@ test('saving a new role', async () => {
 
 describe('saving a new role after editing as YAML', () => {
   test('with Access Graph disabled', async () => {
-    const onSave = jest.fn();
+    const onSave = vi.fn();
     render(<TestRoleEditor onSave={onSave} />);
 
     await user.click(getYamlEditorTab());
@@ -457,12 +459,12 @@ describe('saving a new role after editing as YAML', () => {
 
   test('with Access Graph enabled', async () => {
     cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
-    jest
-      .spyOn(storageService, 'getAccessGraphRoleTesterEnabled')
-      .mockReturnValue(true);
+    vi.spyOn(storageService, 'getAccessGraphRoleTesterEnabled').mockReturnValue(
+      true
+    );
 
-    const onRoleUpdate = jest.fn();
-    const onSave = jest.fn();
+    const onRoleUpdate = vi.fn();
+    const onSave = vi.fn();
     render(<TestRoleEditor onRoleUpdate={onRoleUpdate} onSave={onSave} />);
 
     await user.click(getYamlEditorTab());
@@ -504,7 +506,7 @@ describe('saving a new role after editing as YAML', () => {
 });
 
 test('error while saving', async () => {
-  const onSave = jest.fn().mockRejectedValue(new Error('oh noes'));
+  const onSave = vi.fn().mockRejectedValue(new Error('oh noes'));
   render(<TestRoleEditor onSave={onSave} />);
   await forwardToTab('Resources');
   await forwardToTab('Admin Rules');
@@ -514,18 +516,18 @@ test('error while saving', async () => {
 });
 
 test('error while yamlifying', async () => {
-  jest
-    .spyOn(yamlService, 'stringify')
-    .mockRejectedValue(new Error('me no speak yaml'));
+  vi.spyOn(yamlService, 'stringify').mockRejectedValue(
+    new Error('me no speak yaml')
+  );
   render(<TestRoleEditor />);
   await user.click(getYamlEditorTab());
   expect(screen.getByText(/me no speak yaml/)).toBeVisible();
 });
 
 test('error while parsing', async () => {
-  jest
-    .spyOn(yamlService, 'parse')
-    .mockRejectedValue(new Error('me no speak yaml'));
+  vi.spyOn(yamlService, 'parse').mockRejectedValue(
+    new Error('me no speak yaml')
+  );
   render(<TestRoleEditor />);
   await user.click(getYamlEditorTab());
   await user.click(getStandardEditorTab());
@@ -537,13 +539,13 @@ test('error while parsing', async () => {
 
 test('YAML editor is usable even if the standard one throws', async () => {
   // Mock the standard editor to force it to throw an error.
-  jest.spyOn(StandardEditorModule, 'StandardEditor').mockImplementation(() => {
+  vi.spyOn(StandardEditorModule, 'StandardEditor').mockImplementation(() => {
     throw new Error('oh noes, it crashed');
   });
   // Ignore the error being reported on the console.
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(<TestRoleEditor onSave={onSave} />);
   expect(getStandardEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('oh noes, it crashed')).toBeVisible();
@@ -584,13 +586,13 @@ test('YAML editor is usable even if the standard one throws', async () => {
 
 it('YAML editor usable even if the initial conversion throws', async () => {
   // Mock the role converter to force it to throw an error.
-  jest
-    .spyOn(StandardModelModule, 'roleToRoleEditorModel')
-    .mockImplementation(() => {
+  vi.spyOn(StandardModelModule, 'roleToRoleEditorModel').mockImplementation(
+    () => {
       throw new Error('oh noes, it crashed');
-    });
+    }
+  );
   // Ignore the error being reported on the console.
-  jest.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const originalRole = withDefaults({
     metadata: {
@@ -602,7 +604,7 @@ it('YAML editor usable even if the initial conversion throws', async () => {
     },
   });
   const originalYaml = toFauxYaml(originalRole);
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestRoleEditor
       originalRole={{ object: originalRole, yaml: originalYaml }}

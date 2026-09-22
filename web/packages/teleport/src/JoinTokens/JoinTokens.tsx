@@ -123,6 +123,10 @@ export const JoinTokens = () => {
   }
 
   async function handleSave(content: string): Promise<void> {
+    if (!resources.item) {
+      return;
+    }
+
     const token = await ctx.joinTokenService.upsertJoinTokenYAML(
       { content },
       resources.item.id

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
@@ -41,26 +43,27 @@ describe('test EnrollRdsDatabase.tsx', () => {
   let createDiscoveryConfig;
   beforeEach(() => {
     cfg.isCloud = true;
-    jest
-      .spyOn(DatabaseService.prototype, 'fetchDatabases')
-      .mockResolvedValue({ agents: [] });
-    jest
-      .spyOn(DatabaseService.prototype, 'createDatabase')
-      .mockResolvedValue({} as any);
-    jest
-      .spyOn(userEventService, 'captureDiscoverEvent')
-      .mockResolvedValue(undefined as never);
-    createDiscoveryConfig = jest
+    vi.spyOn(DatabaseService.prototype, 'fetchDatabases').mockResolvedValue({
+      agents: [],
+    });
+    vi.spyOn(DatabaseService.prototype, 'createDatabase').mockResolvedValue(
+      {} as any
+    );
+    vi.spyOn(userEventService, 'captureDiscoverEvent').mockResolvedValue(
+      undefined as never
+    );
+    createDiscoveryConfig = vi
       .spyOn(discoveryService, 'createDiscoveryConfig')
       .mockResolvedValue({
         name: '',
         discoveryGroup: '',
         aws: [],
       });
-    jest
-      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
-      .mockResolvedValue({ services: [] });
-    jest.spyOn(integrationService, 'fetchAwsDatabasesVpcs').mockResolvedValue({
+    vi.spyOn(
+      DatabaseService.prototype,
+      'fetchDatabaseServices'
+    ).mockResolvedValue({ services: [] });
+    vi.spyOn(integrationService, 'fetchAwsDatabasesVpcs').mockResolvedValue({
       nextToken: '',
       vpcs: [
         {
@@ -73,7 +76,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   async function selectRegionAndVpc() {
@@ -94,10 +97,29 @@ describe('test EnrollRdsDatabase.tsx', () => {
     await screen.findByText(/selected VPC/i);
   }
 
+  test('waits for a VPC and database selection before enabling enrollment', async () => {
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: mockAwsDbs,
+    });
+    render(<Component />);
+
+    expect(screen.getByText('Next')).toBeDisabled();
+    expect(integrationService.fetchAwsRdsDatabases).not.toHaveBeenCalled();
+    expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
+
+    await selectRegionAndVpc();
+    await screen.findByText(/rds-1/i);
+    expect(screen.getByText('Next')).toBeDisabled();
+    expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio'));
+    expect(screen.getByText('Next')).toBeEnabled();
+  });
+
   test('without rds database result, does not attempt to fetch db servers', async () => {
-    jest
-      .spyOn(integrationService, 'fetchAwsRdsDatabases')
-      .mockResolvedValue({ databases: [] });
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: [],
+    });
 
     render(<Component />);
 
@@ -108,7 +130,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
   });
 
   test('with rds database result, makes a fetch request for db servers', async () => {
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
 
@@ -123,15 +145,44 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(DatabaseService.prototype.fetchDatabases).toHaveBeenCalledTimes(1);
   });
 
+  test('refresh clears the VPC selection before re-fetching the current region', async () => {
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: mockAwsDbs,
+    });
+    render(<Component />);
+    await selectRegionAndVpc();
+    await screen.findByText(/rds-1/i);
+
+    const refresh =
+      Promise.withResolvers<
+        Awaited<ReturnType<typeof integrationService.fetchAwsDatabasesVpcs>>
+      >();
+    const fetchVpcs = vi.mocked(integrationService.fetchAwsDatabasesVpcs);
+    const initialRequest = fetchVpcs.mock.calls[0];
+    fetchVpcs.mockReturnValueOnce(refresh.promise);
+
+    fireEvent.click(screen.getByTitle('Refresh'));
+    expect(fetchVpcs).toHaveBeenCalledTimes(2);
+    expect(fetchVpcs).toHaveBeenLastCalledWith(...initialRequest);
+    expect(screen.queryByText(/rds-1/i)).not.toBeInTheDocument();
+    expect(screen.getByTitle('Refresh')).toBeDisabled();
+
+    await act(async () => refresh.resolve({ nextToken: '', vpcs: [] }));
+    expect(screen.getByText(/There are no VPCs defined/)).toBeInTheDocument();
+    expect(screen.getByTitle('Refresh')).toBeEnabled();
+    expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
+  });
+
   test('auto enrolling with cloud should create discovery config', async () => {
-    jest
-      .spyOn(integrationService, 'fetchAwsRdsDatabases')
-      .mockResolvedValue({ databases: [] });
-    jest
-      .spyOn(integrationService, 'fetchAllAwsRdsEnginesDatabases')
-      .mockResolvedValue({
-        databases: mockAwsDbs,
-      });
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: [],
+    });
+    vi.spyOn(
+      integrationService,
+      'fetchAllAwsRdsEnginesDatabases'
+    ).mockResolvedValue({
+      databases: mockAwsDbs,
+    });
 
     render(<Component />);
 
@@ -161,14 +212,15 @@ describe('test EnrollRdsDatabase.tsx', () => {
   test('auto enrolling with self-hosted should not create discovery config (its done on the next step)', async () => {
     cfg.isCloud = false;
 
-    jest
-      .spyOn(integrationService, 'fetchAwsRdsDatabases')
-      .mockResolvedValue({ databases: [] });
-    jest
-      .spyOn(integrationService, 'fetchAllAwsRdsEnginesDatabases')
-      .mockResolvedValue({
-        databases: mockAwsDbs,
-      });
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: [],
+    });
+    vi.spyOn(
+      integrationService,
+      'fetchAllAwsRdsEnginesDatabases'
+    ).mockResolvedValue({
+      databases: mockAwsDbs,
+    });
 
     render(<Component />);
 
@@ -186,7 +238,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
   });
 
   test('auto enroll disabled, creates database', async () => {
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
 

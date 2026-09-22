@@ -198,6 +198,10 @@ export function SingleEnrollment({
   }
 
   function handleOnProceed({ overwriteDb = false } = {}) {
+    if (!vpc || !selectedDb) {
+      return;
+    }
+
     // Corner case where if registering db fails a user can:
     //   1) change region, which will list new databases or
     //   2) select a different database before re-trying.
