@@ -24,8 +24,10 @@ import (
 	datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	resource_schema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -133,6 +135,87 @@ func GenSchemaLabelsDataSource(ctx context.Context, attr datasource_schema.MapAt
 
 func GenSchemaLabelsResource(ctx context.Context, attr resource_schema.MapAttribute) resource_schema.MapAttribute {
 	return tfschema.GenSchemaLabelsResource(ctx, attr)
+}
+
+// GenSchemaStringValuesDataSource exposes a `repeated google.protobuf.StringValue`
+// field as a plain list of strings rather than a list of single-field objects.
+func GenSchemaStringValuesDataSource(_ context.Context, attr datasource_schema.ListAttribute) datasource_schema.ListAttribute {
+	attr.Optional = true
+	attr.ElementType = types.StringType
+	return attr
+}
+
+// GenSchemaStringValuesResource exposes a `repeated google.protobuf.StringValue`
+// field as a plain list of strings rather than a list of single-field objects.
+func GenSchemaStringValuesResource(ctx context.Context, attr resource_schema.ListAttribute) resource_schema.ListAttribute {
+	attr.Optional = true
+	attr.ElementType = types.StringType
+	return attr
+}
+
+// CopyFromStringValues converts a Terraform list of strings into a slice of
+// [wrapperspb.StringValue]. The received value must be of List type.
+func CopyFromStringValues(diags diag.Diagnostics, v attr.Value, o *[]*wrapperspb.StringValue) {
+	value, ok := v.(types.List)
+	if !ok {
+		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.List", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
+		return
+	}
+
+	*o = make([]*wrapperspb.StringValue, len(value.Elements()))
+	for i, tfValue := range value.Elements() {
+		tfString, ok := tfValue.(types.String)
+		if !ok {
+			diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.String", tfValue))
+			return
+		}
+
+		if tfString.IsNull() || tfString.IsUnknown() {
+			continue
+		}
+
+		(*o)[i] = wrapperspb.String(tfString.ValueString())
+	}
+}
+
+// CopyToStringValues converts a slice of [wrapperspb.StringValue] into a
+// Terraform List with an ElemType of String.
+// Set `preserveUnknown` to preserve unknown values.
+func CopyToStringValues(_ diag.Diagnostics, o []*wrapperspb.StringValue, _ attr.Type, v attr.Value, preserveUnknown bool) attr.Value {
+	listVal, _ := v.(types.List)
+
+	if preserveUnknown && listVal.IsUnknown() {
+		return types.ListUnknown(types.StringType)
+	}
+
+	if o == nil {
+		return types.ListNull(types.StringType)
+	}
+
+	elems := make([]attr.Value, len(o))
+	for i, stringValue := range o {
+		if preserveUnknown &&
+			i < len(listVal.Elements()) &&
+			listVal.Elements()[i] != nil &&
+			listVal.Elements()[i].IsUnknown() {
+			elems[i] = types.StringUnknown()
+			continue
+		}
+
+		if stringValue == nil {
+			elems[i] = types.StringNull()
+			continue
+		}
+
+		elems[i] = types.StringValue(stringValue.GetValue())
+	}
+
+	return types.ListValueMust(types.StringType, elems)
 }
 
 func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {

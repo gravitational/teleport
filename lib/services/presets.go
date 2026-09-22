@@ -893,6 +893,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 					types.NewRule(types.KindBeamsConfig, RW()),
 					types.NewRule(types.KindCertAuthorityOverride, RW()),
+					types.NewRule(types.KindCrownJewel, RW()),
 				},
 			},
 		},
