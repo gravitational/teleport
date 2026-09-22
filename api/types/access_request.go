@@ -35,6 +35,14 @@ type AccessRequest interface {
 	ResourceWithLabels
 	// GetUser gets the name of the requesting user
 	GetUser() string
+	// GetUserInfo gets the requester's stored information.
+	GetUserInfo() *AccessRequestUserInfo
+	// SetUserInfo sets the requester's stored information.
+	SetUserInfo(*AccessRequestUserInfo)
+	// GetSuggestedReviewersInfo gets stored reviewer information keyed by username.
+	GetSuggestedReviewersInfo() map[string]AccessRequestUserInfo
+	// SetSuggestedReviewersInfo sets stored reviewer information keyed by username.
+	SetSuggestedReviewersInfo(map[string]AccessRequestUserInfo)
 	// GetRoles gets the roles being requested by the user
 	GetRoles() []string
 	// SetRoles overrides the roles being requested by the user
@@ -749,12 +757,52 @@ func (r *AccessRequestV3) MatchSearch(values []string) bool {
 
 // SearchableFields returns the stored access request values used for search.
 func (r *AccessRequestV3) SearchableFields() []string {
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
+	display := r.GetUserInfo().UserDisplay()
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser(), display.Primary, display.Secondary)
 	fieldVals = append(fieldVals, r.GetRoles()...)
 	for _, resource := range r.GetRequestedResourceIDs() {
 		fieldVals = append(fieldVals, resource.Name)
 	}
 	return fieldVals
+}
+
+// GetUserInfo gets the requester's stored information.
+func (r *AccessRequestV3) GetUserInfo() *AccessRequestUserInfo {
+	return r.Spec.UserInfo
+}
+
+// SetUserInfo sets the requester's stored information.
+func (r *AccessRequestV3) SetUserInfo(info *AccessRequestUserInfo) {
+	r.Spec.UserInfo = info
+}
+
+// GetSuggestedReviewersInfo gets stored reviewer information keyed by username.
+func (r *AccessRequestV3) GetSuggestedReviewersInfo() map[string]AccessRequestUserInfo {
+	return r.Spec.SuggestedReviewersInfo
+}
+
+// SetSuggestedReviewersInfo sets stored reviewer information keyed by username.
+func (r *AccessRequestV3) SetSuggestedReviewersInfo(info map[string]AccessRequestUserInfo) {
+	r.Spec.SuggestedReviewersInfo = info
+}
+
+// NewAccessRequestUserInfo converts a display to stored user information. It
+// returns nil for an empty display so that nothing is persisted.
+func NewAccessRequestUserInfo(display UserDisplay) *AccessRequestUserInfo {
+	if display == (UserDisplay{}) {
+		return nil
+	}
+	return &AccessRequestUserInfo{
+		Display: &AccessRequestUserDisplay{Primary: display.Primary, Secondary: display.Secondary},
+	}
+}
+
+// UserDisplay returns the stored display, or the zero display when none is stored.
+func (info *AccessRequestUserInfo) UserDisplay() UserDisplay {
+	if info == nil || info.Display == nil {
+		return UserDisplay{}
+	}
+	return UserDisplay{Primary: info.Display.Primary, Secondary: info.Display.Secondary}
 }
 
 // Origin returns the origin value of the resource.

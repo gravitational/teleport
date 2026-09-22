@@ -6083,16 +6083,11 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
 }
 
-func formatUserWithResolvedDisplay(ctx context.Context, getter services.UserGetter, username string) (string, error) {
-	displays, err := services.ResolveUserDisplays(ctx, getter, []string{username})
-	if err != nil {
-		return username, trace.Wrap(err)
+func formatUserWithDisplay(username string, display types.UserDisplay) string {
+	if display.Primary == "" {
+		return username
 	}
-	primaryDisplay := displays[username].Primary
-	if primaryDisplay == "" {
-		return username, nil
-	}
-	return fmt.Sprintf("%s (%s)", primaryDisplay, username), nil
+	return fmt.Sprintf("%s (%s)", display.Primary, username)
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
@@ -6100,9 +6095,12 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
+	var roleSuggestedReviewers []string
 	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
-	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity,
+		expandOpts, services.WithRoleSuggestedReviewersOutput(&roleSuggestedReviewers),
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6141,11 +6139,21 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
+	accesslistSuggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
+	serverSuggestedReviewers := apiutils.Deduplicate(slices.Concat(roleSuggestedReviewers, accesslistSuggestedReviewers))
+
+	if !req.GetDryRun() {
+		// Ensure only reviewers suggested by the server can have their displays enriched later.
+		// This prevents unsanctioned enumeration of other users' display information.
+		requestedReviewers := set.New(req.GetSuggestedReviewers()...)
+		requestedReviewers.Intersection(set.New(serverSuggestedReviewers...))
+		serverSuggestedReviewers = requestedReviewers.Elements()
+	}
+	setAccessRequestUserInfo(ctx, a, req, serverSuggestedReviewers, a.logger)
+
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
-
-		suggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
-		updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
+		req.SetSuggestedReviewers(serverSuggestedReviewers)
 
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		if req.GetRequestKind().IsLongTerm() {
@@ -6223,10 +6231,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		ResourceKinds: apiutils.Deduplicate(resources),
 	})
 
-	requesterDisplay, displayErr := formatUserWithResolvedDisplay(ctx, a, req.GetUser())
-	if displayErr != nil {
-		a.logger.WarnContext(ctx, "Failed to resolve requester display for access request notification", "error", displayErr)
-	}
+	requesterDisplay := formatUserWithDisplay(req.GetUser(), req.GetUserInfo().UserDisplay())
 
 	// Create a notification.
 	var notificationText string
@@ -6413,25 +6418,6 @@ func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, re
 	return suggestedReviewers
 }
 
-// updateAccessRequestWithAdditionalReviewers will update the given access request with the suggested reviewers.
-func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggestedReviewers []string) {
-	if len(suggestedReviewers) == 0 {
-		return
-	}
-
-	// Add additional suggested reviewers and ensure deduplicated.
-	additionalReviewers := set.New[string]()
-
-	for _, suggestedReviewer := range slices.Concat(req.GetSuggestedReviewers(), suggestedReviewers) {
-		additionalReviewers.Add(suggestedReviewer)
-	}
-
-	// Only modify the original request if additional reviewers were found.
-	if additionalReviewers.Len() > len(req.GetSuggestedReviewers()) {
-		req.SetSuggestedReviewers(additionalReviewers.Elements())
-	}
-}
-
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 	if err := a.Services.DeleteAccessRequest(ctx, name); err != nil {
 		return trace.Wrap(err)
@@ -6548,6 +6534,8 @@ func (a *Server) submitAccessReview(
 		return nil, trace.AccessDenied("user %q cannot submit reviews", params.Review.Author)
 	}
 
+	setAccessReviewAuthorInfo(ctx, a, &params.Review, a.logger.With("request_id", params.RequestID))
+
 	// final permission checks and review application must be done by the local backend
 	// service, as their validity depends upon optimistic locking.
 	req, err := a.ApplyAccessReview(ctx, params, checker)
@@ -6576,10 +6564,7 @@ func (a *Server) submitAccessReview(
 
 	// Create a notification.
 	if !req.GetState().IsPending() {
-		actorDisplay, displayErr := formatUserWithResolvedDisplay(ctx, a, params.Review.Author)
-		if displayErr != nil {
-			a.logger.DebugContext(ctx, "Failed to resolve reviewer display for access request notification", "error", displayErr)
-		}
+		actorDisplay := formatUserWithDisplay(params.Review.Author, params.Review.AuthorInfo.UserDisplay())
 		_, err = a.Services.CreateUserNotification(ctx, generateAccessRequestReviewedNotification(req, params, actorDisplay))
 		if err != nil {
 			a.logger.DebugContext(ctx, "Failed to emit access request reviewed notification", "error", err)

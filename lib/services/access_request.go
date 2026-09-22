@@ -1414,6 +1414,9 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		req.SetSystemAnnotations(systemAnnotations)
+		if m.opts.roleSuggestedReviewers != nil {
+			*m.opts.roleSuggestedReviewers = apiutils.Deduplicate(m.suggestedReviewers)
+		}
 
 		// if no suggested reviewers were provided by the user, then
 		// use the defaults suggested by the user's static roles.
@@ -2327,10 +2330,19 @@ func (m *RequestValidator) systemAnnotations(req types.AccessRequest) (map[strin
 }
 
 type ValidateRequestOptions struct {
-	expandVars bool
+	expandVars             bool
+	roleSuggestedReviewers *[]string
 }
 
 type ValidateRequestOption func(*ValidateRequestOptions)
+
+// WithRoleSuggestedReviewersOutput collects the role-derived suggestions during
+// variable expansion.
+func WithRoleSuggestedReviewersOutput(dst *[]string) ValidateRequestOption {
+	return func(v *ValidateRequestOptions) {
+		v.roleSuggestedReviewers = dst
+	}
+}
 
 // WithExpandVars toggles variable expansion during request validation.  Variable expansion includes
 // expanding wildcard requests, setting system annotations, finding applicable roles for

@@ -26,6 +26,7 @@ import { IconProps } from 'design/Icon/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
 import { formattedName } from 'shared/components/AccessRequests/ReviewRequests';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export function PromotedMessage({
@@ -41,7 +42,15 @@ export function PromotedMessage({
   py?: number;
   assumeAccessList(): void;
 }) {
-  const { promotedAccessListTitle, user } = request;
+  const { promotedAccessListTitle, user, userDisplay } = request;
+  const requester = (
+    <UserDisplayName
+      username={user}
+      primaryText={userDisplay?.primary}
+      primaryTextProps={{ style: { font: 'inherit' } }}
+      layout="inline"
+    />
+  );
 
   return (
     <Box px={px} py={py}>
@@ -57,9 +66,9 @@ export function PromotedMessage({
           </>
         ) : (
           <>
-            {user} is now a member of Access List{' '}
-            <b>{promotedAccessListTitle}</b> which grants {user} the resources
-            requested.
+            {requester} is now a member of Access List{' '}
+            <b>{promotedAccessListTitle}</b> which grants {requester} the
+            resources requested.
           </>
         )}
       </Text>

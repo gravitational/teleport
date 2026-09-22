@@ -3384,8 +3384,14 @@ message AccessRequestDryRunEnrichment {
   reserved "UserDisplays";
 }
 
-// AccessRequestUserDisplay holds read-time display values derived from a user
-// resource.
+// AccessRequestUserInfo holds server-resolved user information captured when an
+// Access Request is created or reviewed.
+message AccessRequestUserInfo {
+  // Display holds the user's display values resolved at write time.
+  AccessRequestUserDisplay Display = 1 [(gogoproto.jsontag) = "display,omitempty"];
+}
+
+// AccessRequestUserDisplay holds display values derived from a user resource.
 message AccessRequestUserDisplay {
   // Primary is a human-readable display name derived from the user's traits.
   // Empty when the user has no display value distinct from their username.
@@ -3445,6 +3451,10 @@ message AccessReview {
   // Determines if the review was submitted by a Teleport identity (eg. plugin) on behalf of
   // the Author.
   bool submitted_on_behalf_of_author = 12;
+
+  // AuthorInfo holds information about the author captured when the review is
+  // submitted.
+  AccessRequestUserInfo AuthorInfo = 13 [(gogoproto.jsontag) = "author_info,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -3645,6 +3655,16 @@ message AccessRequestSpecV3 {
   repeated ResourceAccessID RequestedResourceAccessIDs = 26 [
     (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
+  ];
+
+  // UserInfo holds information about the requester captured when the request is
+  // created.
+  AccessRequestUserInfo UserInfo = 27 [(gogoproto.jsontag) = "user_info,omitempty"];
+  // SuggestedReviewersInfo holds information about suggested reviewers the server
+  // itself would suggest, keyed by username.
+  map<string, AccessRequestUserInfo> SuggestedReviewersInfo = 28 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_reviewers_info,omitempty"
   ];
 }
 
