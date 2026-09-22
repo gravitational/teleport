@@ -37,11 +37,7 @@ type Terminable interface {
 func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 	ctx := context.Background()
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC,
-		syscall.SIGTERM, // graceful shutdown
-		syscall.SIGINT,  // graceful-then-fast shutdown
-		syscall.SIGUSR1, // capture pprof profiles
-	)
+	signal.Notify(sigC, signals...)
 	defer signal.Stop(sigC)
 
 	gracefulShutdown := func() {
@@ -67,7 +63,7 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 			}
 			go gracefulShutdown()
 			alreadyInterrupted = true
-		case syscall.SIGUSR1:
+		case SIGUSR1:
 			if p, ok := app.(interface{ Profile() }); ok {
 				go p.Profile()
 			}

@@ -66,18 +66,6 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	}
 }
 
-// teleportSignals contains all the signals that
-// [TeleportProcess.WaitForSignals] cares about.
-var teleportSignals = []os.Signal{
-	// Note: SIGKILL can't be trapped.
-	syscall.SIGQUIT, // graceful shutdown
-	syscall.SIGTERM, // fast shutdown
-	syscall.SIGINT,  // fast shutdown
-	syscall.SIGUSR1, // log process diagnostic info
-	syscall.SIGUSR2, // initiate process restart procedure
-	syscall.SIGHUP,  // graceful restart procedure
-}
-
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan os.Signal) error {
@@ -120,7 +108,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 					process.logger.InfoContext(process.ExitContext(), "All services stopped or timeout passed, exiting immediately.")
 				}
 				return nil
-			case syscall.SIGUSR1:
+			case SIGUSR1:
 				// All programs placed diagnostics on the standard output.
 				// This had always caused trouble when the output was redirected into a file, but became intolerable
 				// when the output was sent to an unsuspecting process.
@@ -132,7 +120,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
 				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR1, logging diagnostic info to stderr.")
 				writeDebugInfo(os.Stderr)
-			case syscall.SIGUSR2:
+			case SIGUSR2:
 				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR2, forking a new process.")
 				if err := process.forkChild(); err != nil {
 					process.logger.WarnContext(process.ExitContext(), "Failed to fork process", "error", err)
