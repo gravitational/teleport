@@ -37,3 +37,27 @@ const (
 	// opens the stream, so a healthy client sends init right away.
 	PublicEnrollDeviceFirstMessageTimeout = 10 * time.Second
 )
+
+const (
+	// PublicAuthenticateDeviceTimeout is the maximum time the Auth Service allows
+	// the authentication ceremony to take.
+	//
+	// The ceremony has a human step in it: the mobile app asks the user to
+	// confirm their presence with biometry or a passcode before it signs the
+	// challenge.
+	PublicAuthenticateDeviceTimeout = 5 * time.Minute
+
+	// PublicAuthenticateDeviceProxyTimeout is the timeout for the
+	// AuthenticateDevice stream the Proxy Service forwards to the Auth Service.
+	// It is longer than PublicAuthenticateDeviceTimeout so that the Auth Service
+	// normally ends the ceremony, tells the caller why and records the timeout in
+	// the audit trail. The proxy's timeout only fires if the Auth Service does
+	// not answer.
+	PublicAuthenticateDeviceProxyTimeout = PublicAuthenticateDeviceTimeout + 30*time.Second
+
+	// PublicAuthenticateDeviceFirstMessageTimeout is how long the Proxy Service
+	// waits for the init message of AuthenticateDevice. The mobile app holds the
+	// device web token before it opens the stream, so a healthy client sends init
+	// right away.
+	PublicAuthenticateDeviceFirstMessageTimeout = 10 * time.Second
+)

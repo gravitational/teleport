@@ -79,12 +79,16 @@ func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *public
 // message within [devicetrust.PublicEnrollDeviceFirstMessageTimeout]. It is a
 // LimitExceededError because the caller ran into a limit the server imposes on
 // the stream, rather than just a regular exceeded deadline.
-var errEnrollDeviceFirstMessageTimeout = &trace.LimitExceededError{Message: "device enrollment timed out waiting for the init message"}
+var errEnrollDeviceFirstMessageTimeout = &trace.LimitExceededError{
+	Message: "device enrollment timed out waiting for the init message",
+}
 
 // errEnrollDeviceProxyTimeout ends a stream that outlived
 // [devicetrust.PublicEnrollDeviceProxyTimeout]. See
 // [errEnrollDeviceFirstMessageTimeout] for the choice of error type.
-var errEnrollDeviceProxyTimeout = &trace.LimitExceededError{Message: "device enrollment timed out on the proxy"}
+var errEnrollDeviceProxyTimeout = &trace.LimitExceededError{
+	Message: "device enrollment timed out on the proxy",
+}
 
 // EnrollDevice forwards the enrollment ceremony stream to the same RPC in the
 // Auth Service.
@@ -101,6 +105,39 @@ func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDe
 		},
 		grpcutils.WithFirstClientMessageTimeout(devicetrust.PublicEnrollDeviceFirstMessageTimeout, errEnrollDeviceFirstMessageTimeout),
 		grpcutils.WithStreamTimeout(devicetrust.PublicEnrollDeviceProxyTimeout, errEnrollDeviceProxyTimeout),
+	)
+	return trace.Wrap(err)
+}
+
+// errAuthenticateDeviceFirstMessageTimeout ends a stream whose client sent no
+// init message within [devicetrust.PublicAuthenticateDeviceFirstMessageTimeout].
+// It is a LimitExceededError because the caller ran into a limit the server
+// imposes on the stream, rather than just a regular exceeded deadline.
+var errAuthenticateDeviceFirstMessageTimeout = &trace.LimitExceededError{
+	Message: "device authentication timed out waiting for the init message",
+}
+
+// errAuthenticateDeviceProxyTimeout ends a stream that outlived
+// [devicetrust.PublicAuthenticateDeviceProxyTimeout]. See
+// [errAuthenticateDeviceFirstMessageTimeout] for the choice of error type.
+var errAuthenticateDeviceProxyTimeout = &trace.LimitExceededError{
+	Message: "device authentication timed out on the proxy",
+}
+
+// AuthenticateDevice forwards the authentication ceremony stream to the same
+// RPC in the Auth Service.
+func (s *Service) AuthenticateDevice(stream publicdevicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+	err := grpcutils.ProxyBidiStream(s.log, stream,
+		func(ctx context.Context) (publicdevicepb.DeviceTrustService_AuthenticateDeviceClient, error) {
+			ctx, err := clientAddrContext(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			server, err := s.authClient.PublicDevicesClient().AuthenticateDevice(ctx)
+			return server, trace.Wrap(err)
+		},
+		grpcutils.WithFirstClientMessageTimeout(devicetrust.PublicAuthenticateDeviceFirstMessageTimeout, errAuthenticateDeviceFirstMessageTimeout),
+		grpcutils.WithStreamTimeout(devicetrust.PublicAuthenticateDeviceProxyTimeout, errAuthenticateDeviceProxyTimeout),
 	)
 	return trace.Wrap(err)
 }
