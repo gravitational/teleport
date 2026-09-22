@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -161,6 +162,20 @@ func (res *CalculateOverrideResult) ToClientOverrideDetailsProto() *proto.CAOver
 		return nil
 	}
 	return &proto.CAOverrideCertificateDetails{
+		PublicKeyHash: res.PublicKeyHash,
+	}
+}
+
+// ToEventOverrideDetailsProto returns an [events.CAOverrideCertificateDetails]
+// instance matching the CalculateOverrideResult.
+//
+// Returns nil if OverrideActive is false.
+func (res *CalculateOverrideResult) ToEventOverrideDetailsProto() *events.CAOverrideCertificateDetails {
+	if res == nil || !res.OverrideActive {
+		return nil
+	}
+	return &events.CAOverrideCertificateDetails{
+		Active:        true,
 		PublicKeyHash: res.PublicKeyHash,
 	}
 }

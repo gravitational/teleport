@@ -263,15 +263,16 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	var cred *workloadidentityv1pb.Credential
 	switch req.WhichCredential() {
 	case workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams_case:
-		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
+		issuer, err := s.getX509Issuer(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
 		cred, err = s.issueX509SVID(
 			ctx,
 			issueX509SVIDParams{
-				ca:                    ca,
-				chain:                 chain,
+				ca:                    issuer.ca,
+				chain:                 issuer.chain,
+				caOverride:            issuer.caOverride,
 				workloadIdentity:      decision.templatedWorkloadIdentity,
 				x509Params:            req.GetX509SvidParams(),
 				requestedTTL:          req.GetRequestedTtl().AsDuration(),
@@ -380,7 +381,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
 	switch req.WhichCredential() {
 	case workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams_case:
-		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
+		issuer, err := s.getX509Issuer(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
@@ -388,8 +389,9 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 			cred, err := s.issueX509SVID(
 				ctx,
 				issueX509SVIDParams{
-					ca:               ca,
-					chain:            chain,
+					ca:               issuer.ca,
+					chain:            issuer.chain,
+					caOverride:       issuer.caOverride,
 					workloadIdentity: wi,
 					x509Params:       req.GetX509SvidParams(),
 					requestedTTL:     req.GetRequestedTtl().AsDuration(),
@@ -514,7 +516,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 	}
 
 	// AppClient CA doesn't support workload identity CA override.
-	ca, chain, err := s.getX509CA(ctx, types.AppClientCA, false /* useIssuerOverrides */)
+	issuer, err := s.getX509Issuer(ctx, types.AppClientCA, false /* useIssuerOverrides */)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 	}
@@ -564,9 +566,9 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 				CommonName: userIdentity.Username,
 			}.Build(),
 		),
-		ca.Cert,
+		issuer.ca.Cert,
 		pubKey,
-		ca.Signer,
+		issuer.ca.Signer,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -582,7 +584,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 			X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{
 				Cert:         certBytes,
 				SerialNumber: serialString(certSerial),
-				Chain:        chain,
+				Chain:        issuer.chain,
 			}.Build(),
 		}.Build(),
 	}.Build(), nil
@@ -751,7 +753,16 @@ func x509Template(
 	return c
 }
 
-// getX509CA returns the X.509 CA and trust chain used to sign SVIDs.
+type x509Issuer struct {
+	// ca signs the SVID. Its certificate is the SVID's issuer.
+	ca *tlsca.CertAuthority
+	// chain is the DER-encoded trust chain. Empty when no override took effect.
+	chain [][]byte
+	// caOverride describes the CA override for the issuance audit event. Nil when no override took effect.
+	caOverride *apievents.CAOverrideCertificateDetails
+}
+
+// getX509Issuer returns the X.509 issuer used to sign SVIDs.
 //
 // If useIssuerOverrides is false, the self-signed CA is returned with no chain. Otherwise, the CA is resolved in order
 // of precedence:
@@ -764,12 +775,12 @@ func x509Template(
 // CA resource, and tbot's Workload API bundle built from it) still contains only the self-signed Teleport SPIFFE CA.
 // This is deliberate (RFD 0194): a relying party that trusts an override hierarchy instead of Teleport's must obtain
 // that hierarchy's root out of band.
-func (s *IssuanceService) getX509CA(
+func (s *IssuanceService) getX509Issuer(
 	ctx context.Context,
 	caType types.CertAuthType,
 	useIssuerOverrides bool,
-) (_ *tlsca.CertAuthority, _ [][]byte, err error) {
-	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
+) (_ *x509Issuer, err error) {
+	ctx, span := tracer.Start(ctx, "IssuanceService/getX509Issuer")
 	defer func() { tracing.EndSpan(span, err) }()
 
 	const loadKeysTrue = true
@@ -778,17 +789,20 @@ func (s *IssuanceService) getX509CA(
 		DomainName: s.clusterName,
 	}, loadKeysTrue)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if !useIssuerOverrides {
 		selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
-		return selfSignedCA, nil, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &x509Issuer{ca: selfSignedCA}, nil
 	}
 
 	subCAResolver, err := subca.LoadCAOverrideResolver(
@@ -801,7 +815,7 @@ func (s *IssuanceService) getX509CA(
 		},
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if !subCAResolver.HasCAOverride() {
@@ -811,27 +825,45 @@ func (s *IssuanceService) getX509CA(
 		// TODO(cthach): DELETE IN v20 remove this entire block in favor of CalculateOverride below.
 		selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
-		return signingCA, chain, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// The legacy getter gives no direct signal about whether an override applied. It only returns selfSignedCA
+		// unchanged when none does. An applied override keeps the CA key and swaps only the certificate so compare
+		// certificates to tell the two apart.
+		var caOverride *apievents.CAOverrideCertificateDetails
+		if !signingCA.Cert.Equal(selfSignedCA.Cert) {
+			caOverride = &apievents.CAOverrideCertificateDetails{
+				Active:        true,
+				PublicKeyHash: subca.HashCertificatePublicKey(signingCA.Cert),
+			}
+		}
+
+		return &x509Issuer{ca: signingCA, chain: chain, caOverride: caOverride}, nil
 	}
 
-	// TODO(cthach): Include the CA override details in the SVID issuance audit event.
 	result, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tlsCA, err := tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	chain, err := certificatesToDER(result.CAChain)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return tlsCA, chain, nil
+	return &x509Issuer{
+		ca:         tlsCA,
+		chain:      chain,
+		caOverride: result.ToEventOverrideDetailsProto(),
+	}, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
@@ -954,6 +986,7 @@ func calculateTTL(
 type issueX509SVIDParams struct {
 	ca                    *tlsca.CertAuthority
 	chain                 [][]byte
+	caOverride            *apievents.CAOverrideCertificateDetails
 	workloadIdentity      *workloadidentityv1pb.WorkloadIdentity
 	x509Params            *workloadidentityv1pb.X509SVIDParams
 	requestedTTL          time.Duration
@@ -1034,6 +1067,7 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
 	evt.DNSSANs = params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans()
+	evt.CAOverride = params.caOverride
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(
 			ctx,
