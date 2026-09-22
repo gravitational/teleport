@@ -708,10 +708,21 @@ export const formatters: Formatters = {
   [eventCodes.APP_SESSION_REQUEST_DENIED]: {
     type: 'app.session.request.denied',
     desc: 'App Request Denied',
-    format: ({ user, app_name, method, path, deny_kind, server_version }) =>
-      deny_kind === 'teleport_role_version_unsupported'
-        ? `User [${user}] was denied [${method} ${path}] for application [${app_name}] by an incompatible app service running [${server_version || 'unknown version'}]`
-        : `User [${user}] was denied [${method} ${path}] for application [${app_name}] because no rule allows it`,
+    format: ({ user, app_name, method, path, deny_kind, server_version }) => {
+      const request = `User [${user}] was denied [${method} ${path}] for application [${app_name}]`;
+      switch (deny_kind) {
+        case 'teleport_role_version_unsupported':
+          return `${request} by an incompatible app service running [${server_version || 'unknown version'}]`;
+        case 'teleport_invalid_request':
+          return `${request} because the request path or method is invalid`;
+        case 'teleport_too_many_rules':
+          return `${request} because their roles exceed the app_resources limits`;
+        case 'teleport_request_not_allowed':
+          return `${request} because no rule allows it`;
+        default:
+          return `${request} [${deny_kind}]`;
+      }
+    },
   },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',

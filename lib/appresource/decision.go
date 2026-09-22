@@ -79,8 +79,9 @@ const (
 	// role or a rule is a version this agent cannot evaluate, as in a
 	// mixed-version cluster.
 	DenyRoleVersionUnsupported DenyKind = "teleport_role_version_unsupported"
-	// DenyInvalidRequest is the denial category for a malformed request
-	// path, e.g. containing a ".." segment. No rule is evaluated.
+	// DenyInvalidRequest is the kind for a request with a malformed path
+	// (e.g. "..", "//") or a method that is not accepted. No rule is
+	// evaluated.
 	DenyInvalidRequest DenyKind = "teleport_invalid_request"
 	// DenyTooManyRules is the kind for a request whose roles hold more than
 	// maxRulesPerRequest rules combined. No rule is evaluated.
@@ -96,7 +97,8 @@ type Decision struct {
 	Allow *AllowDetails
 	// Deny contains details iff Allowed is false.
 	Deny *DenyDetails
-	// Roles lists the caller's roles, in evaluation order.
+	// Roles are the evaluated roles in evaluation order, followed by the
+	// roles that were not evaluated.
 	Roles []string
 }
 
@@ -104,6 +106,8 @@ type Decision struct {
 type AllowDetails struct {
 	// Role is the name of the role whose rule matched.
 	Role string
+	// AllowAll is true when the matching rule is an allow_all rule.
+	AllowAll bool
 	// Vars contains the path segments the matching rule captured.
 	Vars map[string]string
 	// Code is the matching rule's allow_code.
@@ -130,6 +134,22 @@ type decisionJSON struct {
 	AllowReason string            `json:"allow_reason,omitempty"`
 	DenyKind    DenyKind          `json:"deny_kind,omitempty"`
 	Hints       []Hint            `json:"hints,omitempty"`
+}
+
+// ClientJSON encodes the part of the decision a denied caller receives, the
+// deny kind and the hints. It omits the roles, which go to the audit event.
+func (d Decision) ClientJSON() []byte {
+	out := struct {
+		Allowed  bool     `json:"allowed"`
+		DenyKind DenyKind `json:"deny_kind,omitempty"`
+		Hints    []Hint   `json:"hints,omitempty"`
+	}{Allowed: d.Allowed}
+	if !d.Allowed && d.Deny != nil {
+		out.DenyKind = d.Deny.Kind
+		out.Hints = d.Deny.Hints
+	}
+	b, _ := json.Marshal(out)
+	return b
 }
 
 // MarshalJSON encodes the decision in its flat wire form, with unset fields

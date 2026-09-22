@@ -20,8 +20,11 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
-	"slices"
+	"strconv"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,38 +39,24 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// denyBodyRequestNotAllowed is the 403 response body for a request no v9 rule
-// allows.
-const denyBodyRequestNotAllowed = string(appresource.DenyNotAllowed)
+// denyKindInternalAccessError is the deny kind a client reads for a denial
+// only an admin can act on, by updating a role or upgrading the agent. The
+// real kind goes to the audit event, not to the client.
+const denyKindInternalAccessError appresource.DenyKind = "teleport_internal_access_error"
 
-// denyBodyInternalAccessError is the 500 response body for a denial the
-// caller cannot act on, where an admin must update a role or upgrade the
-// agent. The audit event contains the reason. The client does not
-// receive it.
-const denyBodyInternalAccessError = "teleport_internal_access_error"
+// contentTypeJSON is the Content-Type of every deny response body.
+const contentTypeJSON = "application/json"
 
-// minimalV9Decision is the outcome of the minimal v9 default-deny check
-// for one HTTP app request. Only allow_all is honored.
-//
-// TODO(@juliaogris): Replace with per-request rule matching from the
-// upcoming lib/appresource engine package.
-type minimalV9Decision struct {
-	// enforced is true when a v9 role grants the app, so v9 default-deny
-	// governs the request instead of v8 pass-through.
-	enforced bool
-	// allowed is true when a granting v9 role sets allow_all, which
-	// forwards the request untouched, exactly as v8 did.
-	allowed bool
-	// droppedRoles names the pre-v9 roles dropped because a v9 role grants
-	// the same app. They are logged, never allowed to re-open access.
-	droppedRoles []string
-	// versionSkew is true when the roles set app rules, predicates, or
-	// versions a newer Teleport wrote and this version cannot evaluate.
-	// The cases are deny-side rules or predicates, allow rules beyond a
-	// single pure allow_all, allow-side predicates, and a role version
-	// above v9.
-	versionSkew bool
-}
+// The kinds of v9 enforcement warning. Each kind is logged once per user and
+// app.
+const (
+	warnAppType  = "apptype"
+	warnDropped  = "drop"
+	warnDenyRule = "deny"
+	warnSkew     = "skew"
+	warnEvaluate = "evaluate"
+	warnCORS     = "cors"
+)
 
 // denyResponse is what the agent sends and records for one denied request.
 type denyResponse struct {
@@ -79,132 +68,141 @@ type denyResponse struct {
 	status int
 }
 
-// newDenyResponse builds the response for a denied request. Version skew
-// returns a 500 with a generic body, because only an admin can act on it.
-func newDenyResponse(decision minimalV9Decision) denyResponse {
-	if decision.versionSkew {
-		return denyResponse{
-			kind:   appresource.DenyRoleVersionUnsupported,
-			body:   denyBodyInternalAccessError,
-			status: http.StatusInternalServerError,
-		}
+// newDenyResponse returns the response for a deny decision. Every body is the
+// JSON of [appresource.Decision.ClientJSON]. A denial only an admin can act on
+// (DenyRoleVersionUnsupported, DenyTooManyRules) is a 500 whose body names
+// denyKindInternalAccessError instead of the real kind. A malformed path
+// (DenyInvalidRequest) is a 400, and any other denial is a 403.
+func newDenyResponse(decision appresource.Decision) denyResponse {
+	kind := decision.Deny.Kind
+	switch kind {
+	case appresource.DenyRoleVersionUnsupported, appresource.DenyTooManyRules:
+		redacted := appresource.Decision{Deny: &appresource.DenyDetails{Kind: denyKindInternalAccessError}}
+		return denyResponse{kind: kind, body: string(redacted.ClientJSON()), status: http.StatusInternalServerError}
+	case appresource.DenyInvalidRequest:
+		return denyResponse{kind: kind, body: string(decision.ClientJSON()), status: http.StatusBadRequest}
 	}
-	return denyResponse{
-		kind:   appresource.DenyNotAllowed,
-		body:   denyBodyRequestNotAllowed,
-		status: http.StatusForbidden,
+	return denyResponse{kind: kind, body: string(decision.ClientJSON()), status: http.StatusForbidden}
+}
+
+// write sends the response.
+func (d denyResponse) write(w http.ResponseWriter) {
+	body := d.body + "\n"
+	w.Header().Set("Content-Type", contentTypeJSON)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(d.status)
+	fmt.Fprint(w, body)
+}
+
+// versionSkewDecision returns the deny decision for a request this version
+// of Teleport cannot evaluate.
+func versionSkewDecision() *appresource.Decision {
+	return &appresource.Decision{Deny: &appresource.DenyDetails{Kind: appresource.DenyRoleVersionUnsupported}}
+}
+
+// stripRequestOverrideHeaders removes the request method and path override
+// headers, except on a request an allow_all rule allowed.
+func stripRequestOverrideHeaders(r *http.Request, decision appresource.Decision) {
+	if decision.Allow != nil && decision.Allow.AllowAll {
+		return
+	}
+	for name := range r.Header {
+		if common.IsRequestOverrideHeader(name) {
+			delete(r.Header, name)
+		}
 	}
 }
 
-// decideMinimalV9 applies the minimal v9 policy to the caller's roles that
-// grant app. If only pre-v9 roles grant it, the request keeps full v8
-// behavior. Otherwise pre-v9 roles granting the app are dropped and the
-// request is denied unless a granting v9 role holds a single allow_all rule,
-// sets no app_resources_expressions, and no role sets a deny-side rule or
-// predicate. A role newer than v9 still enforces but never allows, since it
-// may set restrictions this version cannot evaluate.
-//
-// TODO(@juliaogris): Replace with per-request rule matching from the
-// upcoming lib/appresource engine package.
-func decideMinimalV9(roles []types.Role, app types.Application, username string, traits wrappers.Traits) minimalV9Decision {
-	// This version cannot evaluate deny-side app rules or predicates, which
-	// could only occur in roles from newer versions. Deny beats allow across
-	// the whole role set, so any role that sets either blocks allow_all and
-	// the request is denied.
-	denyAppRules := slices.ContainsFunc(roles, func(role types.Role) bool {
-		return len(role.GetAppResources(types.Deny)) > 0 ||
-			len(role.GetAppResourcesExpressions(types.Deny)) > 0
-	})
-
-	decision := minimalV9Decision{versionSkew: denyAppRules}
-	for _, role := range roles {
-		if !services.RoleGrantsResource(role, app, username, traits) {
-			continue
-		}
-		if appresource.RoleVersionPredatesV9(role.GetVersion()) {
-			decision.droppedRoles = append(decision.droppedRoles, role.GetName())
-			continue
-		}
-		decision.enforced = true
-		if role.GetVersion() != types.V9 {
-			// A newer version may add restrictions this agent cannot
-			// evaluate, so a role above v9 denies rather than allows, even
-			// when its known fields look like a plain allow_all.
-			decision.versionSkew = true
-			continue
-		}
-		allow := role.GetAppResources(types.Allow)
-		allowExpressions := role.GetAppResourcesExpressions(types.Allow)
-		switch {
-		case len(allowExpressions) > 0:
-			// A predicate restricts the rules it accompanies, and this
-			// version cannot evaluate one, so the role denies whether or
-			// not its declarative rules read as allow_all.
-			decision.versionSkew = true
-		case types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)):
-			decision.allowed = !denyAppRules
-		case len(allow) > 0:
-			// This version can only write a single pure allow_all rule, so
-			// any other non-empty rule set must come from a newer version.
-			decision.versionSkew = true
-		}
-	}
-	if !decision.enforced {
-		decision.droppedRoles = nil
-		decision.versionSkew = false
-	}
-	return decision
-}
-
-// enforceMinimalV9 applies role v9 fine-grained app access rules to a plain
-// HTTP app request.
-//
-// It returns true in the denial case, when a response has already been
-// written, and false otherwise. Every denial emits one audit event with the
-// reason. Cloud apps (AWS console, Azure, GCP) and LLM apps should never
-// reach this path but they are defensively skipped.
-//
-// TODO(@juliaogris): Replace with per-request rule matching from the
-// upcoming lib/appresource engine package.
-func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Request, authCtx *authz.Context, app types.Application) (bool, error) {
+// appResourcesDenial applies the app_resources rules of the caller's roles to
+// a plain HTTP app request. It returns nil when the request is allowed, and
+// the response to write when it is denied. Every denial emits one audit event
+// with the deny kind. The app kinds [appresource.GovernsApp] excludes should
+// never reach this path but they are defensively skipped.
+func (c *ConnectionsHandler) appResourcesDenial(r *http.Request, authCtx *authz.Context, app types.Application) *denyResponse {
 	identity := authCtx.Identity.GetIdentity()
 	log := c.log.With("app", app.GetName(), "user", identity.Username)
 	if !appresource.GovernsApp(app) {
 		// Skip rather than deny, because v9 does not restrict these app types
 		// and denying would break a working app on a routing bug.
-		if c.v9WarnOnce("apptype", identity.Username, app.GetName()) {
+		if c.v9WarnOnce(warnAppType, identity.Username, app.GetName()) {
 			log.WarnContext(r.Context(), "Skipped app_resources enforcement because RoleV9 does not govern this app type.", "app_sub_kind", app.GetSubKind())
 		}
-		return false, nil
+		return nil
 	}
 
-	decision := decideMinimalV9(authCtx.Checker.Roles(), app, identity.Username, authCtx.Checker.Traits())
-
-	if !decision.enforced {
+	decision := c.decideAppResources(r, log, authCtx, app)
+	if decision == nil {
 		// Only v8 or older roles grant this app, so v8 pass-through applies.
-		return false, nil
+		return nil
+	}
+	if decision.Allowed {
+		stripRequestOverrideHeaders(r, *decision)
+		return nil
 	}
 
-	if len(decision.droppedRoles) > 0 && c.v9WarnOnce("drop", identity.Username, app.GetName()) {
-		log.WarnContext(r.Context(), "Dropped v8-or-older roles that grant a v9-governed app; v8 roles cannot re-open unrestricted access.", "dropped_roles", decision.droppedRoles)
+	if isCORSPreflight(r) && c.v9WarnOnce(warnCORS, identity.Username, app.GetName()) {
+		log.WarnContext(r.Context(), "Denied CORS preflight: no rule allows the OPTIONS method, so the preflight is denied by default.", "missing_method", http.MethodOptions)
 	}
 
-	if decision.allowed {
-		return false, nil
-	}
-
-	if decision.versionSkew && c.v9WarnOnce("skew", identity.Username, app.GetName()) {
-		log.WarnContext(r.Context(), "Denied app request: the user's roles carry app_resources rules or role versions that this Teleport version does not implement, and unimplemented rules deny by default. Upgrade this app agent to enforce the intended rules.")
-	}
-
-	if isCORSPreflight(r) && c.v9WarnOnce("cors", identity.Username, app.GetName()) {
-		log.WarnContext(r.Context(), "Denied CORS preflight: the app denies requests by default and no v9 rule allows OPTIONS.")
-	}
-
-	deny := newDenyResponse(decision)
+	deny := newDenyResponse(*decision)
 	c.emitRequestDenied(r, &identity, app, deny.kind)
-	http.Error(w, deny.body, deny.status)
-	return true, nil
+	return &deny
+}
+
+// decideAppResources evaluates the request against the app_resources rules of
+// the caller's roles that grant app access. It returns nil when no role of v9
+// or newer grants app access, so the request keeps full v8 behavior.
+func (c *ConnectionsHandler) decideAppResources(r *http.Request, log *slog.Logger, authCtx *authz.Context, app types.Application) *appresource.Decision {
+	identity := authCtx.Identity.GetIdentity()
+	roles := authCtx.Checker.Roles()
+	traits := authCtx.Checker.Traits()
+
+	partition := appresource.PartitionRoles(grantingRoles(roles, app, identity.Username, traits))
+	if !partition.Enforced() {
+		return nil
+	}
+	// Deny overrides allow, so a rule in the deny block this version of
+	// Teleport cannot evaluate denies the request, regardless of labels or
+	// other roles.
+	if name, ok := appresource.HasDenyRules(roles); ok {
+		if c.v9WarnOnce(warnDenyRule, identity.Username, app.GetName()) {
+			log.WarnContext(r.Context(), "Denied app request: a role sets app_resources or app_resources_expressions under deny, which this Teleport version does not implement, and unimplemented rules deny by default. Remove the deny rule to restore access.", "role", name)
+		}
+		return versionSkewDecision()
+	}
+	if len(partition.IgnoredRoleNames) > 0 && c.v9WarnOnce(warnDropped, identity.Username, app.GetName()) {
+		log.WarnContext(r.Context(), "Dropped v8-or-older roles that grant a v9-governed app; v8 roles cannot re-open unrestricted access.", "dropped_roles", partition.IgnoredRoleNames)
+	}
+	if len(partition.Errors) > 0 && c.v9WarnOnce(warnSkew, identity.Username, app.GetName()) {
+		errs := make([]error, 0, len(partition.Errors))
+		for _, err := range partition.Errors {
+			errs = append(errs, err)
+		}
+		log.WarnContext(r.Context(), "Dropped roles with app_resources rules or role versions this Teleport version does not implement. Unimplemented rules deny by default. Upgrade this app agent to enforce the intended rules.", "error", errors.Join(errs...))
+	}
+
+	request := appresource.Request{Method: r.Method, Path: r.URL.EscapedPath()}
+	caller := appresource.Identity{Name: identity.Username, Roles: authCtx.Checker.RoleNames(), Traits: traits}
+	decision, err := partition.Evaluate(request, caller)
+	if err != nil {
+		if c.v9WarnOnce(warnEvaluate, identity.Username, app.GetName()) {
+			log.WarnContext(r.Context(), "Denied app request: a rule could not be evaluated.", "error", err)
+		}
+		return versionSkewDecision()
+	}
+	return &decision
+}
+
+// grantingRoles returns the roles that grant app to the user.
+func grantingRoles(roles []types.Role, app types.Application, username string, traits wrappers.Traits) []types.Role {
+	var granting []types.Role
+	for _, role := range roles {
+		if services.RoleGrantsResource(role, app, username, traits) {
+			granting = append(granting, role)
+		}
+	}
+	return granting
 }
 
 // emitRequestDenied emits one audit event for a request denied under
@@ -229,7 +227,7 @@ func (c *ConnectionsHandler) emitRequestDenied(r *http.Request, identity *tlsca.
 		ConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: identity.LoginIP},
 		AppMetadata:        *common.MakeAppMetadata(app),
 		Method:             r.Method,
-		Path:               r.URL.Path,
+		Path:               r.URL.EscapedPath(),
 		DenyKind:           string(denyKind),
 		AppSessionId:       identity.RouteToApp.SessionID,
 	}

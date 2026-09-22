@@ -8,16 +8,20 @@ tags:
 ---
 
 A role of version `v9` denies every HTTP request to an application it grants,
-unless a rule under `spec.allow.app_resources` authorizes the request. Earlier
+unless a rule under `spec.allow.app_resources` or
+`spec.allow.app_resources_expressions` authorizes the request. Earlier
 role versions authorize an application as a whole, so a user who reaches the
 application can send any request to it. Role v9 does not affect TCP, MCP, cloud
 (AWS console, Azure, and GCP), LLM, or Identity Center applications.
 
 ## Rules
 
-In Teleport 19 the only supported rule is `allow_all: true`, which authorizes
-every request to the applications the role grants. It must be the only rule in
-the list, and `app_resources` is valid only under `allow`.
+The `app_resources` field is valid only under `allow`, and any matching rule
+allows the request. A rule sets `paths`, a list of path patterns, optionally
+narrowed by `methods` and `where`, or `allow_all: true`, which stands alone
+and authorizes every request.
+
+The role below authorizes every request to the applications it grants:
 
 ```yaml
 kind: role
@@ -32,21 +36,24 @@ spec:
       - allow_all: true
 ```
 
-Teleport 19 rejects a role that sets any of the following `app_resources`
-fields. The role schema still declares them so that version skew or a rollback
-cannot silently drop one and widen the access a role grants.
+Teleport removes the following headers from a request a rule allows, because
+they can bypass the rule:
 
-- `paths`
-- `methods`
-- `where`
-- `allow_encoded`
-- `allow_code`
-- `allow_reason`
-- `deny_code_hint`
-- `deny_reason_hint`
+- `X-HTTP-Method`
+- `X-HTTP-Method-Override`
+- `X-Method-Override`
+- `X-Original-URI`
+- `X-Original-URL`
+- `X-Rewrite-URL`
 
-Teleport 19 rejects `spec.allow.app_resources_expressions` on the same grounds.
-It expresses the same rules as predicates.
+Teleport keeps these headers on a request that an `allow_all` rule allows,
+because that rule matches every method and path. An app's `rewrite.headers`
+configuration is applied after the removal, so a rewrite of one of these names
+reaches the app.
+
+The `app_resources_expressions` field is a list of string predicates. Every
+`app_resources` rule can be written as an `app_resources_expressions`
+predicate, but not the reverse.
 
 When a v9 role and a v8 or older role both grant the same application, Teleport
 drops the older roles from the decision, so they cannot restore unrestricted

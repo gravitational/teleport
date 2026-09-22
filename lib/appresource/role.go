@@ -59,9 +59,14 @@ type Partition struct {
 	Roles []Role
 	// IgnoredRoleNames are the names of the roles that predate v9, sorted.
 	IgnoredRoleNames []string
-	// Errors are the errors for the roles NewRole rejects, other than the
-	// roles that predate v9, in the order they were given.
+	// Errors are the errors for the roles Teleport cannot read or compile.
 	Errors []RoleError
+
+	// set is the compiled Roles, in evaluation order.
+	set RoleSet
+	// overLimit is true when the roles hold more rules or more path segments
+	// together than one request may evaluate, so none of them compiled.
+	overLimit bool
 }
 
 // Enforced returns true when a role of v9 or newer is in the partition, so
@@ -70,11 +75,18 @@ func (p Partition) Enforced() bool {
 	return len(p.Roles) > 0 || len(p.Errors) > 0
 }
 
-// PartitionRoles returns roles split into the roles NewRole accepts, the
-// names of the roles that predate v9, and an error per role NewRole rejects
-// for another reason.
+// PartitionRoles splits roles into the three parts of [Partition], the roles
+// this version of Teleport can read and compile, the names of the roles that
+// predate v9, and an error per role it rejects.
+//
+// TODO(juliaogris): Consolidate compilation on PartitionRoles, so
+// CompileRoles is not a second way to build a RoleSet. CompileRoles counts
+// path segments only, so tctl allows a role set over the rule limit that
+// holds an allow_all rule, and the agent denies it. Align tctl with the
+// agent.
 func PartitionRoles(roles []types.Role) Partition {
 	var p Partition
+	readable := make([]Role, 0, len(roles))
 	for _, role := range roles {
 		r, err := NewRole(role)
 		switch {
@@ -83,11 +95,74 @@ func PartitionRoles(roles []types.Role) Partition {
 		case err != nil:
 			p.Errors = append(p.Errors, RoleError{Name: role.GetName(), Err: err})
 		default:
-			p.Roles = append(p.Roles, r)
+			readable = append(readable, r)
 		}
 	}
 	slices.Sort(p.IgnoredRoleNames)
+	// The request limits run before any role compiles, so an oversized set
+	// costs nothing to reject.
+	if exceedsRequestLimits(readable) {
+		p.Roles = readable
+		p.overLimit = true
+		return p
+	}
+	p.Roles = make([]Role, 0, len(readable))
+	compiled := make([]compiledRole, 0, len(readable))
+	for _, r := range readable {
+		c, err := compileRole(r)
+		if err != nil {
+			p.Errors = append(p.Errors, RoleError{Name: r.Name, Err: err})
+			continue
+		}
+		p.Roles = append(p.Roles, r)
+		compiled = append(compiled, c)
+	}
+	p.set = newRoleSet(compiled)
 	return p
+}
+
+// roleNames returns the name of every role in p that app_resources rules
+// govern, the roles with an error included.
+func (p Partition) roleNames() []string {
+	names := make([]string, 0, len(p.Roles)+len(p.Errors))
+	for _, role := range p.Roles {
+		names = append(names, role.Name)
+	}
+	for _, err := range p.Errors {
+		names = append(names, err.Name)
+	}
+	return names
+}
+
+// Evaluate applies the roles in the partition to the given request and
+// identity.
+//
+// Roles with more rules or more path segments together than one request may
+// evaluate deny as DenyTooManyRules. A role this version of Teleport cannot
+// read denies as DenyRoleVersionUnsupported, whatever any other role allows,
+// because a role it cannot read may restrict the request in a way it cannot
+// see.
+//
+// An error means a rule could not be evaluated, and the Decision is the zero
+// value.
+func (p Partition) Evaluate(request Request, identity Identity) (Decision, error) {
+	if p.overLimit {
+		return Decision{
+			Deny:  &DenyDetails{Kind: DenyTooManyRules},
+			Roles: p.roleNames(),
+		}, nil
+	}
+	if len(p.Errors) > 0 {
+		return Decision{
+			Deny:  &DenyDetails{Kind: DenyRoleVersionUnsupported},
+			Roles: p.roleNames(),
+		}, nil
+	}
+	decision, err := p.set.Evaluate(request, identity)
+	if err != nil {
+		return Decision{}, trace.Wrap(err)
+	}
+	return decision, nil
 }
 
 // NewRole returns the allow app_resources and app_resources_expressions

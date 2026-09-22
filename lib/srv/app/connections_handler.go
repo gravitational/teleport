@@ -222,10 +222,10 @@ type ConnectionsHandler struct {
 	// resolveApp returns a types.Application using the name and public address as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
 
-	// v9Warned dedupes the v9 enforcement warnings (dropped v8 roles, denied
-	// CORS preflight, denied on version skew) to once per warning kind, user,
-	// and app. A v9 role governs every request to a shared app, so the
-	// warnings would otherwise fire on each request.
+	// v9Warned dedupes the v9 enforcement warnings to once per warning kind,
+	// user, and app, so one kind does not suppress another. A v9 role governs
+	// every request to a shared app, so the agent would otherwise log a warning
+	// on every request.
 	v9Warned *lru.Cache[v9WarnKey, struct{}]
 }
 
@@ -558,18 +558,15 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
-		// The default case is a plain HTTP app. Minimal v9 default-deny is
+		// The default case is a plain HTTP app. app_resources rules are
 		// enforced only on the unscoped access path. A scoped identity was
 		// already authorized for this app by authorizeContext, and the
 		// scoped access model does not yet evaluate v9 app_resources, so v9
 		// enforcement is skipped for it rather than denying an authorized
 		// request. Making the scoped path v9-aware is follow-up work.
 		if unscopedAuthCtx, ok := authCtx.UnscopedContext(); ok {
-			denied, err := c.enforceMinimalV9(w, r, unscopedAuthCtx, app)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if denied {
+			if deny := c.appResourcesDenial(r, unscopedAuthCtx, app); deny != nil {
+				deny.write(w)
 				return nil
 			}
 		}

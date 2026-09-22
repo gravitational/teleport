@@ -60,10 +60,11 @@ spec:
                   app_resources:
                     description: AppResources is a list of rules controlling access
                       to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.  This version
-                      implements allow_all only and rejects a rule that sets any other
-                      field. The other fields are declared so that version skew or
-                      a rollback cannot silently drop one and widen a role's access.
+                      in role version v9 and above, and only under allow. A request
+                      is allowed when any rule matches it.  A rule authorizes one
+                      HTTP request. A request that upgrades the connection, a WebSocket
+                      handshake for example, is authorized once, and no rule applies
+                      to the traffic that connection then sends.
                     items:
                       properties:
                         allow_all:
@@ -75,24 +76,23 @@ spec:
                           description: AllowCode is the code recorded on the allow
                             audit event when the rule matches. If it is not set, no
                             allow audit event is recorded. A code may not start with
-                            the reserved "teleport_" prefix.  This version declares
-                            the field but rejects a rule that sets it.
+                            the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
                           description: AllowEncoded lists the characters a request
-                            path may carry in percent-encoded form for the rule to
-                            match. The only supported value is "/", which allows the
-                            encoded slash, %2F or %2f.  This version declares the
-                            field but rejects a rule that sets it.
+                            path may contain in percent-encoded form for the rule
+                            to match. The only supported value is "/", which allows
+                            the encoded slash, %2F or %2f.  An encoded slash in a
+                            request path is rejected before any rule is evaluated,
+                            so AllowEncoded has no effect on matching in this version
+                            of Teleport.
                           items:
                             type: string
                           nullable: true
                           type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
-                            AllowCode. A rule sets it only together with AllowCode.  This
-                            version declares the field but rejects a rule that sets
-                            it.
+                            AllowCode. A rule sets it only together with AllowCode.
                           type: string
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
@@ -100,21 +100,19 @@ spec:
                             Where predicate does not. A denied request collects a
                             code from every such rule, so one decision can record
                             several codes. A code may not start with the reserved
-                            "teleport_" prefix.  This version declares the field but
-                            rejects a rule that sets it.
+                            "teleport_" prefix.
                           type: string
                         deny_reason_hint:
                           description: DenyReasonHint is the explanation recorded
                             alongside DenyCodeHint. A rule sets it only together with
-                            DenyCodeHint.  This version declares the field but rejects
-                            a rule that sets it.
+                            DenyCodeHint.
                           type: string
                         methods:
                           description: Methods are the HTTP methods the rule matches,
                             compared case-insensitively. A rule may list only GET,
-                            HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An
-                            empty list matches any of them.  This version declares
-                            the field but rejects a rule that sets it.
+                            HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty
+                            list matches any of them. Any other method is rejected
+                            before any rule is evaluated.
                           items:
                             type: string
                           nullable: true
@@ -124,8 +122,7 @@ spec:
                             for example:  `paths: ["/api/projects/{project}/**"]`  The
                             `{project}` segment is captured, and the rule''s Where
                             reads it as `vars.project`. A rule sets either Paths or
-                            AllowAll.  This version declares the field but rejects
-                            a rule that sets it.'
+                            AllowAll.'
                           items:
                             type: string
                           nullable: true
@@ -134,20 +131,17 @@ spec:
                           description: 'Where is a predicate over the caller identity
                             and the rule''s path captures, for example matching a
                             captured project against a user''s traits:  `where: contains(user.traits["projects"],
-                            vars.project)`  This version declares the field but rejects
-                            a rule that sets it.'
+                            vars.project)`'
                           type: string
                       type: object
                     type: array
                   app_resources_expressions:
-                    description: AppResourcesExpressions is a list of predicates controlling
-                      access to an app's resources on each HTTP request. It is valid
-                      only in role version v9 and above, and only under allow. Every
-                      AppResource rule can be written as an expression, but not the
-                      reverse.  This version does not implement app_resources_expressions
-                      and rejects a role that sets it. The field is declared so that
-                      version skew or a rollback cannot silently drop it and widen
-                      a role's access.
+                    description: AppResourcesExpressions is a list of string predicates
+                      controlling access to an app's resources on each HTTP request.
+                      It is valid only in role version v9 and above, and only under
+                      allow. Every structured AppResource rule has an equivalent predicate,
+                      but some predicates express more than rules can. A request is
+                      allowed when any expression evaluates to true.
                     items:
                       type: string
                     nullable: true
@@ -808,10 +802,11 @@ spec:
                   app_resources:
                     description: AppResources is a list of rules controlling access
                       to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.  This version
-                      implements allow_all only and rejects a rule that sets any other
-                      field. The other fields are declared so that version skew or
-                      a rollback cannot silently drop one and widen a role's access.
+                      in role version v9 and above, and only under allow. A request
+                      is allowed when any rule matches it.  A rule authorizes one
+                      HTTP request. A request that upgrades the connection, a WebSocket
+                      handshake for example, is authorized once, and no rule applies
+                      to the traffic that connection then sends.
                     items:
                       properties:
                         allow_all:
@@ -823,24 +818,23 @@ spec:
                           description: AllowCode is the code recorded on the allow
                             audit event when the rule matches. If it is not set, no
                             allow audit event is recorded. A code may not start with
-                            the reserved "teleport_" prefix.  This version declares
-                            the field but rejects a rule that sets it.
+                            the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
                           description: AllowEncoded lists the characters a request
-                            path may carry in percent-encoded form for the rule to
-                            match. The only supported value is "/", which allows the
-                            encoded slash, %2F or %2f.  This version declares the
-                            field but rejects a rule that sets it.
+                            path may contain in percent-encoded form for the rule
+                            to match. The only supported value is "/", which allows
+                            the encoded slash, %2F or %2f.  An encoded slash in a
+                            request path is rejected before any rule is evaluated,
+                            so AllowEncoded has no effect on matching in this version
+                            of Teleport.
                           items:
                             type: string
                           nullable: true
                           type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
-                            AllowCode. A rule sets it only together with AllowCode.  This
-                            version declares the field but rejects a rule that sets
-                            it.
+                            AllowCode. A rule sets it only together with AllowCode.
                           type: string
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
@@ -848,21 +842,19 @@ spec:
                             Where predicate does not. A denied request collects a
                             code from every such rule, so one decision can record
                             several codes. A code may not start with the reserved
-                            "teleport_" prefix.  This version declares the field but
-                            rejects a rule that sets it.
+                            "teleport_" prefix.
                           type: string
                         deny_reason_hint:
                           description: DenyReasonHint is the explanation recorded
                             alongside DenyCodeHint. A rule sets it only together with
-                            DenyCodeHint.  This version declares the field but rejects
-                            a rule that sets it.
+                            DenyCodeHint.
                           type: string
                         methods:
                           description: Methods are the HTTP methods the rule matches,
                             compared case-insensitively. A rule may list only GET,
-                            HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An
-                            empty list matches any of them.  This version declares
-                            the field but rejects a rule that sets it.
+                            HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty
+                            list matches any of them. Any other method is rejected
+                            before any rule is evaluated.
                           items:
                             type: string
                           nullable: true
@@ -872,8 +864,7 @@ spec:
                             for example:  `paths: ["/api/projects/{project}/**"]`  The
                             `{project}` segment is captured, and the rule''s Where
                             reads it as `vars.project`. A rule sets either Paths or
-                            AllowAll.  This version declares the field but rejects
-                            a rule that sets it.'
+                            AllowAll.'
                           items:
                             type: string
                           nullable: true
@@ -882,20 +873,17 @@ spec:
                           description: 'Where is a predicate over the caller identity
                             and the rule''s path captures, for example matching a
                             captured project against a user''s traits:  `where: contains(user.traits["projects"],
-                            vars.project)`  This version declares the field but rejects
-                            a rule that sets it.'
+                            vars.project)`'
                           type: string
                       type: object
                     type: array
                   app_resources_expressions:
-                    description: AppResourcesExpressions is a list of predicates controlling
-                      access to an app's resources on each HTTP request. It is valid
-                      only in role version v9 and above, and only under allow. Every
-                      AppResource rule can be written as an expression, but not the
-                      reverse.  This version does not implement app_resources_expressions
-                      and rejects a role that sets it. The field is declared so that
-                      version skew or a rollback cannot silently drop it and widen
-                      a role's access.
+                    description: AppResourcesExpressions is a list of string predicates
+                      controlling access to an app's resources on each HTTP request.
+                      It is valid only in role version v9 and above, and only under
+                      allow. Every structured AppResource rule has an equivalent predicate,
+                      but some predicates express more than rules can. A request is
+                      allowed when any expression evaluates to true.
                     items:
                       type: string
                     nullable: true
@@ -1858,10 +1846,11 @@ spec:
                   app_resources:
                     description: AppResources is a list of rules controlling access
                       to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.  This version
-                      implements allow_all only and rejects a rule that sets any other
-                      field. The other fields are declared so that version skew or
-                      a rollback cannot silently drop one and widen a role's access.
+                      in role version v9 and above, and only under allow. A request
+                      is allowed when any rule matches it.  A rule authorizes one
+                      HTTP request. A request that upgrades the connection, a WebSocket
+                      handshake for example, is authorized once, and no rule applies
+                      to the traffic that connection then sends.
                     items:
                       properties:
                         allow_all:
@@ -1873,24 +1862,23 @@ spec:
                           description: AllowCode is the code recorded on the allow
                             audit event when the rule matches. If it is not set, no
                             allow audit event is recorded. A code may not start with
-                            the reserved "teleport_" prefix.  This version declares
-                            the field but rejects a rule that sets it.
+                            the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
                           description: AllowEncoded lists the characters a request
-                            path may carry in percent-encoded form for the rule to
-                            match. The only supported value is "/", which allows the
-                            encoded slash, %2F or %2f.  This version declares the
-                            field but rejects a rule that sets it.
+                            path may contain in percent-encoded form for the rule
+                            to match. The only supported value is "/", which allows
+                            the encoded slash, %2F or %2f.  An encoded slash in a
+                            request path is rejected before any rule is evaluated,
+                            so AllowEncoded has no effect on matching in this version
+                            of Teleport.
                           items:
                             type: string
                           nullable: true
                           type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
-                            AllowCode. A rule sets it only together with AllowCode.  This
-                            version declares the field but rejects a rule that sets
-                            it.
+                            AllowCode. A rule sets it only together with AllowCode.
                           type: string
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
@@ -1898,21 +1886,19 @@ spec:
                             Where predicate does not. A denied request collects a
                             code from every such rule, so one decision can record
                             several codes. A code may not start with the reserved
-                            "teleport_" prefix.  This version declares the field but
-                            rejects a rule that sets it.
+                            "teleport_" prefix.
                           type: string
                         deny_reason_hint:
                           description: DenyReasonHint is the explanation recorded
                             alongside DenyCodeHint. A rule sets it only together with
-                            DenyCodeHint.  This version declares the field but rejects
-                            a rule that sets it.
+                            DenyCodeHint.
                           type: string
                         methods:
                           description: Methods are the HTTP methods the rule matches,
                             compared case-insensitively. A rule may list only GET,
-                            HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An
-                            empty list matches any of them.  This version declares
-                            the field but rejects a rule that sets it.
+                            HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty
+                            list matches any of them. Any other method is rejected
+                            before any rule is evaluated.
                           items:
                             type: string
                           nullable: true
@@ -1922,8 +1908,7 @@ spec:
                             for example:  `paths: ["/api/projects/{project}/**"]`  The
                             `{project}` segment is captured, and the rule''s Where
                             reads it as `vars.project`. A rule sets either Paths or
-                            AllowAll.  This version declares the field but rejects
-                            a rule that sets it.'
+                            AllowAll.'
                           items:
                             type: string
                           nullable: true
@@ -1932,20 +1917,17 @@ spec:
                           description: 'Where is a predicate over the caller identity
                             and the rule''s path captures, for example matching a
                             captured project against a user''s traits:  `where: contains(user.traits["projects"],
-                            vars.project)`  This version declares the field but rejects
-                            a rule that sets it.'
+                            vars.project)`'
                           type: string
                       type: object
                     type: array
                   app_resources_expressions:
-                    description: AppResourcesExpressions is a list of predicates controlling
-                      access to an app's resources on each HTTP request. It is valid
-                      only in role version v9 and above, and only under allow. Every
-                      AppResource rule can be written as an expression, but not the
-                      reverse.  This version does not implement app_resources_expressions
-                      and rejects a role that sets it. The field is declared so that
-                      version skew or a rollback cannot silently drop it and widen
-                      a role's access.
+                    description: AppResourcesExpressions is a list of string predicates
+                      controlling access to an app's resources on each HTTP request.
+                      It is valid only in role version v9 and above, and only under
+                      allow. Every structured AppResource rule has an equivalent predicate,
+                      but some predicates express more than rules can. A request is
+                      allowed when any expression evaluates to true.
                     items:
                       type: string
                     nullable: true
@@ -2606,10 +2588,11 @@ spec:
                   app_resources:
                     description: AppResources is a list of rules controlling access
                       to an app's resources on each HTTP request. It is valid only
-                      in role version v9 and above, and only under allow.  This version
-                      implements allow_all only and rejects a rule that sets any other
-                      field. The other fields are declared so that version skew or
-                      a rollback cannot silently drop one and widen a role's access.
+                      in role version v9 and above, and only under allow. A request
+                      is allowed when any rule matches it.  A rule authorizes one
+                      HTTP request. A request that upgrades the connection, a WebSocket
+                      handshake for example, is authorized once, and no rule applies
+                      to the traffic that connection then sends.
                     items:
                       properties:
                         allow_all:
@@ -2621,24 +2604,23 @@ spec:
                           description: AllowCode is the code recorded on the allow
                             audit event when the rule matches. If it is not set, no
                             allow audit event is recorded. A code may not start with
-                            the reserved "teleport_" prefix.  This version declares
-                            the field but rejects a rule that sets it.
+                            the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
                           description: AllowEncoded lists the characters a request
-                            path may carry in percent-encoded form for the rule to
-                            match. The only supported value is "/", which allows the
-                            encoded slash, %2F or %2f.  This version declares the
-                            field but rejects a rule that sets it.
+                            path may contain in percent-encoded form for the rule
+                            to match. The only supported value is "/", which allows
+                            the encoded slash, %2F or %2f.  An encoded slash in a
+                            request path is rejected before any rule is evaluated,
+                            so AllowEncoded has no effect on matching in this version
+                            of Teleport.
                           items:
                             type: string
                           nullable: true
                           type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
-                            AllowCode. A rule sets it only together with AllowCode.  This
-                            version declares the field but rejects a rule that sets
-                            it.
+                            AllowCode. A rule sets it only together with AllowCode.
                           type: string
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
@@ -2646,21 +2628,19 @@ spec:
                             Where predicate does not. A denied request collects a
                             code from every such rule, so one decision can record
                             several codes. A code may not start with the reserved
-                            "teleport_" prefix.  This version declares the field but
-                            rejects a rule that sets it.
+                            "teleport_" prefix.
                           type: string
                         deny_reason_hint:
                           description: DenyReasonHint is the explanation recorded
                             alongside DenyCodeHint. A rule sets it only together with
-                            DenyCodeHint.  This version declares the field but rejects
-                            a rule that sets it.
+                            DenyCodeHint.
                           type: string
                         methods:
                           description: Methods are the HTTP methods the rule matches,
                             compared case-insensitively. A rule may list only GET,
-                            HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An
-                            empty list matches any of them.  This version declares
-                            the field but rejects a rule that sets it.
+                            HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty
+                            list matches any of them. Any other method is rejected
+                            before any rule is evaluated.
                           items:
                             type: string
                           nullable: true
@@ -2670,8 +2650,7 @@ spec:
                             for example:  `paths: ["/api/projects/{project}/**"]`  The
                             `{project}` segment is captured, and the rule''s Where
                             reads it as `vars.project`. A rule sets either Paths or
-                            AllowAll.  This version declares the field but rejects
-                            a rule that sets it.'
+                            AllowAll.'
                           items:
                             type: string
                           nullable: true
@@ -2680,20 +2659,17 @@ spec:
                           description: 'Where is a predicate over the caller identity
                             and the rule''s path captures, for example matching a
                             captured project against a user''s traits:  `where: contains(user.traits["projects"],
-                            vars.project)`  This version declares the field but rejects
-                            a rule that sets it.'
+                            vars.project)`'
                           type: string
                       type: object
                     type: array
                   app_resources_expressions:
-                    description: AppResourcesExpressions is a list of predicates controlling
-                      access to an app's resources on each HTTP request. It is valid
-                      only in role version v9 and above, and only under allow. Every
-                      AppResource rule can be written as an expression, but not the
-                      reverse.  This version does not implement app_resources_expressions
-                      and rejects a role that sets it. The field is declared so that
-                      version skew or a rollback cannot silently drop it and widen
-                      a role's access.
+                    description: AppResourcesExpressions is a list of string predicates
+                      controlling access to an app's resources on each HTTP request.
+                      It is valid only in role version v9 and above, and only under
+                      allow. Every structured AppResource rule has an equivalent predicate,
+                      but some predicates express more than rules can. A request is
+                      allowed when any expression evaluates to true.
                     items:
                       type: string
                     nullable: true

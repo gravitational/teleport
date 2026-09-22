@@ -21,6 +21,8 @@ package common
 import (
 	"errors"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -68,6 +70,25 @@ var ReservedHeaders = append([]string{
 },
 	reverseproxy.XHeaders...,
 )
+
+var requestOverrideHeaders = []string{
+	"X-Http-Method",
+	"X-Http-Method-Override",
+	"X-Method-Override",
+	"X-Original-Uri",
+	"X-Original-Url",
+	"X-Rewrite-Url",
+}
+
+func normalizeHeaderName(name string) string {
+	return http.CanonicalHeaderKey(strings.ReplaceAll(name, "_", "-"))
+}
+
+// IsRequestOverrideHeader returns true when an upstream app may act on header
+// as the request method or the request path.
+func IsRequestOverrideHeader(header string) bool {
+	return slices.Contains(requestOverrideHeaders, normalizeHeaderName(header))
+}
 
 // IsReservedHeader returns true if the provided header is one of headers
 // injected by Teleport.

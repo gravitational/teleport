@@ -4458,34 +4458,30 @@ message RoleConditions {
 
   // AppResources is a list of rules controlling access to an app's
   // resources on each HTTP request. It is valid only in role version v9
-  // and above, and only under allow.
+  // and above, and only under allow. A request is allowed when any rule
+  // matches it.
   //
-  // This version implements allow_all only and rejects a rule that sets
-  // any other field. The other fields are declared so that version skew
-  // or a rollback cannot silently drop one and widen a role's access.
+  // A rule authorizes one HTTP request. A request that upgrades the
+  // connection, a WebSocket handshake for example, is authorized once, and
+  // no rule applies to the traffic that connection then sends.
   repeated AppResource AppResources = 52 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "app_resources,omitempty"
   ];
 
-  // AppResourcesExpressions is a list of predicates controlling access to
-  // an app's resources on each HTTP request. It is valid only in role
-  // version v9 and above, and only under allow. Every AppResource rule can
-  // be written as an expression, but not the reverse.
-  //
-  // This version does not implement app_resources_expressions and rejects
-  // a role that sets it. The field is declared so that version skew or a
-  // rollback cannot silently drop it and widen a role's access.
+  // AppResourcesExpressions is a list of string predicates controlling
+  // access to an app's resources on each HTTP request. It is valid only in
+  // role version v9 and above, and only under allow. Every structured
+  // AppResource rule has an equivalent predicate, but some predicates
+  // express more than rules can. A request is allowed when any expression
+  // evaluates to true.
   repeated string AppResourcesExpressions = 53 [(gogoproto.jsontag) = "app_resources_expressions,omitempty"];
 }
 
 // AppResource is one rule under a role's app_resources. It allows an HTTP
-// request that matches it to reach an app's resources.
-//
-// This version implements allow_all only, which grants unrestricted access
-// to the app, and rejects a rule that sets any other field. The other
-// fields are declared so that version skew or a rollback cannot silently
-// drop one and widen a role's access.
+// request that matches it to reach an app's resources. A rule must set
+// either Paths, with the other fields optional, or AllowAll, which stands
+// alone.
 message AppResource {
   // Paths are the path patterns the rule matches, for example:
   //
@@ -4493,15 +4489,12 @@ message AppResource {
   //
   // The `{project}` segment is captured, and the rule's Where reads it as
   // `vars.project`. A rule sets either Paths or AllowAll.
-  //
-  // This version declares the field but rejects a rule that sets it.
   repeated string Paths = 1 [(gogoproto.jsontag) = "paths,omitempty"];
 
   // Methods are the HTTP methods the rule matches, compared
   // case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
-  // DELETE, OPTIONS, and TRACE. An empty list matches any of them.
-  //
-  // This version declares the field but rejects a rule that sets it.
+  // DELETE, and OPTIONS. An empty list matches any of them. Any other
+  // method is rejected before any rule is evaluated.
   repeated string Methods = 2 [(gogoproto.jsontag) = "methods,omitempty"];
 
   // Where is a predicate over the caller identity and the rule's path
@@ -4509,15 +4502,15 @@ message AppResource {
   // traits:
   //
   //     `where: contains(user.traits["projects"], vars.project)`
-  //
-  // This version declares the field but rejects a rule that sets it.
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
 
-  // AllowEncoded lists the characters a request path may carry in
+  // AllowEncoded lists the characters a request path may contain in
   // percent-encoded form for the rule to match. The only supported value
   // is "/", which allows the encoded slash, %2F or %2f.
   //
-  // This version declares the field but rejects a rule that sets it.
+  // An encoded slash in a request path is rejected before any rule is
+  // evaluated, so AllowEncoded has no effect on matching in this version
+  // of Teleport.
   repeated string AllowEncoded = 4 [(gogoproto.jsontag) = "allow_encoded,omitempty"];
 
   // AllowAll grants unrestricted access to every path and method. It
@@ -4527,14 +4520,10 @@ message AppResource {
   // AllowCode is the code recorded on the allow audit event when the rule
   // matches. If it is not set, no allow audit event is recorded. A code may
   // not start with the reserved "teleport_" prefix.
-  //
-  // This version declares the field but rejects a rule that sets it.
   string AllowCode = 6 [(gogoproto.jsontag) = "allow_code,omitempty"];
 
   // AllowReason is the explanation recorded alongside AllowCode. A rule
   // sets it only together with AllowCode.
-  //
-  // This version declares the field but rejects a rule that sets it.
   string AllowReason = 7 [(gogoproto.jsontag) = "allow_reason,omitempty"];
 
   // DenyCodeHint is the code added to the deny decision when the rule's
@@ -4542,14 +4531,10 @@ message AppResource {
   // request collects a code from every such rule, so one decision can
   // record several codes. A code may not start with the reserved
   // "teleport_" prefix.
-  //
-  // This version declares the field but rejects a rule that sets it.
   string DenyCodeHint = 8 [(gogoproto.jsontag) = "deny_code_hint,omitempty"];
 
   // DenyReasonHint is the explanation recorded alongside DenyCodeHint. A
   // rule sets it only together with DenyCodeHint.
-  //
-  // This version declares the field but rejects a rule that sets it.
   string DenyReasonHint = 9 [(gogoproto.jsontag) = "deny_reason_hint,omitempty"];
 }
 

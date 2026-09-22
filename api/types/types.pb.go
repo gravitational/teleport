@@ -11164,20 +11164,19 @@ type RoleConditions struct {
 	BeamLabelsExpression string `protobuf:"bytes,51,opt,name=BeamLabelsExpression,proto3" json:"beam_labels_expression,omitempty"`
 	// AppResources is a list of rules controlling access to an app's
 	// resources on each HTTP request. It is valid only in role version v9
-	// and above, and only under allow.
+	// and above, and only under allow. A request is allowed when any rule
+	// matches it.
 	//
-	// This version implements allow_all only and rejects a rule that sets
-	// any other field. The other fields are declared so that version skew
-	// or a rollback cannot silently drop one and widen a role's access.
+	// A rule authorizes one HTTP request. A request that upgrades the
+	// connection, a WebSocket handshake for example, is authorized once, and
+	// no rule applies to the traffic that connection then sends.
 	AppResources []AppResource `protobuf:"bytes,52,rep,name=AppResources,proto3" json:"app_resources,omitempty"`
-	// AppResourcesExpressions is a list of predicates controlling access to
-	// an app's resources on each HTTP request. It is valid only in role
-	// version v9 and above, and only under allow. Every AppResource rule can
-	// be written as an expression, but not the reverse.
-	//
-	// This version does not implement app_resources_expressions and rejects
-	// a role that sets it. The field is declared so that version skew or a
-	// rollback cannot silently drop it and widen a role's access.
+	// AppResourcesExpressions is a list of string predicates controlling
+	// access to an app's resources on each HTTP request. It is valid only in
+	// role version v9 and above, and only under allow. Every structured
+	// AppResource rule has an equivalent predicate, but some predicates
+	// express more than rules can. A request is allowed when any expression
+	// evaluates to true.
 	AppResourcesExpressions []string `protobuf:"bytes,53,rep,name=AppResourcesExpressions,proto3" json:"app_resources_expressions,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
@@ -11218,12 +11217,9 @@ func (m *RoleConditions) XXX_DiscardUnknown() {
 var xxx_messageInfo_RoleConditions proto.InternalMessageInfo
 
 // AppResource is one rule under a role's app_resources. It allows an HTTP
-// request that matches it to reach an app's resources.
-//
-// This version implements allow_all only, which grants unrestricted access
-// to the app, and rejects a rule that sets any other field. The other
-// fields are declared so that version skew or a rollback cannot silently
-// drop one and widen a role's access.
+// request that matches it to reach an app's resources. A rule must set
+// either Paths, with the other fields optional, or AllowAll, which stands
+// alone.
 type AppResource struct {
 	// Paths are the path patterns the rule matches, for example:
 	//
@@ -11231,28 +11227,25 @@ type AppResource struct {
 	//
 	// The `{project}` segment is captured, and the rule's Where reads it as
 	// `vars.project`. A rule sets either Paths or AllowAll.
-	//
-	// This version declares the field but rejects a rule that sets it.
 	Paths []string `protobuf:"bytes,1,rep,name=Paths,proto3" json:"paths,omitempty"`
 	// Methods are the HTTP methods the rule matches, compared
 	// case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
-	// DELETE, OPTIONS, and TRACE. An empty list matches any of them.
-	//
-	// This version declares the field but rejects a rule that sets it.
+	// DELETE, and OPTIONS. An empty list matches any of them. Any other
+	// method is rejected before any rule is evaluated.
 	Methods []string `protobuf:"bytes,2,rep,name=Methods,proto3" json:"methods,omitempty"`
 	// Where is a predicate over the caller identity and the rule's path
 	// captures, for example matching a captured project against a user's
 	// traits:
 	//
 	//     `where: contains(user.traits["projects"], vars.project)`
-	//
-	// This version declares the field but rejects a rule that sets it.
 	Where string `protobuf:"bytes,3,opt,name=Where,proto3" json:"where,omitempty"`
-	// AllowEncoded lists the characters a request path may carry in
+	// AllowEncoded lists the characters a request path may contain in
 	// percent-encoded form for the rule to match. The only supported value
 	// is "/", which allows the encoded slash, %2F or %2f.
 	//
-	// This version declares the field but rejects a rule that sets it.
+	// An encoded slash in a request path is rejected before any rule is
+	// evaluated, so AllowEncoded has no effect on matching in this version
+	// of Teleport.
 	AllowEncoded []string `protobuf:"bytes,4,rep,name=AllowEncoded,proto3" json:"allow_encoded,omitempty"`
 	// AllowAll grants unrestricted access to every path and method. It
 	// cannot be combined with any other field.
@@ -11260,26 +11253,18 @@ type AppResource struct {
 	// AllowCode is the code recorded on the allow audit event when the rule
 	// matches. If it is not set, no allow audit event is recorded. A code may
 	// not start with the reserved "teleport_" prefix.
-	//
-	// This version declares the field but rejects a rule that sets it.
 	AllowCode string `protobuf:"bytes,6,opt,name=AllowCode,proto3" json:"allow_code,omitempty"`
 	// AllowReason is the explanation recorded alongside AllowCode. A rule
 	// sets it only together with AllowCode.
-	//
-	// This version declares the field but rejects a rule that sets it.
 	AllowReason string `protobuf:"bytes,7,opt,name=AllowReason,proto3" json:"allow_reason,omitempty"`
 	// DenyCodeHint is the code added to the deny decision when the rule's
 	// path and method match but the Where predicate does not. A denied
 	// request collects a code from every such rule, so one decision can
 	// record several codes. A code may not start with the reserved
 	// "teleport_" prefix.
-	//
-	// This version declares the field but rejects a rule that sets it.
 	DenyCodeHint string `protobuf:"bytes,8,opt,name=DenyCodeHint,proto3" json:"deny_code_hint,omitempty"`
 	// DenyReasonHint is the explanation recorded alongside DenyCodeHint. A
 	// rule sets it only together with DenyCodeHint.
-	//
-	// This version declares the field but rejects a rule that sets it.
 	DenyReasonHint       string   `protobuf:"bytes,9,opt,name=DenyReasonHint,proto3" json:"deny_reason_hint,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

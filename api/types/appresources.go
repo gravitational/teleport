@@ -17,9 +17,7 @@ limitations under the License.
 package types
 
 // IsAllowAllOnly reports whether the rule sets allow_all and no other
-// field, known or unknown. This version enforces no field except
-// allow_all, so a rule that sets any other field does not count as
-// unrestricted.
+// field, known or unknown.
 func (a AppResource) IsAllowAllOnly() bool {
 	return a.AllowAll &&
 		len(a.Paths) == 0 &&
@@ -37,10 +35,9 @@ func (a AppResource) IsAllowAllOnly() bool {
 // unrestricted app access. It requires a single allow rule that sets
 // allow_all and no deny-side rules.
 //
-// Deny-side rules and multiple allow rules cannot be written in this
-// version, but a newer version may introduce them. Returning false on
-// their presence keeps this version from treating such a role as
-// unrestricted.
+// A future version may allow a deny-side rule or a rule beside allow_all.
+// This version cannot evaluate either, so AppResourcesAllowAll returns
+// false.
 func AppResourcesAllowAll(allow, deny []AppResource) bool {
 	return len(deny) == 0 && len(allow) == 1 && allow[0].IsAllowAllOnly()
 }

@@ -37,7 +37,6 @@ var validMethods = []string{
 	http.MethodPatch,
 	http.MethodDelete,
 	http.MethodOptions,
-	http.MethodTrace,
 }
 
 // whereParser is the shared cached parser for where clauses.

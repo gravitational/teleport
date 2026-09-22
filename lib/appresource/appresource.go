@@ -65,9 +65,9 @@ type Role struct {
 	Expressions []string
 }
 
-// HasAllowAll returns true when any app_resources entry sets allow_all.
+// HasAllowAll returns true when the role's only rule is an allow_all rule.
 func (r Role) HasAllowAll() bool {
-	return slices.ContainsFunc(r.Resources, func(rule types.AppResource) bool { return rule.AllowAll })
+	return len(r.Resources) == 1 && len(r.Expressions) == 0 && r.Resources[0].IsAllowAllOnly()
 }
 
 // RoleSet is the compiled rules of a caller's roles, in evaluation order.
@@ -86,42 +86,57 @@ type compiledRole struct {
 // app_resources entries come before app_resources_expressions entries. It
 // returns an error for an invalid rule.
 func CompileRoles(roles []Role) (RoleSet, error) {
-	sorted := slices.Clone(roles)
-	slices.SortStableFunc(sorted, func(a, b Role) int {
-		if a.HasAllowAll() && !b.HasAllowAll() {
-			return -1
-		}
-		if b.HasAllowAll() && !a.HasAllowAll() {
-			return 1
-		}
-		return strings.Compare(a.Name, b.Name)
-	})
-	if err := checkRoleSet(sorted); err != nil {
+	if err := checkRoleSet(roles); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	set := make(RoleSet, 0, len(sorted))
-	for _, role := range sorted {
-		if err := checkPathSegments(role); err != nil {
+	compiled := make([]compiledRole, 0, len(roles))
+	for _, role := range roles {
+		c, err := compileRole(role)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		compiled := compiledRole{name: role.Name, allowAll: role.HasAllowAll()}
-		for i, rule := range role.Resources {
-			c, err := newCompiledRule(rule)
-			if err != nil {
-				return nil, trace.Wrap(err, "role %q app_resources %d", role.Name, i)
-			}
-			compiled.rules = append(compiled.rules, c)
-		}
-		for i, expr := range role.Expressions {
-			expression, err := compileExpression(expr)
-			if err != nil {
-				return nil, trace.Wrap(err, "role %q app_resources_expressions %d", role.Name, i)
-			}
-			compiled.rules = append(compiled.rules, expression)
-		}
-		set = append(set, compiled)
+		compiled = append(compiled, c)
 	}
-	return set, nil
+	return newRoleSet(compiled), nil
+}
+
+// compileRole compiles one role's rules, app_resources entries first.
+func compileRole(role Role) (compiledRole, error) {
+	if err := checkPathSegments(role); err != nil {
+		return compiledRole{}, trace.Wrap(err)
+	}
+	compiled := compiledRole{name: role.Name, allowAll: role.HasAllowAll()}
+	for i, rule := range role.Resources {
+		c, err := newCompiledRule(rule)
+		if err != nil {
+			return compiledRole{}, trace.Wrap(err, "role %q app_resources %d", role.Name, i)
+		}
+		compiled.rules = append(compiled.rules, c)
+	}
+	for i, expr := range role.Expressions {
+		expression, err := compileExpression(expr)
+		if err != nil {
+			return compiledRole{}, trace.Wrap(err, "role %q app_resources_expressions %d", role.Name, i)
+		}
+		compiled.rules = append(compiled.rules, expression)
+	}
+	return compiled, nil
+}
+
+// newRoleSet returns roles in evaluation order, the roles with an allow_all
+// rule first and each group sorted by name.
+func newRoleSet(roles []compiledRole) RoleSet {
+	set := RoleSet(slices.Clone(roles))
+	slices.SortStableFunc(set, func(a, b compiledRole) int {
+		if a.allowAll && !b.allowAll {
+			return -1
+		}
+		if b.allowAll && !a.allowAll {
+			return 1
+		}
+		return strings.Compare(a.name, b.name)
+	})
+	return set
 }
 
 // roleNames returns the role names in the set, in evaluation order.
@@ -142,7 +157,7 @@ func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) 
 	if name := s.allowAllRole(); name != "" {
 		return Decision{
 			Allowed: true,
-			Allow:   &AllowDetails{Role: name},
+			Allow:   &AllowDetails{Role: name, AllowAll: true},
 			Roles:   roles,
 		}, nil
 	}
@@ -225,6 +240,17 @@ func checkRoleSet(roles []Role) error {
 		return trace.BadParameter("the roles hold %d path segments, over the cap of %d", segments, MaxPathSegmentsPerRoleSet)
 	}
 	return nil
+}
+
+// exceedsRequestLimits returns true when roles hold more rules or more path
+// segments together than one request may evaluate.
+func exceedsRequestLimits(roles []Role) bool {
+	rules, segments := 0, 0
+	for _, role := range roles {
+		rules += len(role.Resources) + len(role.Expressions)
+		segments += pathSegments(role)
+	}
+	return rules > maxRulesPerRequest || segments > MaxPathSegmentsPerRoleSet
 }
 
 // pathSegments returns the number of path segments across every path pattern

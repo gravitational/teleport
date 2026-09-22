@@ -6168,7 +6168,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 						},
 						"app_resources": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
 							Computed:    true,
-							Description: "AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.  This version implements allow_all only and rejects a rule that sets any other field. The other fields are declared so that version skew or a rollback cannot silently drop one and widen a role's access.",
+							Description: "AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. A request is allowed when any rule matches it.  A rule authorizes one HTTP request. A request that upgrades the connection, a WebSocket handshake for example, is authorized once, and no rule applies to the traffic that connection then sends.",
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 								"allow_all": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
 									Computed:      true,
@@ -6178,52 +6178,52 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 								},
 								"allow_code": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
-									Description:   "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Description:   "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
 								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "AllowEncoded lists the characters a request path may carry in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  This version declares the field but rejects a rule that sets it.",
+									Description:   "AllowEncoded lists the characters a request path may contain in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  An encoded slash in a request path is rejected before any rule is evaluated, so AllowEncoded has no effect on matching in this version of Teleport.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
 								"allow_reason": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
-									Description:   "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.  This version declares the field but rejects a rule that sets it.",
+									Description:   "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
 								"deny_code_hint": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
-									Description:   "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Description:   "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
 								"deny_reason_hint": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
-									Description:   "DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.  This version declares the field but rejects a rule that sets it.",
+									Description:   "DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
 								"methods": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.",
+									Description:   "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
 								"paths": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "Paths are the path patterns the rule matches, for example:  `paths: [\"/api/projects/{project}/**\"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.  This version declares the field but rejects a rule that sets it.",
+									Description:   "Paths are the path patterns the rule matches, for example:  `paths: [\"/api/projects/{project}/**\"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
 								"where": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
-									Description:   "Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits[\"projects\"], vars.project)`  This version declares the field but rejects a rule that sets it.",
+									Description:   "Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits[\"projects\"], vars.project)`",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
@@ -6233,7 +6233,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 						},
 						"app_resources_expressions": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 							Computed:      true,
-							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description:   "AppResourcesExpressions is a list of string predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every structured AppResource rule has an equivalent predicate, but some predicates express more than rules can. A request is allowed when any expression evaluates to true.",
 							ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
@@ -6948,7 +6948,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 						},
 						"app_resources_expressions": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 							Computed:      true,
-							Description:   "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description:   "AppResourcesExpressions is a list of string predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every structured AppResource rule has an equivalent predicate, but some predicates express more than rules can. A request is allowed when any expression evaluates to true.",
 							ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
@@ -8004,7 +8004,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 						},
 						"app_resources": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
 							Computed:    true,
-							Description: "AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.  This version implements allow_all only and rejects a rule that sets any other field. The other fields are declared so that version skew or a rollback cannot silently drop one and widen a role's access.",
+							Description: "AppResources is a list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. A request is allowed when any rule matches it.  A rule authorizes one HTTP request. A request that upgrades the connection, a WebSocket handshake for example, is authorized once, and no rule applies to the traffic that connection then sends.",
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 								"allow_all": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
 									Computed:    true,
@@ -8013,45 +8013,45 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 								},
 								"allow_code": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
-									Description: "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Description: "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.",
 									Optional:    true,
 								},
 								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "AllowEncoded lists the characters a request path may carry in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  This version declares the field but rejects a rule that sets it.",
+									Description: "AllowEncoded lists the characters a request path may contain in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  An encoded slash in a request path is rejected before any rule is evaluated, so AllowEncoded has no effect on matching in this version of Teleport.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
 								"allow_reason": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
-									Description: "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.  This version declares the field but rejects a rule that sets it.",
+									Description: "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.",
 									Optional:    true,
 								},
 								"deny_code_hint": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
-									Description: "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.  This version declares the field but rejects a rule that sets it.",
+									Description: "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.",
 									Optional:    true,
 								},
 								"deny_reason_hint": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
-									Description: "DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.  This version declares the field but rejects a rule that sets it.",
+									Description: "DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.",
 									Optional:    true,
 								},
 								"methods": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, and TRACE. An empty list matches any of them.  This version declares the field but rejects a rule that sets it.",
+									Description: "Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
 								"paths": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "Paths are the path patterns the rule matches, for example:  `paths: [\"/api/projects/{project}/**\"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.  This version declares the field but rejects a rule that sets it.",
+									Description: "Paths are the path patterns the rule matches, for example:  `paths: [\"/api/projects/{project}/**\"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
 								"where": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
-									Description: "Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits[\"projects\"], vars.project)`  This version declares the field but rejects a rule that sets it.",
+									Description: "Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits[\"projects\"], vars.project)`",
 									Optional:    true,
 								},
 							}},
@@ -8059,7 +8059,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 						},
 						"app_resources_expressions": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 							Computed:    true,
-							Description: "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description: "AppResourcesExpressions is a list of string predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every structured AppResource rule has an equivalent predicate, but some predicates express more than rules can. A request is allowed when any expression evaluates to true.",
 							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:    true,
 						},
@@ -8670,7 +8670,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 						},
 						"app_resources_expressions": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 							Computed:    true,
-							Description: "AppResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app_resources_expressions and rejects a role that sets it. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
+							Description: "AppResourcesExpressions is a list of string predicates controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow. Every structured AppResource rule has an equivalent predicate, but some predicates express more than rules can. A request is allowed when any expression evaluates to true.",
 							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:    true,
 						},
