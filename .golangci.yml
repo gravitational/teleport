@@ -410,6 +410,9 @@ linters:
         - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
           pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
           msg: Use api/ssh package to construct SSH clients with proper defaults
+        - pattern: ^piv\.(Verify|Verifier|Attestation)$
+          pkg: ^github\.com/go-piv/piv-go/v2/piv$
+          msg: Use api/utils/keys/piv/yubiattest.Verify
       analyze-types: true
     misspell:
       locale: US

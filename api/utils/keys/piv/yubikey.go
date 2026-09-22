@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv/yubiattest"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -316,20 +317,20 @@ func (y *YubiKey) getPublicKey(slot piv.Slot) (cryptoPublicKey, error) {
 
 // attestKey attests the key in the given PIV slot.
 // The key's public key can be found in the returned slotCert.
-func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert *x509.Certificate, att *piv.Attestation, err error) {
+func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert *x509.Certificate, att yubiattest.Attestation, err error) {
 	slotCert, err = y.conn.attest(slot)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, yubiattest.Attestation{}, trace.Wrap(err)
 	}
 
 	attCert, err = y.conn.attestationCertificate()
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, yubiattest.Attestation{}, trace.Wrap(err)
 	}
 
-	att, err = piv.Verify(attCert, slotCert)
+	att, err = yubiattest.Verify(attCert, slotCert)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, yubiattest.Attestation{}, trace.Wrap(err)
 	}
 
 	return slotCert, attCert, att, nil
@@ -346,8 +347,8 @@ func (y *YubiKey) getKeyRef(slot piv.Slot, pinCacheTTL time.Duration) (*hardware
 		SlotKey:      hardwarekey.PIVSlotKey(slot.Key),
 		PublicKey:    slotCert.PublicKey,
 		Policy: hardwarekey.PromptPolicy{
-			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
-			PINRequired:   att.PINPolicy != piv.PINPolicyNever,
+			TouchRequired: att.TouchRequired,
+			PINRequired:   att.PINRequired,
 		},
 		AttestationStatement: &hardwarekey.AttestationStatement{
 			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
