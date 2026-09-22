@@ -112,12 +112,12 @@ The required AWS APIs are part of the AWS Organizations service, and can only be
 
 1. Assign the policy to the Auth Service's IAM role:
 
-  ```code
-  $ aws iam put-role-policy \
-    --role-name TeleportAuthServiceRole \
-    --policy-name AllowDescribeAccount \
-    --policy-document file://describe-account.json
-  ```
+   ```code
+   $ aws iam put-role-policy \
+     --role-name TeleportAuthServiceRole \
+     --policy-name AllowDescribeAccount \
+     --policy-document file://describe-account.json
+   ```
 
 ## Step 3/7. Configure IAM for the Discovery Service
 
@@ -383,8 +383,9 @@ Static configuration while simpler at first, has less flexibility because enroll
       install:
         enroll_mode: script
         install_teleport: true
-        join_method: iam
-        join_token: aws-discovery-iam-token
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
       assume_role_name: <Var name="DiscoverEC2AssumedRole" />
       organization:
         organization_id: <Var name="o-organisation" />

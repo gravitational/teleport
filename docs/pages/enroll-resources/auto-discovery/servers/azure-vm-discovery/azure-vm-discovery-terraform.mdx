@@ -42,11 +42,13 @@ The Teleport Discovery Service queries the Azure API to list virtual machines, m
 
 <Admonition type="tip">
 
-If you already have a running Discovery Service instance, then assign its
-`discovery_group` to <Var name="discovery-group-name" /> and proceed to
-[Step 3/5: Use the `teleport-discovery-azure` Terraform module](#step-35-use-the-teleport-discovery-azure-terraform-module).
+If you already have a running Discovery Service instance, assign its
+`discovery_group` to <Var name="discovery-group-name" /> and skip this step.
+Teleport Cloud clusters run the Discovery Service for you, so Teleport Cloud
+subscribers can also skip this step.
 
-All Teleport Cloud clusters run the Discovery Service for you, so Teleport Cloud subscribers can also skip all of these installation steps.
+Step 2 is required in every case. Discovered VMs cannot join the cluster
+without an identity.
 
 </Admonition>
 

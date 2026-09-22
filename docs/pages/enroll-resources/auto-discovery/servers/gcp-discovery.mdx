@@ -157,8 +157,14 @@ discover instances.
   ```code
   $ gcloud compute instances set-service-account <Var name="discovery_service_vm_name" description="Name of the instance running the Discovery Service" /> \
   --service-account=teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com \
-  --scopes=default,compute-rw
+  --scopes=cloud-platform
   ```
+
+  <Admonition type="warning">
+  You must set the `--scopes` flag. Without it, the instance cannot obtain the
+  authorization the Discovery Service needs, even when the service account's IAM
+  roles are correct.
+  </Admonition>
 </TabItem>
 </Tabs>
 
@@ -289,15 +295,17 @@ Static configuration while simpler at first, has less flexibility because enroll
     discovery_group: <Var name="gcp-prod" />
     gcp:
       - types: ["gce"]
-        # The IDs of GCP projects that VMs can join from.
-        project_ids: []
-        # (Optional) The locations that VMs can join from. Note: both regions and
-        # zones are accepted.
+        # The IDs of GCP projects to search for VMs. Use ["*"] to search every
+        # project the service account can access. The wildcard cannot be
+        # combined with other values.
+        project_ids: ["<Var name="project_id" />"]
+        # (Optional) The locations to search. Both regions and zones are
+        # accepted. Defaults to all locations.
         locations: []
-        # (Optional) The email addresses of service accounts that VMs can join
-        # with.
+        # (Optional) Only discover VMs that run as one of these service
+        # accounts.
         service_accounts: []
-        # (Optional) Labels that joining VMs must have.
+        # (Optional) Labels that matching VMs must have.
         labels:
           "env": "prod" # Match virtual machines where label:env=prod
   ```
@@ -326,20 +334,22 @@ Static configuration while simpler at first, has less flexibility because enroll
     discovery_group: <Var name="gcp-prod" />
     gcp:
       - types: ["gce"]
-        # The IDs of GCP projects that VMs can join from.
-        project_ids: []
-        # (Optional) The locations that VMs can join from. Note: both regions and
-        # zones are accepted.
+        # The IDs of GCP projects to search for VMs. Use ["*"] to search every
+        # project the service account can access. The wildcard cannot be
+        # combined with other values.
+        project_ids: ["<Var name="project_id" />"]
+        # (Optional) The locations to search. Both regions and zones are
+        # accepted. Defaults to all locations.
         locations: []
-        # (Optional) The email addresses of service accounts that VMs can join
-        # with.
+        # (Optional) Only discover VMs that run as one of these service
+        # accounts.
         service_accounts: []
-        # (Optional) Labels that joining VMs must have.
+        # (Optional) Labels that matching VMs must have.
         labels:
           "env": "prod" # Match virtual machines where label:env=prod
   ```
   Adjust the keys under `discovery_service.gcp` to match your GCP environment,
-  specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
+  specifically the projects, locations, service accounts, and labels you want to associate with the Discovery
   Service.
 
 </TabItem>

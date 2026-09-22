@@ -11,6 +11,9 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: aws-discovery-iam-token
+  # Set the token lifetime explicitly. Tokens created with tctl create do not
+  # expire when this field is omitted.
+  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
   roles: [Node]
@@ -19,11 +22,11 @@ spec:
   join_method: iam
 
   allow:
-  # specify the AWS account which Nodes may join from
-  - aws_account: "123456789"
+  # specify the AWS account which instances may join from
+  - aws_account: "123456789012"
 ```
 
-Assign the `aws_account` field to your AWS account number.
+Assign the `aws_account` field to your 12-digit AWS account ID.
 Add the token to the Teleport cluster with:
 
 ```code

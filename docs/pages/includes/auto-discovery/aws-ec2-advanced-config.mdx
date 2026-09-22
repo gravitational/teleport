@@ -38,7 +38,7 @@ necessarily cancel a command that AWS has already accepted.
 
 When executing the installation script on discovered EC2 instances, the Discovery Service uses an SSM document.
 
-The default `AWS-RunShellScript` SSM document works in most cases and is always available in AWS.
+The AWS-managed `AWS-RunShellScript` SSM document works in most cases and is always available in AWS.
 
 However, if you need to customize the installation process for your environment, you can create a custom SSM Document and configure the Discovery Service to use it during installation.
 
@@ -108,12 +108,13 @@ discovery_service:
      # other fields
 ```
 
-Add the necessary IAM permissions to allow the Discovery Service to list regions:
+Add the `account:ListRegions` action to the Discovery Service's existing IAM
+policy statement to allow it to list regions:
+
 ```json
 {
     "Effect": "Allow",
     "Action": [
-        // existing permissions
         "account:ListRegions"
     ],
     "Resource": "*"

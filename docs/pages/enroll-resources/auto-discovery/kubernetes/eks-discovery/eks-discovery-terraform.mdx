@@ -38,10 +38,11 @@ cluster so the Kubernetes Service can forward traffic to it.
   # Terraform v(=terraform.version=)
   ```
 
-- A host to run the Teleport Discovery and Kubernetes services. Teleport Cloud
-  runs the Discovery Service for you, but you still need to run your own
-  Kubernetes Service. See the [manual guide](eks-discovery-manual.mdx) for
-  service setup.
+- A host to run the Teleport Discovery Service. Teleport Cloud runs the
+  Discovery Service for you. You only need a separate Teleport Kubernetes
+  Service if you disable the module's AWS OIDC integration. See [Granting
+  access to discovered EKS clusters](#granting-access-to-discovered-eks-clusters)
+  and the [manual guide](eks-discovery-manual.mdx) for service setup.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -240,14 +241,27 @@ for a complete description of the module inputs and outputs.
 
 #### Granting access to discovered EKS clusters
 
-The IAM role created by this module includes permissions for the Discovery
-Service to create and update EKS Access Entries. When the Discovery Service
-finds a new EKS cluster, it automatically provisions an Access Entry so the
-Teleport Kubernetes Service can forward traffic.
+How a discovered EKS cluster is served depends on the credential source you
+configured for the Discovery Service.
 
-By default, the Discovery Service grants access to its own IAM role. If your
-Kubernetes Service runs with a different IAM role, add `setup_access_for_arn`
-to the EKS matcher with that role's ARN:
+- **AWS OIDC integration**. This is the default. The Discovery Service
+  provisions an EKS Access Entry for itself, connects to each discovered
+  cluster, and installs the `teleport-kube-agent` Helm chart in the cluster.
+  The agent inside the cluster proxies access to it. No separate Teleport
+  Kubernetes Service is needed.
+- **Ambient credentials** with `use_oidc_integration = false`. The Discovery
+  Service registers a `kube_cluster` resource for each discovered cluster. To
+  serve those clusters, run a Teleport Kubernetes Service with
+  `kubernetes_service.resources` labels that match the matcher's `tags`. See
+  [Manual EKS Auto-Discovery Configuration](eks-discovery-manual.mdx) for the
+  Kubernetes Service configuration and EKS cluster authorization steps.
+
+The IAM role created by this module includes permissions for the Discovery
+Service to create and update EKS Access Entries. By default, the Discovery
+Service grants access to its own IAM role. If your Kubernetes Service runs with
+a different IAM role, add `setup_access_for_arn` to the EKS matcher with that
+role's ARN. The module only accepts `setup_access_for_arn` when
+`use_oidc_integration = false`:
 
 ```hcl
 aws_matchers = [

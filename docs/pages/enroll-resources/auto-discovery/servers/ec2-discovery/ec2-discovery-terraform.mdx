@@ -216,26 +216,28 @@ module "aws_discovery" {
 
   # Required inputs:
   # Assign <Var name="example.teleport.sh:443" /> to your Teleport cluster's proxy public address in host:port form.
-  teleport_proxy_public_addr = "https://<Var name="example.teleport.sh:443" />"
+  teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
   # teleport_discovery_group_name must match the discovery group name in your Discovery Service config file.
   # Teleport Cloud clusters run the Discovery Service in the group name "cloud-discovery-group".
   # Do not modify this input unless you intend to run your own Discovery Service.
   teleport_discovery_group_name = "cloud-discovery-group"
-  # Discover EC2 instances
-  match_aws_resource_types = ["ec2"]
+
+  aws_matchers = [
+    {
+      types   = ["ec2"]
+      # EC2 discovery supports "*" to discover instances across all enabled regions.
+      # The module adds account:ListRegions to the IAM policy automatically when "*" is used.
+      regions = ["*"]
+      # tags filter which instances are enrolled. The wildcard matches all tags.
+      tags    = { "*" : ["*"] }
+    }
+  ]
 
   # Optional inputs:
   # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
   apply_aws_tags = { origin = "example" }
   # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
   apply_teleport_resource_labels = { origin = "example" }
-  # match_aws_regions is a list of regions in which the Discovery Service will match and discover EC2 instances.
-  # The wildcard "*" is the default and matches all regions.
-  match_aws_regions = ["*"]
-  # match_aws_tags are AWS tags to match when discovering EC2 instances.
-  # Only EC2 instances with matching tags will be discovered.
-  # The wildcard {"*" : ["*"]} is the default and matches all tags.
-  match_aws_tags = { "*" : ["*"] }
 }
 ```
 </TabItem>
@@ -251,21 +253,23 @@ module "aws_discovery" {
   teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
   # Edit this input to match the discovery group name in your Discovery Service config file
   teleport_discovery_group_name = "<Var name="discovery-group-name" />"
-  # Discover EC2 instances
-  match_aws_resource_types = ["ec2"]
+
+  aws_matchers = [
+    {
+      types   = ["ec2"]
+      # EC2 discovery supports "*" to discover instances across all enabled regions.
+      # The module adds account:ListRegions to the IAM policy automatically when "*" is used.
+      regions = ["*"]
+      # tags filter which instances are enrolled. The wildcard matches all tags.
+      tags    = { "*" : ["*"] }
+    }
+  ]
 
   # Optional inputs:
   # Apply the additional AWS tag "origin=example" to all AWS resources created by this module
   apply_aws_tags = { origin = "example" }
   # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
   apply_teleport_resource_labels = { origin = "example" }
-  # match_aws_regions is a list of regions in which the Discovery Service will match and discover EC2 instances.
-  # The wildcard "*" is the default and matches all regions.
-  match_aws_regions = ["*"]
-  # match_aws_tags are AWS tags to match when discovering EC2 instances.
-  # Only EC2 instances with matching tags will be discovered.
-  # The wildcard {"*" : ["*"]} is the default and matches all tags.
-  match_aws_tags = { "*" : ["*"] }
 }
 ```
 </TabItem>
@@ -366,12 +370,11 @@ When all of the discovered EC2 instances have successfully joined the Teleport c
 
 The module inputs can be changed and re-applied to adjust the AWS discovery integration.
 
-For example, if you had previously used specific AWS regions (rather than the wildcard default for all regions), then you can adjust `match_aws_regions` to include additional regions for EC2 discovery and re-apply the module to start enrolling instances in those regions as well.
-
+For example, if you had previously used specific AWS regions rather than the wildcard default for all regions, then you can adjust `regions` in `aws_matchers` to include additional regions for EC2 discovery and re-apply the module to start enrolling instances in those regions as well.
 
 ```diff
--match_aws_regions = ["us-west-1"]
-+match_aws_regions = ["us-west-1", "us-east-1"]
+-regions = ["us-west-1"]
++regions = ["us-west-1", "us-east-1"]
 ```
 
 Apply Terraform again:

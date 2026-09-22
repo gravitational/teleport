@@ -3,7 +3,7 @@
 
 (!docs/pages/includes/auto-discovery/tctl-discovery-nodes-aws.mdx!)
 
-If Installs are showing failed or instances are failing to appear check the
+If installs are showing failed or instances are failing to appear, check the
 Command history in AWS Systems Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
@@ -28,7 +28,7 @@ When enrolling an instance into Teleport, the installation script returns a spec
 - 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
 - 150: Teleport was installed but the agent failed to join the cluster
 
-You can customize the installation script - as describe in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
+You can customize the installation script - as described in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
 
 Whether the installation exits with a pre-flight check or with your own custom installation script, the exit code appears in `ssm.run` Teleport audit events, in the `exit_code` field.
 It also appears in AWS Systems Manager -> Node Management -> Run Command -> Command history.

@@ -1,4 +1,4 @@
-{{ matcher="bar" }}
+{{ matcher="bar" installKey="install" }}
 
 This section covers configuration options for discovering and enrolling servers.
 
@@ -9,14 +9,14 @@ When using blue-green deployments or other multiple clusters setups, you might w
 Teleport supports installing and running multiple agents on the same instance, using a suffixed installation which allows you to isolate each installation.
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To configure the Discovery Service to use a suffixed installation, edit the Discovery Config and set the `spec.{{ matcher }}.install.suffix` key:
+To configure the Discovery Service to use a suffixed installation, edit the Discovery Config and set the `spec.{{ matcher }}.{{ installKey }}.suffix` key:
 
 ```yaml
 kind: discovery_config
 # ...
 spec:
   {{ matcher }}:
-   - install:
+   - {{ installKey }}:
        suffix: "blue-cluster"
 ``` 
 </TabItem>
@@ -44,14 +44,14 @@ If you are using Teleport [Agent managed updates](../../upgrading/agent-managed-
 
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To set the update group, edit the Discovery Config and set the `spec.{{ matcher }}.install.update_group` key:
+To set the update group, edit the Discovery Config and set the `spec.{{ matcher }}.{{ installKey }}.update_group` key:
 
 ```yaml
 kind: discovery_config
 # ...
 spec:
   {{ matcher }}:
-   - install:
+   - {{ installKey }}:
        update_group: "update-group-1"
 ```
 
@@ -79,14 +79,14 @@ For instances which require a proxy to access the installation files, you can co
 
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-To set the HTTP proxy settings, edit the Discovery Config and set the `spec.{{ matcher }}.install.http_proxy_settings` key:
+To set the HTTP proxy settings, edit the Discovery Config and set the `spec.{{ matcher }}.{{ installKey }}.http_proxy_settings` key:
 
 ```yaml
 kind: discovery_config
 # ...
 spec:
   {{ matcher }}:
-   - install:
+   - {{ installKey }}:
        http_proxy_settings:
          https_proxy: http://172.31.5.130:3128
          http_proxy: http://172.31.5.130:3128

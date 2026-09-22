@@ -49,7 +49,8 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your Azure subscription to use this token
   name: azure-discovery-token
-  # set a long expiry time, as the default for tokens is only 30 minutes
+  # Set the token lifetime explicitly. Tokens created with tctl create do not
+  # expire when this field is omitted.
   expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
@@ -195,7 +196,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
         regions: ["<region>"]
         tags:
           "env": "prod" # Match virtual machines where tag:env=prod
-        install:
+        install_params:
           azure:
             # Optional: If the VMs to discover have more than one managed
             # identity assigned to them, set the client ID here to the client
@@ -245,6 +246,12 @@ Install Teleport on the virtual machine that will run the Discovery Service:
 </TabItem>
 
 </Tabs>
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+Once you have started the Discovery Service, Azure virtual machines matching the
+tags you specified earlier will begin to be added to the Teleport cluster
+automatically. It may take a few minutes for VMs to be discovered and enrolled.
 
 ## Auto-discovery labels
 

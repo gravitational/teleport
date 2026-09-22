@@ -242,7 +242,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
         regions: ["<region>"]
         tags:
           "env": "prod" # Match virtual machines where tag:env=prod
-        install:
+        install_params:
           azure:
             # Optional: If the VMs to discover have more than one managed
             # identity assigned to them, set the client ID here to the client

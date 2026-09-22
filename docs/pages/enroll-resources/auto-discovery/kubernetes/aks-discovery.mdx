@@ -247,10 +247,10 @@ Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 Enabling AKS Auto-Discovery requires that the `discovery_service.azure` section
 include at least one entry and that `discovery_service.azure.types` include `aks`.
-It also requires configuring the `kubernetes_service.resources.tags` to use the same
-labels configured at `discovery_service.azure.tags` or a subset of them to make
-the Kubernetes Service listen to the dynamic resources created by the Discovery
-Service.
+It also requires configuring the `kubernetes_service.resources` label selectors
+to use the same labels configured at `discovery_service.azure.tags` or a subset
+of them to make the Kubernetes Service listen to the dynamic resources created
+by the Discovery Service.
 
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 

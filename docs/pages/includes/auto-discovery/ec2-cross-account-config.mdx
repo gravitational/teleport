@@ -58,8 +58,9 @@ discovery_service:
     install:
       enroll_mode: script
       install_teleport: true
-      join_method: iam
-      join_token: aws-discovery-iam-token
+      join_params:
+        token_name: aws-discovery-iam-token
+        method: iam
     ssm:
       document_name: "AWS-RunShellScript"
     assume_role_arn: "<Var name="role ARN" />"

@@ -110,7 +110,7 @@ host where you can use `tctl`.
 Create the `discovery_config`:
 
 ```code
-$ tctl create <Var name="aws-example-discovery-config.yaml"/>
+$ tctl create -f <Var name="aws-example-discovery-config.yaml"/>
 ```
 
 The Discovery Service we configured earlier is in the same `discovery_group`
@@ -131,7 +131,7 @@ i.e. databases that a Database Service instance is providing access to.
 
 ## Step 5/8. List registered databases
 
-Before we set-up the Database Service to provide access to discovered databases,
+Before we set up the Database Service to provide access to discovered databases,
 we should check that the Discovery Service is actually discovering databases.
 
 You can list dynamically registered databases with `tctl`.
@@ -291,7 +291,7 @@ If you do not see the databases that you expected, then refer to
 [Database Service troubleshooting](#database-service-troubleshooting) below.
 
 <Admonition type="note">
-This guide shows you how to set-up AWS database auto-discovery with a Discovery
+This guide shows you how to set up AWS database auto-discovery with a Discovery
 Service and Database Service, but does not cover database user provisioning.
 
 Additional Teleport RBAC configuration and possibly IAM configuration may also
