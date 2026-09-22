@@ -518,7 +518,11 @@ func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
 		_, err := terminatefd.Read(buf)
 		if errors.Is(err, io.EOF) {
 			// Kill the shell process
-			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
+			if err = cmd.Process.Kill(); err != nil {
+				err = trace.Errorf("shell process has been killed: %w", err)
+			} else {
+				err = trace.Errorf("shell process has been killed")
+			}
 		} else {
 			err = trace.Errorf("failed to read from terminate file: %w", err)
 		}
@@ -1683,6 +1687,18 @@ func (e *CommandExecutor) Kill() error {
 	err := e.killShell.Close()
 	e.killShell = nil
 	return trace.Wrap(err)
+}
+
+// Wait waits for the underlying command to exit.
+func (e *CommandExecutor) Wait() error {
+	errs := []error{e.Cmd.Wait()}
+	// Close parent fds as we won't be able to send anything after process finishes
+	for _, f := range e.parentFiles {
+		if err := f.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // ConfigureCommand creates a command fully configured to execute. This
