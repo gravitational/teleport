@@ -118,14 +118,3 @@ func (r *searchKeywordUsernameResolver) resolveUsernames(ctx context.Context, se
 	r.usernamesBySearchKeyword[searchKeyword] = usernames
 	return usernames
 }
-
-// NewAccessRequestSearchMatcher returns a matcher that checks stored request fields and requester user-search matches.
-func NewAccessRequestSearchMatcher(searchKeywords []string, users UserSearchLister) func(context.Context, *types.AccessRequestV3) bool {
-	resolveToUsernames := NewSearchKeywordUsernameResolver(users)
-
-	return func(ctx context.Context, accessRequest *types.AccessRequestV3) bool {
-		return types.MatchSearch(accessRequest.SearchableFields(), searchKeywords, func(searchKeyword string) bool {
-			return resolveToUsernames(ctx, searchKeyword).Contains(accessRequest.GetUser())
-		})
-	}
-}

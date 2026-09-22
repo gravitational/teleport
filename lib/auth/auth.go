@@ -6068,7 +6068,7 @@ func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRe
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.listMatchingAccessRequests(ctx, req, func(_ *types.AccessRequestV3) bool {
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, func(_ *types.AccessRequestV3) bool {
 		return true
 	})
 }
@@ -6080,40 +6080,7 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.listMatchingAccessRequests(ctx, req, match)
-}
-
-func (a *Server) listMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
-	cacheReq, searchKeywords := splitAccessRequestSearchKeywords(req)
-	searchMatcher := services.NewAccessRequestSearchMatcher(searchKeywords, a)
-
-	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, cacheReq, func(accessRequest *types.AccessRequestV3) bool {
-		// searchMatcher decides whether the request matches the query. match
-		// preserves the caller-specific visibility filter, such as RBAC.
-		return searchMatcher(ctx, accessRequest) && match(accessRequest)
-	})
-}
-
-func splitAccessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsRequest, []string) {
-	if req.Filter == nil || len(req.Filter.SearchKeywords) == 0 {
-		return req, nil
-	}
-
-	searchKeywords := make([]string, 0, len(req.Filter.SearchKeywords))
-	for _, keyword := range req.Filter.SearchKeywords {
-		keyword = strings.TrimSpace(keyword)
-		if keyword != "" {
-			searchKeywords = append(searchKeywords, keyword)
-		}
-	}
-
-	reqCopy := *req
-	filterCopy := *req.Filter
-	// Search keywords can contain user display values that are not stored in the
-	// backend to result in false negatives, so the custom matcher handles all keyword filtering instead.
-	filterCopy.SearchKeywords = nil
-	reqCopy.Filter = &filterCopy
-	return &reqCopy, searchKeywords
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
 }
 
 func formatUserWithResolvedDisplay(ctx context.Context, getter services.UserGetter, username string) (string, error) {
@@ -6132,7 +6099,6 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
-	hasUserSuggestedReviewers := len(req.GetSuggestedReviewers()) > 0
 
 	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
@@ -6185,14 +6151,6 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
 		}
-
-		usernamesForDisplayResolution := []string{req.GetUser()}
-		if hasUserSuggestedReviewers {
-			usernamesForDisplayResolution = append(usernamesForDisplayResolution, suggestedReviewers...)
-		} else {
-			usernamesForDisplayResolution = append(usernamesForDisplayResolution, req.GetSuggestedReviewers()...)
-		}
-		addAccessRequestDryRunUserDisplays(ctx, req, usernamesForDisplayResolution, a, a.logger)
 
 		// Return before creating the request if this is a dry run.
 		return req, nil

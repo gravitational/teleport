@@ -3534,13 +3534,13 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 	} else {
 		// nil err means the user has explicit read + list permissions and can
 		// get all requests.
-		return a.authServer.fetchAccessRequests(ctx, req, nil)
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
 	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
-		return a.authServer.fetchAccessRequests(ctx, req, nil)
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -3567,13 +3567,13 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 			return &proto.ListAccessRequestsResponse{}, nil
 		}
 		req.Filter.User = a.context.User.GetName()
-		return a.authServer.fetchAccessRequests(ctx, req, nil)
+		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
 	// aggregate all requests that the caller owns and/or is able to review. Note that we perform all filtering via the
 	// passed-in matcher since the pagination key format varies by sort index and is an internal implementation detail
 	// of the access request cache.
-	return a.authServer.fetchAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (matches bool) {
+	return a.authServer.ListMatchingAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (matches bool) {
 		if accessRequest.GetUser() == a.context.User.GetName() {
 			return true
 		}
