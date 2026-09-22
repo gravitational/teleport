@@ -246,6 +246,18 @@ func (e *CommandExecutor) Kill() error {
 	return trace.Wrap(err)
 }
 
+// Wait waits for the underlying command to exit.
+func (e *CommandExecutor) Wait() error {
+	errs := []error{e.Cmd.Wait()}
+	// Close parent fds as we won't be able to send anything after process finishes
+	for _, f := range e.parentFiles {
+		if err := f.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.

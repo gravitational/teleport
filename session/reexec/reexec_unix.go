@@ -426,7 +426,11 @@ func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
 		_, err := terminatefd.Read(buf)
 		if errors.Is(err, io.EOF) {
 			// Kill the shell process
-			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
+			if err = cmd.Process.Kill(); err != nil {
+				err = trace.Errorf("shell process has been killed: %w", err)
+			} else {
+				err = trace.Errorf("shell process has been killed")
+			}
 		} else {
 			err = trace.Errorf("failed to read from terminate file: %w", err)
 		}
