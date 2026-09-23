@@ -1373,7 +1373,7 @@ func (s *Server) startNetworkingProcess(ctx context.Context, scx *srv.ServerCont
 		return nil, trace.Wrap(err)
 	}
 
-	proc, childErr, err := networking.NewProcess(ctx, cmd.Cmd)
+	proc, childErr, err := networking.NewProcess(ctx, cmd.Cmd, func() { cmd.Kill() })
 	if err != nil {
 		if childErr == "" {
 			return nil, trace.Wrap(err)

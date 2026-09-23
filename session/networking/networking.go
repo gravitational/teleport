@@ -66,6 +66,8 @@ const (
 type Process struct {
 	// cmd is the running process command.
 	cmd *exec.Cmd
+	// terminateOnce signals the process to exit. Must be idempotent.
+	terminateOnce func()
 	// conn is the socket used to request a dialer or listener in the process.
 	conn *net.UnixConn
 	// done signals when the process completes.
@@ -123,12 +125,20 @@ type X11Request struct {
 }
 
 // NewProcess starts a new networking process with the given command, which should
-// be pre-configured from a ssh server context with Teleport reexec settings. If an
+// be pre-configured from a SSH server context with Teleport reexec settings. If an
 // error starting the process occurs, the child error message from stderr is
 // returned with the exit error.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, string, error) {
+//
+// The optional terminate func signals the process to exit.
+// If not specified, the process can only be stopped forcibly.
+func NewProcess(ctx context.Context, cmd *exec.Cmd, terminate func()) (*Process, string, error) {
 	proc := &Process{
-		cmd:  cmd,
+		cmd: cmd,
+		terminateOnce: sync.OnceFunc(func() {
+			if terminate != nil {
+				terminate()
+			}
+		}),
 		done: make(chan struct{}),
 	}
 
@@ -227,9 +237,23 @@ func (p *Process) waitReady(ctx context.Context) (string, error) {
 	}
 }
 
+func (p *Process) signalTerminate() {
+	p.terminateOnce()
+}
+
 // Close stops the process and frees up its related resources.
+//
+// If the process was not configured with a terminate function it cannot
+// be asked to exit and Close always falls through to killing it.
 func (p *Process) Close() error {
+	// Ask the process to exit. Closing the conn below is not sufficient because
+	// it is a datagram socket (which does not unblock the child's read when the
+	// parent closes its side).
+	p.signalTerminate()
 	p.conn.Close()
+
+	// Wait for the process to exit on its own before falling back to
+	// forceful termination.
 	select {
 	case <-p.done:
 		return nil
