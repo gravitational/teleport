@@ -21,8 +21,8 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // Inventory is a subset of Presence dedicated to tracking the status of all

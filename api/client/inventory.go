@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 	"log/slog"
 	"sync"
 
@@ -27,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -225,27 +225,32 @@ func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	return *rsp, nil
 }
 
-func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
-	// set up cancelable context so that Stream.Done can close the stream if the caller
-	// halts early.
-	ctx, cancel := context.WithCancel(ctx)
+func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) iter.Seq2[types.Instance, error] {
+	return func(yield func(types.Instance, error) bool) {
+		// set up cancelable context so that the stream is closed if iteration
+		// halts early.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-	instances, err := c.grpc.GetInstances(ctx, &filter)
-	if err != nil {
-		cancel()
-		return stream.Fail[types.Instance](trace.Wrap(err))
-	}
-	return stream.Func[types.Instance](func() (types.Instance, error) {
-		instance, err := instances.Recv()
+		instances, err := c.grpc.GetInstances(ctx, &filter)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// io.EOF signals that stream has completed successfully
-				return nil, io.EOF
-			}
-			return nil, trace.Wrap(err)
+			yield(nil, trace.Wrap(err))
+			return
 		}
-		return instance, nil
-	}, cancel)
+		for {
+			instance, err := instances.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			if !yield(instance, nil) {
+				return
+			}
+		}
+	}
 }
 
 // ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).

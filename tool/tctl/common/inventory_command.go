@@ -245,8 +245,10 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			auditQueueBacklog int64
 		}
 		var rows []instanceRow
-		for instances.Next() {
-			instance := instances.Item()
+		for instance, err := range instances {
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			// The auth and proxy services should be omitted from the inventory list
 			// on Managed Teleport Enterprise (Cloud-Hosted) instances.
@@ -293,10 +295,6 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 					auditQueue,
 				},
 			})
-		}
-
-		if err := instances.Done(); err != nil {
-			return trace.Wrap(err)
 		}
 
 		if c.sort == "audit-queue" {

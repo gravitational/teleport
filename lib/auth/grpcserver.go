@@ -1025,19 +1025,20 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 		return trace.Wrap(err)
 	}
 
-	instances := auth.GetInstances(stream.Context(), *filter)
+	for item, err := range auth.GetInstances(stream.Context(), *filter) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	for instances.Next() {
-		instance, ok := instances.Item().(*types.InstanceV1)
+		instance, ok := item.(*types.InstanceV1)
 		if !ok {
 			g.logger.WarnContext(stream.Context(), "Skipping unexpected instance type",
-				"instance_type", logutils.TypeAttr(instances.Item()),
+				"instance_type", logutils.TypeAttr(item),
 				"expected_instance_type", logutils.TypeAttr(instance),
 			)
 			continue
 		}
 		if err := stream.Send(instance); err != nil {
-			instances.Done()
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -1045,7 +1046,7 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 		}
 	}
 
-	return trace.Wrap(instances.Done())
+	return nil
 }
 
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*authpb.GetClusterAlertsResponse, error) {

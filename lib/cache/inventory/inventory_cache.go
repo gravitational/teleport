@@ -634,14 +634,14 @@ func (ic *InventoryCache) populateCache(ctx context.Context, readsPerSecond int)
 
 // populateInstances reads teleport instances from the inventory service with rate limiting.
 func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.Limiter) error {
-	instanceStream := ic.cfg.Inventory.GetInstances(ctx, types.InstanceFilter{})
-
-	for instanceStream.Next() {
-		if err := limiter.Wait(ctx); err != nil {
+	for instance, err := range ic.cfg.Inventory.GetInstances(ctx, types.InstanceFilter{}) {
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		instance := instanceStream.Item()
+		if err := limiter.Wait(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 
 		instanceV1, ok := instance.(*types.InstanceV1)
 		if !ok {
@@ -654,7 +654,7 @@ func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.L
 		ic.cache.Put(ui)
 	}
 
-	return trace.Wrap(instanceStream.Done())
+	return nil
 }
 
 // populateBotInstances reads bot instances from the bot instance service with rate limiting.

@@ -934,9 +934,9 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 	return a.authServer.PingInventory(ctx, req)
 }
 
-func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) iterstream.Stream[types.Instance] {
 	if err := a.authorizeAction(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-		return stream.Fail[types.Instance](trace.Wrap(err))
+		return iterstream.Fail[types.Instance](trace.Wrap(err))
 	}
 
 	return a.authServer.GetInstances(ctx, filter)

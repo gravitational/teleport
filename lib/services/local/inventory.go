@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -33,24 +32,24 @@ import (
 )
 
 // GetInstances iterates all teleport instances.
-func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) apistream.Stream[types.Instance] {
+func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) stream.Stream[types.Instance] {
 	if req.ServerID != "" {
 		instance, err := s.getInstance(ctx, req.ServerID)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return apistream.Empty[types.Instance]()
+				return stream.Empty[types.Instance]()
 			}
-			return apistream.Fail[types.Instance](trace.Wrap(err))
+			return stream.Fail[types.Instance](trace.Wrap(err))
 		}
 		if !req.Match(instance) {
-			return apistream.Empty[types.Instance]()
+			return stream.Empty[types.Instance]()
 		}
-		return apistream.Once(instance)
+		return stream.Once(instance)
 	}
 
 	startKey := backend.ExactKey(instancePrefix)
 	endKey := backend.RangeEnd(startKey)
-	return stream.IntoLegacy(stream.FilterMap(
+	return stream.FilterMap(
 		s.Backend.Items(
 			ctx,
 			backend.ItemsParams{
@@ -75,7 +74,7 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 			}
 			return instance, true
 		},
-	))
+	)
 }
 
 // getInstance gets an instance resource by server ID.

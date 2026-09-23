@@ -2231,7 +2231,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	}
 
 	limiter := rate.NewLimiter(rate.Every(instanceRate), 100)
-	instances = stream.RateLimit(instances, func() error {
+	instances = iterstream.RateLimit(instances, func() error {
 		return limiter.Wait(ctx)
 	})
 
@@ -2244,21 +2244,21 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	uep := newUpgradeEnrollPeriodic()
 
 	// stream all instances to all aggregators
-	for instances.Next() {
+	for instance, err := range instances {
+		if err != nil {
+			a.logger.WarnContext(ctx, "Failed stream instances for periodics", "error", err)
+			return
+		}
+
 		if skipControlPlane {
-			for _, service := range instances.Item().GetServices() {
+			for _, service := range instance.GetServices() {
 				if service.IsControlPlane() {
 					continue
 				}
 			}
 		}
 
-		uep.VisitInstance(instances.Item())
-	}
-
-	if err := instances.Done(); err != nil {
-		a.logger.WarnContext(ctx, "Failed stream instances for periodics", "error", err)
-		return
+		uep.VisitInstance(instance)
 	}
 
 	// create/delete upgrade enroll prompt as appropriate
@@ -5805,26 +5805,28 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req *proto.InventorySta
 	rsp.SetUpgraderCounts(make(map[string]uint32))
 	rsp.SetServiceCounts(make(map[string]uint32))
 
-	ins := a.GetInstances(ctx, types.InstanceFilter{})
+	for instance, err := range a.GetInstances(ctx, types.InstanceFilter{}) {
+		if err != nil {
+			return rsp, trace.Wrap(err)
+		}
 
-	for ins.Next() {
 		rsp.SetInstanceCount(rsp.GetInstanceCount() + 1)
 
-		rsp.GetVersionCounts()[vc.Normalize(ins.Item().GetTeleportVersion())]++
+		rsp.GetVersionCounts()[vc.Normalize(instance.GetTeleportVersion())]++
 
-		upgrader := ins.Item().GetExternalUpgrader()
+		upgrader := instance.GetExternalUpgrader()
 		if upgrader == "" {
 			upgrader = "none"
 		}
 
 		rsp.GetUpgraderCounts()[upgrader]++
 
-		for _, service := range ins.Item().GetServices() {
+		for _, service := range instance.GetServices() {
 			rsp.GetServiceCounts()[string(service)]++
 		}
 	}
 
-	return rsp, ins.Done()
+	return rsp, nil
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.

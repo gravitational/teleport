@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"iter"
 	"reflect"
 	"unicode"
 
@@ -28,8 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-
-	"github.com/gravitational/teleport/api/internalutils/stream"
 )
 
 // ToJSON converts a single YAML document into a JSON document
@@ -139,9 +138,9 @@ func WriteJSON(w io.Writer, values any) error {
 	return trace.Wrap(err)
 }
 
-// StremJSONArray streams the elements of a stream.Stream as a json array
+// StreamJSONArray streams the elements of a iter.Seq2 as a json array
 // with optional indentation (used to stream to CLI).
-func StreamJSONArray[T any](items stream.Stream[T], out io.Writer, indent bool) error {
+func StreamJSONArray[T any](items iter.Seq2[T, error], out io.Writer, indent bool) error {
 	cfg := SafeConfig
 	if indent {
 		cfg = SafeConfigWithIndent
@@ -149,17 +148,20 @@ func StreamJSONArray[T any](items stream.Stream[T], out io.Writer, indent bool) 
 	stream := jsoniter.NewStream(cfg, out, 512)
 	stream.WriteArrayStart()
 	var prev bool
-	for items.Next() {
+	for item, err := range items {
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if prev {
 			// if a previous item was written to the array, we need to
 			// write a comma first.
 			stream.WriteMore()
 		}
-		stream.WriteVal(items.Item())
+		stream.WriteVal(item)
 		prev = true
 	}
 	stream.WriteArrayEnd()
-	return trace.NewAggregate(items.Done(), stream.Flush())
+	return trace.Wrap(stream.Flush())
 }
 
 // WriteYAMLArray marshals values as a YAML array.
