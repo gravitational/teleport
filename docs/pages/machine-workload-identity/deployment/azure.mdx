@@ -33,10 +33,13 @@ occur without the use of a long-lived secret.
 
 - (!docs/pages/includes/tctl.mdx!)
 - An Azure managed identity with a role granting the
-  `Microsoft.Compute/virtualMachines/read` permission. You will need to know
-  the UID of this identity.
+  `Microsoft.Compute/virtualMachines/read` permission. You will need the
+  Client ID of this identity, shown on the identity's **Overview** page in
+  the Azure Portal.
 - An Azure VM you wish to install Machine & Workload Identity onto with the
   managed identity configured as a user-assigned managed identity.
+- The Subscription ID of the Azure subscription that contains the VM, shown
+  on the subscription's **Overview** page in the Azure Portal.
 
 ## Step 1/4. Install `tbot`
 
@@ -74,8 +77,8 @@ spec:
   join_method: azure
   azure:
     allow:
-      # subscription should be the UID of an Azure subscription. Only VMs within
-      # this subscription will be able to join.
+      # subscription should be the Subscription ID of an Azure subscription.
+      # Only VMs within this subscription will be able to join.
     - subscription: 11111111-1111-1111-1111-111111111111
       # resource_groups allows joining to be restricted to VMs in a specific
       # resource group. It can be omitted to allow joining from any VM within
@@ -85,7 +88,8 @@ spec:
 
 Replace:
 
-- `11111111-1111-1111-1111-111111111111` with the UID of your Azure subscription
+- `11111111-1111-1111-1111-111111111111` with the Subscription ID of your
+  Azure subscription
 - `example` with the name of the bot you created in the second step
 - `group1` with the name of the resource group that the VM resides within or
   omit this entirely to allow joining from any VM within the subscription
@@ -120,8 +124,8 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
-- `22222222-2222-2222-2222-222222222222` with the ID of the Azure managed
-  identity that has been assigned to the VM.
+- `22222222-2222-2222-2222-222222222222` with the Client ID of the Azure
+  managed identity that has been assigned to the VM.
 - `example-bot` with the name of the token you created in the third step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
