@@ -15,8 +15,11 @@ The X.509 issuer override functionality provides a way to replace the self-signe
 `workload_identity_x509_issuer_override` resources can no longer be created or updated as of
 Teleport v19. This resource kind is deprecated and will be removed in a future release.
 
-Existing `workload_identity_x509_issuer_override` resources continue to work and can still be
-read and deleted.
+Existing `workload_identity_x509_issuer_override` resources continue to work and can still be read and deleted, but
+Teleport does not migrate them automatically. Replace yours by following [Migrate from
+workload_identity_x509_issuer_override](../../../zero-trust-access/management/security/ca-overrides.mdx#migrate-from-workload_identity_x509_issuer_override).
+To configure a new X.509 issuer override, use a [Certificate Authority
+Override](../../../zero-trust-access/management/security/ca-overrides.mdx) with `sub_kind: spiffe-tls`.
 </Admonition>
 
 <Admonition type="warning" title="Teleport Enterprise Required">

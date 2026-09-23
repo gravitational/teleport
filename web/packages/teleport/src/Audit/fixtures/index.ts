@@ -3837,6 +3837,11 @@ export const events = [
   },
   {
     'addr.remote': '127.0.0.1:54378',
+    ca_override: {
+      active: true,
+      public_key_hash:
+        'f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc',
+    },
     cluster_name: 'leaf.tele.ottr.sh',
     code: 'TSPIFFE000I',
     dns_sans: null,

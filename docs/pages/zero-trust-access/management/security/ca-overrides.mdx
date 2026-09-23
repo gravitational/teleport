@@ -30,6 +30,15 @@ The current implementation has a few limitations:
 Use `tctl get ca_overrides` to get override data.
 </Admonition>
 
+<Admonition type="warning" title="spiffe-tls requires Teleport 19.0.0 or newer">
+Do not create a `spiffe-tls` override until every Auth Service instance runs
+Teleport v19.0.0 or newer. Older instances issue SVIDs without it, so issuance
+becomes inconsistent across the cluster. If you use the deprecated
+[`workload_identity_x509_issuer_override`](../../../reference/machine-workload-identity/workload-identity/issuer-override.mdx)
+resource, see [Migrate from
+workload_identity_x509_issuer_override](#migrate-from-workload_identity_x509_issuer_override).
+</Admonition>
+
 ## How it works
 
 Teleport maintains several CAs, each with its own self-signed certificates and
@@ -50,7 +59,8 @@ resource.
 
 The `cert_authority_override` resource targets a CA with the following fields:
 
-- `sub_kind`: the CA type to override, such as `windows` or `db_client`.
+- `sub_kind`: the CA type to override, such as `db_client`, `spiffe-tls`, or
+  `windows`.
 - `metadata.name`: the Teleport cluster name.
 
 ## Prerequisites
@@ -82,7 +92,8 @@ The `cert_authority_override` resource targets a CA with the following fields:
   Assign the `<Var name="ca-override-admin" />` role to the user who will manage
   CA overrides.
 
-- Only the following CAs are currently supported: `db_client` and `windows`.
+- Only the following CAs are currently supported: `db_client`, `spiffe-tls`, and
+  `windows`.
 
 - All Auth Service instances and related services, such as Windows Desktop
   Service and Database Service instances, must be upgraded to the same CA
@@ -262,6 +273,17 @@ requires that you:
    tctl edit ca_overrides/db_client
    ```
 
+### spiffe-tls
+
+The SPIFFE trust bundle, whether exported with `tctl auth export
+--type=tls-spiffe` or served to workloads by `tbot`, contains only the
+self-signed Teleport SPIFFE CA. Relying parties that validate X509-SVIDs against
+your external hierarchy must obtain its root and intermediate certificates out
+of band, including the spiffe-tls CA override certificate itself.
+
+`spiffe-tls` overrides apply only to X509-SVIDs. JWT-SVID issuance is
+unaffected.
+
 ### windows
 
 Your configuration depends on whether you use
@@ -339,7 +361,7 @@ start successfully.
 To confirm that the override is in use, inspect the "Windows Desktop Session
 Started" event for the new session. You should see the "ca_override" stanza with
 `"active": true` and a corresponding `public_key_hash`. ("Database Session
-Started" events are modified similarly.)
+Started" and related per-CA issuance events are modified similarly.)
 
 <details>
 <summary>Session Started sample event</summary>
@@ -359,3 +381,51 @@ Started" events are modified similarly.)
 }
 ```
 </details>
+
+## Migrate from workload_identity_x509_issuer_override
+
+Teleport does not migrate the deprecated
+[`workload_identity_x509_issuer_override`](../../../reference/machine-workload-identity/workload-identity/issuer-override.mdx)
+resource automatically. Before replacing it with a `spiffe-tls` override, make
+sure that:
+
+- Every Auth Service instance runs Teleport v19.0.0 or newer.
+- Your role has the `read` and `delete` verbs on
+  `workload_identity_x509_issuer_override`, in addition to the
+  `cert_authority_override` access described in [Prerequisites](#prerequisites).
+- In clusters with a separate HSM key per Auth Service instance, `tctl` is
+  connected directly to the instance that holds the key. Otherwise you must
+  create the override with `--disabled`, wait for its CRL to appear in `tctl get
+  ca_overrides/spiffe-tls`, and enable it with `tctl auth update-override`,
+  which lengthens the gap in step 2 below. See [Multi-Auth Service clusters with
+  per-instance HSM keys](#multi-auth-service-clusters-with-per-instance-hsm-keys).
+
+1. Save the legacy resource and convert each `issuer` and `chain` certificate
+   from base64-encoded DER to PEM. Skip the conversion if you still have the PEM
+   files from your external CA.
+
+   ```code
+   $ tctl get workload_identity_x509_issuer_override/default > legacy_override.yaml
+   # Repeat for issuer and chain.
+   $ echo '<base64 certificate>' | base64 -d | openssl x509 -inform der -out cert.pem
+   ```
+
+2. Delete the legacy resource. Until the next step completes, X509-SVIDs are
+   issued from the self-signed Teleport SPIFFE CA, so keep the gap short.
+
+   ```code
+   $ tctl rm workload_identity_x509_issuer_override/default
+   ```
+
+3. Create the override from the converted `issuer` certificate, followed by the
+   converted `chain` certificates, if any, in leaf to root order. Omit the first
+   `chain` certificate if it duplicates the `issuer`. Downstream trust is
+   already configured because the legacy override was in effect, so create it
+   enabled. Repeat for each entry in legacy_override.yaml `spec.overrides`.
+
+   ```code
+   $ tctl auth create-override --type=spiffe-tls cert.pem intermediate.pem
+   ```
+
+Confirm with `tctl get ca_overrides/spiffe-tls`, then exercise the override as
+described in [Step 6/6](#step-66-exercise-the-ca-override).
