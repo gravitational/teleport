@@ -84,6 +84,12 @@ func (tc *TeleportClient) loggedInUserGitHubOAuthInitFunc(keyRing *KeyRing, org 
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Created GitHub Auth Request",
+			"redirect_url", resp.RedirectURL,
+			"authenticated_user", resp.AuthenticatedUser,
+			"integration", resp.Integration,
+			"has_connector_spec", resp.ConnectorSpec != nil,
+		)
 		return resp.RedirectURL, nil
 	}
 }
