@@ -27,13 +27,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
+	grpcutil "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
 // reconcileAccessGraphAzure fetches Azure resources, creates a set of resources to delete and upsert based on
@@ -120,8 +120,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	}
 
 	if pushErr != nil {
-		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
-		return nil
+		return trace.Wrap(pushErr, "Error pushing TAGs")
 	}
 
 	// Update the currentTAGResources with the result of the reconciliation.
@@ -256,8 +255,13 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var wg sync.WaitGroup
+	defer wg.Wait() // needs to be before defer cancel() below so the waitgroup job is canceled
+
 	ctx, cancel := context.WithCancel(lease)
 	defer cancel()
+
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
@@ -300,16 +304,12 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	features := azuresync.BuildFeatures(supportedKinds...)
 
 	// Cancels the context to stop the event watcher if the access graph connection fails
-	var wg sync.WaitGroup
-	defer wg.Wait()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer cancel()
-		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+		if grpcutil.WaitForConnectionLoss(ctx, accessGraphConn) {
 			s.Log.InfoContext(ctx, "access graph service connection was closed")
 		}
-	}()
+	})
 
 	// Configure the poll interval
 	tickerInterval := defaultPollInterval
@@ -336,6 +336,10 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
+			return trace.Wrap(err)
+		} else if err != nil {
+			// A push error means the stream is broken and no future push can
+			// succeed. Return so the caller re-establishes the connection/stream.
 			return trace.Wrap(err)
 		}
 		select {
