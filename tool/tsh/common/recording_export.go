@@ -245,6 +245,14 @@ loop:
 			return frameCount, trace.Wrap(ctx.Err())
 		case evt, more := <-evts:
 			if !more {
+				// The channel is closed both when we run out of events and when
+				// the context is canceled.
+				if err := ctx.Err(); err != nil {
+					if err := encoder.Close(); err != nil {
+						logger.WarnContext(ctx, "failed to close encoder", "error", err)
+					}
+					return frameCount, trace.Wrap(err)
+				}
 				logger.WarnContext(ctx, "reached end of stream before seeing session end event")
 				break loop
 			}
@@ -328,6 +336,9 @@ loop:
 			return nil, trace.Wrap(ctx.Err())
 		case evt, ok := <-evts:
 			if !ok {
+				if err := ctx.Err(); err != nil {
+					return nil, trace.Wrap(err)
+				}
 				break loop
 			}
 
