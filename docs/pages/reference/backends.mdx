@@ -346,11 +346,6 @@ Teleport can store the cluster state in CockroachDB but this require CockroachDB
 See the [CockroachDB backend section](#cockroachdb) for more details.
 </Admonition>
 
-Teleport needs separate databases for the cluster state and the
-audit log, and it will attempt to create them if given permissions to do so; it
-will also set up the database schemas as needed, so we recommend giving the user
-ownership over the databases.
-
 The PostgreSQL backend for cluster state relies on the ability to use [logical
 decoding](https://www.postgresql.org/docs/current/logicaldecoding.html) to get a
 stream of changes from the database; because of that, the
@@ -359,6 +354,15 @@ parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
 must be set to at least as many Teleport Auth Service instances as you'll be
 running (a higher number is recommended, to account for network conditions).
+
+It is strongly recommended to use different databases for the cluster state and
+the audit log: logical decoding needs to read through all the changes in the
+database, so storing the audit log in the same database as the cluster state
+will result in additional unnecessary I/O for PostgreSQL which can lead to reduced Teleport cluster performance and reliability.
+
+Teleport will attempt to create the configured databases if given permissions to
+do so; it will also set up the database schemas as needed, so we recommend
+giving the user ownership over the databases.
 
 The Teleport Auth Service needs to be able to create a replication slot when
 starting and when reestablishing a new connection to the PostgreSQL cluster, and
