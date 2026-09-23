@@ -1,5 +1,18 @@
 # Changelog
 
+## 18.11.2 (09/23/26)
+
+* Fixed `tsh mcp login` failing for MCP servers that publish OAuth metadata for their whole origin, and added `--redirect-uri` for pre-registered OAuth clients.
+* `tbot` now logs a warning when it joins a server that is not the same version.
+* Added support for using the bitbucket join method with scoped tokens.
+* Added tbot config onboarding `terraform_cloud` field and deprecate `terraform`.
+* Fixed excessive FD and TCP connection consumption in tbot's `application-proxy` service.
+* Fixed emoji and other wide characters rendering one cell too narrow in the web terminal, Teleport Connect, and session recording playback, which misaligned TUI output.
+* Fixed a bug in the compaction of audit logs emitted by Windows Desktop sessions that could cause compaction to hang indefinitely and/or cause unbounded CPU usage.
+* Fixed a crash in the Auth Service when a certificate authority stored in the backend could not be parsed.
+* Improved Teleport SCIM server performance - reduced SCIM PATCH updates to a single member opration.
+* Added support for configuring Azure AKS auto discovery using a Discovery Config, including support for `tctl discovery status` summary reporting.
+
 ## 18.11.1 (09/15/26)
 
 * Added support for LSA protection, the Teleport Windows authentication package can now be used on hosts with LSA protection (RunAsPPL) enabled.
