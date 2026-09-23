@@ -1,23 +1,7 @@
-data "aws_caller_identity" "this" {
-  count = var.create ? 1 : 0
-
-  lifecycle {
-    precondition {
-      condition     = var.teleport_proxy_public_addr != ""
-      error_message = "The Teleport proxy public address must not be empty when create is true."
-    }
-  }
-}
-
-data "aws_region" "this" {
-  count = var.create ? 1 : 0
-}
-
-data "aws_iam_policy_document" "ecs_task_inline_policy" {
-  count = var.create && (
+data "aws_iam_policy_document" "database_task_inline_policy" {
+  count = local.database_service_config_enabled && var.create && (
     var.ecs_task_role_inline_policy != null ||
-    contains(var.database_types_for_default_iam_policy, "rds") ||
-    contains(var.database_types_for_default_iam_policy, "rdsproxy")
+    length(var.database_service.default_iam_policy_database_types) > 0
   ) ? 1 : 0
 
   override_policy_documents = (
@@ -28,8 +12,8 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
 
   dynamic "statement" {
     for_each = (
-      contains(var.database_types_for_default_iam_policy, "rds") &&
-      var.allow_database_modification
+      contains(var.database_service.default_iam_policy_database_types, "rds") &&
+      var.database_service.allow_database_modification
     ) ? [true] : []
 
     content {
@@ -45,7 +29,7 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   }
 
   dynamic "statement" {
-    for_each = contains(var.database_types_for_default_iam_policy, "rds") ? [true] : []
+    for_each = contains(var.database_service.default_iam_policy_database_types, "rds") ? [true] : []
 
     content {
       sid       = "RDSConnect"
@@ -56,7 +40,7 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   }
 
   dynamic "statement" {
-    for_each = contains(var.database_types_for_default_iam_policy, "rds") ? [true] : []
+    for_each = contains(var.database_service.default_iam_policy_database_types, "rds") ? [true] : []
 
     content {
       sid = "RDSFetchMetadata"
@@ -71,7 +55,7 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   }
 
   dynamic "statement" {
-    for_each = contains(var.database_types_for_default_iam_policy, "rdsproxy") ? [true] : []
+    for_each = contains(var.database_service.default_iam_policy_database_types, "rdsproxy") ? [true] : []
 
     content {
       # This is the same permission as for RDS, but we document that these
@@ -85,7 +69,7 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   }
 
   dynamic "statement" {
-    for_each = contains(var.database_types_for_default_iam_policy, "rdsproxy") ? [true] : []
+    for_each = contains(var.database_service.default_iam_policy_database_types, "rdsproxy") ? [true] : []
 
     content {
       sid = "RDSProxyFetchMetadata"

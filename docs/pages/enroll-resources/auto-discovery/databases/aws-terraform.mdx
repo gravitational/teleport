@@ -34,7 +34,7 @@ Teleport Cloud runs the Discovery Service for you. For a self-hosted Teleport
 cluster, you run a Discovery Service with a `discovery_group` that matches the
 group configured by the module.
 
-The `teleport-db-agent-aws` Terraform module deploys a **Teleport Database Service**
+The `teleport-agent-aws` Terraform module deploys a **Teleport Database Service**
 as an ECS service.
 The module creates an ECS cluster and service, task IAM roles, CloudWatch log
 group, security group, and Teleport IAM join token. By default, the Database
@@ -61,7 +61,7 @@ The Database Service must be able to reach:
 
 This guide deploys the Database Service to the same AWS account, region, and VPC
 as the databases. To access databases in other AWS accounts, configure
-`database_service_resources` and the required cross-account IAM roles instead
+`database_service.resources` and the required cross-account IAM roles instead
 of using the module's default resource matcher.
 
 ## Step 1/6. Prepare the Discovery Service
@@ -186,18 +186,20 @@ module "aws_discovery" {
 }
 
 module "teleport_db_agent" {
-  source  = "terraform.releases.teleport.dev/teleport/db-agent/aws"
+  source  = "terraform.releases.teleport.dev/teleport/agent/aws"
   version = "~> (=cloud.major_version=).0"
 
   teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
+  database_service = {
+    allow_database_modification       = true
+    default_iam_policy_database_types = ["rds"]
+    enabled                           = true
+  }
   vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
   ecs_service_subnets = [
     "<Var name="subnet-0123456789abcdef0" />",
     "<Var name="subnet-abcdef01234567890" />",
   ]
-
-  allow_database_modification           = true
-  database_types_for_default_iam_policy = ["rds"]
 }
 
 resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
@@ -227,18 +229,20 @@ module "aws_discovery" {
 }
 
 module "teleport_db_agent" {
-  source  = "terraform.releases.teleport.dev/teleport/db-agent/aws"
+  source  = "terraform.releases.teleport.dev/teleport/agent/aws"
   version = "~> (=teleport.major_version=).0"
 
   teleport_proxy_public_addr = "<Var name="teleport.example.com:443" />"
+  database_service = {
+    allow_database_modification       = true
+    default_iam_policy_database_types = ["rds"]
+    enabled                           = true
+  }
   vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
   ecs_service_subnets = [
     "<Var name="subnet-0123456789abcdef0" />",
     "<Var name="subnet-abcdef01234567890" />",
   ]
-
-  allow_database_modification           = true
-  database_types_for_default_iam_policy = ["rds"]
 }
 
 resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
@@ -262,16 +266,17 @@ registered with Teleport. The example discovers all RDS and Aurora databases in
 the configured region. Replace the wildcard `tags` selector to restrict
 discovery to databases with specific AWS tags.
 
-The database-agent module's default resource matcher selects registered
+The agent module's default Database Service resource matcher selects registered
 databases with `account-id`, `region`, and `vpc-id` labels matching the AWS
 account, region, and VPC in which the ECS service runs.
 
-Setting `database_types_for_default_iam_policy = ["rds"]` adds permissions to
-describe RDS databases and connect with IAM authentication. Set
-`allow_database_modification = true` to also allow the Database Service to
-enable IAM database authentication. The default policy grants these RDS actions
-against all applicable resources. To restrict the permissions for a production
-deployment, pass a policy document to `ecs_task_role_inline_policy`. Statements
+Setting `default_iam_policy_database_types = ["rds"]` in the `database_service`
+object adds permissions to describe RDS databases and connect with IAM
+authentication. Set `allow_database_modification = true` in the same object to
+also allow the Database Service to enable IAM database authentication. The
+default policy grants these RDS actions against all applicable resources. To
+restrict the permissions for a production deployment, pass a policy document
+to `ecs_task_role_inline_policy`. Statements
 with the `RDSAutoEnableIAMAuth`, `RDSConnect`, and `RDSFetchMetadata` SIDs
 override the corresponding default statements.
 
@@ -300,7 +305,7 @@ The discovery module should plan the following resources:
 - An AWS IAM OIDC provider and Teleport AWS OIDC integration.
 - A Teleport `discovery_config` for the selected RDS databases.
 
-The database-agent module should plan the following resources:
+The agent module should plan the following resources:
 
 - An ECS cluster, task definition, and service.
 - ECS task and execution IAM roles.

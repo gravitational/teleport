@@ -17,7 +17,6 @@ This example deploys the Teleport Database Service to AWS ECS and joins it to an
 | Name | Version |
 | ---- | ------- |
 | aws | ~> 6.0 |
-| teleport | ~> 18.5 |
 
 ## Modules
 
@@ -30,7 +29,6 @@ This example deploys the Teleport Database Service to AWS ECS and joins it to an
 
 | Name | Type |
 | ---- | ---- |
-| teleport_provision_token.iam | resource |
 | [aws_availability_zones.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 
 ## Inputs

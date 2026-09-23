@@ -5,7 +5,8 @@
 locals {
   enable_ecs_task_inline_policy = var.create && (
     var.ecs_task_role_self_assumption_allowed ||
-    var.ecs_task_role_inline_policy != null
+    var.ecs_task_role_inline_policy != null ||
+    (local.database_service_config_enabled && length(var.database_service.default_iam_policy_database_types) > 0)
   )
   ecs_task_role_name = format("%v-%v-task-%v",
     one(aws_ecs_cluster.teleport_agent[*].name),
@@ -41,7 +42,9 @@ data "aws_iam_policy_document" "ecs_task_inline_policy" {
   count = local.enable_ecs_task_inline_policy ? 1 : 0
 
   source_policy_documents = (
-    var.ecs_task_role_inline_policy == null
+    local.database_service_config_enabled
+    ? data.aws_iam_policy_document.database_task_inline_policy[*].json
+    : var.ecs_task_role_inline_policy == null
     ? []
     : [var.ecs_task_role_inline_policy]
   )

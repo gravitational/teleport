@@ -16,11 +16,6 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "teleport_config" {
-  description = "Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition."
-  type        = any
-}
-
 ################################################################################
 # Optional variables
 ################################################################################
@@ -29,18 +24,6 @@ variable "apply_aws_tags" {
   default     = {}
   description = "Additional AWS tags to apply to all created AWS resources."
   type        = map(string)
-}
-
-variable "managed_updates_enabled" {
-  default     = true
-  description = "Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module."
-  type        = bool
-}
-
-variable "managed_updates_group" {
-  default     = "default"
-  description = "Update group to query through the v2 Managed Updates endpoint."
-  type        = string
 }
 
 variable "assign_public_ip" {
@@ -63,6 +46,40 @@ variable "create_security_group" {
   default     = true
   description = "Whether to create a security group for the Teleport ECS tasks."
   type        = bool
+}
+
+variable "database_service" {
+  default     = {}
+  description = <<EOF
+Teleport Database Service configuration.
+Set enabled to true to run the Teleport Database Service.
+Set allow_database_modification to true to add RDS permissions that allow the service to modify database configuration.
+Set default_iam_policy_database_types to the database types for which default IAM policy statements should be added to the ECS task role's inline policy.
+Supported default IAM policy database types are `rds` and `rdsproxy`.
+Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs_task_role_inline_policy.
+When resources is null, a default resource matcher is used that matches databases in the same account, region, and VPC.
+EOF
+  nullable    = false
+  type = object({
+    allow_database_modification       = optional(bool, false)
+    default_iam_policy_database_types = optional(list(string), [])
+    enabled                           = optional(bool, false)
+    resources = optional(list(object({
+      labels = map(list(string))
+      aws = optional(object({
+        assume_role_arn = optional(string, "")
+        external_id     = optional(string, "")
+      }))
+    })), null)
+  })
+
+  validation {
+    condition = alltrue([
+      for database_type in var.database_service.default_iam_policy_database_types
+      : contains(["rds", "rdsproxy"], database_type)
+    ])
+    error_message = "Supported database types are: rds, rdsproxy."
+  }
 }
 
 variable "ecs_cluster_name" {
@@ -90,28 +107,28 @@ variable "ecs_service_name" {
   type        = string
 }
 
+variable "ecs_task_cloudwatch_log_group_kms_key_id" {
+  default     = null
+  description = <<EOF
+KMS key ID or ARN used to encrypt the ECS task CloudWatch log group.
+When null, CloudWatch Logs uses its default encryption key.
+EOF
+  nullable    = true
+  type        = string
+}
+
 variable "ecs_task_cloudwatch_log_group_name" {
   default     = "ecs-teleport"
   description = "Name for the ECS task CloudWatch log group."
   type        = string
 }
 
-variable "ecs_task_cloudwatch_log_group_use_name_prefix" {
-  default     = true
-  description = "Determines whether `var.ecs_task_cloudwatch_log_group_name` is used as a prefix of the ECS task CloudWatch log group name."
-  type        = bool
-}
-
 variable "ecs_task_cloudwatch_log_group_region" {
   default     = null
-  description = "AWS region for the ECS task CloudWatch log group. Defaults to the AWS provider region."
-  nullable    = true
-  type        = string
-}
-
-variable "ecs_task_cloudwatch_log_group_kms_key_id" {
-  default     = null
-  description = "KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key."
+  description = <<EOF
+AWS region for the ECS task CloudWatch log group.
+Defaults to the AWS provider region.
+EOF
   nullable    = true
   type        = string
 }
@@ -128,6 +145,12 @@ variable "ecs_task_cloudwatch_log_group_skip_destroy" {
 Whether to preserve the ECS task CloudWatch log group when destroying module resources.
 Set to true if you do not wish the log group (and any logs it may contain) to be deleted at destroy time, and instead just remove the log group from the Terraform state.
 EOF
+  type        = bool
+}
+
+variable "ecs_task_cloudwatch_log_group_use_name_prefix" {
+  default     = true
+  description = "Determines whether `var.ecs_task_cloudwatch_log_group_name` is used as a prefix of the ECS task CloudWatch log group name."
   type        = bool
 }
 
@@ -186,6 +209,40 @@ variable "environment_vars" {
   type        = map(string)
 }
 
+variable "join_params" {
+  default     = null
+  description = <<EOF
+Override the Teleport join parameters.
+When null and var.database_service.enabled is true, the module creates an IAM join token automatically.
+Set this to use a pre-existing token or a different join method.
+EOF
+  type = object({
+    token_name = string
+    method     = string
+  })
+}
+
+variable "log_level" {
+  default     = "INFO"
+  description = <<EOF
+Teleport log level.
+Only used when var.database_service.enabled is true.
+EOF
+  type        = string
+}
+
+variable "managed_updates_enabled" {
+  default     = true
+  description = "Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module."
+  type        = bool
+}
+
+variable "managed_updates_group" {
+  default     = "default"
+  description = "Update group to query through the v2 Managed Updates endpoint."
+  type        = string
+}
+
 variable "security_group_ids" {
   default     = []
   description = "Additional security group IDs to attach to the Teleport ECS tasks."
@@ -198,14 +255,47 @@ variable "teleport_container_image" {
   type        = string
 }
 
+variable "teleport_provision_token_name" {
+  default     = "iam-agent"
+  description = "Name for the Teleport provision token resource."
+  type        = string
+  nullable    = false
+}
+
+variable "teleport_provision_token_use_name_prefix" {
+  default     = true
+  description = "Determines whether the name of the Teleport provision token is used as a prefix."
+  type        = bool
+  nullable    = false
+}
+
+variable "teleport_proxy_public_addr" {
+  default     = null
+  description = <<EOF
+Teleport cluster proxy public address `host:port`.
+Required when var.database_service.enabled is true.
+EOF
+  type        = string
+
+  validation {
+    condition     = var.teleport_proxy_public_addr == null || !strcontains(var.teleport_proxy_public_addr, "://")
+    error_message = "Must not contain a URL scheme."
+  }
+
+  validation {
+    condition     = var.teleport_proxy_public_addr == null || var.teleport_proxy_public_addr == "" || strcontains(var.teleport_proxy_public_addr, ":")
+    error_message = "The address must be in the form `host:port`."
+  }
+}
+
 variable "teleport_version_override" {
   default     = null
-  description = <<EOD
+  description = <<EOF
 teleport_version_override is intended for development and MUST NOT be used to control the Teleport version in a typical deployment.
 This module is designed to run a specific Teleport version.
 You will face compatibility issues trying to run a different Teleport version with it.
 If you want to run Teleport version `X.Y.Z`, you should adjust the module version to `X.Y.Z` instead.
-EOD
+EOF
   type        = string
   nullable    = true
 }

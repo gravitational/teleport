@@ -5,7 +5,7 @@
 locals {
   managed_updates_proxy_addr = try(
     replace(
-      trimspace(var.teleport_config.teleport.proxy_server),
+      trimspace(local.teleport_config.teleport.proxy_server),
       "/^[^:]*:[/]{2}/", # trim any URL scheme
     ""),
   "")
@@ -45,7 +45,7 @@ resource "aws_ecs_task_definition" "teleport_agent" {
         "teleport",
         "start",
         "--config-string",
-        base64encode(yamlencode(var.teleport_config)),
+        base64encode(yamlencode(local.teleport_config)),
       ]
       entryPoint = ["/usr/bin/dumb-init"]
       environment = [
@@ -89,6 +89,19 @@ resource "aws_ecs_task_definition" "teleport_agent" {
     precondition {
       condition     = !var.managed_updates_enabled || local.managed_updates_proxy_addr != ""
       error_message = "Managed Updates require teleport.proxy_server in teleport_config."
+    }
+
+    precondition {
+      condition     = var.database_service.enabled
+      error_message = "Set var.database_service.enabled to true."
+    }
+
+    precondition {
+      condition = (
+        !local.database_service_config_enabled ||
+        (var.teleport_proxy_public_addr != null && var.teleport_proxy_public_addr != "")
+      )
+      error_message = "The Teleport proxy public address must not be empty when var.database_service.enabled and var.create are true."
     }
   }
 }

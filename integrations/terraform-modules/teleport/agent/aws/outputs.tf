@@ -62,14 +62,10 @@ output "teleport_provision_token_allow_aws_arn" {
   description = <<EOF
 A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials.
 EOF
-  value = (
-    var.create
-    ? format(
-      "arn:%v:sts::%v:assumed-role/%v/*",
-      one(data.aws_partition.this[*].partition),
-      one(data.aws_caller_identity.this[*].account_id),
-      one(aws_iam_role.ecs_task[*].name),
-    )
-    : null
-  )
+  value       = local.teleport_provision_token_allow_aws_arn
+}
+
+output "teleport_provision_token_name" {
+  description = "Name of the Teleport provision token that allows the agent to join the cluster using AWS IAM credentials."
+  value       = try(nonsensitive(teleport_provision_token.agent_aws_iam[0].metadata.name), null)
 }
