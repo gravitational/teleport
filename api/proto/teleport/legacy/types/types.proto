@@ -4520,14 +4520,11 @@ message AppResource {
   //     `where: contains(user.traits["projects"], vars.project)`
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
 
-  // AllowEncoded lists the characters a request path may contain in
-  // percent-encoded form for the rule to match. The only supported value
-  // is "/", which allows the encoded slash, %2F or %2f.
-  //
-  // An encoded slash in a request path is rejected before any rule is
-  // evaluated, so AllowEncoded has no effect on matching in this version
-  // of Teleport.
-  repeated string AllowEncoded = 4 [(gogoproto.jsontag) = "allow_encoded,omitempty"];
+  // AllowEncoded is deprecated. A rule that sets it is rejected.
+  repeated string AllowEncoded = 4 [
+    (gogoproto.jsontag) = "allow_encoded,omitempty",
+    deprecated = true
+  ];
 
   // AllowAll grants unrestricted access to every path and method. It
   // cannot be combined with any other field.

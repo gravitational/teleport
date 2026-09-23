@@ -102,10 +102,8 @@ func validateRule(r types.AppResource) error {
 	if err := validateWhere(r.Where); err != nil {
 		return trace.Wrap(err)
 	}
-	for _, e := range r.AllowEncoded {
-		if e != "/" {
-			return trace.BadParameter("allow_encoded allows only the separator %q, got %q", "/", e)
-		}
+	if len(r.AllowEncoded) > 0 {
+		return trace.BadParameter("allow_encoded is deprecated")
 	}
 	if r.AllowReason != "" && r.AllowCode == "" {
 		return trace.BadParameter("allow_reason set without allow_code")

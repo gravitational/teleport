@@ -122,7 +122,7 @@ Optional:
 
 - `allow_all` (Boolean) AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.
 - `allow_code` (String) AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.
-- `allow_encoded` (List of String) AllowEncoded lists the characters a request path may contain in percent-encoded form for the rule to match. The only supported value is "/", which allows the encoded slash, %2F or %2f.  An encoded slash in a request path is rejected before any rule is evaluated, so AllowEncoded has no effect on matching in this version of Teleport.
+- `allow_encoded` (List of String) AllowEncoded is deprecated. A rule that sets it is rejected.
 - `allow_reason` (String) AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.
 - `deny_code_hint` (String) DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.
 - `deny_reason_hint` (String) DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.

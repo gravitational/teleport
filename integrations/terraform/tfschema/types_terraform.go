@@ -6184,7 +6184,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 								},
 								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "AllowEncoded lists the characters a request path may contain in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  An encoded slash in a request path is rejected before any rule is evaluated, so AllowEncoded has no effect on matching in this version of Teleport.",
+									Description:   "AllowEncoded is deprecated. A rule that sets it is rejected.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
@@ -8018,7 +8018,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 								},
 								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "AllowEncoded lists the characters a request path may contain in percent-encoded form for the rule to match. The only supported value is \"/\", which allows the encoded slash, %2F or %2f.  An encoded slash in a request path is rejected before any rule is evaluated, so AllowEncoded has no effect on matching in this version of Teleport.",
+									Description: "AllowEncoded is deprecated. A rule that sets it is rejected.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},

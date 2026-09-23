@@ -82,13 +82,8 @@ spec:
                             the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
-                          description: AllowEncoded lists the characters a request
-                            path may contain in percent-encoded form for the rule
-                            to match. The only supported value is "/", which allows
-                            the encoded slash, %2F or %2f.  An encoded slash in a
-                            request path is rejected before any rule is evaluated,
-                            so AllowEncoded has no effect on matching in this version
-                            of Teleport.
+                          description: AllowEncoded is deprecated. A rule that sets
+                            it is rejected.
                           items:
                             type: string
                           nullable: true
@@ -824,13 +819,8 @@ spec:
                             the reserved "teleport_" prefix.
                           type: string
                         allow_encoded:
-                          description: AllowEncoded lists the characters a request
-                            path may contain in percent-encoded form for the rule
-                            to match. The only supported value is "/", which allows
-                            the encoded slash, %2F or %2f.  An encoded slash in a
-                            request path is rejected before any rule is evaluated,
-                            so AllowEncoded has no effect on matching in this version
-                            of Teleport.
+                          description: AllowEncoded is deprecated. A rule that sets
+                            it is rejected.
                           items:
                             type: string
                           nullable: true
