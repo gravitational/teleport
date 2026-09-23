@@ -746,7 +746,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
+		require.NoError(t, teleportInstaller.Install(ctx))
 
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
@@ -876,7 +876,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
+		require.NoError(t, teleportInstaller.Install(ctx))
 
 		for binName, mockBin := range mockBins {
 			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
@@ -905,7 +905,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 				c.Exit(0)
 			})
 
-			require.ErrorContains(t, teleportInstaller.Install(ctx), "missing discover notice file")
+			require.NoError(t, teleportInstaller.Install(ctx))
 
 			for binName, mockBin := range mockBins {
 				require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)

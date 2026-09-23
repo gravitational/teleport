@@ -376,7 +376,7 @@ func (ani *AutoDiscoverNodeInstaller) installAndConfigure(ctx context.Context) e
 
 	if err := ani.configureTeleportNode(ctx, imdsClient); err != nil {
 		if trace.IsAlreadyExists(err) {
-			ani.Logger.InfoContext(ctx, "Teleport configuration already exists and has the same values, skipping systemd service restart",
+			ani.Logger.InfoContext(ctx, "Teleport configuration is unchanged or missing notice file, skipping systemd service restart",
 				"configuration_file", ani.buildTeleportConfigurationPath(),
 				"systemd_service", ani.buildTeleportSystemdUnitName(),
 			)
@@ -635,7 +635,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 			ani.Logger.InfoContext(ctx, "Refusing to replace the existing teleport configuration. For the script to replace the existing configuration remove the Teleport configuration.",
 				"teleport_configuration", teleportYamlConfigurationPath,
 				"discover_notice_file", discoverNoticeFile)
-			return trace.BadParameter("missing discover notice file")
+			return trace.AlreadyExists("missing discover notice file")
 		}
 	}
 
