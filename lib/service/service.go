@@ -2321,6 +2321,7 @@ func (process *TeleportProcess) initAuthService() error {
 				TTL:                time.Second * 30,
 				LockNameComponents: []string{"recording_encryption"},
 			},
+			ReleaseCtxTimeout: cfg.Testing.ReleaseCtxTimeout,
 		},
 		InitialSessionRecordingConfig: cfg.Auth.SessionRecordingConfig,
 	})
@@ -2508,6 +2509,7 @@ func (process *TeleportProcess) initAuthService() error {
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingEncryption:       recordingEncryptionManager,
 			RecordingMetadataProvider: recordingMetadataProvider,
+			ReleaseCtxTimeout:         cfg.Testing.ReleaseCtxTimeout,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
