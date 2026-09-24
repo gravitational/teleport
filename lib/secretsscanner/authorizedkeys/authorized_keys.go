@@ -155,9 +155,7 @@ func (w *Watcher) start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	reload := make(chan struct{})
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -177,7 +175,7 @@ func (w *Watcher) start(ctx context.Context) error {
 				w.logger.WarnContext(ctx, "Error watching authorized_keys file", "error", err)
 			}
 		}
-	}()
+	})
 
 	const etcPasswd = "/etc/passwd"
 	if err := fileWatcher.Add(etcPasswd); err != nil {

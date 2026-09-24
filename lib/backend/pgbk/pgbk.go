@@ -210,18 +210,14 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 
 	if !cfg.DisableExpiry {
-		b.wg.Add(1)
-		go func() {
-			defer b.wg.Done()
+		b.wg.Go(func() {
 			b.backgroundExpiry(ctx)
-		}()
+		})
 	}
 
-	b.wg.Add(1)
-	go func() {
-		defer b.wg.Done()
+	b.wg.Go(func() {
 		b.backgroundChangeFeed(ctx)
-	}()
+	})
 
 	return b, nil
 }

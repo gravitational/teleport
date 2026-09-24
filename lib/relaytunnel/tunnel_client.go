@@ -157,17 +157,13 @@ func (c *Client) Start() error {
 		return nil
 	}
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		c.dialLoopGrouped()
-	}()
+	})
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		c.discoverLoop()
-	}()
+	})
 
 	return nil
 }
@@ -526,9 +522,7 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 	c.pushRelayInfoLocked()
 	c.mu.Unlock()
 
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 
 		defer func() {
 			c.mu.Lock()
@@ -541,7 +535,7 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 		log.InfoContext(c.ctx, "running relay tunnel client connection")
 		defer c.log.InfoContext(c.ctx, "done with relay tunnel client connection")
 		cc.run(controlStream, c.handleConnection, log)
-	}()
+	})
 
 	return nil
 }
@@ -584,13 +578,11 @@ func (c *yamuxClientConn) run(controlStream *yamux.Stream, handleConnection func
 				return
 			}
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				log.DebugContext(context.Background(), "Serving tunneled connection", "stream_id", stream.StreamID())
 				defer log.DebugContext(context.Background(), "Done serving tunneled connection", "stream_id", stream.StreamID())
 				c.handleStream(stream, handleConnection)
-			}()
+			})
 		}
 	}()
 	wg.Wait()

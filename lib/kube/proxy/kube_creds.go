@@ -215,9 +215,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 	if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dyn.wg.Add(1)
-	go func() {
-		defer dyn.wg.Done()
+	dyn.wg.Go(func() {
 		for {
 			select {
 			case <-dyn.closeC:
@@ -228,7 +226,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 				}
 			}
 		}
-	}()
+	})
 
 	return dyn, nil
 }

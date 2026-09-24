@@ -165,9 +165,7 @@ func newSession(ctx context.Context,
 	}
 
 	// Close the Terminal when finished.
-	ns.closeWait.Add(1)
-	go func() {
-		defer ns.closeWait.Done()
+	ns.closeWait.Go(func() {
 
 		<-ns.closer.C
 
@@ -177,7 +175,7 @@ func newSession(ctx context.Context,
 			}
 		}
 		ns.terminal.Close()
-	}()
+	})
 
 	return ns, nil
 }

@@ -801,11 +801,9 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	u.wg.Add(1)
-	go func() {
-		defer u.wg.Done()
+	u.wg.Go(func() {
 		u.monitorStreamStatus(ctx, up, stream, cancel)
-	}()
+	})
 
 	for {
 		event, err := up.reader.Read(ctx)

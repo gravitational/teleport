@@ -290,14 +290,12 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 	// be time-consuming. Launch in another goroutine to prevent interfering with
 	// cache operations. The gauge is decremented after close completes so that
 	// it reflects sessions still holding resources (audit streams, IOPS).
-	c.cacheCloseWg.Add(1)
-	go func() {
-		defer c.cacheCloseWg.Done()
+	c.cacheCloseWg.Go(func() {
 		defer activeSessions.WithLabelValues(sess.appName).Dec()
 		if err := sess.close(ctx); err != nil {
 			c.log.DebugContext(ctx, "Error closing session", "session_id", sess.id, "error", err)
 		}
-	}()
+	})
 }
 
 // newSessionRecorder creates a session stream that will be used to record

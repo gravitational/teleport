@@ -78,9 +78,7 @@ func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
 	errs := make([]error, len(names))
 	for i, name := range names {
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			f, err := dmifs.Open(name)
 			if err != nil {
@@ -96,7 +94,7 @@ func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
 			}
 
 			vals[i] = strings.TrimSpace(string(val))
-		}()
+		})
 	}
 
 	wg.Wait()

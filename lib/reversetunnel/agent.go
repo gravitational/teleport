@@ -603,11 +603,9 @@ func (a *agent) handleDrainChannels(drainWGDone func()) error {
 				continue
 			}
 
-			a.drainWG.Add(1)
-			go func() {
-				defer a.drainWG.Done()
+			a.drainWG.Go(func() {
 				a.transportHandler.handleTransport(a.ctx, ch, req, a.client)
-			}()
+			})
 
 		}
 	}
@@ -632,11 +630,9 @@ func (a *agent) handleChannels() error {
 				continue
 			}
 
-			a.wg.Add(1)
-			go func() {
+			a.wg.Go(func() {
 				a.handleDiscovery(ch, req)
-				a.wg.Done()
-			}()
+			})
 		}
 	}
 }

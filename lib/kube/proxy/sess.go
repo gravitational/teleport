@@ -184,9 +184,7 @@ func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
 	if p.sizeQueue == nil {
 		return ch
 	}
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		for {
 			size := p.sizeQueue.Next()
 			if size == nil {
@@ -200,7 +198,7 @@ func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
 				return
 			}
 		}
-	}()
+	})
 
 	return ch
 }

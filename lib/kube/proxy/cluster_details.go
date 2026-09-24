@@ -193,10 +193,8 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		return nil, trace.Wrap(err)
 	}
 
-	k.wg.Add(1)
 	// Start the periodic update of the codec factory and the list of supported types for RBAC.
-	go func() {
-		defer k.wg.Done()
+	k.wg.Go(func() {
 
 		for {
 			select {
@@ -233,7 +231,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 				k.rwMu.Unlock()
 			}
 		}
-	}()
+	})
 	return k, nil
 }
 

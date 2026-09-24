@@ -214,11 +214,9 @@ func (s *Server) Serve(transport *quic.Transport) error {
 			return trace.Wrap(err)
 		}
 
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		s.wg.Go(func() {
 			s.handleConn(c)
-		}()
+		})
 	}
 }
 
@@ -255,11 +253,9 @@ func (s *Server) handleConn(conn *quic.Conn) {
 			return
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			s.handleStream(st, conn, log)
-		}()
+		})
 	}
 }
 

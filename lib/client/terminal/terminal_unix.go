@@ -93,13 +93,11 @@ func (t *Terminal) InitRaw(input bool) error {
 		log.WarnContext(context.Background(), "Could not put terminal into raw mode", "error", err)
 	} else {
 		// Ensure the terminal is reset on exit.
-		t.closeWait.Add(1)
-		go func() {
+		t.closeWait.Go(func() {
 			<-t.closer.C
 			term.RestoreTerminal(0, ts)
 			slog.SetDefault(slog.New(originalHandler))
-			t.closeWait.Done()
-		}()
+		})
 	}
 
 	// Convert Unix-specific signals to our abstracted events.

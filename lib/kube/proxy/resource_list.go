@@ -242,12 +242,10 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(req.Context())
 	if podName := isRequestTargetedToPod(req, sess.metaResource.requestedResource); podName != "" && ok {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			f.sendEphemeralContainerEvents(ctx, rw, sess, podName)
-		}()
+		})
 	}
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)

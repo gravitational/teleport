@@ -906,9 +906,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 
 	// Start the worker goroutines
 	for range noOfWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for handles := range workerCh {
 				entries := make([]sqsTypes.DeleteMessageBatchRequestEntry, 0, len(handles))
 				for _, h := range handles {
@@ -931,7 +929,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 					errorsCh <- trace.Errorf("failed to delete message with ID %s, sender fault %v: %s", aws.ToString(entry.Id), entry.SenderFault, aws.ToString(entry.Message))
 				}
 			}
-		}()
+		})
 	}
 
 	// Batch the receipt handles and send them to the worker pool.

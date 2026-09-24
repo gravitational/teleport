@@ -66,12 +66,10 @@ func proxySSHConnection(
 	// tasks can terminate.
 	var wg sync.WaitGroup
 	runTask := func(task func()) {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			task()
 			closeConnections()
-			wg.Done()
-		}()
+		})
 	}
 
 	// Proxy channels initiated by either connection.
@@ -103,11 +101,9 @@ func proxyChannels(
 	// tracking with a WaitGroup.
 	var wg sync.WaitGroup
 	for newChan := range chans {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			proxyChannel(ctx, targetConn, newChan, closeConnections)
-		}()
+		})
 	}
 	wg.Wait()
 }

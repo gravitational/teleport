@@ -618,11 +618,9 @@ func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn strin
 }
 
 func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) bool {
-	ns.wg.Add(1)
-	go func() {
-		defer ns.wg.Done()
+	ns.wg.Go(func() {
 		ns.handleUDPConcurrent(req)
-	}()
+	})
 	return true
 }
 

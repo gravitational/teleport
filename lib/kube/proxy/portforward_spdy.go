@@ -197,9 +197,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 
 	wg := &sync.WaitGroup{}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// Close the target error stream to indicate no more writes.
 		if err := targetErrorStream.Close(); err != nil {
 			h.logger.DebugContext(h.context, "Unable to close target error stream", "error", err)
@@ -208,7 +206,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
 			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
 		}
-	}()
+	})
 
 	// create data stream
 	headers.Set(StreamType, StreamTypeData)
@@ -224,13 +222,11 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 		targetDataStream.Close()
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := utils.ProxyConn(h.context, p.dataStream, targetDataStream); err != nil {
 			h.logger.DebugContext(h.context, "Unable to proxy portforward data-stream", "error", err)
 		}
-	}()
+	})
 
 	h.logger.DebugContext(h.context, "Streams have been created, Waiting for copy to complete")
 	// wait for the copies to complete before returning.
@@ -334,11 +330,9 @@ func (h *portForwardProxy) run() {
 				err := trace.BadParameter("error processing stream for request %s: %v", requestID, err)
 				p.sendErr(err)
 			} else if complete {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					h.portForward(p)
-				}()
+				})
 			}
 		}
 	}

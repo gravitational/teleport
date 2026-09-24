@@ -175,9 +175,7 @@ func (s *Server) ServeTLSListener(l net.Listener) error {
 		s.conns[c] = struct{}{}
 		s.mu.Unlock()
 
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		s.wg.Go(func() {
 			defer func() {
 				s.mu.Lock()
 				delete(s.conns, c)
@@ -185,7 +183,7 @@ func (s *Server) ServeTLSListener(l net.Listener) error {
 			}()
 			err := s.handleTLSConnection(c)
 			s.log.DebugContext(context.Background(), "Finished handling peer connection", "error", err)
-		}()
+		})
 	}
 }
 

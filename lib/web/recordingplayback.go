@@ -400,11 +400,9 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 
 	s.stream.Unlock()
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		s.streamEvents(ctx, req, eventsChan, errorsChan)
-	}()
+	})
 }
 
 // streamEvents streams session events to the client.

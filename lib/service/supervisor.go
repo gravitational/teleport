@@ -343,9 +343,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
 		return
 	}
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		defer s.RemoveService(srv)
 
 		if label, ok := metricsServicesRunningMap[srv.Name()]; ok {
@@ -369,7 +367,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 				})
 			}
 		}
-	}()
+	})
 }
 
 func (s *LocalSupervisor) Start() error {
