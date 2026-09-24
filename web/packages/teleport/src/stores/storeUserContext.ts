@@ -44,6 +44,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.authVersion;
   }
 
+  getClusterToolsVersion() {
+    return this.state.cluster.toolsVersion ?? '';
+  }
+
   getClusterPublicUrl() {
     return this.state.cluster.publicURL;
   }

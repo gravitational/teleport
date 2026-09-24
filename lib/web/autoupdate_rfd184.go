@@ -36,15 +36,15 @@ import (
 func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updaterUUID string) webclient.AutoUpdateSettings {
 	// Tools auto updates section.
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
+		autoUpdateConfig = nil
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
+		autoUpdateVersion = nil
 	}
 
 	// Agent auto updates section.

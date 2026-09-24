@@ -32,6 +32,7 @@ export function makeCluster(json): Cluster {
     publicURL,
     authVersion,
     proxyVersion,
+    toolsVersion,
     licenseExpiry,
   } = json;
 
@@ -61,6 +62,7 @@ export function makeCluster(json): Cluster {
     authVersion,
     publicURL,
     proxyVersion,
+    toolsVersion,
     licenseExpiryDateText,
   };
 }
