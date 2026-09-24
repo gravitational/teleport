@@ -200,9 +200,12 @@ type Pin struct {
 	// for USER kind pins.
 	AssignmentTree *AssignmentNode `protobuf:"bytes,3,opt,name=assignment_tree,json=assignmentTree,proto3" json:"assignment_tree,omitempty"`
 	// system_roles encodes the system roles held by the pinned identity. Only specified for AGENT kind pins.
-	SystemRoles   *SystemRoles `protobuf:"bytes,5,opt,name=system_roles,json=systemRoles,proto3" json:"system_roles,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SystemRoles *SystemRoles `protobuf:"bytes,5,opt,name=system_roles,json=systemRoles,proto3" json:"system_roles,omitempty"`
+	// An indexed lookup of unique string values found in the pin. Reduces pin size by replacing repeated strings with
+	// an int32.
+	InternedStrings []string `protobuf:"bytes,6,rep,name=interned_strings,json=internedStrings,proto3" json:"interned_strings,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Pin) Reset() {
@@ -258,6 +261,13 @@ func (x *Pin) GetSystemRoles() *SystemRoles {
 	return nil
 }
 
+func (x *Pin) GetInternedStrings() []string {
+	if x != nil {
+		return x.InternedStrings
+	}
+	return nil
+}
+
 func (x *Pin) SetScope(v string) {
 	x.Scope = v
 }
@@ -272,6 +282,10 @@ func (x *Pin) SetAssignmentTree(v *AssignmentNode) {
 
 func (x *Pin) SetSystemRoles(v *SystemRoles) {
 	x.SystemRoles = v
+}
+
+func (x *Pin) SetInternedStrings(v []string) {
+	x.InternedStrings = v
 }
 
 func (x *Pin) HasAssignmentTree() bool {
@@ -312,6 +326,9 @@ type Pin_builder struct {
 	AssignmentTree *AssignmentNode
 	// system_roles encodes the system roles held by the pinned identity. Only specified for AGENT kind pins.
 	SystemRoles *SystemRoles
+	// An indexed lookup of unique string values found in the pin. Reduces pin size by replacing repeated strings with
+	// an int32.
+	InternedStrings []string
 }
 
 func (b0 Pin_builder) Build() *Pin {
@@ -322,6 +339,7 @@ func (b0 Pin_builder) Build() *Pin {
 	x.Kind = b.Kind
 	x.AssignmentTree = b.AssignmentTree
 	x.SystemRoles = b.SystemRoles
+	x.InternedStrings = b.InternedStrings
 	return m0
 }
 
@@ -332,7 +350,7 @@ type AssignmentNode struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// children are the child assignment nodes, keyed by scope segment.
 	Children map[string]*AssignmentNode `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+	// role_tree is the subtree of roles and traits assigned from this scope of origin, organized by *Scope of Effect*.
 	RoleTree      *RoleNode `protobuf:"bytes,2,opt,name=role_tree,json=roleTree,proto3" json:"role_tree,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -401,7 +419,7 @@ type AssignmentNode_builder struct {
 
 	// children are the child assignment nodes, keyed by scope segment.
 	Children map[string]*AssignmentNode
-	// role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+	// role_tree is the subtree of roles and traits assigned from this scope of origin, organized by *Scope of Effect*.
 	RoleTree *RoleNode
 }
 
@@ -423,7 +441,9 @@ type RoleNode struct {
 	// children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
 	Children map[string]*RoleNode `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
-	RolesByScope  []*RolesByScope `protobuf:"bytes,3,rep,name=roles_by_scope,json=rolesByScope,proto3" json:"roles_by_scope,omitempty"`
+	RolesByScope []*RolesByScope `protobuf:"bytes,3,rep,name=roles_by_scope,json=rolesByScope,proto3" json:"roles_by_scope,omitempty"`
+	// The interned traits assigned at this Scope of Effect.
+	Traits        []*InternedTrait `protobuf:"bytes,4,rep,name=traits,proto3" json:"traits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -467,12 +487,23 @@ func (x *RoleNode) GetRolesByScope() []*RolesByScope {
 	return nil
 }
 
+func (x *RoleNode) GetTraits() []*InternedTrait {
+	if x != nil {
+		return x.Traits
+	}
+	return nil
+}
+
 func (x *RoleNode) SetChildren(v map[string]*RoleNode) {
 	x.Children = v
 }
 
 func (x *RoleNode) SetRolesByScope(v []*RolesByScope) {
 	x.RolesByScope = v
+}
+
+func (x *RoleNode) SetTraits(v []*InternedTrait) {
+	x.Traits = v
 }
 
 type RoleNode_builder struct {
@@ -482,6 +513,8 @@ type RoleNode_builder struct {
 	Children map[string]*RoleNode
 	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
 	RolesByScope []*RolesByScope
+	// The interned traits assigned at this Scope of Effect.
+	Traits []*InternedTrait
 }
 
 func (b0 RoleNode_builder) Build() *RoleNode {
@@ -490,6 +523,7 @@ func (b0 RoleNode_builder) Build() *RoleNode {
 	_, _ = b, x
 	x.Children = b.Children
 	x.RolesByScope = b.RolesByScope
+	x.Traits = b.Traits
 	return m0
 }
 
@@ -796,25 +830,103 @@ func (b0 Filter_builder) Build() *Filter {
 	return m0
 }
 
+// A reference to a trait whose name and values have been interned.
+type InternedTrait struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The index referencing the interned name of the trait.
+	Key int32 `protobuf:"varint,1,opt,name=key,proto3" json:"key,omitempty"`
+	// The list of indices referencing the values of the trait.
+	Values        []int32 `protobuf:"varint,2,rep,packed,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InternedTrait) Reset() {
+	*x = InternedTrait{}
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InternedTrait) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InternedTrait) ProtoMessage() {}
+
+func (x *InternedTrait) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *InternedTrait) GetKey() int32 {
+	if x != nil {
+		return x.Key
+	}
+	return 0
+}
+
+func (x *InternedTrait) GetValues() []int32 {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+func (x *InternedTrait) SetKey(v int32) {
+	x.Key = v
+}
+
+func (x *InternedTrait) SetValues(v []int32) {
+	x.Values = v
+}
+
+type InternedTrait_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The index referencing the interned name of the trait.
+	Key int32
+	// The list of indices referencing the values of the trait.
+	Values []int32
+}
+
+func (b0 InternedTrait_builder) Build() *InternedTrait {
+	m0 := &InternedTrait{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Values = b.Values
+	return m0
+}
+
 var File_teleport_scopes_v1_scopes_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\"\xf0\x01\n" +
+	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\"\x9b\x02\n" +
 	"\x03Pin\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12/\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x1b.teleport.scopes.v1.PinKindR\x04kind\x12K\n" +
 	"\x0fassignment_tree\x18\x03 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x0eassignmentTree\x12B\n" +
-	"\fsystem_roles\x18\x05 \x01(\v2\x1f.teleport.scopes.v1.SystemRolesR\vsystemRolesJ\x04\b\x02\x10\x03R\vassignments\"\xfa\x01\n" +
+	"\fsystem_roles\x18\x05 \x01(\v2\x1f.teleport.scopes.v1.SystemRolesR\vsystemRoles\x12)\n" +
+	"\x10interned_strings\x18\x06 \x03(\tR\x0finternedStringsJ\x04\b\x02\x10\x03R\vassignments\"\xfa\x01\n" +
 	"\x0eAssignmentNode\x12L\n" +
 	"\bchildren\x18\x01 \x03(\v20.teleport.scopes.v1.AssignmentNode.ChildrenEntryR\bchildren\x129\n" +
 	"\trole_tree\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\broleTree\x1a_\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\x82\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\xbd\x02\n" +
 	"\bRoleNode\x12F\n" +
 	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12F\n" +
-	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x1aY\n" +
+	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x129\n" +
+	"\x06traits\x18\x04 \x03(\v2!.teleport.scopes.v1.InternedTraitR\x06traits\x1aY\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
 	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01J\x04\b\x02\x10\x03R\x05roles\":\n" +
@@ -830,7 +942,10 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"additional\"L\n" +
 	"\x06Filter\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12,\n" +
-	"\x04mode\x18\x02 \x01(\x0e2\x18.teleport.scopes.v1.ModeR\x04mode*J\n" +
+	"\x04mode\x18\x02 \x01(\x0e2\x18.teleport.scopes.v1.ModeR\x04mode\"9\n" +
+	"\rInternedTrait\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x16\n" +
+	"\x06values\x18\x02 \x03(\x05R\x06values*J\n" +
 	"\aPinKind\x12\x18\n" +
 	"\x14PIN_KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rPIN_KIND_USER\x10\x01\x12\x12\n" +
@@ -847,7 +962,7 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\bMODE_ALL\x10\b\"\x04\b\x01\x10\x01*\x1fMODE_RESOURCES_SUBJECT_TO_SCOPEBPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
 
 var file_teleport_scopes_v1_scopes_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_scopes_v1_scopes_proto_goTypes = []any{
 	(PinKind)(0),              // 0: teleport.scopes.v1.PinKind
 	(Mode)(0),                 // 1: teleport.scopes.v1.Mode
@@ -858,25 +973,27 @@ var file_teleport_scopes_v1_scopes_proto_goTypes = []any{
 	(*PinnedAssignments)(nil), // 6: teleport.scopes.v1.PinnedAssignments
 	(*SystemRoles)(nil),       // 7: teleport.scopes.v1.SystemRoles
 	(*Filter)(nil),            // 8: teleport.scopes.v1.Filter
-	nil,                       // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry
-	nil,                       // 10: teleport.scopes.v1.RoleNode.ChildrenEntry
+	(*InternedTrait)(nil),     // 9: teleport.scopes.v1.InternedTrait
+	nil,                       // 10: teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	nil,                       // 11: teleport.scopes.v1.RoleNode.ChildrenEntry
 }
 var file_teleport_scopes_v1_scopes_proto_depIdxs = []int32{
 	0,  // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
 	3,  // 1: teleport.scopes.v1.Pin.assignment_tree:type_name -> teleport.scopes.v1.AssignmentNode
 	7,  // 2: teleport.scopes.v1.Pin.system_roles:type_name -> teleport.scopes.v1.SystemRoles
-	9,  // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	10, // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
 	4,  // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
-	10, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
+	11, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
 	5,  // 6: teleport.scopes.v1.RoleNode.roles_by_scope:type_name -> teleport.scopes.v1.RolesByScope
-	1,  // 7: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
-	3,  // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
-	4,  // 9: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	9,  // 7: teleport.scopes.v1.RoleNode.traits:type_name -> teleport.scopes.v1.InternedTrait
+	1,  // 8: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
+	3,  // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
+	4,  // 10: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_v1_scopes_proto_init() }
@@ -890,7 +1007,7 @@ func file_teleport_scopes_v1_scopes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_v1_scopes_proto_rawDesc), len(file_teleport_scopes_v1_scopes_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

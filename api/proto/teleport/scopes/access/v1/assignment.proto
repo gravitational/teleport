@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.scopes.access.v1;
 
 import "teleport/header/v1/metadata.proto";
+import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
 
@@ -53,11 +54,12 @@ message ScopedRoleAssignmentSpec {
   // Mutually exclusive with `bot`.
   string user = 1;
 
-  // Assignments is a list of individual role @ scope assignments.
+  // Assignments is a list of individual role @ scope assignments
   repeated Assignment assignments = 2;
 
-  reserved 3, 4;
-  reserved "bot_name", "bot_scope";
+  // NOTE (eriktate): reserving 6 and 'roles' to replace 'assignments' later
+  reserved 3, 4, 6;
+  reserved "bot_name", "bot_scope", "roles";
 
   // The Bot to whom all contained assignments apply, as a scope-qualified name
   // of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
@@ -66,9 +68,12 @@ message ScopedRoleAssignmentSpec {
   // When specified, assignment scopes must be equal or descendent of the scope
   // indicated by this field.
   string bot = 5;
+
+  // A list of individual traits @ scope assignments
+  repeated TraitsAssignment traits = 7;
 }
 
-// Assignment is a role/scope pair that defines an individual assignment.
+// Assignment is a role/scope pair that defines an individual role assignment
 message Assignment {
   // Role is the scope-qualified name of the role that is assigned by this assignment.
   string role = 1;
@@ -91,4 +96,13 @@ message ScopedRoleAssignmentStatus {
 
   // Origin describes the origin of the scoped role assignment.
   Origin origin = 1;
+}
+
+// TraitsAssignment is a traits/scope pair that defines an individual traits assignment.
+message TraitsAssignment {
+  // The scope to which the traits are assigned. This must be a member/child of the scope of the
+  // [ScopedRoleAssignment] in which this assignment is contained.
+  string scope = 1;
+  // A list of traits that should be applied at this scope.
+  repeated teleport.trait.v1.Trait traits = 2;
 }

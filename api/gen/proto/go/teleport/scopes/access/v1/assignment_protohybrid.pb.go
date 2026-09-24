@@ -24,6 +24,7 @@ package accessv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -235,7 +236,7 @@ type ScopedRoleAssignmentSpec struct {
 	// User is the user to whom all contained assignments apply.
 	// Mutually exclusive with `bot`.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	// Assignments is a list of individual role @ scope assignments.
+	// Assignments is a list of individual role @ scope assignments
 	Assignments []*Assignment `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	// The Bot to whom all contained assignments apply, as a scope-qualified name
 	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
@@ -243,7 +244,9 @@ type ScopedRoleAssignmentSpec struct {
 	//
 	// When specified, assignment scopes must be equal or descendent of the scope
 	// indicated by this field.
-	Bot           string `protobuf:"bytes,5,opt,name=bot,proto3" json:"bot,omitempty"`
+	Bot string `protobuf:"bytes,5,opt,name=bot,proto3" json:"bot,omitempty"`
+	// A list of individual traits @ scope assignments
+	Traits        []*TraitsAssignment `protobuf:"bytes,7,rep,name=traits,proto3" json:"traits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -294,6 +297,13 @@ func (x *ScopedRoleAssignmentSpec) GetBot() string {
 	return ""
 }
 
+func (x *ScopedRoleAssignmentSpec) GetTraits() []*TraitsAssignment {
+	if x != nil {
+		return x.Traits
+	}
+	return nil
+}
+
 func (x *ScopedRoleAssignmentSpec) SetUser(v string) {
 	x.User = v
 }
@@ -306,13 +316,17 @@ func (x *ScopedRoleAssignmentSpec) SetBot(v string) {
 	x.Bot = v
 }
 
+func (x *ScopedRoleAssignmentSpec) SetTraits(v []*TraitsAssignment) {
+	x.Traits = v
+}
+
 type ScopedRoleAssignmentSpec_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// User is the user to whom all contained assignments apply.
 	// Mutually exclusive with `bot`.
 	User string
-	// Assignments is a list of individual role @ scope assignments.
+	// Assignments is a list of individual role @ scope assignments
 	Assignments []*Assignment
 	// The Bot to whom all contained assignments apply, as a scope-qualified name
 	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
@@ -321,6 +335,8 @@ type ScopedRoleAssignmentSpec_builder struct {
 	// When specified, assignment scopes must be equal or descendent of the scope
 	// indicated by this field.
 	Bot string
+	// A list of individual traits @ scope assignments
+	Traits []*TraitsAssignment
 }
 
 func (b0 ScopedRoleAssignmentSpec_builder) Build() *ScopedRoleAssignmentSpec {
@@ -330,10 +346,11 @@ func (b0 ScopedRoleAssignmentSpec_builder) Build() *ScopedRoleAssignmentSpec {
 	x.User = b.User
 	x.Assignments = b.Assignments
 	x.Bot = b.Bot
+	x.Traits = b.Traits
 	return m0
 }
 
-// Assignment is a role/scope pair that defines an individual assignment.
+// Assignment is a role/scope pair that defines an individual role assignment
 type Assignment struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the scope-qualified name of the role that is assigned by this assignment.
@@ -482,6 +499,84 @@ func (b0 ScopedRoleAssignmentStatus_builder) Build() *ScopedRoleAssignmentStatus
 	return m0
 }
 
+// TraitsAssignment is a traits/scope pair that defines an individual traits assignment.
+type TraitsAssignment struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The scope to which the traits are assigned. This must be a member/child of the scope of the
+	// [ScopedRoleAssignment] in which this assignment is contained.
+	Scope string `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
+	// A list of traits that should be applied at this scope.
+	Traits        []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TraitsAssignment) Reset() {
+	*x = TraitsAssignment{}
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TraitsAssignment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TraitsAssignment) ProtoMessage() {}
+
+func (x *TraitsAssignment) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TraitsAssignment) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *TraitsAssignment) GetTraits() []*v11.Trait {
+	if x != nil {
+		return x.Traits
+	}
+	return nil
+}
+
+func (x *TraitsAssignment) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *TraitsAssignment) SetTraits(v []*v11.Trait) {
+	x.Traits = v
+}
+
+type TraitsAssignment_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The scope to which the traits are assigned. This must be a member/child of the scope of the
+	// [ScopedRoleAssignment] in which this assignment is contained.
+	Scope string
+	// A list of traits that should be applied at this scope.
+	Traits []*v11.Trait
+}
+
+func (b0 TraitsAssignment_builder) Build() *TraitsAssignment {
+	m0 := &TraitsAssignment{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Scope = b.Scope
+	x.Traits = b.Traits
+	return m0
+}
+
 // Origin describes the origin of a scoped role assignment.
 type ScopedRoleAssignmentStatus_Origin struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -495,7 +590,7 @@ type ScopedRoleAssignmentStatus_Origin struct {
 
 func (x *ScopedRoleAssignmentStatus_Origin) Reset() {
 	*x = ScopedRoleAssignmentStatus_Origin{}
-	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -507,7 +602,7 @@ func (x *ScopedRoleAssignmentStatus_Origin) String() string {
 func (*ScopedRoleAssignmentStatus_Origin) ProtoMessage() {}
 
 func (x *ScopedRoleAssignmentStatus_Origin) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +657,7 @@ var File_teleport_scopes_access_v1_assignment_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\n" +
-	"*teleport/scopes/access/v1/assignment.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\"\xc7\x02\n" +
+	"*teleport/scopes/access/v1/assignment.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xc7\x02\n" +
 	"\x14ScopedRoleAssignment\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -570,11 +665,12 @@ const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12G\n" +
 	"\x04spec\x18\x06 \x01(\v23.teleport.scopes.access.v1.ScopedRoleAssignmentSpecR\x04spec\x12M\n" +
-	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xaa\x01\n" +
+	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xfc\x01\n" +
 	"\x18ScopedRoleAssignmentSpec\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12G\n" +
 	"\vassignments\x18\x02 \x03(\v2%.teleport.scopes.access.v1.AssignmentR\vassignments\x12\x10\n" +
-	"\x03bot\x18\x05 \x01(\tR\x03botJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\bbot_nameR\tbot_scope\"6\n" +
+	"\x03bot\x18\x05 \x01(\tR\x03bot\x12C\n" +
+	"\x06traits\x18\a \x03(\v2+.teleport.scopes.access.v1.TraitsAssignmentR\x06traitsJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aR\bbot_nameR\tbot_scopeR\x05roles\"6\n" +
 	"\n" +
 	"Assignment\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +
@@ -583,28 +679,35 @@ const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\x06origin\x18\x01 \x01(\v2<.teleport.scopes.access.v1.ScopedRoleAssignmentStatus.OriginR\x06origin\x1aN\n" +
 	"\x06Origin\x12!\n" +
 	"\fcreator_kind\x18\x01 \x01(\tR\vcreatorKind\x12!\n" +
-	"\fcreator_name\x18\x02 \x01(\tR\vcreatorNameBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\fcreator_name\x18\x02 \x01(\tR\vcreatorName\"Z\n" +
+	"\x10TraitsAssignment\x12\x14\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\x120\n" +
+	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traitsBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_scopes_access_v1_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_scopes_access_v1_assignment_proto_goTypes = []any{
 	(*ScopedRoleAssignment)(nil),              // 0: teleport.scopes.access.v1.ScopedRoleAssignment
 	(*ScopedRoleAssignmentSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleAssignmentSpec
 	(*Assignment)(nil),                        // 2: teleport.scopes.access.v1.Assignment
 	(*ScopedRoleAssignmentStatus)(nil),        // 3: teleport.scopes.access.v1.ScopedRoleAssignmentStatus
-	(*ScopedRoleAssignmentStatus_Origin)(nil), // 4: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
-	(*v1.Metadata)(nil),                       // 5: teleport.header.v1.Metadata
+	(*TraitsAssignment)(nil),                  // 4: teleport.scopes.access.v1.TraitsAssignment
+	(*ScopedRoleAssignmentStatus_Origin)(nil), // 5: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
+	(*v1.Metadata)(nil),                       // 6: teleport.header.v1.Metadata
+	(*v11.Trait)(nil),                         // 7: teleport.trait.v1.Trait
 }
 var file_teleport_scopes_access_v1_assignment_proto_depIdxs = []int32{
-	5, // 0: teleport.scopes.access.v1.ScopedRoleAssignment.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 0: teleport.scopes.access.v1.ScopedRoleAssignment.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRoleAssignment.spec:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentSpec
 	3, // 2: teleport.scopes.access.v1.ScopedRoleAssignment.status:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentStatus
 	2, // 3: teleport.scopes.access.v1.ScopedRoleAssignmentSpec.assignments:type_name -> teleport.scopes.access.v1.Assignment
-	4, // 4: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.origin:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 4: teleport.scopes.access.v1.ScopedRoleAssignmentSpec.traits:type_name -> teleport.scopes.access.v1.TraitsAssignment
+	5, // 5: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.origin:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
+	7, // 6: teleport.scopes.access.v1.TraitsAssignment.traits:type_name -> teleport.trait.v1.Trait
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_assignment_proto_init() }
@@ -618,7 +721,7 @@ func file_teleport_scopes_access_v1_assignment_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_assignment_proto_rawDesc), len(file_teleport_scopes_access_v1_assignment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
