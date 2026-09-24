@@ -1,0 +1,1403 @@
+From bd87411c2e16f1de19a818e79d55bcb9f2d7c536 Mon Sep 17 00:00:00 2001
+From: Aleksei Kozadaev <aleksei.kozadaev@goteleport.com>
+Date: Wed, 23 Sep 2026 22:41:44 +0100
+Subject: [PATCH 1/2] Generate docs and remove the legacy SAML connector
+ handler.
+
+All changes are result of running `make -C integrations/terraform docs`.
+No manual changes included in this commit.
+---
+ .../data-sources/access_monitoring_rule.mdx   |   2 +-
+ .../data-sources/app_auth_config.mdx          |  68 ++++
+ .../data-sources/classifier.mdx               |  63 ++++
+ .../data-sources/client_ip_restriction.mdx    |   2 -
+ .../cluster_networking_config.mdx             |   1 +
+ .../data-sources/data-sources.mdx             |   3 +-
+ .../data-sources/database.mdx                 |   5 +-
+ .../data-sources/discovery_config.mdx         |   6 +-
+ .../data-sources/scoped_token.mdx             |  87 -----
+ .../data-sources/server.mdx                   | 107 ------
+ .../resources/access_monitoring_rule.mdx      |   2 +-
+ .../resources/app_auth_config.mdx             |  67 ++++
+ .../terraform-provider/resources/bot.mdx      |   6 +-
+ .../resources/classifier.mdx                  |  62 ++++
+ .../resources/client_ip_restriction.mdx       |   2 -
+ .../resources/cluster_networking_config.mdx   |   1 +
+ .../terraform-provider/resources/database.mdx |   5 +-
+ .../resources/discovery_config.mdx            |   6 +-
+ .../resources/resources.mdx                   |   2 +
+ .../resources/scoped_token.mdx                |  87 -----
+ .../data_source_teleport_saml_connector.go    |  97 -----
+ .../resource_teleport_saml_connector.go       | 346 ------------------
+ 22 files changed, 279 insertions(+), 748 deletions(-)
+ create mode 100644 docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/app_auth_config.mdx
+ create mode 100644 docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/classifier.mdx
+ delete mode 100644 docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/server.mdx
+ create mode 100644 docs/pages/reference/infrastructure-as-code/terraform-provider/resources/app_auth_config.mdx
+ create mode 100644 docs/pages/reference/infrastructure-as-code/terraform-provider/resources/classifier.mdx
+ delete mode 100755 integrations/terraform/provider/internal/legacy/data_source_teleport_saml_connector.go
+ delete mode 100755 integrations/terraform/provider/internal/legacy/resource_teleport_saml_connector.go
+
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/access_monitoring_rule.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/access_monitoring_rule.mdx
+index 4bbdf52b3d7..464c52f8c6d 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/access_monitoring_rule.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/access_monitoring_rule.mdx
+@@ -40,7 +40,7 @@ Optional:
+ - `condition` (String) condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.
+ - `desired_state` (String) desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.
+ - `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set. (see [below for nested schema](#nested-schema-for-specnotification))
+-- `schedules` (Attributes Map) schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.  Available in Teleport v18.2.8 or higher. (see [below for nested schema](#nested-schema-for-specschedules))
++- `schedules` (Attributes Map) schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions. (see [below for nested schema](#nested-schema-for-specschedules))
+ - `states` (List of String) states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+ 
+ ### Nested Schema for `spec.automatic_review`
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/app_auth_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/app_auth_config.mdx
+new file mode 100644
+index 00000000000..7a68a451bc2
+--- /dev/null
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/app_auth_config.mdx
+@@ -0,0 +1,68 @@
++---
++title: Reference for the teleport_app_auth_config Terraform data-source
++sidebar_label: app_auth_config
++description: This page lists the supported values of the teleport_app_auth_config data-source of the Teleport Terraform provider.
++page_type: reference
++---
++
++{/*Auto-generated file. Do not edit.*/}
++{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
++
++This page lists the supported values of the `teleport_app_auth_config` data source of the
++Teleport Terraform provider.
++
++
++
++
++
++{/*  schema generated by tfplugindocs */}
++## Schema
++
++### Required
++
++- `metadata` (Attributes) Metadata is the app auth config resource's metadata. (see [below for nested schema](#nested-schema-for-metadata))
++- `spec` (Attributes) Spec is the app auth config specification. (see [below for nested schema](#nested-schema-for-spec))
++- `version` (String) Version is the app auth config resource version.
++
++### Optional
++
++- `sub_kind` (String) SubKind is the app auth config subkind.
++
++### Nested Schema for `metadata`
++
++Required:
++
++- `name` (String) name is an object name.
++
++Optional:
++
++- `description` (String) description is object description.
++- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
++- `labels` (Map of String) labels is a set of labels.
++
++
++### Nested Schema for `spec`
++
++Optional:
++
++- `app_labels` (Attributes List) AppLabels is used to define the app_labels matcher, which selects applications that can use this authentication conifg. An empty value means no application will use it. (see [below for nested schema](#nested-schema-for-specapp_labels))
++- `jwt` (Attributes) Jwt is the JWT authentication config spec. (see [below for nested schema](#nested-schema-for-specjwt))
++
++### Nested Schema for `spec.app_labels`
++
++Optional:
++
++- `name` (String) The name of the label.
++- `values` (List of String) The values associated with the label.
++
++
++### Nested Schema for `spec.jwt`
++
++Optional:
++
++- `audience` (String) Audience is the expected token audience. It will usually be a OAuth client_id issued for Teleport use.
++- `issuer` (String) Issuer is the JWT token issuer name. This value is used to verify the token.
++- `jwks_url` (String) JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
++- `static_jwks` (String) StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the token issuer in JSON format.
++- `username_claim` (String) UsernameClaim specifies which token claim name's value will be used as the username. Defaults to `email`.
++
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/classifier.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/classifier.mdx
+new file mode 100644
+index 00000000000..a5ddc8f675c
+--- /dev/null
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/classifier.mdx
+@@ -0,0 +1,63 @@
++---
++title: Reference for the teleport_classifier Terraform data-source
++sidebar_label: classifier
++description: This page lists the supported values of the teleport_classifier data-source of the Teleport Terraform provider.
++page_type: reference
++---
++
++{/*Auto-generated file. Do not edit.*/}
++{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
++
++This page lists the supported values of the `teleport_classifier` data source of the
++Teleport Terraform provider.
++
++
++
++
++
++{/*  schema generated by tfplugindocs */}
++## Schema
++
++### Required
++
++- `metadata` (Attributes) Metadata is the resource metadata. (see [below for nested schema](#nested-schema-for-metadata))
++- `spec` (Attributes) Spec selects the sessions that this classifier applies to and defines what the classifier matches. (see [below for nested schema](#nested-schema-for-spec))
++
++### Optional
++
++- `sub_kind` (String) SubKind is the resource sub-kind. Should be empty.
++- `version` (String) Version is the resource version. Should be set to "v1".
++
++### Nested Schema for `metadata`
++
++Required:
++
++- `name` (String) name is an object name.
++
++Optional:
++
++- `description` (String) description is object description.
++- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
++- `labels` (Map of String) labels is a set of labels.
++
++
++### Nested Schema for `spec`
++
++Required:
++
++- `criteria` (String) Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.
++- `kinds` (List of String) Kinds are session kinds matched by this classifier, e.g., "ssh", "k8s", "db".
++
++Optional:
++
++- `actions` (Attributes) Actions configures the effects of a match. If unset, a match is only recorded on the stored session summary. (see [below for nested schema](#nested-schema-for-specactions))
++- `filter` (String) Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels["env"], "prod")`. If empty, the classifier applies to all sessions of matching kinds.
++
++### Nested Schema for `spec.actions`
++
++Optional:
++
++- `emit_audit_event` (Boolean) EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.
++- `flag_for_review` (Boolean) FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.
++- `risk_level_floor` (String) RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.
++
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/client_ip_restriction.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/client_ip_restriction.mdx
+index 2abde7bfa41..22322b9406e 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/client_ip_restriction.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/client_ip_restriction.mdx
+@@ -40,6 +40,4 @@ Optional:
+ Optional:
+ 
+ - `allowed_cidrs` (List of String) allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.
+-- `expires` (String) expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes "expired". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.
+-- `mode` (String) mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: "draft" (configured but not enforced) and "enforced" (should be enforced by Teleport Cloud). An empty value is treated as "enforced" for backward compatibility.
+ 
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_networking_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_networking_config.mdx
+index a5df59974d6..3fe8186509f 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_networking_config.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_networking_config.mdx
+@@ -71,4 +71,5 @@ Optional:
+ Optional:
+ 
+ - `agent_connection_count` (Number)
++- `disconnect_threshold_seconds` (Number) disconnect_threshold_seconds is the duration without connectivity or topology changes before an agent pool may disconnect excess connections.
+ 
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/data-sources.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/data-sources.mdx
+index c88bdcaf9e4..17b829a55ee 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/data-sources.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/data-sources.mdx
+@@ -18,9 +18,11 @@ The Teleport Terraform provider supports the following data-sources:
+   - [`teleport_access_list_member`](./access_list_member.mdx)
+   - [`teleport_access_monitoring_rule`](./access_monitoring_rule.mdx)
+   - [`teleport_app`](./app.mdx)
++  - [`teleport_app_auth_config`](./app_auth_config.mdx)
+   - [`teleport_auth_preference`](./auth_preference.mdx)
+   - [`teleport_autoupdate_config`](./autoupdate_config.mdx)
+   - [`teleport_autoupdate_version`](./autoupdate_version.mdx)
++  - [`teleport_classifier`](./classifier.mdx)
+   - [`teleport_client_ip_restriction`](./client_ip_restriction.mdx)
+   - [`teleport_cluster_maintenance_config`](./cluster_maintenance_config.mdx)
+   - [`teleport_cluster_networking_config`](./cluster_networking_config.mdx)
+@@ -44,7 +46,6 @@ The Teleport Terraform provider supports the following data-sources:
+   - [`teleport_scoped_role`](./scoped_role.mdx)
+   - [`teleport_scoped_role_assignment`](./scoped_role_assignment.mdx)
+   - [`teleport_scoped_token`](./scoped_token.mdx)
+-  - [`teleport_server`](./server.mdx)
+   - [`teleport_session_recording_config`](./session_recording_config.mdx)
+   - [`teleport_static_host_user`](./static_host_user.mdx)
+   - [`teleport_trusted_cluster`](./trusted_cluster.mdx)
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/database.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/database.mdx
+index 8d759a59331..5152c11a33d 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/database.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/database.mdx
+@@ -45,7 +45,7 @@ Optional:
+ 
+ Required:
+ 
+-- `protocol` (String) Protocol is the database protocol: postgres, mysql, mongodb, etc.
++- `protocol` (String) Protocol is the database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"
+ - `uri` (String) URI is the database connection endpoint.
+ 
+ Optional:
+@@ -71,11 +71,8 @@ Optional:
+ - `keytab_file` (String) KeytabFile is the path to the Kerberos keytab file.
+ - `krb5_file` (String) Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+ - `ldap_cert` (String) LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+-- `ldap_host` (String) LDAPHost is the host used for LDAP queries, optionally including a port. (Optional, defaults to KDCHostName; useful when the LDAP server and KDC are reachable under different names.)
+ - `ldap_service_account_name` (String) LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+ - `ldap_service_account_sid` (String) LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+-- `ldap_tls_server_name` (String) LDAPTLSServerName is the server name used for the TLS handshake with the LDAP server. (Optional, defaults to the host part of LDAPHost, falling back to KDCHostName.)
+-- `pki_domain` (String) PKIDomain is the Active Directory domain where CRLs are published. (Optional, defaults to Domain; useful when PKI lives in a root domain but Teleport accesses resources in a child domain.)
+ - `spn` (String) SPN is the service principal name for the database.
+ 
+ 
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/discovery_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/discovery_config.mdx
+index e9f4c465c06..bf3a79c0bfa 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/discovery_config.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/discovery_config.mdx
+@@ -143,7 +143,7 @@ Optional:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specawsinstallazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specawsinstallhttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `join_method` (String) JoinMethod is the method to use when joining the cluster
+@@ -217,7 +217,7 @@ Required:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specazureinstall_paramsazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specazureinstall_paramshttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
+@@ -261,7 +261,7 @@ Optional:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramsazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramshttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `join_method` (String) JoinMethod is the method to use when joining the cluster
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/scoped_token.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/scoped_token.mdx
+index 54e0ad55a35..4c0940f1b80 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/scoped_token.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/scoped_token.mdx
+@@ -56,18 +56,14 @@ Optional:
+ - `aws` (Attributes) The AWS-specific configuration used with the "ec2" and "iam" join methods. (see [below for nested schema](#nested-schema-for-specaws))
+ - `azure` (Attributes) The Azure-specific configuration used with the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+ - `azure_devops` (Attributes) The Azure Devops-specific configuration used with the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
+-- `bitbucket` (Attributes) Configuration specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
+ - `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
+ - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
+-- `circleci` (Attributes) Configuration specific to the "circleci" join method (see [below for nested schema](#nested-schema-for-speccircleci))
+ - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
+ - `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
+ - `github` (Attributes) Configuration specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
+-- `gitlab` (Attributes) Configuration specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
+ - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
+ - `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
+ - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
+-- `tpm` (Attributes) Configuration specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
+ 
+ ### Nested Schema for `spec.aws`
+ 
+@@ -127,25 +123,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.bitbucket`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A list of rules. Workloads trying to join must match at least one allow rule for the join attempt to be allowed. (see [below for nested schema](#nested-schema-for-specbitbucketallow))
+-- `audience` (String) The Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the "Pipelines -> OpenID Connect" section of the repository settings.
+-- `identity_provider_url` (String) A Bitbucket-specified issuer URL for the incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the "Pipelines -> OpenID Connect" section of the repository settings.
+-
+-### Nested Schema for `spec.bitbucket.allow`
+-
+-Optional:
+-
+-- `branch_name` (String) The name of the branch on which this pipeline executed.
+-- `deployment_environment_uuid` (String) The UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
+-- `repository_uuid` (String) The UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the "Pipelines -> OpenID Connect" section of the repository settings.
+-- `workspace_uuid` (String) The UUID of the workspace for which this token was issued. This value may be found in the "Pipelines -> OpenID Connect" section of the repository settings.
+-
+-
+-
+ ### Nested Schema for `spec.bound_keypair`
+ 
+ Optional:
+@@ -172,22 +149,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.circleci`
+-
+-Optional:
+-
+-- `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one rule is required. (see [below for nested schema](#nested-schema-for-speccircleciallow))
+-- `organization_id` (String) The unique identifier of the organization. Required.
+-
+-### Nested Schema for `spec.circleci.allow`
+-
+-Optional:
+-
+-- `context_id` (String) A unique context identifier. At least one of context_id or project_id is required.
+-- `project_id` (String) A unique project identifier. At least one of project_id or context_id is required.
+-
+-
+-
+ ### Nested Schema for `spec.gcp`
+ 
+ Optional:
+@@ -289,37 +250,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.gitlab`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A set of claim-matching fields evaluated against the GitLab CI token. (see [below for nested schema](#nested-schema-for-specgitlaballow))
+-- `domain` (String) The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.
+-- `static_jwks` (String) Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.
+-
+-### Nested Schema for `spec.gitlab.allow`
+-
+-Optional:
+-
+-- `ci_config_ref_uri` (String) The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+-- `ci_config_sha` (String) The git commit SHA for the ci_config_ref_uri.
+-- `deployment_tier` (String) The deployment tier of the environment the job specifies
+-- `environment` (String) Limits access by the environment the job deploys to (if one is associated)
+-- `environment_protected` (Boolean) True if the Git ref is protected, false otherwise.
+-- `namespace_path` (String) Used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `pipeline_source` (String) Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`
+-- `project_path` (String) Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `project_visibility` (String) The visibility of the project where the pipeline is running. Can be internal, private, or public.
+-- `ref` (String) Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `ref_protected` (Boolean) True if the Git ref is protected, false otherwise.
+-- `ref_type` (String) Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`
+-- `sub` (String) Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `user_email` (String) The email of the user executing the job
+-- `user_id` (String) The ID of the user executing the job
+-- `user_login` (String) The username of the user executing the job
+-
+-
+-
+ ### Nested Schema for `spec.immutable_labels`
+ 
+ Optional:
+@@ -376,20 +306,3 @@ Optional:
+ - `regions` (List of String) A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
+ - `tenancy` (String) The OCID of the instance's tenancy. Required.
+ 
+-
+-
+-### Nested Schema for `spec.tpm`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A list of Rules, the presented delegated identity must match one allow rule to permit joining. (see [below for nested schema](#nested-schema-for-spectpmallow))
+-- `ekcert_allowed_cas` (List of String) A list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.
+-
+-### Nested Schema for `spec.tpm.allow`
+-
+-Optional:
+-
+-- `description` (String) A human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: "build-server-100"
+-- `ek_certificate_serial` (String) The serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+-- `ek_public_hash` (String) The SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+-
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/server.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/server.mdx
+deleted file mode 100644
+index 394a8d62c1f..00000000000
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/data-sources/server.mdx
++++ /dev/null
+@@ -1,107 +0,0 @@
+----
+-title: Reference for the teleport_server Terraform data-source
+-sidebar_label: server
+-description: This page lists the supported values of the teleport_server data-source of the Teleport Terraform provider.
+-page_type: reference
+----
+-
+-{/*Auto-generated file. Do not edit.*/}
+-{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+-
+-This page lists the supported values of the `teleport_server` data source of the
+-Teleport Terraform provider.
+-
+-
+-
+-
+-
+-{/*  schema generated by tfplugindocs */}
+-## Schema
+-
+-### Required
+-
+-- `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
+-- `version` (String) Version is version
+-
+-### Optional
+-
+-- `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
+-- `scope` (String) The advertized scope of the server which can not change once assigned.
+-- `spec` (Attributes) Spec is a server spec (see [below for nested schema](#nested-schema-for-spec))
+-
+-### Nested Schema for `metadata`
+-
+-Optional:
+-
+-- `description` (String) Description is object description
+-- `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
+-- `labels` (Map of String) Labels is a set of labels
+-- `name` (String) Name is an object name
+-
+-
+-### Nested Schema for `spec`
+-
+-Optional:
+-
+-- `addr` (String) Addr is a host:port address where this server can be reached.
+-- `cloud_metadata` (Attributes) CloudMetadata contains info about the cloud instance the server is running on, if any. (see [below for nested schema](#nested-schema-for-speccloud_metadata))
+-- `github` (Attributes) GitHub contains info about GitHub proxies where each server represents a GitHub organization. (see [below for nested schema](#nested-schema-for-specgithub))
+-- `hostname` (String) Hostname is server hostname
+-- `immutable_labels` (Map of String) The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.
+-- `peer_addr` (String) PeerAddr is the address a proxy server is reachable at by its peer proxies.
+-- `proxy_ids` (List of String) ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+-- `public_addrs` (List of String) PublicAddrs is a list of public addresses where this server can be reached.
+-- `relay_group` (String) the name of the Relay group that the server is connected to
+-- `relay_ids` (List of String) the list of Relay host IDs that the server is connected to
+-- `rotation` (Attributes) Rotation specifies server rotation (see [below for nested schema](#nested-schema-for-specrotation))
+-- `use_tunnel` (Boolean) UseTunnel indicates that connections to this server should occur over a reverse tunnel.
+-- `version` (String) TeleportVersion is the teleport version that the server is running on
+-
+-### Nested Schema for `spec.cloud_metadata`
+-
+-Optional:
+-
+-- `aws` (Attributes) AWSInfo contains attributes to match to an EC2 instance. (see [below for nested schema](#nested-schema-for-speccloud_metadataaws))
+-
+-### Nested Schema for `spec.cloud_metadata.aws`
+-
+-Optional:
+-
+-- `account_id` (String) AccountID is an AWS account ID.
+-- `instance_id` (String) InstanceID is an EC2 instance ID.
+-- `integration` (String) Integration is the integration name that added this Node. When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection. This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
+-- `region` (String) Region is the AWS EC2 Instance Region.
+-- `subnet_id` (String) SubnetID is the Subnet ID in use by the instance.
+-- `vpc_id` (String) VPCID is the AWS VPC ID where the Instance is running.
+-
+-
+-
+-### Nested Schema for `spec.github`
+-
+-Optional:
+-
+-- `integration` (String) Integration is the integration that is associated with this Server.
+-- `organization` (String) Organization specifies the name of the organization for the GitHub integration.
+-
+-
+-### Nested Schema for `spec.rotation`
+-
+-Optional:
+-
+-- `current_id` (String) CurrentID is the ID of the rotation operation to differentiate between rotation attempts.
+-- `grace_period` (String) GracePeriod is a period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.
+-- `last_rotated` (String) LastRotated specifies the last time of the completed rotation.
+-- `mode` (String) Mode sets manual or automatic rotation mode.
+-- `phase` (String) Phase is the current rotation phase.
+-- `schedule` (Attributes) Schedule is a rotation schedule - used in automatic mode to switch between phases. (see [below for nested schema](#nested-schema-for-specrotationschedule))
+-- `started` (String) Started is set to the time when rotation has been started in case if the state of the rotation is "in_progress".
+-- `state` (String) State could be one of "init" or "in_progress".
+-
+-### Nested Schema for `spec.rotation.schedule`
+-
+-Optional:
+-
+-- `standby` (String) Standby specifies time to switch to the "Standby" phase.
+-- `update_clients` (String) UpdateClients specifies time to switch to the "Update clients" phase
+-- `update_servers` (String) UpdateServers specifies time to switch to the "Update servers" phase.
+-
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/access_monitoring_rule.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/access_monitoring_rule.mdx
+index 5f682472b6b..73143ba9737 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/access_monitoring_rule.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/access_monitoring_rule.mdx
+@@ -88,7 +88,7 @@ Optional:
+ - `condition` (String) condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.
+ - `desired_state` (String) desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.
+ - `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set. (see [below for nested schema](#nested-schema-for-specnotification))
+-- `schedules` (Attributes Map) schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.  Available in Teleport v18.2.8 or higher. (see [below for nested schema](#nested-schema-for-specschedules))
++- `schedules` (Attributes Map) schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions. (see [below for nested schema](#nested-schema-for-specschedules))
+ - `states` (List of String) states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+ 
+ ### Nested Schema for `spec.automatic_review`
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/app_auth_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/app_auth_config.mdx
+new file mode 100644
+index 00000000000..c7a2aff9954
+--- /dev/null
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/app_auth_config.mdx
+@@ -0,0 +1,67 @@
++---
++title: Reference for the teleport_app_auth_config Terraform resource
++sidebar_label: app_auth_config
++description: This page lists the supported values of the teleport_app_auth_config resource of the Teleport Terraform provider.
++page_type: reference
++---
++
++{/*Auto-generated file. Do not edit.*/}
++{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
++
++This page lists the supported values of the teleport_app_auth_config resource of the Teleport Terraform provider.
++
++
++
++
++
++
++{/*  schema generated by tfplugindocs */}
++## Schema
++
++### Required
++
++- `metadata` (Attributes) Metadata is the app auth config resource's metadata. (see [below for nested schema](#nested-schema-for-metadata))
++- `spec` (Attributes) Spec is the app auth config specification. (see [below for nested schema](#nested-schema-for-spec))
++- `version` (String) Version is the app auth config resource version.
++
++### Optional
++
++- `sub_kind` (String) SubKind is the app auth config subkind.
++
++### Nested Schema for `metadata`
++
++Required:
++
++- `name` (String) name is an object name.
++
++Optional:
++
++- `description` (String) description is object description.
++- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
++- `labels` (Map of String) labels is a set of labels.
++
++
++### Nested Schema for `spec`
++
++Optional:
++
++- `app_labels` (Attributes List) AppLabels is used to define the app_labels matcher, which selects applications that can use this authentication conifg. An empty value means no application will use it. (see [below for nested schema](#nested-schema-for-specapp_labels))
++- `jwt` (Attributes) Jwt is the JWT authentication config spec. (see [below for nested schema](#nested-schema-for-specjwt))
++
++### Nested Schema for `spec.app_labels`
++
++Optional:
++
++- `name` (String) The name of the label.
++- `values` (List of String) The values associated with the label.
++
++
++### Nested Schema for `spec.jwt`
++
++Optional:
++
++- `audience` (String) Audience is the expected token audience. It will usually be a OAuth client_id issued for Teleport use.
++- `issuer` (String) Issuer is the JWT token issuer name. This value is used to verify the token.
++- `jwks_url` (String) JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
++- `static_jwks` (String) StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the token issuer in JSON format.
++- `username_claim` (String) UsernameClaim specifies which token claim name's value will be used as the username. Defaults to `email`.
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/bot.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/bot.mdx
+index 22ca6da1362..cb1a7202634 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/bot.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/bot.mdx
+@@ -108,11 +108,11 @@ resource "teleport_scoped_role_assignment" "bot_assignment" {
+ 
+ ### Optional
+ 
+-- `metadata` (Attributes) Requires provider v18.4.0 or newer. Common metadata that all resources share (see [below for nested schema](#nested-schema-for-metadata))
++- `metadata` (Attributes) Common metadata that all resources share (see [below for nested schema](#nested-schema-for-metadata))
+ - `name` (String, Deprecated) The name of the bot, i.e. the unprefixed User name
+ - `roles` (List of String, Deprecated) A list of roles the created bot should be allowed to assume via role impersonation.
+ - `scope` (String) Scope is the scope of the bot resource. Leave empty for unscoped bots.
+-- `spec` (Attributes) Requires provider v18.4.0 or newer. The configured properties of a bot. (see [below for nested schema](#nested-schema-for-spec))
++- `spec` (Attributes) The configured properties of a bot. (see [below for nested schema](#nested-schema-for-spec))
+ - `sub_kind` (String) Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
+ - `token_id` (String, Sensitive, Deprecated)
+ - `token_ttl` (String, Deprecated)
+@@ -122,7 +122,7 @@ resource "teleport_scoped_role_assignment" "bot_assignment" {
+ ### Read-Only
+ 
+ - `role_name` (String, Deprecated) The name of the generated bot role
+-- `status` (Attributes) Requires provider v18.4.0 or newer. Fields that are set by the server as results of operations. These should not be modified by users. (see [below for nested schema](#nested-schema-for-status))
++- `status` (Attributes) Fields that are set by the server as results of operations. These should not be modified by users. (see [below for nested schema](#nested-schema-for-status))
+ - `user_name` (String, Deprecated) The name of the generated bot user
+ 
+ ### Nested Schema for `metadata`
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/classifier.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/classifier.mdx
+new file mode 100644
+index 00000000000..6d8997f1c17
+--- /dev/null
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/classifier.mdx
+@@ -0,0 +1,62 @@
++---
++title: Reference for the teleport_classifier Terraform resource
++sidebar_label: classifier
++description: This page lists the supported values of the teleport_classifier resource of the Teleport Terraform provider.
++page_type: reference
++---
++
++{/*Auto-generated file. Do not edit.*/}
++{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
++
++This page lists the supported values of the teleport_classifier resource of the Teleport Terraform provider.
++
++
++
++
++
++
++{/*  schema generated by tfplugindocs */}
++## Schema
++
++### Required
++
++- `metadata` (Attributes) Metadata is the resource metadata. (see [below for nested schema](#nested-schema-for-metadata))
++- `spec` (Attributes) Spec selects the sessions that this classifier applies to and defines what the classifier matches. (see [below for nested schema](#nested-schema-for-spec))
++
++### Optional
++
++- `sub_kind` (String) SubKind is the resource sub-kind. Should be empty.
++- `version` (String) Version is the resource version. Should be set to "v1".
++
++### Nested Schema for `metadata`
++
++Required:
++
++- `name` (String) name is an object name.
++
++Optional:
++
++- `description` (String) description is object description.
++- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
++- `labels` (Map of String) labels is a set of labels.
++
++
++### Nested Schema for `spec`
++
++Required:
++
++- `criteria` (String) Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.
++- `kinds` (List of String) Kinds are session kinds matched by this classifier, e.g., "ssh", "k8s", "db".
++
++Optional:
++
++- `actions` (Attributes) Actions configures the effects of a match. If unset, a match is only recorded on the stored session summary. (see [below for nested schema](#nested-schema-for-specactions))
++- `filter` (String) Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels["env"], "prod")`. If empty, the classifier applies to all sessions of matching kinds.
++
++### Nested Schema for `spec.actions`
++
++Optional:
++
++- `emit_audit_event` (Boolean) EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.
++- `flag_for_review` (Boolean) FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.
++- `risk_level_floor` (String) RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/client_ip_restriction.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/client_ip_restriction.mdx
+index b00c6a2cd3b..69c63144259 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/client_ip_restriction.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/client_ip_restriction.mdx
+@@ -40,5 +40,3 @@ Optional:
+ Optional:
+ 
+ - `allowed_cidrs` (List of String) allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster. An empty list disables restrictions and allows all traffic.
+-- `expires` (String) expires is the deadline on enforcement: the restriction is enforced until this time and not after it. An unset value means enforcement never lapses. When set, it must be at least 20 minutes in the future.  Once it elapses, enforcement stops and status.state becomes "expired". Neither mode nor expires is modified by Teleport Cloud, so a lapsed restriction still reads as enforced with an elapsed expiry; enforcing again takes a new write. Whether the restriction is in effect is therefore derived from this field and mode, not stored on its own.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.
+-- `mode` (String) mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: "draft" (configured but not enforced) and "enforced" (should be enforced by Teleport Cloud). An empty value is treated as "enforced" for backward compatibility.
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/cluster_networking_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/cluster_networking_config.mdx
+index ea8d7e628bf..6f6bfff4ccd 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/cluster_networking_config.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/cluster_networking_config.mdx
+@@ -90,3 +90,4 @@ Optional:
+ Optional:
+ 
+ - `agent_connection_count` (Number)
++- `disconnect_threshold_seconds` (Number) disconnect_threshold_seconds is the duration without connectivity or topology changes before an agent pool may disconnect excess connections.
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/database.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/database.mdx
+index d6d98d7ee71..2277332ab82 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/database.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/database.mdx
+@@ -66,7 +66,7 @@ Optional:
+ 
+ Required:
+ 
+-- `protocol` (String) Protocol is the database protocol: postgres, mysql, mongodb, etc.
++- `protocol` (String) Protocol is the database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"
+ - `uri` (String) URI is the database connection endpoint.
+ 
+ Optional:
+@@ -92,11 +92,8 @@ Optional:
+ - `keytab_file` (String) KeytabFile is the path to the Kerberos keytab file.
+ - `krb5_file` (String) Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.
+ - `ldap_cert` (String) LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+-- `ldap_host` (String) LDAPHost is the host used for LDAP queries, optionally including a port. (Optional, defaults to KDCHostName; useful when the LDAP server and KDC are reachable under different names.)
+ - `ldap_service_account_name` (String) LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+ - `ldap_service_account_sid` (String) LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+-- `ldap_tls_server_name` (String) LDAPTLSServerName is the server name used for the TLS handshake with the LDAP server. (Optional, defaults to the host part of LDAPHost, falling back to KDCHostName.)
+-- `pki_domain` (String) PKIDomain is the Active Directory domain where CRLs are published. (Optional, defaults to Domain; useful when PKI lives in a root domain but Teleport accesses resources in a child domain.)
+ - `spn` (String) SPN is the service principal name for the database.
+ 
+ 
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx
+index 95f64ca8dc0..c18bb38fd25 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx
+@@ -219,7 +219,7 @@ Optional:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specawsinstallazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specawsinstallhttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `join_method` (String) JoinMethod is the method to use when joining the cluster
+@@ -293,7 +293,7 @@ Required:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specazureinstall_paramsazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specazureinstall_paramshttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
+@@ -337,7 +337,7 @@ Optional:
+ Optional:
+ 
+ - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramsazure))
+-- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode
++- `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
+ - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specgcpinstall_paramshttp_proxy_settings))
+ - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
+ - `join_method` (String) JoinMethod is the method to use when joining the cluster
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/resources.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/resources.mdx
+index d0110258b95..505b65acd85 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/resources.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/resources.mdx
+@@ -18,10 +18,12 @@ The Teleport Terraform provider supports the following resources:
+   - [`teleport_access_list_member`](./access_list_member.mdx)
+   - [`teleport_access_monitoring_rule`](./access_monitoring_rule.mdx)
+   - [`teleport_app`](./app.mdx)
++  - [`teleport_app_auth_config`](./app_auth_config.mdx)
+   - [`teleport_auth_preference`](./auth_preference.mdx)
+   - [`teleport_autoupdate_config`](./autoupdate_config.mdx)
+   - [`teleport_autoupdate_version`](./autoupdate_version.mdx)
+   - [`teleport_bot`](./bot.mdx)
++  - [`teleport_classifier`](./classifier.mdx)
+   - [`teleport_client_ip_restriction`](./client_ip_restriction.mdx)
+   - [`teleport_cluster_maintenance_config`](./cluster_maintenance_config.mdx)
+   - [`teleport_cluster_networking_config`](./cluster_networking_config.mdx)
+diff --git a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx
+index 67ba5c43934..afe749ca06f 100644
+--- a/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx
++++ b/docs/pages/reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx
+@@ -100,18 +100,14 @@ Optional:
+ - `aws` (Attributes) The AWS-specific configuration used with the "ec2" and "iam" join methods. (see [below for nested schema](#nested-schema-for-specaws))
+ - `azure` (Attributes) The Azure-specific configuration used with the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+ - `azure_devops` (Attributes) The Azure Devops-specific configuration used with the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
+-- `bitbucket` (Attributes) Configuration specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
+ - `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
+ - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
+-- `circleci` (Attributes) Configuration specific to the "circleci" join method (see [below for nested schema](#nested-schema-for-speccircleci))
+ - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
+ - `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
+ - `github` (Attributes) Configuration specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
+-- `gitlab` (Attributes) Configuration specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
+ - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
+ - `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
+ - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
+-- `tpm` (Attributes) Configuration specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
+ 
+ ### Nested Schema for `spec.aws`
+ 
+@@ -171,25 +167,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.bitbucket`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A list of rules. Workloads trying to join must match at least one allow rule for the join attempt to be allowed. (see [below for nested schema](#nested-schema-for-specbitbucketallow))
+-- `audience` (String) The Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the "Pipelines -> OpenID Connect" section of the repository settings.
+-- `identity_provider_url` (String) A Bitbucket-specified issuer URL for the incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the "Pipelines -> OpenID Connect" section of the repository settings.
+-
+-### Nested Schema for `spec.bitbucket.allow`
+-
+-Optional:
+-
+-- `branch_name` (String) The name of the branch on which this pipeline executed.
+-- `deployment_environment_uuid` (String) The UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
+-- `repository_uuid` (String) The UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the "Pipelines -> OpenID Connect" section of the repository settings.
+-- `workspace_uuid` (String) The UUID of the workspace for which this token was issued. This value may be found in the "Pipelines -> OpenID Connect" section of the repository settings.
+-
+-
+-
+ ### Nested Schema for `spec.bound_keypair`
+ 
+ Optional:
+@@ -216,22 +193,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.circleci`
+-
+-Optional:
+-
+-- `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one rule is required. (see [below for nested schema](#nested-schema-for-speccircleciallow))
+-- `organization_id` (String) The unique identifier of the organization. Required.
+-
+-### Nested Schema for `spec.circleci.allow`
+-
+-Optional:
+-
+-- `context_id` (String) A unique context identifier. At least one of context_id or project_id is required.
+-- `project_id` (String) A unique project identifier. At least one of project_id or context_id is required.
+-
+-
+-
+ ### Nested Schema for `spec.gcp`
+ 
+ Optional:
+@@ -333,37 +294,6 @@ Optional:
+ 
+ 
+ 
+-### Nested Schema for `spec.gitlab`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A set of claim-matching fields evaluated against the GitLab CI token. (see [below for nested schema](#nested-schema-for-specgitlaballow))
+-- `domain` (String) The domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.
+-- `static_jwks` (String) Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.
+-
+-### Nested Schema for `spec.gitlab.allow`
+-
+-Optional:
+-
+-- `ci_config_ref_uri` (String) The ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+-- `ci_config_sha` (String) The git commit SHA for the ci_config_ref_uri.
+-- `deployment_tier` (String) The deployment tier of the environment the job specifies
+-- `environment` (String) Limits access by the environment the job deploys to (if one is associated)
+-- `environment_protected` (Boolean) True if the Git ref is protected, false otherwise.
+-- `namespace_path` (String) Used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `pipeline_source` (String) Limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`
+-- `project_path` (String) Used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `project_visibility` (String) The visibility of the project where the pipeline is running. Can be internal, private, or public.
+-- `ref` (String) Allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `ref_protected` (Boolean) True if the Git ref is protected, false otherwise.
+-- `ref_type` (String) Allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`
+-- `sub` (String) Roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+-- `user_email` (String) The email of the user executing the job
+-- `user_id` (String) The ID of the user executing the job
+-- `user_login` (String) The username of the user executing the job
+-
+-
+-
+ ### Nested Schema for `spec.immutable_labels`
+ 
+ Optional:
+@@ -419,20 +349,3 @@ Optional:
+ - `parent_compartments` (List of String) A list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+ - `regions` (List of String) A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
+ - `tenancy` (String) The OCID of the instance's tenancy. Required.
+-
+-
+-
+-### Nested Schema for `spec.tpm`
+-
+-Optional:
+-
+-- `allow` (Attributes List) A list of Rules, the presented delegated identity must match one allow rule to permit joining. (see [below for nested schema](#nested-schema-for-spectpmallow))
+-- `ekcert_allowed_cas` (List of String) A list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash.
+-
+-### Nested Schema for `spec.tpm.allow`
+-
+-Optional:
+-
+-- `description` (String) A human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: "build-server-100"
+-- `ek_certificate_serial` (String) The serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+-- `ek_public_hash` (String) The SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+diff --git a/integrations/terraform/provider/internal/legacy/data_source_teleport_saml_connector.go b/integrations/terraform/provider/internal/legacy/data_source_teleport_saml_connector.go
+deleted file mode 100755
+index 922dec48d73..00000000000
+--- a/integrations/terraform/provider/internal/legacy/data_source_teleport_saml_connector.go
++++ /dev/null
+@@ -1,97 +0,0 @@
+-// Code generated by _gen/main.go DO NOT EDIT
+-/*
+-Copyright 2015-2024 Gravitational, Inc.
+-
+-Licensed under the Apache License, Version 2.0 (the "License");
+-you may not use this file except in compliance with the License.
+-You may obtain a copy of the License at
+-
+-    http://www.apache.org/licenses/LICENSE-2.0
+-
+-Unless required by applicable law or agreed to in writing, software
+-distributed under the License is distributed on an "AS IS" BASIS,
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-See the License for the specific language governing permissions and
+-limitations under the License.
+-*/
+-
+-package legacy
+-
+-import (
+-	"context"
+-
+-	apitypes "github.com/gravitational/teleport/api/types"
+-	"github.com/gravitational/trace"
+-	"github.com/hashicorp/terraform-plugin-framework/diag"
+-	"github.com/hashicorp/terraform-plugin-framework/path"
+-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+-	"github.com/hashicorp/terraform-plugin-framework/types"
+-
+-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+-	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+-)
+-
+-// dataSourceTeleportSAMLConnectorType is the data source metadata type
+-type dataSourceTeleportSAMLConnectorType struct{}
+-
+-// dataSourceTeleportSAMLConnector is the resource
+-type dataSourceTeleportSAMLConnector struct {
+-	p Provider
+-}
+-
+-// GetSchema returns the data source schema
+-func (r dataSourceTeleportSAMLConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+-	return tfschema.GenSchemaSAMLConnectorV2(ctx)
+-}
+-
+-// NewDataSource creates the empty data source
+-func (r dataSourceTeleportSAMLConnectorType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+-	return dataSourceTeleportSAMLConnector{
+-		p: p.(Provider),
+-	}, nil
+-}
+-
+-// Read reads teleport SAMLConnector
+-func (r dataSourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+-	var id types.String
+-	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	samlConnectorI, err := r.p.Client().GetSAMLConnector(ctx, id.Value, true)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	var state types.Object
+-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
+-	// terraform-plugin-testing version <1.5.0 requires data resources to
+-	// implement the 'id' attribute.
+-	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
+-	v, ok := state.Attrs["id"]
+-	if !ok || v.IsNull() {
+-		state.Attrs["id"] = id
+-	}
+-
+-	
+-	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
+-	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	diags = resp.State.Set(ctx, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-}
+diff --git a/integrations/terraform/provider/internal/legacy/resource_teleport_saml_connector.go b/integrations/terraform/provider/internal/legacy/resource_teleport_saml_connector.go
+deleted file mode 100755
+index fa17485954b..00000000000
+--- a/integrations/terraform/provider/internal/legacy/resource_teleport_saml_connector.go
++++ /dev/null
+@@ -1,346 +0,0 @@
+-// Code generated by _gen/main.go DO NOT EDIT
+-/*
+-Copyright 2015-2024 Gravitational, Inc.
+-
+-Licensed under the Apache License, Version 2.0 (the "License");
+-you may not use this file except in compliance with the License.
+-You may obtain a copy of the License at
+-
+-    http://www.apache.org/licenses/LICENSE-2.0
+-
+-Unless required by applicable law or agreed to in writing, software
+-distributed under the License is distributed on an "AS IS" BASIS,
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-See the License for the specific language governing permissions and
+-limitations under the License.
+-*/
+-
+-package legacy
+-
+-import (
+-	"context"
+-	"fmt"
+-
+-	apitypes "github.com/gravitational/teleport/api/types"
+-	
+-	"github.com/gravitational/trace"
+-	"github.com/hashicorp/terraform-plugin-framework/diag"
+-	"github.com/hashicorp/terraform-plugin-framework/path"
+-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+-	"github.com/hashicorp/terraform-plugin-framework/types"
+-
+-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+-	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+-)
+-
+-// resourceTeleportSAMLConnectorType is the resource metadata type
+-type resourceTeleportSAMLConnectorType struct{}
+-
+-// resourceTeleportSAMLConnector is the resource
+-type resourceTeleportSAMLConnector struct {
+-	p Provider
+-}
+-
+-// GetSchema returns the resource schema
+-func (r resourceTeleportSAMLConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+-	return tfschema.GenSchemaSAMLConnectorV2(ctx)
+-}
+-
+-// NewResource creates the empty resource
+-func (r resourceTeleportSAMLConnectorType) NewResource(_ context.Context, p tfsdk.Provider) (tfsdk.Resource, diag.Diagnostics) {
+-	return resourceTeleportSAMLConnector{
+-		p: p.(Provider),
+-	}, nil
+-}
+-
+-// Create creates the SAMLConnector
+-func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
+-	var err error
+-	if !r.p.IsConfigured(resp.Diagnostics) {
+-		return
+-	}
+-
+-	var plan types.Object
+-	diags := req.Plan.Get(ctx, &plan)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	samlConnector := &apitypes.SAMLConnectorV2{}
+-	diags = tfschema.CopySAMLConnectorV2FromTerraform(ctx, plan, samlConnector)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	
+-	samlConnectorResource := samlConnector
+-
+-	err = samlConnectorResource.CheckAndSetDefaults()
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting SAMLConnector defaults", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	id := samlConnectorResource.Metadata.Name
+-
+-	_, err = r.p.Client().GetSAMLConnector(ctx, id, true)
+-	if !trace.IsNotFound(err) {
+-		if err == nil {
+-			existErr := fmt.Sprintf("SAMLConnector exists in Teleport. Either remove it (tctl rm saml/%v)"+
+-				" or import it to the existing state (terraform import teleport_saml_connector.%v %v)", id, id, id)
+-
+-			resp.Diagnostics.Append(tfdiag.DiagFromErr("SAMLConnector exists in Teleport", trace.Errorf(existErr)))
+-			return
+-		}
+-
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	_, err = r.p.Client().CreateSAMLConnector(ctx, samlConnectorResource)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error creating SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-		
+-	// Not really an inferface, just using the same name for easier templating.
+-	var samlConnectorI apitypes.SAMLConnector
+-	// Try getting the resource until it exists.
+-	tries := 0
+-	retry, err := r.p.Retry()
+-	if err != nil {
+-		return
+-	}
+-	for {
+-		tries = tries + 1
+-		samlConnectorI, err = r.p.Client().GetSAMLConnector(ctx, id, true)
+-		if trace.IsNotFound(err) {
+-		    select {
+-			case <-ctx.Done():
+-			    resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
+-				return
+-			case <-retry.After():
+-			}
+-			if tries >= r.p.MaxRetries() {
+-				diagMessage := fmt.Sprintf("Error reading SAMLConnector (tried %d times) - state outdated, please import resource", tries)
+-				resp.Diagnostics.AddError(diagMessage, "saml")
+-				return
+-			}
+-			continue
+-		}
+-		break
+-	}
+-
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	samlConnectorResource, ok := samlConnectorI.(*apitypes.SAMLConnectorV2)
+-	if !ok {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Errorf("Can not convert %T to SAMLConnectorV2", samlConnectorI), "saml"))
+-		return
+-	}
+-	samlConnector = samlConnectorResource
+-
+-	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	plan.Attrs["id"] = types.String{Value: samlConnector.Metadata.Name}
+-
+-	diags = resp.State.Set(ctx, &plan)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-}
+-
+-// Read reads teleport SAMLConnector
+-func (r resourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.ReadResourceRequest, resp *tfsdk.ReadResourceResponse) {
+-	var state types.Object
+-	diags := req.State.Get(ctx, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	var id types.String
+-	diags = req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	samlConnectorI, err := r.p.Client().GetSAMLConnector(ctx, id.Value, true)
+-	if trace.IsNotFound(err) {
+-		resp.State.RemoveResource(ctx)
+-		return
+-	}
+-
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-	
+-	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
+-	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	diags = resp.State.Set(ctx, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-}
+-
+-// Update updates teleport SAMLConnector
+-func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.UpdateResourceRequest, resp *tfsdk.UpdateResourceResponse) {
+-	if !r.p.IsConfigured(resp.Diagnostics) {
+-		return
+-	}
+-
+-	var plan types.Object
+-	diags := req.Plan.Get(ctx, &plan)
+-
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	samlConnector := &apitypes.SAMLConnectorV2{}
+-	diags = tfschema.CopySAMLConnectorV2FromTerraform(ctx, plan, samlConnector)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-	samlConnectorResource := samlConnector
+-
+-
+-	if err := samlConnectorResource.CheckAndSetDefaults(); err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating SAMLConnector", err, "saml"))
+-		return
+-	}
+-	name := samlConnectorResource.Metadata.Name
+-
+-	samlConnectorBefore, err := r.p.Client().GetSAMLConnector(ctx, name, true)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", err, "saml"))
+-		return
+-	}
+-
+-	_, err = r.p.Client().UpsertSAMLConnector(ctx, samlConnectorResource)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error updating SAMLConnector", err, "saml"))
+-		return
+-	}
+-		
+-	// Not really an inferface, just using the same name for easier templating.
+-	var samlConnectorI apitypes.SAMLConnector
+-
+-	tries := 0
+-	retry, err := r.p.Retry()
+-	if err != nil {
+-		return
+-	}
+-	for {
+-		tries = tries + 1
+-		samlConnectorI, err = r.p.Client().GetSAMLConnector(ctx, name, true)
+-		if err != nil {
+-			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", err, "saml"))
+-			return
+-		}
+-		if samlConnectorBefore.GetMetadata().Revision != samlConnectorI.GetMetadata().Revision || true {
+-			break
+-		}
+-
+-		select {
+-		case <-ctx.Done():
+-		    resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
+-			return
+-		case <-retry.After():
+-		}
+-		if tries >= r.p.MaxRetries() {
+-			diagMessage := fmt.Sprintf("Error reading SAMLConnector (tried %d times) - state outdated, please import resource", tries)
+-			resp.Diagnostics.AddError(diagMessage, "saml")
+-			return
+-		}
+-	}
+-
+-	samlConnectorResource, ok := samlConnectorI.(*apitypes.SAMLConnectorV2)
+-	if !ok {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Errorf("Can not convert %T to SAMLConnectorV2", samlConnectorI), "saml"))
+-		return
+-	}
+-	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	diags = resp.State.Set(ctx, plan)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-}
+-
+-// Delete deletes Teleport SAMLConnector
+-func (r resourceTeleportSAMLConnector) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
+-	var id types.String
+-	diags := req.State.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	err := r.p.Client().DeleteSAMLConnector(ctx, id.Value)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting SAMLConnectorV2", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	resp.State.RemoveResource(ctx)
+-}
+-
+-// ImportState imports SAMLConnector state
+-func (r resourceTeleportSAMLConnector) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
+-	samlConnector, err := r.p.Client().GetSAMLConnector(ctx, req.ID, true)
+-	if err != nil {
+-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
+-		return
+-	}
+-
+-	
+-	samlConnectorResource := samlConnector.(*apitypes.SAMLConnectorV2)
+-
+-	var state types.Object
+-
+-	diags := resp.State.Get(ctx, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-
+-	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnectorResource, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-	id := samlConnectorResource.GetName()
+-
+-	state.Attrs["id"] = types.String{Value: id}
+-
+-	diags = resp.State.Set(ctx, &state)
+-	resp.Diagnostics.Append(diags...)
+-	if resp.Diagnostics.HasError() {
+-		return
+-	}
+-}
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,28 @@
+From 0ded35239edeafa6bb3f51e61b468f9e116de92f Mon Sep 17 00:00:00 2001
+From: Aleksei Kozadaev <aleksei.kozadaev@goteleport.com>
+Date: Thu, 24 Sep 2026 14:51:33 +0100
+Subject: [PATCH 2/2] Add redirect for terraform/data-sources/server.
+
+---
+ docs/config.json | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/docs/config.json b/docs/config.json
+index e96d77447d4..444a4c08c2f 100644
+--- a/docs/config.json
++++ b/docs/config.json
+@@ -2036,6 +2036,11 @@
+       "destination": "/reference/machine-workload-identity/terraform-provider-mwi/data-sources/kubernetes/",
+       "permanent": true
+     },
++    {
++      "source": "/reference/infrastructure-as-code/terraform-provider/data-sources/server/",
++      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/",
++      "permanent": true
++    },
+     {
+       "source": "/reference/terraform-provider-mwi/ephemeral-resources/",
+       "destination": "/reference/machine-workload-identity/terraform-provider-mwi/ephemeral-resources/",
+-- 
+2.54.0 (Apple Git-157)
+
