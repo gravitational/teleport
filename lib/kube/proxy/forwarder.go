@@ -3031,7 +3031,7 @@ func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeCluster
 // Logic from:
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
 func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiResource) string {
-	kind := strings.Split(resource.resourceKind, "/")[0]
+	kind, _, _ := strings.Cut(resource.resourceKind, "/")
 
 	apiGroup := resource.apiGroup
 	teleportType := resource.resourceKind

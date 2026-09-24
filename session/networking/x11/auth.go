@@ -120,7 +120,7 @@ func (x *XAuthCommand) ReadEntry(display Display) (*XAuthEntry, error) {
 	}
 
 	// Ignore entries beyond the first listed.
-	entry := strings.Split(string(out), "\n")[0]
+	entry, _, _ := strings.Cut(string(out), "\n")
 
 	splitEntry := strings.Split(entry, "  ")
 	if len(splitEntry) != 3 {

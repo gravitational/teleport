@@ -776,7 +776,7 @@ func getKubeCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKey
 	}
 	credsByName := make(map[string]TLSCredential, len(files))
 	for _, file := range files {
-		if credName := strings.TrimSuffix(file.Name(), keypaths.FileExtKubeCred); credName != file.Name() {
+		if credName, ok := strings.CutSuffix(file.Name(), keypaths.FileExtKubeCred); ok {
 			credPath := filepath.Join(credentialDir, file.Name())
 			cred, err := readKubeCredential(credPath, opts...)
 			if err != nil {

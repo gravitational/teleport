@@ -78,7 +78,7 @@ func NewZypper(cfg *ZypperConfig) (*Zypper, error) {
 // AddTeleportRepository adds the Teleport repository to the current system.
 func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
 	// Teleport repo only targets the major version of the target distros.
-	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
+	versionID, _, _ := strings.Cut(linuxInfo.VersionID, ".")
 
 	if linuxInfo.ID == "opensuse-tumbleweed" {
 		versionID = "15" // tumbleweed uses dated VERSION_IDs like 20230702

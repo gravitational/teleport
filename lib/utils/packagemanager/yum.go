@@ -85,7 +85,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 	distroID := cmp.Or(yumDistroMap[linuxInfo.ID], linuxInfo.ID)
 
 	// Teleport repo only targets the major version of the target distros.
-	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
+	versionID, _, _ := strings.Cut(linuxInfo.VersionID, ".")
 
 	pm.logger.InfoContext(ctx, "Installing yum-utils", "command", "yum install -y yum-utils")
 	installYumUtilsCMD := exec.CommandContext(ctx, pm.bins.Yum, "install", "-y", "yum-utils")

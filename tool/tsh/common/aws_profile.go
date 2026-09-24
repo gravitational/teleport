@@ -201,8 +201,8 @@ func extractAWSStartURL(rawURL string) string {
 	// Identity Center Start URLs use '#' to separate the portal base URL from the specific console path.
 	// Standard: https://<subdomain>.awsapps.com/start/#/console...
 	// GovCloud: https://start.us-gov-home.awsapps.com/directory/<idSource>#/console...
-	if index := strings.Index(rawURL, "#"); index != -1 {
-		return strings.TrimSuffix(rawURL[:index], "/")
+	if before, _, ok := strings.Cut(rawURL, "#"); ok {
+		return strings.TrimSuffix(before, "/")
 	}
 
 	// Fallback to legacy behavior if anchor is missing but /start/ is present.
@@ -225,8 +225,8 @@ func extractAWSSessionName(startURL string) string {
 	// For standard partition, the unique identifier is the subdomain.
 	// Pattern: https://<idSource>.awsapps.com/start
 	raw := strings.TrimPrefix(startURL, "https://")
-	if dotIndex := strings.Index(raw, "."); dotIndex != -1 {
-		return "teleport-" + raw[:dotIndex]
+	if before, _, ok := strings.Cut(raw, "."); ok {
+		return "teleport-" + before
 	}
 	// Rare: fallback to a hash of the URL if we can't find a subdomain to ensure uniqueness
 	return fmt.Sprintf("teleport-%x", sha256.Sum256([]byte(startURL)))[:16]

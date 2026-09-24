@@ -37,11 +37,11 @@ func appendInt64(b []byte, i int64) []byte {
 }
 
 func readCString(src []byte) (string, []byte, bool) {
-	idx := bytes.IndexByte(src, 0x00)
-	if idx < 0 {
+	before, after, ok := bytes.Cut(src, []byte{0x00})
+	if !ok {
 		return "", src, false
 	}
-	return string(src[:idx]), src[idx+1:], true
+	return string(before), after, true
 }
 
 func appendCString(b []byte, str string) []byte {

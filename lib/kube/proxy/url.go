@@ -454,8 +454,8 @@ func extractResourceNameFromPostRequest(
 // If the resource kind contains sub resources (e.g. pods/exec), it returns the
 // resource kind without the subresource.
 func getResourceFromAPIResource(resourceKind string) string {
-	if idx := strings.Index(resourceKind, "/"); idx != -1 {
-		return resourceKind[:idx]
+	if before, _, ok := strings.Cut(resourceKind, "/"); ok {
+		return before
 	}
 	return resourceKind
 }

@@ -134,11 +134,11 @@ func ResolveFQDN(
 		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
 		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
 		if srv.GetApp().GetScope() != "" {
-			host := strings.Split(fqdn, ":")[0]
+			host, _, _ := strings.Cut(fqdn, ":")
 			// In the case where FindMatchingProxyDNS finds an actual found proxy match, this check is redundant.
 			// In the case where it finds no matches, FindMatchingProxyDNS returns the first element of proxyDNSNames,
 			// we must recheck to make sure that the proxy found matches, and reject if it doesn't.
-			proxyMatch := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
+			proxyMatch, _, _ := strings.Cut(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")
 			if host != proxyMatch && !strings.HasSuffix(host, "."+proxyMatch) {
 				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 			}

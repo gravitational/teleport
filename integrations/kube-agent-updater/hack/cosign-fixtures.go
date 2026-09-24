@@ -219,7 +219,7 @@ func signDigestedRef(manifestRef name.Digest, key *cosign.KeysBytes) (oci.Signat
 // The result is a valid oci.Signature want a payload referring to a different
 // manifest than the one provided.
 func wronglySignDigestedRef(manifestRef name.Digest, key *cosign.KeysBytes) (oci.Signature, error) {
-	manifestRefNoHash := strings.Split(manifestRef.String(), "@")[0]
+	manifestRefNoHash, _, _ := strings.Cut(manifestRef.String(), "@")
 	wrongManifest, err := name.NewDigest(manifestRefNoHash + "@sha256:" + wrongHash)
 	if err != nil {
 		return nil, trace.Wrap(err)

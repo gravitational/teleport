@@ -58,15 +58,13 @@ func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 		}
 
 		// split on first =, if not found, log it and continue
-		idx := strings.Index(line, "=")
-		if idx == -1 {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
 			slog.DebugContext(ctx, "Bad line while reading environment file: no = separator found", "line_number", lineno)
 			continue
 		}
 
-		// split key and value and make sure that key has a name
-		key := line[:idx]
-		value := line[idx+1:]
+		// make sure that key has a name
 		if strings.TrimSpace(key) == "" {
 			slog.DebugContext(ctx, "Bad line while reading environment file: key without name", "line_number", lineno)
 			continue
@@ -138,7 +136,7 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
 
-		key := strings.SplitN(kv, "=", 2)[0]
+		key, _, _ := strings.Cut(kv, "=")
 		if e.isUnsafeKey(preventDuplicates, key) {
 			continue
 		}

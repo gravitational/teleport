@@ -73,7 +73,7 @@ func FindMatchingProxyDNS(requestHostnameOrFQDN string, proxyDNSNames []string) 
 	}
 
 	// Remove port from request host if present.
-	normalizedRequestHost := strings.Split(requestHostnameOrFQDN, ":")[0]
+	normalizedRequestHost, _, _ := strings.Cut(requestHostnameOrFQDN, ":")
 	hostParts := strings.Split(normalizedRequestHost, ".")
 
 	// Iterate over each possible suffix of requestHostOrFQDN parts
@@ -81,7 +81,7 @@ func FindMatchingProxyDNS(requestHostnameOrFQDN string, proxyDNSNames []string) 
 		possibleHost := strings.Join(hostParts[start:], ".")
 		for _, proxyDNSName := range proxyDNSNames {
 			// Normalize proxy DNS name by removing port if present
-			normalizedProxyDNSName := strings.Split(proxyDNSName, ":")[0]
+			normalizedProxyDNSName, _, _ := strings.Cut(proxyDNSName, ":")
 			if possibleHost == normalizedProxyDNSName {
 				return proxyDNSName
 			}
