@@ -1809,7 +1809,7 @@ crds-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
-# tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
+# terraform-resources-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
 .PHONY: terraform-resources-up-to-date
 terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
@@ -1824,6 +1824,15 @@ terraform-module-docs-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform-modules docs
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "TF module docs" "make -C integrations/terraform-modules docs"; \
+		exit 1; \
+	fi
+
+# terraform-mwi-resources-up-to-date checks if the generated documentation is up to date.
+.PHONY: terraform-mwi-resources-up-to-date
+terraform-mwi-resources-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform-mwi docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "MWI TF provider docs" "make -C integrations/terraform-mwi docs"; \
 		exit 1; \
 	fi
 

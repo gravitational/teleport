@@ -2,9 +2,9 @@
 title: "Teleport MWI Terraform Provider"
 description: Reference documentation of the Teleport MWI Terraform provider.
 tags:
- - infrastructure-as-code
- - reference
- - mwi
+  - infrastructure-as-code
+  - reference
+  - mwi
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -112,4 +112,6 @@ keep the following in mind:
 ### Optional
 
 - `insecure` (Boolean) When enabled, the certificates of the Proxy will not be verified. This is not recommended for production use.
+- `skip_initial_connection` (Boolean) When enabled, puts the provider into a lazy initialization mode where we avoid making connections to the Teleport cluster until the first resource or data source is actually used.
 
+This can be useful in scenarios where multiple providers are at play and the user wishes to selectively use the Teleport provider.
