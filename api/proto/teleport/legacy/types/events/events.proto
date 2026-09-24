@@ -3405,6 +3405,76 @@ message AppSessionRequestDenied {
   // app_session_id is the application session ID from the request's
   // certificate.
   string app_session_id = 10 [(gogoproto.jsontag) = "app_session_id"];
+  // evaluated_roles lists the roles the decision was made from.
+  repeated string evaluated_roles = 11 [(gogoproto.jsontag) = "evaluated_roles,omitempty"];
+  // hints lists the deny hints the rules recorded, in rule order.
+  repeated AppSessionDenyHint hints = 12 [(gogoproto.jsontag) = "hints,omitempty"];
+}
+
+// AppSessionDenyHint is a hint recorded on a denied HTTP app request. An
+// app_resources rule contributes its deny_code_hint and deny_reason_hint. An
+// app_resources_expressions rule contributes one hint per deny_hint call.
+message AppSessionDenyHint {
+  // code is the rule's deny_code_hint.
+  string code = 1 [(gogoproto.jsontag) = "code"];
+  // reason is the rule's deny_reason_hint.
+  string reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
+}
+
+// AppSessionRequestAllowed is emitted when the app agent allows an HTTP app
+// request under a fine-grained app access rule that sets allow_code.
+message AppSessionRequestAllowed {
+  // metadata is the common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // user is the user who initiated the session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // session holds the MFA and private key policy metadata. The session ID
+  // is unset. Use app_session_id to identify the certificate the allowed
+  // request came from.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // server is the server metadata of the app agent that allowed the request.
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app is the application being accessed.
+  AppMetadata app = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // method is the HTTP method, e.g. GET, POST.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // path is the relative path in the URL.
+  string path = 7 [(gogoproto.jsontag) = "path"];
+  // connection holds the client address the allowed request came from.
+  ConnectionMetadata connection = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app_session_id is the application session ID from the request's
+  // certificate.
+  string app_session_id = 9 [(gogoproto.jsontag) = "app_session_id"];
+  // allow_role is the role whose rule matched.
+  string allow_role = 10 [(gogoproto.jsontag) = "allow_role"];
+  // allow_code is the matching rule's allow_code.
+  string allow_code = 11 [(gogoproto.jsontag) = "allow_code"];
+  // allow_reason is the matching rule's allow_reason.
+  string allow_reason = 12 [(gogoproto.jsontag) = "allow_reason,omitempty"];
 }
 
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
@@ -5566,6 +5636,7 @@ message OneOf {
     events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
     events.AppSessionRequestDenied AppSessionRequestDenied = 272;
     events.BillingSubscriptionCancel BillingSubscriptionCancel = 273;
+    events.AppSessionRequestAllowed AppSessionRequestAllowed = 274;
   }
 }
 

@@ -3079,6 +3079,20 @@ func (m *AppSessionRequestDenied) TrimToMaxSize(maxSize int) AuditEvent {
 		return fieldTrimmers{
 			newStrTrimmer(m.Method, &out.Method),
 			newStrTrimmer(m.Path, &out.Path),
+			newStrSliceTrimmer(m.EvaluatedRoles, &out.EvaluatedRoles),
+			newAppSessionDenyHintsTrimmer(m.Hints, &out.Hints),
+		}
+	})
+}
+
+func (m *AppSessionRequestAllowed) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionRequestAllowed) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.AllowRole, &out.AllowRole),
+			newStrTrimmer(m.AllowCode, &out.AllowCode),
+			newStrTrimmer(m.AllowReason, &out.AllowReason),
 		}
 	})
 }

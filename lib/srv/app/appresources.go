@@ -58,10 +58,8 @@ const (
 	warnCORS     = "cors"
 )
 
-// denyResponse is what the agent sends and records for one denied request.
+// denyResponse is the HTTP response for one denied request.
 type denyResponse struct {
-	// kind is the deny kind recorded in the audit event.
-	kind appresource.DenyKind
 	// body is the HTTP response body sent to the client.
 	body string
 	// status is the HTTP status code sent to the client.
@@ -74,15 +72,14 @@ type denyResponse struct {
 // denyKindInternalAccessError instead of the real kind. A malformed path
 // (DenyInvalidRequest) is a 400, and any other denial is a 403.
 func newDenyResponse(decision appresource.Decision) denyResponse {
-	kind := decision.Deny.Kind
-	switch kind {
+	switch decision.Deny.Kind {
 	case appresource.DenyRoleVersionUnsupported, appresource.DenyTooManyRules:
 		redacted := appresource.Decision{Deny: &appresource.DenyDetails{Kind: denyKindInternalAccessError}}
-		return denyResponse{kind: kind, body: string(redacted.ClientJSON()), status: http.StatusInternalServerError}
+		return denyResponse{body: string(redacted.ClientJSON()), status: http.StatusInternalServerError}
 	case appresource.DenyInvalidRequest:
-		return denyResponse{kind: kind, body: string(decision.ClientJSON()), status: http.StatusBadRequest}
+		return denyResponse{body: string(decision.ClientJSON()), status: http.StatusBadRequest}
 	}
-	return denyResponse{kind: kind, body: string(decision.ClientJSON()), status: http.StatusForbidden}
+	return denyResponse{body: string(decision.ClientJSON()), status: http.StatusForbidden}
 }
 
 // write sends the response.
@@ -97,8 +94,8 @@ func (d denyResponse) write(w http.ResponseWriter) {
 
 // versionSkewDecision returns the deny decision for a request this version
 // of Teleport cannot evaluate.
-func versionSkewDecision() *appresource.Decision {
-	return &appresource.Decision{Deny: &appresource.DenyDetails{Kind: appresource.DenyRoleVersionUnsupported}}
+func versionSkewDecision(roles ...string) *appresource.Decision {
+	return &appresource.Decision{Deny: &appresource.DenyDetails{Kind: appresource.DenyRoleVersionUnsupported}, Roles: roles}
 }
 
 // stripRequestOverrideHeaders removes the request method and path override
@@ -116,9 +113,9 @@ func stripRequestOverrideHeaders(r *http.Request, decision appresource.Decision)
 
 // appResourcesDenial applies the app_resources rules of the caller's roles to
 // a plain HTTP app request. It returns nil when the request is allowed, and
-// the response to write when it is denied. Every denial emits one audit event
-// with the deny kind. The app kinds [appresource.GovernsApp] excludes should
-// never reach this path but they are defensively skipped.
+// the response to write when it is denied. The app kinds
+// [appresource.GovernsApp] excludes should never reach this path but they are
+// defensively skipped.
 func (c *ConnectionsHandler) appResourcesDenial(r *http.Request, authCtx *authz.Context, app types.Application) *denyResponse {
 	identity := authCtx.Identity.GetIdentity()
 	log := c.log.With("app", app.GetName(), "user", identity.Username)
@@ -138,6 +135,7 @@ func (c *ConnectionsHandler) appResourcesDenial(r *http.Request, authCtx *authz.
 	}
 	if decision.Allowed {
 		stripRequestOverrideHeaders(r, *decision)
+		c.emitRequestAllowed(r, log, &identity, app, *decision)
 		return nil
 	}
 
@@ -146,7 +144,7 @@ func (c *ConnectionsHandler) appResourcesDenial(r *http.Request, authCtx *authz.
 	}
 
 	deny := newDenyResponse(*decision)
-	c.emitRequestDenied(r, &identity, app, deny.kind)
+	c.emitRequestDenied(r, log, &identity, app, *decision)
 	return &deny
 }
 
@@ -169,7 +167,7 @@ func (c *ConnectionsHandler) decideAppResources(r *http.Request, log *slog.Logge
 		if c.v9WarnOnce(warnDenyRule, identity.Username, app.GetName()) {
 			log.WarnContext(r.Context(), "Denied app request: a role sets app_resources or app_resources_expressions under deny, which this Teleport version does not implement, and unimplemented rules deny by default. Remove the deny rule to restore access.", "role", name)
 		}
-		return versionSkewDecision()
+		return versionSkewDecision(name)
 	}
 	if len(partition.IgnoredRoleNames) > 0 && c.v9WarnOnce(warnDropped, identity.Username, app.GetName()) {
 		log.WarnContext(r.Context(), "Dropped v8-or-older roles that grant a v9-governed app; v8 roles cannot re-open unrestricted access.", "dropped_roles", partition.IgnoredRoleNames)
@@ -189,7 +187,7 @@ func (c *ConnectionsHandler) decideAppResources(r *http.Request, log *slog.Logge
 		if c.v9WarnOnce(warnEvaluate, identity.Username, app.GetName()) {
 			log.WarnContext(r.Context(), "Denied app request: a rule could not be evaluated.", "error", err)
 		}
-		return versionSkewDecision()
+		return versionSkewDecision(partition.RoleNames()...)
 	}
 	return &decision
 }
@@ -207,37 +205,91 @@ func grantingRoles(roles []types.Role, app types.Application, username string, t
 
 // emitRequestDenied emits one audit event for a request denied under
 // fine-grained app access roles. The event is not rate limited.
-func (c *ConnectionsHandler) emitRequestDenied(r *http.Request, identity *tlsca.Identity, app types.Application, denyKind appresource.DenyKind) {
+func (c *ConnectionsHandler) emitRequestDenied(r *http.Request, log *slog.Logger, identity *tlsca.Identity, app types.Application, decision appresource.Decision) {
 	event := &apievents.AppSessionRequestDenied{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionRequestDeniedEvent,
 			Code:        events.AppSessionRequestDeniedCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		UserMetadata: identity.GetUserMetadata(),
-		SessionMetadata: apievents.SessionMetadata{
-			WithMFA:          identity.MFAVerified,
-			PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        c.cfg.HostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
+		UserMetadata:       identity.GetUserMetadata(),
+		SessionMetadata:    requestSessionMetadata(identity),
+		ServerMetadata:     c.serverMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: identity.LoginIP},
 		AppMetadata:        *common.MakeAppMetadata(app),
 		Method:             r.Method,
 		Path:               r.URL.EscapedPath(),
-		DenyKind:           string(denyKind),
+		DenyKind:           string(decision.Deny.Kind),
 		AppSessionId:       identity.RouteToApp.SessionID,
+		EvaluatedRoles:     decision.Roles,
+		Hints:              denyHints(decision.Deny.Hints),
 	}
-	// Detach from ctx cancellation: a client disconnecting as the request is
-	// denied would otherwise cause the emitter to drop this record.
-	emitCtx := context.WithoutCancel(r.Context())
+	c.emitRequestEvent(r.Context(), log, event)
+}
+
+// emitRequestAllowed emits one audit event for a request allowed by a rule
+// that sets allow_code. The event is not rate limited.
+func (c *ConnectionsHandler) emitRequestAllowed(r *http.Request, log *slog.Logger, identity *tlsca.Identity, app types.Application, decision appresource.Decision) {
+	if decision.Allow == nil || decision.Allow.Code == "" {
+		return
+	}
+	event := &apievents.AppSessionRequestAllowed{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionRequestAllowedEvent,
+			Code:        events.AppSessionRequestAllowedCode,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		UserMetadata:       identity.GetUserMetadata(),
+		SessionMetadata:    requestSessionMetadata(identity),
+		ServerMetadata:     c.serverMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: identity.LoginIP},
+		AppMetadata:        *common.MakeAppMetadata(app),
+		Method:             r.Method,
+		Path:               r.URL.EscapedPath(),
+		AppSessionId:       identity.RouteToApp.SessionID,
+		AllowRole:          decision.Allow.Role,
+		AllowCode:          decision.Allow.Code,
+		AllowReason:        decision.Allow.Reason,
+	}
+	c.emitRequestEvent(r.Context(), log, event)
+}
+
+// emitRequestEvent emits event, detached from ctx cancellation.
+func (c *ConnectionsHandler) emitRequestEvent(ctx context.Context, log *slog.Logger, event apievents.AuditEvent) {
+	// A client disconnecting as the request is decided would otherwise cause
+	// the emitter to drop this record.
+	emitCtx := context.WithoutCancel(ctx)
 	err := c.cfg.Emitter.EmitAuditEvent(emitCtx, event)
 	if err != nil {
-		c.log.WarnContext(emitCtx, "Failed to emit audit event for a denied app request.", "error", err, "app", app.GetName(), "user", identity.Username)
+		log.WarnContext(emitCtx, "Failed to emit audit event for an app request.", "error", err, "event", event.GetType())
 	}
+}
+
+// requestSessionMetadata returns the session metadata of a request audit
+// event. The session ID is unset, so each event gets its own audit key.
+func requestSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
+	return apievents.SessionMetadata{
+		WithMFA:          identity.MFAVerified,
+		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+	}
+}
+
+// serverMetadata returns the server metadata of this app agent.
+func (c *ConnectionsHandler) serverMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
+		ServerID:        c.cfg.HostID,
+		ServerNamespace: apidefaults.Namespace,
+	}
+}
+
+// denyHints converts a decision's hints to the audit event type.
+func denyHints(hints []appresource.Hint) []*apievents.AppSessionDenyHint {
+	eventHints := make([]*apievents.AppSessionDenyHint, 0, len(hints))
+	for _, hint := range hints {
+		eventHints = append(eventHints, &apievents.AppSessionDenyHint{Code: hint.Code, Reason: hint.Reason})
+	}
+	return eventHints
 }
 
 // isCORSPreflight reports whether r is a CORS preflight request, an

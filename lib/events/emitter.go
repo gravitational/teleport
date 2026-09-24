@@ -648,6 +648,7 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 		SessionDiskEvent,
 		SessionPrintEvent,
 		AppSessionRequestEvent,
+		AppSessionRequestAllowedEvent,
 		AppSessionLLMRequestSuccessEvent,
 		AppSessionLLMRequestFailureEvent,
 		"":

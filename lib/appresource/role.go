@@ -121,9 +121,9 @@ func PartitionRoles(roles []types.Role) Partition {
 	return p
 }
 
-// roleNames returns the name of every role in p that app_resources rules
+// RoleNames returns the name of every role in p that app_resources rules
 // govern, the roles with an error included.
-func (p Partition) roleNames() []string {
+func (p Partition) RoleNames() []string {
 	names := make([]string, 0, len(p.Roles)+len(p.Errors))
 	for _, role := range p.Roles {
 		names = append(names, role.Name)
@@ -149,13 +149,13 @@ func (p Partition) Evaluate(request Request, identity Identity) (Decision, error
 	if p.overLimit {
 		return Decision{
 			Deny:  &DenyDetails{Kind: DenyTooManyRules},
-			Roles: p.roleNames(),
+			Roles: p.RoleNames(),
 		}, nil
 	}
 	if len(p.Errors) > 0 {
 		return Decision{
 			Deny:  &DenyDetails{Kind: DenyRoleVersionUnsupported},
-			Roles: p.roleNames(),
+			Roles: p.RoleNames(),
 		}, nil
 	}
 	decision, err := p.set.Evaluate(request, identity)

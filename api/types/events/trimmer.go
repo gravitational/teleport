@@ -132,6 +132,10 @@ func newHTTPHeadersTrimmer(source []*HTTPHeader, target *[]*HTTPHeader) fieldTri
 	return newBaseTrimmer(source, target, nonEmptyHTTPHeaders, trimHTTPHeaders)
 }
 
+func newAppSessionDenyHintsTrimmer(source []*AppSessionDenyHint, target *[]*AppSessionDenyHint) fieldTrimmer {
+	return newBaseTrimmer(source, target, nonEmptyAppSessionDenyHints, trimAppSessionDenyHints)
+}
+
 // nonEmptyHTTPHeaders counts the non-empty name and value strings across the
 // headers so each gets its share of the per-field trim budget.
 func nonEmptyHTTPHeaders(headers []*HTTPHeader) int {
@@ -158,6 +162,37 @@ func trimHTTPHeaders(headers []*HTTPHeader, maxFieldSize int) []*HTTPHeader {
 		trimmed[i] = &HTTPHeader{
 			Name:  trimStr(h.Name, maxFieldSize),
 			Value: trimStr(h.Value, maxFieldSize),
+		}
+	}
+	return trimmed
+}
+
+// nonEmptyAppSessionDenyHints counts the non-empty code and reason strings
+// across the hints so each gets its share of the per-field trim budget.
+func nonEmptyAppSessionDenyHints(hints []*AppSessionDenyHint) int {
+	var count int
+	for _, h := range hints {
+		if h == nil {
+			continue
+		}
+		count += nonEmptyStrs(h.Code, h.Reason)
+	}
+	return count
+}
+
+// trimAppSessionDenyHints trims each hint's code and reason to maxFieldSize.
+func trimAppSessionDenyHints(hints []*AppSessionDenyHint, maxFieldSize int) []*AppSessionDenyHint {
+	if len(hints) == 0 {
+		return nil
+	}
+	trimmed := make([]*AppSessionDenyHint, len(hints))
+	for i, h := range hints {
+		if h == nil {
+			continue
+		}
+		trimmed[i] = &AppSessionDenyHint{
+			Code:   trimStr(h.Code, maxFieldSize),
+			Reason: trimStr(h.Reason, maxFieldSize),
 		}
 	}
 	return trimmed

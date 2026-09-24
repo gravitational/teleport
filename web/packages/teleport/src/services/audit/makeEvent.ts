@@ -724,6 +724,12 @@ export const formatters: Formatters = {
       }
     },
   },
+  [eventCodes.APP_SESSION_REQUEST_ALLOWED]: {
+    type: 'app.session.request.allowed',
+    desc: 'App Request Allowed',
+    format: ({ user, app_name, method, path, allow_role, allow_code }) =>
+      `User [${user}] was allowed [${method} ${path}] for application [${app_name}] by role [${allow_role}] with code [${allow_code}]`,
+  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',

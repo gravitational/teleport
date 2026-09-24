@@ -152,6 +152,9 @@ const (
 	AppSessionTargetDialDeniedCode = "T2019E"
 	// AppSessionRequestDeniedCode is the fine-grained app access request denied event code.
 	AppSessionRequestDeniedCode = "T2020E"
+	// AppSessionRequestAllowedCode is the fine-grained app access request
+	// allowed event code.
+	AppSessionRequestAllowedCode = "T2021I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

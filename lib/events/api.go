@@ -450,6 +450,10 @@ const (
 	// AppSessionRequestDeniedEvent is emitted when the app agent denies a
 	// plain HTTP app request under fine-grained access rules.
 	AppSessionRequestDeniedEvent = "app.session.request.denied"
+	// AppSessionRequestAllowedEvent is emitted when the app agent allows a
+	// plain HTTP app request under a fine-grained access rule that sets
+	// allow_code.
+	AppSessionRequestAllowedEvent = "app.session.request.allowed"
 
 	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
 	AppSessionHTTPRequestEvent = "http.request"

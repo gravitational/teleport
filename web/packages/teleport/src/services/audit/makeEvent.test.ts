@@ -83,6 +83,13 @@ describe('makeEvent', () => {
       'SPIFFE Federation Deleted',
       'User [alice] deleted a SPIFFE federation [example.com]',
     ],
+    [
+      eventCodes.APP_SESSION_REQUEST_ALLOWED,
+      // Must match AppSessionRequestAllowedEvent in lib/events/api.go.
+      'app.session.request.allowed',
+      'App Request Allowed',
+      'User [alice] was allowed [GET /api/things] for application [dev-app] by role [developer] with code [api_read]',
+    ],
   ])(
     'formats %s events instead of falling back to Unknown Event',
     (code, backendEventType, expectedDesc, expectedMessage) => {
@@ -92,6 +99,11 @@ describe('makeEvent', () => {
         user: 'alice',
         time: '2026-01-01T00:00:00.000Z',
         name: 'example.com',
+        app_name: 'dev-app',
+        method: 'GET',
+        path: '/api/things',
+        allow_role: 'developer',
+        allow_code: 'api_read',
       });
 
       expect(event.codeDesc).toBe(expectedDesc);
