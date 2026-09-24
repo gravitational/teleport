@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -30,9 +29,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type principalStateIndex string
+type principalStateIndex struct{}
 
-const principalStateNameIndex principalStateIndex = "name"
+var principalStateNameIndex principalStateIndex
+
+func principalStateNameIndexKey(downstream services.DownstreamID, id services.ProvisioningStateID) string {
+	return string(downstream) + "/" + string(id)
+}
+
+func principalStateNameIndexKeyForPrincipalState(ps *provisioningv1.PrincipalState) string {
+	return principalStateNameIndexKey(services.DownstreamID(ps.GetSpec().GetDownstreamId()), services.ProvisioningStateID(ps.GetMetadata().GetName()))
+}
 
 func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.WatchKind) (*collection[*provisioningv1.PrincipalState, principalStateIndex], error) {
 	if upstream == nil {
@@ -44,22 +51,11 @@ func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.W
 			types.KindProvisioningPrincipalState,
 			proto.CloneOf[*provisioningv1.PrincipalState],
 			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
-				principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {
-					return r.GetMetadata().GetName()
-				},
+				principalStateNameIndex: principalStateNameIndexKeyForPrincipalState,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListProvisioningStatesForAllDownstreams))
 			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
-			return &provisioningv1.PrincipalState{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
 		},
 		watch: w,
 	}, nil
@@ -78,7 +74,7 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 			return out, trace.Wrap(err)
 		},
 	}
-	out, err := getter.get(ctx, string(id))
+	out, err := getter.get(ctx, principalStateNameIndexKey(downstream, id))
 	return out, trace.Wrap(err)
 }
 
@@ -98,10 +94,8 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams2(ctx context.Context, pa
 		cache:        c,
 		collection:   c.collections.provisioningStates,
 		index:        principalStateNameIndex,
-		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams2,
-		nextToken: func(t *provisioningv1.PrincipalState) string {
-			return t.GetMetadata().GetName()
-		},
+		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams,
+		nextToken:    principalStateNameIndexKeyForPrincipalState,
 	}
 
 	out, next, err := lister.list(ctx, pageSize, pageToken)

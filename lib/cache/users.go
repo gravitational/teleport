@@ -29,9 +29,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type userIndex string
+type userIndex struct{}
 
-const userNameIndex userIndex = "name"
+var userNameIndex userIndex
+
+func userNameIndexKeyForName(name string) string {
+	// this matches the order of the users in the backend, which is
+	// unfortunately not the correct order (user "foo" should come earlier than
+	// user "foo-bar", but with a "/params" suffix the order is the other way
+	// around)
+	return name + "/params"
+}
 
 func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
 	if upstream == nil {
@@ -43,7 +51,9 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 			types.KindUser,
 			types.User.Clone,
 			map[userIndex]func(types.User) string{
-				userNameIndex: types.User.GetName,
+				userNameIndex: func(u types.User) string {
+					return userNameIndexKeyForName(u.GetName())
+				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
@@ -101,7 +111,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		return user, trace.Wrap(err)
 	}
 
-	u, err := rg.store.get(userNameIndex, name)
+	u, err := rg.store.get(userNameIndex, userNameIndexKeyForName(name))
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -183,7 +193,11 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range rg.store.resources(userNameIndex, req.PageToken, "") {
+	var start string
+	if pageToken := req.GetPageToken(); pageToken != "" {
+		start = userNameIndexKeyForName(pageToken)
+	}
+	for u := range rg.store.resources(userNameIndex, start, "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue

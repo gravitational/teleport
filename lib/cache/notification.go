@@ -29,9 +29,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type userNotificationIndex string
+type userNotificationIndex struct{}
 
-const userNotificationNameIndex userNotificationIndex = "name"
+var userNotificationNameIndex userNotificationIndex
+
+func userNotificationNameIndexKey(username, notificationID string) string {
+	return username + "/" + notificationID
+}
+
+func userNotificationNameIndexKeyForNotification(n *notificationsv1.Notification) string {
+	return userNotificationNameIndexKey(n.GetSpec().GetUsername(), n.GetMetadata().GetName())
+}
 
 func newUserNotificationCollection(upstream services.NotificationGetter, w types.WatchKind) (*collection[*notificationsv1.Notification, userNotificationIndex], error) {
 	if upstream == nil {
@@ -43,9 +51,7 @@ func newUserNotificationCollection(upstream services.NotificationGetter, w types
 			types.KindNotification,
 			proto.CloneOf[*notificationsv1.Notification],
 			map[userNotificationIndex]func(*notificationsv1.Notification) string{
-				userNotificationNameIndex: func(r *notificationsv1.Notification) string {
-					return r.GetMetadata().GetName()
-				},
+				userNotificationNameIndex: userNotificationNameIndexKeyForNotification,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*notificationsv1.Notification, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListUserNotifications))
@@ -65,9 +71,7 @@ func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKe
 		collection:   c.collections.userNotifications,
 		index:        userNotificationNameIndex,
 		upstreamList: c.Config.Notifications.ListUserNotifications,
-		nextToken: func(t *notificationsv1.Notification) string {
-			return t.GetMetadata().GetName()
-		},
+		nextToken:    userNotificationNameIndexKeyForNotification,
 	}
 	out, next, err := lister.list(ctx, pageSize, startKey)
 	return out, next, trace.Wrap(err)
