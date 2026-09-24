@@ -109,7 +109,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
-|allow_encoded|[]string|AllowEncoded is deprecated. A rule that sets it is rejected.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
@@ -413,7 +412,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
-|allow_encoded|[]string|AllowEncoded is deprecated. A rule that sets it is rejected.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|

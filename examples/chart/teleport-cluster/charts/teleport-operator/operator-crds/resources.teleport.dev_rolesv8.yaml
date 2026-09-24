@@ -81,13 +81,6 @@ spec:
                             allow audit event is recorded. A code may not start with
                             the reserved "teleport_" prefix.
                           type: string
-                        allow_encoded:
-                          description: AllowEncoded is deprecated. A rule that sets
-                            it is rejected.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
                             AllowCode. A rule sets it only together with AllowCode.
@@ -818,13 +811,6 @@ spec:
                             allow audit event is recorded. A code may not start with
                             the reserved "teleport_" prefix.
                           type: string
-                        allow_encoded:
-                          description: AllowEncoded is deprecated. A rule that sets
-                            it is rejected.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                         allow_reason:
                           description: AllowReason is the explanation recorded alongside
                             AllowCode. A rule sets it only together with AllowCode.

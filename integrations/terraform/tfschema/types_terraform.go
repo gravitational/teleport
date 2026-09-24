@@ -6182,13 +6182,6 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
-								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
-									Computed:      true,
-									Description:   "AllowEncoded is deprecated. A rule that sets it is rejected.",
-									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									Optional:      true,
-									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
-								},
 								"allow_reason": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.",
@@ -8014,12 +8007,6 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 								"allow_code": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved \"teleport_\" prefix.",
-									Optional:    true,
-								},
-								"allow_encoded": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
-									Computed:    true,
-									Description: "AllowEncoded is deprecated. A rule that sets it is rejected.",
-									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
 								"allow_reason": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -35842,33 +35829,6 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																	}
 																}
 																{
-																	a, ok := tf.Attributes()["allow_encoded"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowEncoded"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowEncoded", "github.com/hashicorp/terraform-plugin-framework/types.List"})
-																		} else {
-																			obj.AllowEncoded = make([]string, len(v.Elements()))
-																			if !v.IsNull() && !v.IsUnknown() {
-																				for k, a := range v.Elements() {
-																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																					if !ok {
-																						diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowEncoded", "github_com_hashicorp_terraform_plugin_framework_types.String"})
-																					} else {
-																						var t string
-																						if !v.IsNull() && !v.IsUnknown() {
-																							t = (v.ValueString())
-																						}
-																						obj.AllowEncoded[k] = t
-																					}
-																				}
-																			}
-																		}
-																	}
-																}
-																{
 																	a, ok := tf.Attributes()["allow_all"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowAll"})
@@ -42017,45 +41977,6 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Where))
 																						}
 																						attrs["where"] = v
-																					}
-																					{
-																						attrType, ok := attrType.AttributeTypes()["allow_encoded"]
-																						if !ok {
-																							diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowEncoded"})
-																						} else {
-																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
-																							if !ok {
-																								diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowEncoded", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
-																							} else {
-																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
-																								existing := attrs["allow_encoded"]
-																								if preserveUnknown && existing != nil && existing.IsUnknown() {
-																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
-																								} else {
-																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowEncoded))
-																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
-																									if ok && c.Elements() != nil {
-																										oldElems = c.Elements()
-																									}
-																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowEncoded))
-																									copy(elems, oldElems)
-																									for k, a := range obj.AllowEncoded {
-																										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
-																										existing := elems[k]
-																										if preserveUnknown && existing != nil && existing.IsUnknown() {
-																											v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
-																										} else {
-																											v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
-																										}
-																										elems[k] = v
-																									}
-																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
-																									diags.Append(resultDiags...)
-																									v = result
-																								}
-																								attrs["allow_encoded"] = v
-																							}
-																						}
 																					}
 																					{
 																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value

@@ -4520,11 +4520,8 @@ message AppResource {
   //     `where: contains(user.traits["projects"], vars.project)`
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
 
-  // AllowEncoded is deprecated. A rule that sets it is rejected.
-  repeated string AllowEncoded = 4 [
-    (gogoproto.jsontag) = "allow_encoded,omitempty",
-    deprecated = true
-  ];
+  reserved 4;
+  reserved "AllowEncoded";
 
   // AllowAll grants unrestricted access to every path and method. It
   // cannot be combined with any other field.

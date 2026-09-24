@@ -23,7 +23,6 @@ func (a AppResource) IsAllowAllOnly() bool {
 		len(a.Paths) == 0 &&
 		len(a.Methods) == 0 &&
 		a.Where == "" &&
-		len(a.AllowEncoded) == 0 &&
 		a.AllowCode == "" &&
 		a.AllowReason == "" &&
 		a.DenyCodeHint == "" &&

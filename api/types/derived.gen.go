@@ -2110,7 +2110,6 @@ func deriveTeleportEqual_142(this, that *AppResource) bool {
 			deriveTeleportEqual_2(this.Paths, that.Paths) &&
 			deriveTeleportEqual_2(this.Methods, that.Methods) &&
 			this.Where == that.Where &&
-			deriveTeleportEqual_2(this.AllowEncoded, that.AllowEncoded) &&
 			this.AllowAll == that.AllowAll &&
 			this.AllowCode == that.AllowCode &&
 			this.AllowReason == that.AllowReason &&
