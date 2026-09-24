@@ -195,7 +195,8 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 			return nil, trace.Wrap(err)
 		}
 
-		privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		isBot := unmappedIdentity.BotInstanceID != ""
+		privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

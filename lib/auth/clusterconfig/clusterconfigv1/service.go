@@ -214,7 +214,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.GetAuthPreference().HasHardwarePrivateKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
@@ -282,7 +282,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.GetAuthPreference().HasHardwarePrivateKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 

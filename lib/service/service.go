@@ -1188,7 +1188,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			"a Teleport account https://teleport.sh")
 	}
 
-	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
+	if cfg.Auth.Preference.HasHardwarePrivateKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 

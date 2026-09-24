@@ -1636,14 +1636,17 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 }
 
 func localSettings(ctx context.Context, cap types.AuthPreference, m modules.Modules, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
+	const isBotFalse = false
 	as := webclient.AuthenticationSettings{
-		Type:                    constants.Local,
-		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		AllowPasswordless:       cap.GetAllowPasswordless(),
-		AllowHeadless:           cap.GetAllowHeadless(),
-		Local:                   &webclient.LocalSettings{},
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		Type:              constants.Local,
+		SecondFactor:      types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		AllowPasswordless: cap.GetAllowPasswordless(),
+		AllowHeadless:     cap.GetAllowHeadless(),
+		Local:             &webclient.LocalSettings{},
+		// private_key_policy is inspected by clients when logging in, so it
+		// refers to the human pkp
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicyV2(isBotFalse),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap, m),
@@ -1677,6 +1680,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, m modules.Modu
 }
 
 func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
+	const isBotFalse = false
 	return webclient.AuthenticationSettings{
 		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
@@ -1685,9 +1689,11 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference, m mod
 			IssuerURL: connector.GetIssuerURL(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		SecondFactor:      types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		// private_key_policy is inspected by clients when logging in, so it
+		// refers to the human pkp
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicyV2(isBotFalse),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap, m),
@@ -1696,6 +1702,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference, m mod
 }
 
 func samlSettings(connector types.SAMLConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
+	const isBotFalse = false
 	return webclient.AuthenticationSettings{
 		Type: constants.SAML,
 		SAML: &webclient.SAMLSettings{
@@ -1708,9 +1715,11 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference, m mod
 			SSO: connector.GetSSO(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		SecondFactor:      types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		// private_key_policy is inspected by clients when logging in, so it
+		// refers to the human pkp
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicyV2(isBotFalse),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap, m),
@@ -1719,6 +1728,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference, m mod
 }
 
 func githubSettings(connector types.GithubConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
+	const isBotFalse = false
 	return webclient.AuthenticationSettings{
 		Type: constants.Github,
 		Github: &webclient.GithubSettings{
@@ -1727,9 +1737,11 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference, m
 			EndpointURL: connector.GetEndpointURL(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		SecondFactor:      types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		// private_key_policy is inspected by clients when logging in, so it
+		// refers to the human pkp
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicyV2(isBotFalse),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap, m),
@@ -2277,6 +2289,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			defaultConnectorName = cap.GetConnectorName()
 		}
 
+		// the web config is used by users, not bots
+		const isBotFalse = false
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:                   authProviders,
 			SecondFactor:                types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -2287,7 +2301,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			DefaultConnectorName:        defaultConnectorName,
 			PreferredLocalMFA:           cap.GetPreferredLocalMFA(),
 			LocalConnectorName:          localConnectorName,
-			PrivateKeyPolicy:            cap.GetPrivateKeyPolicy(),
+			PrivateKeyPolicy:            cap.GetPrivateKeyPolicyV2(isBotFalse),
 			MOTD:                        cap.GetMessageOfTheDay(),
 			IdentifierFirstLoginEnabled: identifierFirstLoginEnabled,
 		}

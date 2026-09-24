@@ -27,6 +27,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -185,6 +186,12 @@ func ValidateAuthPreference(ap types.AuthPreference) error {
 		return trace.Wrap(err)
 	}
 
+	if hk, err := ap.GetHardwareKey(); err == nil {
+		if err := ValidateHumanPrivateKeyPolicy(hk.HumanPrivateKeyPolicy); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -206,4 +213,19 @@ func ValidateStableUNIXUserConfig(c *types.StableUNIXUserConfig) error {
 	}
 
 	return nil
+}
+
+// ValidateHumanPrivateKeyPolicy checks if the human private key policy is
+// suitable for storage and use.
+func ValidateHumanPrivateKeyPolicy(hpkp string) error {
+	switch hpkp {
+	case "",
+		string(keys.PrivateKeyPolicyHardwareKey),
+		string(keys.PrivateKeyPolicyHardwareKeyTouch),
+		string(keys.PrivateKeyPolicyHardwareKeyPIN),
+		string(keys.PrivateKeyPolicyHardwareKeyTouchAndPIN):
+		return nil
+	default:
+		return trace.BadParameter("unsupported human private key policy %+q", hpkp)
+	}
 }
