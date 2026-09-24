@@ -871,6 +871,12 @@ func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
+// InitializationChan returns a channel that notifies when the [UnifiedResourceCache]
+// is fully initialized.
+func (c *UnifiedResourceCache) InitializationChan() <-chan struct{} {
+	return c.initializationChan()
+}
+
 // IsInitialized is used to check that the cache has done its initial
 // sync
 func (c *UnifiedResourceCache) IsInitialized() bool {
