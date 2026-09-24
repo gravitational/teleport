@@ -614,9 +614,22 @@ func (c *HTTPClient) getAllTunnelConnectionsLegacy(ctx context.Context) ([]types
 //
 // Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
 //
-// TODO(kiosion): DELETE IN 21.0.0
-func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
+// TODO(strideynet): DELETE IN v20.0.0 - remove the http fallback.
+func (c *Client) GetAuthServers() ([]types.Server, error) {
+	servers, err := clientutils.CollectWithFallback(
+		context.TODO(),
+		c.APIClient.ListAuthServers,
+		c.HTTPClient.getAuthServersLegacy,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return servers, nil
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) getAuthServersLegacy(ctx context.Context) ([]types.Server, error) {
+	out, err := c.Get(ctx, c.Endpoint("authservers"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -745,13 +758,26 @@ func (c *HTTPClient) extendWebSessionLegacy(ctx context.Context, req WebSessionR
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
-// GetProxies returns the list of auth servers registered in the cluster.
+// GetProxies returns the list of proxy servers registered in the cluster.
 //
 // Deprecated: Prefer paginated variant [APIClient.ListProxyServers].
 //
-// TODO(kiosion): DELETE IN 21.0.0
-func (c *HTTPClient) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
+// TODO(strideynet): DELETE IN v20.0.0 - remove the http fallback.
+func (c *Client) GetProxies() ([]types.Server, error) {
+	servers, err := clientutils.CollectWithFallback(
+		context.TODO(),
+		c.APIClient.ListProxyServers,
+		c.HTTPClient.getProxiesLegacy,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return servers, nil
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) getProxiesLegacy(ctx context.Context) ([]types.Server, error) {
+	out, err := c.Get(ctx, c.Endpoint("proxies"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
