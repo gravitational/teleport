@@ -315,6 +315,9 @@ linters:
         - pkg: '^os/user$'
           pattern: '^user\.(Lookup|LookupId|LookupGroup|LookupGroupId|Current|User\.GroupIds)$'
           msg: 'os/user lookup APIs potentially unsafe; use the session/host/user wrapper instead'
+        - pattern: ^piv\.(Verify|Verifier|Attestation)$
+          pkg: ^github\.com/go-piv/piv-go/v2/piv$
+          msg: Use api/utils/keys/piv/yubiattest.Verify
       analyze-types: true
     misspell:
       locale: US
