@@ -120,6 +120,10 @@ type Request struct {
 	// DBRoles is the optional list of database roles which, if provided, will
 	// be used instead of all database roles granted for the target database.
 	DBRoles []string
+	// GitServerName is the name of the git server resource.
+	GitServerName string
+	// GitSessionID is the ID of the git session for audit correlation.
+	GitSessionID string
 	// MFAVerified is the UUID of an MFA device when this Request was
 	// created immediately after an MFA check.
 	MFAVerified string

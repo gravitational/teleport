@@ -825,6 +825,10 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 		if req.RouteToLinuxDesktop.LinuxDesktop == "" {
 			return trace.BadParameter("missing LinuxDesktop field in a linux-desktop-only UserCertsRequest")
 		}
+	case authpb.UserCertsRequest_Git:
+		if req.RouteToGit.Name == "" {
+			return trace.BadParameter("missing Name field in a git-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}

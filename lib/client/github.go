@@ -55,9 +55,10 @@ func (tc *TeleportClient) ReissueWithGitHubOAuth(ctx context.Context, githubOrg 
 		return trace.Wrap(err)
 	}
 
-	// Treat it as reissuing an SSH cert.
+	// Update the key ring with the reissued certs.
 	keyRing.ClusterName = tc.SiteName
 	keyRing.Cert = resp.Cert
+	keyRing.TLSCert = resp.TLSCert
 	return trace.Wrap(tc.localAgent.AddKeyRing(keyRing))
 }
 

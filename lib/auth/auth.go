@@ -3892,6 +3892,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	}
 
 	// At most one GitHub identity expected.
+	// TODO(greedy52) for delegated bots, resolve the external identity from
+	// the delegation chain.
 	var githubUserID, githubUsername string
 	if githubIdentities := req.User.GetGithubIdentities(); len(githubIdentities) > 0 {
 		githubUserID = githubIdentities[0].UserID
@@ -4128,6 +4130,11 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		},
 		UserType:       req.User.GetUserType(),
 		JoinAttributes: req.JoinAttributes,
+		RouteToGit: tlsca.RouteToGit{
+			Name:      req.GitServerName,
+			SessionID: req.GitSessionID,
+		},
+		GitHubUserID: githubUserID,
 	}
 
 	var signedTLSCert []byte

@@ -946,6 +946,10 @@ const (
 	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Access Graph API access.
 	UsageAccessGraphAPIOnly = "usage:access_graph_api"
+
+	// UsageGitOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Git access.
+	UsageGitOnly = "usage:git"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that

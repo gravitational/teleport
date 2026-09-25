@@ -4509,6 +4509,17 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		attributionIdentity = unscoped.UnmappedIdentity.GetIdentity()
 	}
 
+	var gitSessionID string
+	if req.RouteToGit.Name != "" {
+		if req.Usage != proto.UserCertsRequest_Git {
+			return nil, trace.BadParameter("RouteToGit requires Usage to be Git")
+		}
+		// TODO(greedy52) do not allow RouteToGit cert from a web session.
+
+		// Generate a session ID for audit correlation across git operations.
+		gitSessionID = uuid.NewString()
+	}
+
 	var appSessionID string
 	var webSessionID string
 	if req.RouteToApp.Name != "" {
@@ -4640,6 +4651,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		// and beam.
 		DelegationSessionID: attributionIdentity.DelegationSessionID,
 		BeamID:              attributionIdentity.BeamID,
+		GitServerName:       req.RouteToGit.Name,
+		GitSessionID:        gitSessionID,
 	}
 
 	if user.GetName() != a.scopedContext.User.GetName() {
@@ -4683,6 +4696,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	case proto.UserCertsRequest_LinuxDesktop:
 		// Desktop certs.
 		certReq.Usage = []string{teleport.UsageLinuxDesktopOnly}
+	case proto.UserCertsRequest_Git:
+		certReq.Usage = []string{teleport.UsageGitOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}

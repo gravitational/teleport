@@ -1428,6 +1428,13 @@ func GenSchemaServerV2Resource(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"github": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"allow_protocols": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+							Computed:      true,
+							Description:   "AllowProtocols is the list of allowed protocols (e.g. \"ssh\", \"http\").",
+							ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
 						"integration": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "Integration is the integration that is associated with this Server.",
@@ -1703,6 +1710,12 @@ func GenSchemaServerV2DataSource(ctx context.Context) (github_com_hashicorp_terr
 				},
 				"github": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"allow_protocols": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+							Computed:    true,
+							Description: "AllowProtocols is the list of allowed protocols (e.g. \"ssh\", \"http\").",
+							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Optional:    true,
+						},
 						"integration": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "Integration is the integration that is associated with this Server.",
@@ -18201,6 +18214,33 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 											}
 										}
 									}
+									{
+										a, ok := tf.Attributes()["allow_protocols"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ServerV2.Spec.git_hub.allow_protocols"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.git_hub.allow_protocols", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AllowProtocols = make([]string, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.git_hub.allow_protocols", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.IsNull() && !v.IsUnknown() {
+																t = (v.ValueString())
+															}
+															obj.AllowProtocols[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -18940,6 +18980,45 @@ func CopyServerV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com
 															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Integration))
 														}
 														attrs["integration"] = v
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["allow_protocols"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ServerV2.Spec.git_hub.allow_protocols"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.git_hub.allow_protocols", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["allow_protocols"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowProtocols))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AllowProtocols))
+																	copy(elems, oldElems)
+																	for k, a := range obj.AllowProtocols {
+																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																		existing := elems[k]
+																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																		} else {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																		}
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["allow_protocols"] = v
+															}
+														}
 													}
 													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 													diags.Append(resultDiags...)
