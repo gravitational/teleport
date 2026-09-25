@@ -399,8 +399,8 @@ Next you need to configure policies that allow remote connections to domain comp
    Network Level Authentication**, select **Edit**, select **Disabled**, then click **OK**.
 
    <Admonition type="note" title="NLA Support">
-   Teleport 16.2.0 and later support NLA. If you are running a supported version
-   and enable NLA, you can skip this step. Read more in the
+   Teleport can be configured to perform NLA when connecting to Active Directory
+   hosts. If you enable NLA, you can skip this step. For more information, see the
    [NLA](#network-level-authentication-nla) section.
    </Admonition>
 
@@ -979,11 +979,11 @@ section of the role that provides access to windows desktops.
 
 ## Network Level Authentication (NLA)
 
-With Teleport 16.2.0 and later, you can configure `windows_desktop_service` to
-perform Network Level Authentication (NLA) when connecting to Windows hosts. NLA
-is a security feature that authenticates the user *prior* to establishing the
-remote desktop connection, which ensures that the remote Windows host doesn't
-consume system resources to present a login screen to an unauthenticated user.
+You can configure `windows_desktop_service` to perform Network Level
+Authentication (NLA) when connecting to Windows hosts. NLA is a security feature
+that authenticates the user *prior* to establishing the remote desktop
+connection, which ensures that the remote Windows host doesn't consume system
+resources to present a login screen to an unauthenticated user.
 
 In order to perform NLA, Teleport's `windows_desktop_service` needs to be able
 to make an outbound Kerberos connection to a key distribution center (KDC). This
@@ -1064,6 +1064,9 @@ as a local Windows user.
 NLA is not supported for cross-domain logins.
 
 NLA is not supported when Teleport runs in FIPS mode.
+
+NLA support requires that the domain controllers' Kerberos certificates use
+RSA. Elliptic curve certificates are not currently supported.
 
 ### Computer Name
 
