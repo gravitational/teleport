@@ -1479,6 +1479,18 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
+	if err != nil && !trace.IsNotFound(err) {
+		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
+		autoUpdateVersion = nil
+	}
+	toolsVersion, err := getToolsVersion(autoUpdateVersion)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "failed to get tools version", "error", err)
+		toolsVersion = teleport.SemVer()
+	}
+	userContext.Cluster.ToolsVersion = toolsVersion.String()
 	pingResp, err := clt.Ping(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)

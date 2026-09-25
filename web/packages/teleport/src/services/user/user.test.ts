@@ -40,6 +40,7 @@ test('undefined values in context response gives proper default values', async (
       publicURL: 'localhost',
       authVersion: '4.4.0-dev',
       proxyVersion: '4.4.0-dev',
+      toolsVersion: '4.3.9',
     },
     userAcl: {
       authConnectors: {
@@ -409,6 +410,7 @@ test('undefined values in context response gives proper default values', async (
       authVersion: '4.4.0-dev',
       publicURL: 'localhost',
       proxyVersion: '4.4.0-dev',
+      toolsVersion: '4.3.9',
     },
     // Test undefined access strategy is set to default optional.
     accessStrategy: { type: 'optional', prompt: '' },

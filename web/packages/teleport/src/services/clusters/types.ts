@@ -25,6 +25,7 @@ export interface Cluster {
   publicURL: string;
   authVersion: string;
   proxyVersion: string;
+  toolsVersion?: string;
   licenseExpiryDateText?: string;
 }
 
