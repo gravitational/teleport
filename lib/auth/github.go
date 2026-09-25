@@ -432,7 +432,7 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubA
 }
 
 type githubManager interface {
-	ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
+	ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, *types.GithubAuthRequest, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
@@ -450,11 +450,21 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}
 
-	auth, err := m.ValidateGithubAuthRedirect(ctx, diagCtx, q)
+	auth, req, err := m.ValidateGithubAuthRedirect(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
 	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
 	diagCtx.WriteToBackend(ctx)
+
+	// For the authenticated user (git integration login) flow, emit
+	// git.login instead of user.login.
+	if req != nil && req.AuthenticatedUser != "" {
+		emitGitIntegrationLoginEvent(ctx, emitter, logger, req, auth, err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return auth, nil
+	}
 
 	claims := diagCtx.Info.GithubClaims
 	if claims != nil {
@@ -592,52 +602,54 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 }
 
 // ValidateGithubAuthRedirect validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, *types.GithubAuthRequest, error) {
 	logger := a.logger.With(teleport.ComponentKey, "github")
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
+		var req *types.GithubAuthRequest
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.RequestID = state
-			req, err := a.Services.GetGithubAuthRequest(ctx, state)
-			if err == nil {
-				diagCtx.Info.TestFlow = req.SSOTestFlow
+			if found, err := a.Services.GetGithubAuthRequest(ctx, state); err == nil {
+				diagCtx.Info.TestFlow = found.SSOTestFlow
+				req = found
 			}
 		}
 
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
 		oauthErr := trace.OAuth2("invalid_request", errParam, q)
-		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
+		return nil, req, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
 		oauthErr := trace.OAuth2("invalid_request", "code query param must be set", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
+		return nil, nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		oauthErr := trace.OAuth2("invalid_request", "missing state query param", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
+		return nil, nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 	diagCtx.RequestID = stateToken
 
 	req, err := a.Services.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
+		return nil, nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
 	diagCtx.Info.TestFlow = req.SSOTestFlow
 
 	if req.AuthenticatedUser != "" {
-		return a.validateGithubAuthCallbackForAuthenticatedUser(ctx, code, req, diagCtx, logger)
+		resp, err := a.validateGithubAuthCallbackForAuthenticatedUser(ctx, code, req, diagCtx, logger)
+		return resp, req, err
 	}
 
 	connector, err := a.getGithubConnector(ctx, *req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
+		return nil, req, trace.Wrap(err, "Failed to get GitHub connector and client.")
 	}
 	diagCtx.Info.GithubTeamsToLogins = connector.GetTeamsToLogins()
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
@@ -649,14 +661,14 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 
 	userResp, teamsResp, err := a.getGithubUserAndTeams(ctx, connector, code, diagCtx, logger)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req, trace.Wrap(err)
 	}
 
 	// Github does not support OIDC so user claims have to be populated
 	// by making requests to Github API using the access token
 	claims, err := populateGithubClaims(userResp, teamsResp)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to query GitHub API for user claims.")
+		return nil, req, trace.Wrap(err, "Failed to query GitHub API for user claims.")
 	}
 
 	logger.DebugContext(ctx, "Retrieved GitHub claims",
@@ -674,7 +686,7 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 	// create the user in the backend.
 	params, err := a.calculateGithubUser(ctx, diagCtx, connector, claims, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
+		return nil, req, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
 	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
@@ -689,20 +701,20 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 
 	user, err := a.createGithubUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
+		return nil, req, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	if err := a.CallLoginHooks(ctx, user); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req, trace.Wrap(err)
 	}
 
 	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req, trace.Wrap(err)
 	}
 
 	if len(userState.GetRoles()) == 0 {
-		return nil, trace.Wrap(ErrGithubNoRoles)
+		return nil, req, trace.Wrap(ErrGithubNoRoles)
 	}
 
 	// In test flow skip signing and creating web sessions.
@@ -712,18 +724,19 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 			Req:      GithubAuthRequestFromProto(req),
 			Identity: userResp.makeExternalIdentity(params.ConnectorName),
 			Username: params.Username,
-		}, nil
+		}, req, nil
 	}
 
 	// Fetch the roles so the session TTL can be pre-constrained in the case no GitHub role is found.
 	sessionRoles, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req, trace.Wrap(err)
 	}
 	sessionTTL := utils.MinTTL(sessionRoles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL)
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	return a.makeGithubAuthResponse(ctx, req, userState, userResp, sessionTTL)
+	resp, err := a.makeGithubAuthResponse(ctx, req, userState, userResp, sessionTTL)
+	return resp, req, err
 }
 
 func (a *Server) makeGithubAuthResponse(
@@ -887,6 +900,40 @@ func (a *Server) getGithubUserAndTeams(
 	}
 
 	return userResp, teamsResp, nil
+}
+
+func emitGitIntegrationLoginEvent(ctx context.Context, emitter apievents.Emitter, logger *slog.Logger, req *types.GithubAuthRequest, auth *authclient.GithubAuthResponse, loginErr error) {
+	event := &apievents.GitLogin{
+		Metadata: apievents.Metadata{
+			Type: events.GitLoginEvent,
+			Code: events.GitLoginCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.AuthenticatedUser,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		GitMetadata: apievents.GitMetadata{
+			GitServiceType: types.SubKindGitHub,
+			GitIntegration: req.Integration,
+		},
+	}
+	if auth != nil {
+		event.ExternalUsername = auth.Identity.Username
+		event.ExternalUserId = auth.Identity.UserID
+	}
+	if loginErr != nil {
+		event.Metadata.Code = events.GitLoginFailureCode
+		event.Status = apievents.Status{
+			Success:     false,
+			Error:       trace.Unwrap(loginErr).Error(),
+			UserMessage: loginErr.Error(),
+		}
+	} else {
+		event.Status.Success = true
+	}
+	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+		logger.WarnContext(ctx, "Failed to emit git login event", "error", err)
+	}
 }
 
 func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(

@@ -2357,6 +2357,49 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.GIT_LOGIN]: {
+    type: 'git.login',
+    desc: 'Git Login',
+    format: ({
+      user,
+      git_service_type,
+      git_integration,
+      external_username,
+    }) => {
+      const service = formatGitServiceType(git_service_type);
+      return git_integration
+        ? `User [${user}] logged in to ${service} integration [${git_integration}] as [${external_username}]`
+        : `User [${user}] logged in to ${service} integration as [${external_username}]`;
+    },
+  },
+  [eventCodes.GIT_LOGIN_FAILURE]: {
+    type: 'git.login',
+    desc: 'Git Login Failed',
+    format: ({ user, git_service_type, git_integration }) => {
+      const service = formatGitServiceType(git_service_type);
+      return git_integration
+        ? `User [${user}] failed to log in to ${service} integration [${git_integration}]`
+        : `User [${user}] failed to log in to ${service} integration`;
+    },
+  },
+  [eventCodes.GIT_SESSION_START]: {
+    type: 'git.session.start',
+    desc: 'Git Session Started',
+    format: ({ user, git_service_type, git_organization, git_protocol }) => {
+      const service = formatGitServiceType(git_service_type);
+      const protocol = formatGitProtocol(git_protocol);
+      return `User [${user}] has started a ${service} ${protocol} session on org [${git_organization}]`;
+    },
+  },
+  [eventCodes.GIT_SESSION_CHUNK]: {
+    type: 'git.session.chunk',
+    desc: 'Git Session Data',
+    format: ({ user, git_service_type, git_organization, git_protocol }) => {
+      const service = formatGitServiceType(git_service_type);
+      const protocol = formatGitProtocol(git_protocol);
+      return `New session data chunk created for ${service} ${protocol} session by user [${user}] on org [${git_organization}]`;
+    },
+  },
   [eventCodes.STABLE_UNIX_USER_CREATE]: {
     type: 'stable_unix_user.create',
     desc: 'Stable UNIX user created',
@@ -3036,6 +3079,28 @@ function contactTypeStr(type: number): string {
       return 'Security';
     default:
       return `Unknown type: ${type}`;
+  }
+}
+
+// Translates git service type to a human-readable name (e.g. "github" -> "GitHub").
+function formatGitServiceType(serviceType: string): string {
+  switch (serviceType) {
+    case 'github':
+      return 'GitHub';
+    default:
+      return serviceType || 'Git';
+  }
+}
+
+// Translates git protocol to a human-readable name (e.g. "https" -> "HTTP").
+function formatGitProtocol(protocol: string): string {
+  switch (protocol) {
+    case 'https':
+      return 'HTTP';
+    case 'ssh':
+      return 'SSH';
+    default:
+      return protocol || 'unknown protocol';
   }
 }
 

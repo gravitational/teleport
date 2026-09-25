@@ -564,6 +564,19 @@ func (s *ForwardServer) emitEvent(event apievents.AuditEvent) {
 	}
 }
 
+func (s *ForwardServer) makeGitMetadata() apievents.GitMetadata {
+	meta := apievents.GitMetadata{
+		GitServiceType: s.cfg.TargetServer.GetSubKind(),
+		GitServerName:  s.cfg.TargetServer.GetName(),
+		GitProtocol:    types.GitProtocolSSH,
+	}
+	if gh := s.cfg.TargetServer.GetGitHub(); gh != nil {
+		meta.GitOrganization = gh.Organization
+		meta.GitIntegration = gh.Integration
+	}
+	return meta
+}
+
 func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string, err error) *apievents.GitCommand {
 	event := &apievents.GitCommand{
 		Metadata: apievents.Metadata{
@@ -580,6 +593,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
 		ServerMetadata: s.EventMetadata(),
+		GitMetadata:    s.makeGitMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode

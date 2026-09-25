@@ -332,6 +332,10 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  GIT_LOGIN: 'TGIT002I',
+  GIT_LOGIN_FAILURE: 'TGIT002E',
+  GIT_SESSION_START: 'TGIT003I',
+  GIT_SESSION_CHUNK: 'TGIT004I',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
@@ -2143,6 +2147,43 @@ export type RawEvents = {
       service: string;
       path: string;
       exitError: string;
+    }
+  >;
+  [eventCodes.GIT_LOGIN]: RawEvent<
+    typeof eventCodes.GIT_LOGIN,
+    {
+      git_service_type: string;
+      git_integration?: string;
+      external_username: string;
+      credentials_stored: boolean;
+    }
+  >;
+  [eventCodes.GIT_LOGIN_FAILURE]: RawEvent<
+    typeof eventCodes.GIT_LOGIN_FAILURE,
+    {
+      git_service_type: string;
+      git_integration?: string;
+    }
+  >;
+  [eventCodes.GIT_SESSION_START]: RawEvent<
+    typeof eventCodes.GIT_SESSION_START,
+    {
+      git_service_type: string;
+      git_server_name: string;
+      git_organization: string;
+      git_protocol: string;
+      sid: string;
+    }
+  >;
+  [eventCodes.GIT_SESSION_CHUNK]: RawEvent<
+    typeof eventCodes.GIT_SESSION_CHUNK,
+    {
+      git_service_type: string;
+      git_server_name: string;
+      git_organization: string;
+      git_protocol: string;
+      sid: string;
+      session_chunk_id: string;
     }
   >;
   [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<

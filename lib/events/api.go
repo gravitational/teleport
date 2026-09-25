@@ -965,6 +965,14 @@ const (
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+	// GitLoginEvent is emitted when a user links their external identity to a git integration.
+	GitLoginEvent = "git.login"
+	// GitSessionStartEvent is emitted when a git integration session starts.
+	GitSessionStartEvent = "git.session.start"
+	// GitSessionChunkEvent is emitted when a git integration session recording chunk starts.
+	GitSessionChunkEvent = "git.session.chunk"
+	// GitHTTPRequestEvent is a recording event for each HTTP request within a git integration session.
+	GitHTTPRequestEvent = "git.http_request"
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"

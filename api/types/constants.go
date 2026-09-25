@@ -690,6 +690,11 @@ const (
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
 	SubKindGitHub = "github"
 
+	// GitProtocolHTTPS is the HTTPS protocol for Git access.
+	GitProtocolHTTPS = "https"
+	// GitProtocolSSH is the SSH protocol for Git access.
+	GitProtocolSSH = "ssh"
+
 	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"

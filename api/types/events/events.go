@@ -2606,6 +2606,32 @@ func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *GitLogin) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *GitLogin) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
+}
+
+func (m *GitSessionStart) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *GitSessionChunk) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *GitHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *GitHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Url, &out.Url),
+			newStrTrimmer(m.GraphqlQuery, &out.GraphqlQuery),
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
+}
+
 // TrimToMaxSize implements [AuditEvent].
 func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
 	return m
