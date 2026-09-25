@@ -911,8 +911,6 @@ export class FeatureAccount implements TeleportFeature {
       'change password',
     ],
   };
-
-  supportsScopes = true;
 }
 
 export class FeatureHelpAndSupport implements TeleportFeature {
