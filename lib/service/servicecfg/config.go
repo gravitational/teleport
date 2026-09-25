@@ -353,6 +353,23 @@ type ConfigTesting struct {
 
 	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
 	TriggerOktaSyncC chan struct{}
+
+	// DatabaseCADownloader overrides the downloader that the database service
+	// uses to fetch CA certificates for cloud-hosted databases. Tests should
+	// set this so that starting a database service with a cloud-hosted database
+	// does not reach out to the cloud provider's CA endpoints. See
+	// [github.com/gravitational/teleport/lib/srv/db.NewStaticCADownloader].
+	DatabaseCADownloader DatabaseCADownloader
+}
+
+// DatabaseCADownloader downloads CA certificates for cloud-hosted databases.
+// It mirrors [github.com/gravitational/teleport/lib/srv/db.CADownloader], which
+// is redeclared here to avoid depending on the database service implementation.
+type DatabaseCADownloader interface {
+	// Download downloads the CA certificate for the provided database instance.
+	Download(context.Context, types.Database, string) ([]byte, []byte, error)
+	// GetVersion returns the CA version for the provided database.
+	GetVersion(context.Context, types.Database, string) ([]byte, error)
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
