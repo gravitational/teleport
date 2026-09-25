@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -403,8 +404,8 @@ func RecursiveChown(dir string, uid, gid int) error {
 
 	// filepath.WalkDir is documented to walk the paths in lexical order, iterating
 	// in the reverse order ensures that files are always Lchowned before their parent directory
-	for i := len(pathsToUpdate) - 1; i >= 0; i-- {
-		path := pathsToUpdate[i]
+	for _, path := range slices.Backward(pathsToUpdate) {
+
 		if err := os.Lchown(path, uid, gid); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// Unexpected condition where file was removed after discovery.

@@ -370,13 +370,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	}
 	if len(c.searchReviewReasons) > 0 {
 		var reasons []summarizerv1pb.NeedsReviewReason
-		hasAny := false
-		for _, s := range c.searchReviewReasons {
-			if s == "any" {
-				hasAny = true
-				break
-			}
-		}
+		hasAny := slices.Contains(c.searchReviewReasons, "any")
 		if hasAny {
 			for _, k := range reviewReasonFlagOptions() {
 				reasons = append(reasons, reviewReasonNames[k])

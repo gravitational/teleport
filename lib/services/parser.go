@@ -25,6 +25,7 @@ import (
 	goparser "go/parser"
 	"go/token"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -951,12 +952,7 @@ func predicateContainsAny(a, b any) predicate.BoolPredicate {
 			return false
 		}
 		aSet := set.New(aval...)
-		for _, v := range bval {
-			if aSet.Contains(v) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(bval, aSet.Contains)
 	}
 }
 

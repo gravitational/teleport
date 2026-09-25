@@ -27,6 +27,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -479,8 +480,8 @@ func (s SortedLoginAttempts) Swap(i, j int) {
 // LastFailed calculates last x successive attempts are failed
 func LastFailed(x int, attempts []LoginAttempt) bool {
 	var failed int
-	for i := len(attempts) - 1; i >= 0; i-- {
-		if !attempts[i].Success {
+	for _, attempt := range slices.Backward(attempts) {
+		if !attempt.Success {
 			failed++
 		} else {
 			return false

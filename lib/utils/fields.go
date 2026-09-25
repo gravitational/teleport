@@ -437,10 +437,5 @@ func containsAny(slice []string, items []string) bool {
 	if len(items) == 0 {
 		return false
 	}
-	for _, item := range items {
-		if set.Contains(item) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(items, set.Contains)
 }

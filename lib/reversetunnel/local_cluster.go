@@ -921,14 +921,14 @@ func (s *localCluster) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error
 	// that has heartbeated and is valid. If none are valid, try
 	// the newest ready but invalid connection.
 	var newestInvalidConn *remoteConn
-	for i := len(conns) - 1; i >= 0; i-- {
+	for _, conn := range slices.Backward(conns) {
 		switch {
-		case !conns[i].isReady(): // skip remoteConn that haven't heartbeated yet
+		case !conn.isReady(): // skip remoteConn that haven't heartbeated yet
 			continue
-		case !conns[i].isInvalid(): // return the first valid remoteConn that has heartbeated
-			return conns[i], nil
-		case newestInvalidConn == nil && conns[i].isInvalid(): // cache the first invalid remoteConn in case none are valid
-			newestInvalidConn = conns[i]
+		case !conn.isInvalid(): // return the first valid remoteConn that has heartbeated
+			return conn, nil
+		case newestInvalidConn == nil && conn.isInvalid(): // cache the first invalid remoteConn in case none are valid
+			newestInvalidConn = conn
 		}
 	}
 

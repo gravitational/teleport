@@ -144,10 +144,8 @@ func labelsMatching(env ExpressionEnv, keyExpr string) ([]string, error) {
 // containsAny returns true if [list] contains any element of [items].
 func containsAny(list []string, items []string) (bool, error) {
 	s := set.New(list...)
-	for _, item := range items {
-		if s.Contains(item) {
-			return true, nil
-		}
+	if slices.ContainsFunc(items, s.Contains) {
+		return true, nil
 	}
 	return false, nil
 }

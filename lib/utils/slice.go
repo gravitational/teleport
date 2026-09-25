@@ -20,6 +20,7 @@ package utils
 
 import (
 	"bytes"
+	"slices"
 	"sync"
 )
 
@@ -135,8 +136,8 @@ func FromSlice[T any](r []T, key func(T) string) map[string]T {
 
 	// there may be duplicate resources in the input list.
 	// by iterating from end to start, the first resource of given name wins.
-	for i := len(r) - 1; i >= 0; i-- {
-		res := r[i]
+	for _, res := range slices.Backward(r) {
+
 		out[key(res)] = res
 	}
 

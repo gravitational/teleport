@@ -19,6 +19,7 @@
 package reversetunnel
 
 import (
+	"slices"
 	"sync"
 )
 
@@ -77,8 +78,8 @@ func (s *agentStore) proxyIDs() []string {
 
 	// New agents are always appended to the store so reversing the list
 	// orders the ids from newest to oldest.
-	for i := len(s.agents) - 1; i >= 0; i-- {
-		if id, ok := s.agents[i].GetProxyID(); ok {
+	for _, v := range slices.Backward(s.agents) {
+		if id, ok := v.GetProxyID(); ok {
 			ids = append(ids, id)
 		}
 	}

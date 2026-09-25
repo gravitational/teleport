@@ -80,13 +80,7 @@ func InAllSets(feature FeatureID, sets ...*componentfeaturesv1.ComponentFeatures
 			return false
 		}
 
-		found := false
-		for _, f := range fs.GetFeatures() {
-			if f == proto {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(fs.GetFeatures(), proto)
 		if !found {
 			return false
 		}

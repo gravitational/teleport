@@ -306,12 +306,10 @@ func validateProvisionToken(token types.ProvisionToken) error {
 }
 
 func validateEC2Token(token types.ProvisionToken) error {
-	for _, allowRule := range token.GetAllowRules() {
-		// EC2 join method does not support AWS Organizational Unit matchers, so we return an
-		// error if any of the token rules contain them.
-		if tokenRuleHasAWSOrganizationalUnitMatchers(allowRule) {
-			return trace.BadParameter(`the %q join method does not support the "aws_organizational_units" parameter`, types.JoinMethodEC2)
-		}
+	// EC2 join method does not support AWS Organizational Unit matchers, so we return an
+	// error if any of the token rules contain them.
+	if slices.ContainsFunc(token.GetAllowRules(), tokenRuleHasAWSOrganizationalUnitMatchers) {
+		return trace.BadParameter(`the %q join method does not support the "aws_organizational_units" parameter`, types.JoinMethodEC2)
 	}
 	return nil
 }

@@ -31,6 +31,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -944,14 +945,6 @@ func eventFilterList(amount int) string {
 	return "(" + strings.Join(eventTypes, ", ") + ")"
 }
 
-func reverseStrings(slice []string) []string {
-	newSlice := make([]string, 0, len(slice))
-	for i := len(slice) - 1; i >= 0; i-- {
-		newSlice = append(newSlice, slice[i])
-	}
-	return newSlice
-}
-
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]event, string, error) {
@@ -991,7 +984,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	totalSize := 0
 	dates := daysBetween(fromUTC, toUTC)
 	if order == types.EventOrderDescending {
-		dates = reverseStrings(dates)
+		slices.Reverse(dates)
 	}
 
 	indexName := aws.String(indexTimeSearchV2)
