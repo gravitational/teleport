@@ -52,7 +52,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 	}
 
 	if a := usagereporter.ConvertAuditEvent(event); a != nil {
-		u.reporter.AnonymizeAndSubmit(a)
+		u.reporter.AnonymizeAndSubmit(ctx, a)
 	}
 
 	return nil

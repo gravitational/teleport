@@ -139,7 +139,7 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
-	s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+	s.usageReporter.AnonymizeAndSubmit(ctx, userTaskToUserTaskStateEvent(req.GetUserTask()))
 
 	return rsp, nil
 }
@@ -279,7 +279,7 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 	}
 
 	if stateChanged {
-		s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+		s.usageReporter.AnonymizeAndSubmit(ctx, userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil
@@ -345,7 +345,7 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 	}
 
 	if stateChanged {
-		s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+		s.usageReporter.AnonymizeAndSubmit(ctx, userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil

@@ -3620,7 +3620,7 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPolicy keys.PrivateKeyPolicy) {
+func (a *Server) submitCertificateIssuedEvent(ctx context.Context, req *cert.Request, attestedKeyPolicy keys.PrivateKeyPolicy) {
 	var database, app, kubernetes, desktop bool
 
 	if req.DBService != "" {
@@ -3659,7 +3659,7 @@ func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPoli
 		user = req.Impersonator
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.UserCertificateIssuedEvent{
 		UserName:         user,
 		Ttl:              durationpb.New(req.TTL),
 		IsBot:            bot,
@@ -4190,7 +4190,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
 
-	a.submitCertificateIssuedEvent(&req, attestedKeyPolicy)
+	a.submitCertificateIssuedEvent(ctx, &req, attestedKeyPolicy)
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
 	return certs, nil
@@ -6228,7 +6228,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		resources = append(resources, resource.GetResourceID().Kind)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.AccessRequestCreateEvent{
 		UserName:      req.GetUser(),
 		ResourceKinds: apiutils.Deduplicate(resources),
 	})
@@ -6593,7 +6593,7 @@ func (a *Server) submitAccessReview(
 		resources = append(resources, resource.Kind)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.AccessRequestReviewEvent{
 		UserName:      params.Review.Author,
 		ResourceKinds: apiutils.Deduplicate(resources),
 		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
@@ -6746,7 +6746,7 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if kind == 0 {
 		return nil
 	}
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   h.Name,
 		Kind:   kind,
 		Static: h.Expires.IsZero(),
@@ -6861,7 +6861,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 		kind = usagereporter.ResourceKindNodeOpenSSHEICE
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   server.GetName(),
 		Kind:   kind,
 		Static: server.Expiry().IsZero(),
@@ -6895,7 +6895,7 @@ func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeSe
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		// the name of types.KubeServer might include a -proxy_service suffix
 		Name:   server.GetCluster().GetName(),
 		Kind:   usagereporter.ResourceKindKubeServer,
@@ -6918,7 +6918,7 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   server.GetName(),
 		Kind:   usagereporter.ResourceKindAppServer,
 		Static: server.Expiry().IsZero(),
@@ -6934,7 +6934,7 @@ func (a *Server) UpsertLinuxDesktop(ctx context.Context, desktop *linuxdesktopv1
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetMetadata().GetName(),
 		Kind:   usagereporter.ResourceKindLinuxDesktop,
 		Static: false,
@@ -6958,7 +6958,7 @@ func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, serve
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   server.GetName(),
 		Kind:   usagereporter.ResourceKindAppServer,
 		Static: server.Expiry().IsZero(),
@@ -6983,7 +6983,7 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   server.GetName(),
 		Kind:   usagereporter.ResourceKindDBServer,
 		Static: server.Expiry().IsZero(),
@@ -7009,7 +7009,7 @@ func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
 		Static: desktop.Expiry().IsZero(),
@@ -7025,7 +7025,7 @@ func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
 		Static: desktop.Expiry().IsZero(),
@@ -7041,7 +7041,7 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
 		Static: desktop.Expiry().IsZero(),
@@ -7938,7 +7938,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(event)
+	a.AnonymizeAndSubmit(ctx, event)
 
 	return nil
 }
