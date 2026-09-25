@@ -136,6 +136,20 @@ type responseWriterWithRemoteAddr struct {
 	remoteAddr net.Addr
 }
 
+// Unwrap exposes the underlying writer so http.ResponseController can reach
+// optional interfaces such as http.Flusher.
+func (r *responseWriterWithRemoteAddr) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
+// Flush forwards to the underlying writer so streaming responses are not
+// buffered until the response ends.
+func (r *responseWriterWithRemoteAddr) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Hijack returns a net.Conn with provided remoteAddr.
 func (r *responseWriterWithRemoteAddr) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := r.ResponseWriter.(http.Hijacker)

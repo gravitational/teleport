@@ -19,6 +19,7 @@
 package web
 
 import (
+	"bufio"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -180,4 +181,34 @@ func TestParseXForwardedForHeaders(t *testing.T) {
 			}
 		})
 	}
+}
+
+// flushingHijacker is a recorder that is also a Hijacker, so the middleware
+// applies its wrapper, while keeping the recorder's Flush method visible.
+type flushingHijacker struct {
+	*httptest.ResponseRecorder
+	conn net.Conn
+}
+
+func (h *flushingHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return h.conn, nil, nil
+}
+
+func TestXForwardedForMiddlewarePreservesFlusher(t *testing.T) {
+	t.Parallel()
+
+	fakeConn, _ := net.Pipe()
+	recorder := httptest.NewRecorder()
+
+	var got http.ResponseWriter
+	handler := NewXForwardedForMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		got = w
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "55.66.77.88:5678")
+	handler.ServeHTTP(&flushingHijacker{ResponseRecorder: recorder, conn: fakeConn}, req)
+
+	require.IsType(t, &responseWriterWithRemoteAddr{}, got, "middleware should have wrapped the writer")
+	require.NoError(t, http.NewResponseController(got).Flush(), "Flush must reach the underlying writer")
+	require.True(t, recorder.Flushed)
 }
