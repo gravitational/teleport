@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/label"
@@ -67,6 +68,12 @@ const (
 	invalidChars = "{}^$*"
 	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
 	invalidLabelChars = "{}^$"
+
+	// maxValuesPerTrait limits the number of values that can be assigned to a single trait.
+	maxValuesPerTrait = 16
+
+	// maxTraitLength limits the character length of a trait key or value.
+	maxTraitLength = 256
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -437,8 +444,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid scope: %v", assignment.GetMetadata().GetName(), err)
 	}
 
-	if len(assignment.GetSpec().GetAssignments()) == 0 {
-		return trace.BadParameter("scoped role assignment %q does not assign any roles", assignment.GetMetadata().GetName())
+	if len(assignment.GetSpec().GetAssignments()) == 0 && len(assignment.GetSpec().GetTraits()) == 0 {
+		return trace.BadParameter("scoped role assignment %q does not assign any roles or traits", assignment.GetMetadata().GetName())
 	}
 
 	if len(assignment.GetSpec().GetAssignments()) > MaxRolesPerAssignment {
@@ -507,6 +514,80 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 				)
 			}
 		}
+	}
+
+	for i, traitAssn := range assignment.GetSpec().GetTraits() {
+		if err := scopes.StrongValidate(traitAssn.GetScope()); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid scope in trait assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
+		}
+
+		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(traitAssn.GetScope()) {
+			return trace.BadParameter("scoped role assignment %q has trait assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, traitAssn.GetScope(), assignment.GetScope())
+		}
+
+		var keysSeen map[string]struct{}
+		for _, trait := range traitAssn.GetTraits() {
+			if err := validateTrait(trait); err != nil {
+				return trace.BadParameter("scoped role assignment %q has trait assignment %d with %v", assignment.GetMetadata().GetName(), i, err)
+			}
+
+			if keysSeen == nil {
+				keysSeen = make(map[string]struct{})
+			}
+
+			if _, ok := keysSeen[trait.GetKey()]; ok {
+				return trace.BadParameter("scoped role assignment %q has trait assignment %d with duplicate entries for %q", assignment.GetMetadata().GetName(), i, trait.GetKey())
+			}
+			keysSeen[trait.GetKey()] = struct{}{}
+		}
+
+		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
+		// assignments. Bot's can only be assigned privileges in scopes
+		// equivalent or descendent to their scope.
+		if botSet {
+			if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(traitAssn.GetScope()) {
+				return trace.BadParameter(
+					"scoped role assignment %q has trait assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+					assignment.GetMetadata().GetName(),
+					i,
+					traitAssn.GetScope(),
+					botScope,
+				)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateTrait(trait *traitv1.Trait) error {
+	key := trait.GetKey()
+	if len(key) == 0 {
+		return trace.BadParameter("empty key")
+	}
+	if len(key) > maxTraitLength {
+		return trace.BadParameter("key %q longer than max allowed %d", key, maxTraitLength)
+	}
+
+	values := trait.GetValues()
+	if len(values) == 0 {
+		return trace.BadParameter("empty values being assigned to key %q", key)
+	}
+
+	if len(values) > maxValuesPerTrait {
+		return trace.BadParameter("too many values assigned to key %q", key)
+	}
+
+	valuesSeen := make(map[string]struct{})
+	for _, value := range values {
+		if len(value) > maxTraitLength {
+			return trace.BadParameter("value %q assigned to key %q is longer than max allowed %d", value, key, maxTraitLength)
+		}
+
+		if _, ok := valuesSeen[value]; ok {
+			return trace.BadParameter("value %q duplicated for key %q", value, key)
+		}
+		valuesSeen[value] = struct{}{}
 	}
 
 	return nil
