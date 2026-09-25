@@ -221,8 +221,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, exe
 		return nil
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		return trace.Wrap(exitErr)
 	}
 

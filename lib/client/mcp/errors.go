@@ -52,8 +52,7 @@ func IsLikelyTemporaryNetworkError(err error) bool {
 		return true
 	}
 
-	var dnsErr *net.DNSError
-	if errors.As(err, &dnsErr) {
+	if dnsErr, ok := errors.AsType[*net.DNSError](err); ok {
 		return dnsErr.Temporary()
 	}
 

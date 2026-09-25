@@ -253,8 +253,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			if pgErr.Code == common.SQLStatePermissionsChanged {
 				logger.ErrorContext(ctx, "User permissions have changed, rejecting connection",
 					"error", err,
@@ -700,9 +699,8 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 
 // isRetryable returns true if an error can be retried.
 func isRetryable(err error) bool {
-	var pgErr *pgconn.PgError
 	err = trace.Unwrap(err)
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
 		switch pgErr.Code {
 		case pgerrcode.DeadlockDetected, pgerrcode.SerializationFailure,

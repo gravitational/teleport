@@ -122,9 +122,8 @@ func runCommand(cmd *exec.Cmd) *diagv1.CommandAttempt {
 
 	output, err := cmd.Output()
 	if err != nil {
-		var exitError *exec.ExitError
 		errMessage := err.Error()
-		if errors.As(err, &exitError) {
+		if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
 			stderr := string(exitError.Stderr)
 			if stderr != "" && utf8.Valid(exitError.Stderr) {
 				errMessage = fmt.Sprintf("%s\n%s", errMessage, stderr)

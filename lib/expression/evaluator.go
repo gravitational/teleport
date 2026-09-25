@@ -37,8 +37,7 @@ func EvaluateTraitsMap[TEnv any](env TEnv, traitsMap map[string][]string, parseE
 		for _, expr := range values {
 			e, err := parseExpression(expr)
 			if err != nil {
-				var u typical.UnknownIdentifierError
-				if errors.As(err, &u) {
+				if u, ok := errors.AsType[typical.UnknownIdentifierError](err); ok {
 					id := u.Identifier()
 					if id == expr {
 						// If the entire expression evaluates to a single unknown

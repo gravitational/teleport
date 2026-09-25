@@ -167,8 +167,7 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 		case <-ticker.C:
 			result, err := workforceService.Get(poolName).Do()
 			if err != nil {
-				var googleApiErr *googleapi.Error
-				if errors.As(err, &googleApiErr) {
+				if googleApiErr, ok := errors.AsType[*googleapi.Error](err); ok {
 					if googleApiErr.Code == http.StatusForbidden {
 						// StatusForbidden has two meanings:
 						// Either the caller does not meet required privilege.
@@ -237,8 +236,7 @@ func (s *GCPWorkforceService) CheckAndSetDefaults() error {
 }
 
 func checkGoogleAPIAlreadyExistErr(err error) bool {
-	var googleApiErr *googleapi.Error
-	if errors.As(err, &googleApiErr) {
+	if googleApiErr, ok := errors.AsType[*googleapi.Error](err); ok {
 		if googleApiErr.Code == http.StatusConflict {
 			return true
 		}

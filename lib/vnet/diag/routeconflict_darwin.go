@@ -111,8 +111,7 @@ func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (str
 	cmd := exec.CommandContext(ctx, "ifconfig", "-v", ifaceName)
 	stdout, err := cmd.Output()
 	if err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
+		if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
 			stderr := string(exitError.Stderr)
 			log.ErrorContext(ctx, "Failed to get interface details", "stderr", stderr)
 

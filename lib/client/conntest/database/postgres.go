@@ -93,8 +93,7 @@ func (p *PostgresPinger) IsConnectionRefusedError(err error) bool {
 // IsInvalidDatabaseUserError checks whether the error is of type invalid database user.
 // This can happen when the user doesn't exist.
 func (p *PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
-	var pge *pgconn.PgError
-	if errors.As(err, &pge) {
+	if pge, ok := errors.AsType[*pgconn.PgError](err); ok {
 		if pge.SQLState() == pgerrcode.InvalidAuthorizationSpecification {
 			return true
 		}
@@ -106,8 +105,7 @@ func (p *PostgresPinger) IsInvalidDatabaseUserError(err error) bool {
 // IsInvalidDatabaseNameError checks whether the error is of type invalid database name.
 // This can happen when the database doesn't exist.
 func (p *PostgresPinger) IsInvalidDatabaseNameError(err error) bool {
-	var pge *pgconn.PgError
-	if errors.As(err, &pge) {
+	if pge, ok := errors.AsType[*pgconn.PgError](err); ok {
 		if pge.SQLState() == pgerrcode.InvalidCatalogName {
 			return true
 		}

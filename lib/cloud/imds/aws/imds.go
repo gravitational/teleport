@@ -113,8 +113,10 @@ func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path stri
 
 // parseMetadataClientError converts a failed instance metadata service call to a trace error.
 func parseMetadataClientError(err error) error {
-	var httpError interface{ HTTPStatusCode() int }
-	if errors.As(err, &httpError) {
+	if httpError, ok := errors.AsType[interface {
+		HTTPStatusCode() int
+		Error() string
+	}](err); ok {
 		return trace.ReadError(httpError.HTTPStatusCode(), nil)
 	}
 	return trace.Wrap(err)

@@ -70,8 +70,7 @@ end run
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
+		if exitError, ok := errors.AsType[*exec.ExitError](err); ok {
 			stderr := stderr.String()
 
 			// When the user closes the prompt for administrator privileges, the -128 error is returned.

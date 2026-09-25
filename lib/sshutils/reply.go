@@ -75,8 +75,7 @@ func (r *Reply) RejectWithAcceptError(ctx context.Context, nch ssh.NewChannel, e
 func (r *Reply) RejectWithNewRemoteSessionError(ctx context.Context, nch ssh.NewChannel, remoteError error) {
 	r.log.WarnContext(ctx, "Remote session open failed", "error", remoteError)
 	reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", remoteError)
-	var e *ssh.OpenChannelError
-	if errors.As(remoteError, &e) {
+	if e, ok := errors.AsType[*ssh.OpenChannelError](remoteError); ok {
 		reason, msg = e.Reason, e.Message
 	}
 	r.RejectChannel(ctx, nch, reason, msg)

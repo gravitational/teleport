@@ -314,13 +314,11 @@ func convertSecretsManagerError(err error) error {
 		return nil
 	}
 
-	var resourceExistsErr *smtypes.ResourceExistsException
-	if errors.As(err, &resourceExistsErr) {
+	if resourceExistsErr, ok := errors.AsType[*smtypes.ResourceExistsException](err); ok {
 		return trace.AlreadyExists("%s", resourceExistsErr)
 	}
 
-	var notFoundErr *smtypes.ResourceNotFoundException
-	if errors.As(err, &notFoundErr) {
+	if notFoundErr, ok := errors.AsType[*smtypes.ResourceNotFoundException](err); ok {
 		return trace.NotFound("%s", notFoundErr)
 	}
 

@@ -68,8 +68,7 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
-					var noSuchEntityErr *iamtypes.NoSuchEntityException
-					if errors.As(err, &noSuchEntityErr) {
+					if _, ok := errors.AsType[*iamtypes.NoSuchEntityException](err); ok {
 						// The role was removed while we are polling. Remove this role
 						// from the list of discovered roles.
 						result.Roles[i] = nil
@@ -87,8 +86,7 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 
 				roleAttachedPolicies, err := a.fetchRoleAttachedPolicies(ctx, role)
 				if err != nil {
-					var noSuchEntityErr *iamtypes.NoSuchEntityException
-					if errors.As(err, &noSuchEntityErr) {
+					if _, ok := errors.AsType[*iamtypes.NoSuchEntityException](err); ok {
 						// The role was removed while we are polling. Remove this role
 						// from the list of discovered roles.
 						result.Roles[i] = nil
@@ -205,8 +203,7 @@ func (a *Fetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraph
 			// concurrently, the caller will find out when they fetch attached policies
 			// next. The alternative is a fragile error string comparison, which if
 			// changed could cause the role to flap.
-			var noSuchEntityErr *iamtypes.NoSuchEntityException
-			if errors.As(err, &noSuchEntityErr) {
+			if _, ok := errors.AsType[*iamtypes.NoSuchEntityException](err); ok {
 				continue
 			}
 			if err != nil {

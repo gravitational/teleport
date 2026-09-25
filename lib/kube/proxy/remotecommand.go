@@ -245,8 +245,7 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 			Status: metav1.StatusSuccess,
 		}})
 	}
-	var statusErr *apierrors.StatusError
-	if errors.As(err, &statusErr) {
+	if statusErr, ok := errors.AsType[*apierrors.StatusError](err); ok {
 		return s.writeStatus(statusErr)
 	}
 	var exitErr utilexec.ExitError

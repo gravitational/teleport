@@ -295,8 +295,7 @@ func (a *Fetcher) getS3BucketDetails(ctx context.Context, bucket s3types.Bucket,
 }
 
 func isAPIErrorCode(err error, code string) bool {
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
+	if ae, ok := errors.AsType[smithy.APIError](err); ok {
 		return ae.ErrorCode() == code
 	}
 	return false

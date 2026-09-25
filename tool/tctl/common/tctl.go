@@ -80,8 +80,7 @@ type RunnableCommand interface {
 func Run(ctx context.Context, commands []CLICommand) {
 	err := TryRun(ctx, commands, os.Args[1:])
 	if err != nil {
-		var exitError *common.ExitCodeError
-		if errors.As(err, &exitError) {
+		if exitError, ok := errors.AsType[*common.ExitCodeError](err); ok {
 			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)

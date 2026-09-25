@@ -38,28 +38,22 @@ func ConvertS3Error(err error) error {
 		return nil
 	}
 
-	var noSuchKey *s3types.NoSuchKey
-	if errors.As(err, &noSuchKey) {
+	if noSuchKey, ok := errors.AsType[*s3types.NoSuchKey](err); ok {
 		return trace.NotFound("%s", noSuchKey)
 	}
-	var noSuchBucket *s3types.NoSuchBucket
-	if errors.As(err, &noSuchBucket) {
+	if noSuchBucket, ok := errors.AsType[*s3types.NoSuchBucket](err); ok {
 		return trace.NotFound("%s", noSuchBucket)
 	}
-	var noSuchUpload *s3types.NoSuchUpload
-	if errors.As(err, &noSuchUpload) {
+	if noSuchUpload, ok := errors.AsType[*s3types.NoSuchUpload](err); ok {
 		return trace.NotFound("%s", noSuchUpload)
 	}
-	var bucketAlreadyExists *s3types.BucketAlreadyExists
-	if errors.As(err, &bucketAlreadyExists) {
+	if bucketAlreadyExists, ok := errors.AsType[*s3types.BucketAlreadyExists](err); ok {
 		return trace.AlreadyExists("%s", bucketAlreadyExists.Error())
 	}
-	var bucketAlreadyOwned *s3types.BucketAlreadyOwnedByYou
-	if errors.As(err, &bucketAlreadyOwned) {
+	if bucketAlreadyOwned, ok := errors.AsType[*s3types.BucketAlreadyOwnedByYou](err); ok {
 		return trace.AlreadyExists("%s", bucketAlreadyOwned.Error())
 	}
-	var notFound *s3types.NotFound
-	if errors.As(err, &notFound) {
+	if notFound, ok := errors.AsType[*s3types.NotFound](err); ok {
 		return trace.NotFound("%s", notFound)
 	}
 

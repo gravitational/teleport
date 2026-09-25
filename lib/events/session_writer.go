@@ -485,8 +485,7 @@ func isPermanentEmitError(err error, depth int) bool {
 	}
 
 	// If Aggregate, then it must match entirely.
-	var agg trace.Aggregate
-	if errors.As(err, &agg) {
+	if agg, ok := errors.AsType[trace.Aggregate](err); ok {
 		for _, e := range agg.Errors() {
 			if !isPermanentEmitError(e, depth+1) {
 				return false

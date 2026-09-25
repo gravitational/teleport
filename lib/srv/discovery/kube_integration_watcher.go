@@ -439,8 +439,7 @@ func (g proxyAgentVersionGetter) GetVersion(ctx context.Context) (*semver.Versio
 		return v, nil
 	}
 
-	var noNewVersionErr *version.NoNewVersionError
-	if errors.As(trace.Unwrap(err), &noNewVersionErr) {
+	if _, ok := errors.AsType[*version.NoNewVersionError](trace.Unwrap(err)); ok {
 		if resp, findErr := g.proxyClient.Find(); findErr == nil {
 			if pv, perr := version.EnsureSemver(resp.ServerVersion); perr == nil {
 				return pv, nil

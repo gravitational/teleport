@@ -1622,33 +1622,27 @@ func convertError(err error) error {
 		return nil
 	}
 
-	var conditionalCheckFailedError *dynamodbtypes.ConditionalCheckFailedException
-	if errors.As(err, &conditionalCheckFailedError) {
+	if conditionalCheckFailedError, ok := errors.AsType[*dynamodbtypes.ConditionalCheckFailedException](err); ok {
 		return trace.AlreadyExists("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
-	var throughputExceededError *dynamodbtypes.ProvisionedThroughputExceededException
-	if errors.As(err, &throughputExceededError) {
+	if throughputExceededError, ok := errors.AsType[*dynamodbtypes.ProvisionedThroughputExceededException](err); ok {
 		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
-	var notFoundError *dynamodbtypes.ResourceNotFoundException
-	if errors.As(err, &notFoundError) {
+	if notFoundError, ok := errors.AsType[*dynamodbtypes.ResourceNotFoundException](err); ok {
 		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
-	var collectionLimitExceededError *dynamodbtypes.ItemCollectionSizeLimitExceededException
-	if errors.As(err, &collectionLimitExceededError) {
+	if collectionLimitExceededError, ok := errors.AsType[*dynamodbtypes.ItemCollectionSizeLimitExceededException](err); ok {
 		return trace.LimitExceeded("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
-	var internalError *dynamodbtypes.InternalServerError
-	if errors.As(err, &internalError) {
+	if internalError, ok := errors.AsType[*dynamodbtypes.InternalServerError](err); ok {
 		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
+	if ae, ok := errors.AsType[smithy.APIError](err); ok {
 		if ae.ErrorCode() == ErrValidationException {
 			// A ValidationException  type is missing from AWS SDK.
 			// Use errAWSValidation that for most cases will contain:

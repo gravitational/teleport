@@ -1431,8 +1431,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, bac
 }
 
 func (s *Server) logHandleInstancesErr(err error) {
-	var instanceIDErr *ssmtypes.InvalidInstanceId
-	if errors.As(err, &instanceIDErr) {
+	if _, ok := errors.AsType[*ssmtypes.InvalidInstanceId](err); ok {
 		const errorMessage = "SSM SendCommand failed with ErrCodeInvalidInstanceId. " +
 			"Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. " +
 			"Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. " +

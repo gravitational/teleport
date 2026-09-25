@@ -213,11 +213,9 @@ func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*
 		// If possible, strip the filename from the error message. The
 		// path will be included in audit events already, no need to
 		// make the error message longer than it needs to be.
-		var pathErr *fs.PathError
-		var linkErr *os.LinkError
-		if errors.As(reqErr, &pathErr) {
+		if pathErr, ok := errors.AsType[*fs.PathError](reqErr); ok {
 			event.Error = pathErr.Err.Error()
-		} else if errors.As(reqErr, &linkErr) {
+		} else if linkErr, ok := errors.AsType[*os.LinkError](reqErr); ok {
 			event.Error = linkErr.Err.Error()
 		} else {
 			event.Error = reqErr.Error()

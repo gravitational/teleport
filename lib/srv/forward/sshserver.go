@@ -1269,8 +1269,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	if err != nil {
 		s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
-		var e *ssh.OpenChannelError
-		if errors.As(trace.Unwrap(err), &e) {
+		if e, ok := errors.AsType[*ssh.OpenChannelError](trace.Unwrap(err)); ok {
 			reason, msg = e.Reason, e.Message
 		}
 		if err := nch.Reject(reason, msg); err != nil {

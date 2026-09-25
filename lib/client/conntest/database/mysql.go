@@ -42,11 +42,11 @@ type MySQLPinger struct{}
 func convertError(err error) error {
 	// causer defines an interface for errors wrapped by the [errors] package.
 	type causer interface {
+		error
 		Cause() error
 	}
 
-	var c causer
-	if errors.As(err, &c) {
+	if c, ok := errors.AsType[causer](err); ok {
 		return trace.Wrap(c.Cause())
 	}
 
@@ -90,8 +90,7 @@ func (p *MySQLPinger) IsConnectionRefusedError(err error) bool {
 		return false
 	}
 
-	var mErr *mysql.MyError
-	if errors.As(err, &mErr) {
+	if mErr, ok := errors.AsType[*mysql.MyError](err); ok {
 		switch mErr.Code {
 		case mysql.ER_HOST_NOT_PRIVILEGED,
 			mysql.ER_HOST_IS_BLOCKED:
@@ -120,8 +119,7 @@ func (p *MySQLPinger) IsInvalidDatabaseUserError(err error) bool {
 		return false
 	}
 
-	var mErr *mysql.MyError
-	if errors.As(err, &mErr) {
+	if mErr, ok := errors.AsType[*mysql.MyError](err); ok {
 		switch mErr.Code {
 		case mysql.ER_ACCESS_DENIED_ERROR,
 			mysql.ER_ACCESS_DENIED_NO_PASSWORD_ERROR,
@@ -145,8 +143,7 @@ func (p *MySQLPinger) IsInvalidDatabaseNameError(err error) bool {
 		return false
 	}
 
-	var mErr *mysql.MyError
-	if errors.As(err, &mErr) {
+	if mErr, ok := errors.AsType[*mysql.MyError](err); ok {
 		switch mErr.Code {
 		case mysql.ER_BAD_DB_ERROR,
 			mysql.ER_DBACCESS_DENIED_ERROR:

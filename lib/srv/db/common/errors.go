@@ -116,6 +116,7 @@ func fmtEscape(err error) string {
 
 // causer defines an interface for errors wrapped by the "errors" package.
 type causer interface {
+	error
 	Cause() error
 }
 
@@ -215,8 +216,7 @@ a few minutes to propagate):
 }
 
 func isRDSMySQLIAMAuthError(err error) bool {
-	var c causer
-	if errors.As(err, &c) {
+	if c, ok := errors.AsType[causer](err); ok {
 		return isRDSMySQLIAMAuthError(c.Cause())
 	}
 	var mysqlError *mysql.MyError

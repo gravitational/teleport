@@ -659,8 +659,7 @@ func getExitStatus(err error) int {
 		return 0
 	}
 	originErr := trace.Unwrap(err)
-	var exitErr *ssh.ExitError
-	if errors.As(originErr, &exitErr) {
+	if exitErr, ok := errors.AsType[*ssh.ExitError](originErr); ok {
 		return exitErr.ExitStatus()
 	} else {
 		// if an error occurs, but no exit status is passed back, GoSSH returns

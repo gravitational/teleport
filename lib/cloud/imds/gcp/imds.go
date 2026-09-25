@@ -294,8 +294,7 @@ func getMetadataClient(ctx context.Context) (*metadata.Client, error) {
 }
 
 func convertMetadataError(err error) error {
-	var metadataErr *metadata.Error
-	if errors.As(err, &metadataErr) {
+	if metadataErr, ok := errors.AsType[*metadata.Error](err); ok {
 		return trace.ReadError(metadataErr.Code, []byte(metadataErr.Message))
 	}
 	return err

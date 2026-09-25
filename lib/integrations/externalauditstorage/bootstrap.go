@@ -303,8 +303,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, region, table
 		Tags: ownershipTags,
 	})
 	if err != nil {
-		var aee *gluetypes.AlreadyExistsException
-		if !errors.As(err, &aee) {
+		if _, ok := errors.AsType[*gluetypes.AlreadyExistsException](err); !ok {
 			return trace.Wrap(err, "creating Glue database")
 		}
 	}
@@ -319,8 +318,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, region, table
 		TableInput:   getGlueTableInput(table, eventBucket),
 	})
 	if err != nil {
-		var aee *gluetypes.AlreadyExistsException
-		if !errors.As(err, &aee) {
+		if _, ok := errors.AsType[*gluetypes.AlreadyExistsException](err); !ok {
 			return trace.Wrap(err, "creating Glue table")
 		}
 

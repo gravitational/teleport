@@ -674,8 +674,7 @@ func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
 	type logYAML Log
 	log := (*logYAML)(l)
 	if err := unmarshal(log); err != nil {
-		var typeError *yaml.TypeError
-		if !errors.As(err, &typeError) {
+		if _, ok := errors.AsType[*yaml.TypeError](err); !ok {
 			return err
 		}
 

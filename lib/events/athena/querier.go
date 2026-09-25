@@ -435,8 +435,7 @@ func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byt
 	}
 	getObjectOutput, err := q.s3Getter.GetObject(ctx, getObjectInput)
 	if err != nil {
-		var nsk *s3types.NoSuchKey
-		if errors.As(err, &nsk) {
+		if _, ok := errors.AsType[*s3types.NoSuchKey](err); ok {
 			q.logger.DebugContext(ctx, "event chunk not found",
 				"date", date,
 				"chunk", chunk,

@@ -288,8 +288,7 @@ func (e *localExec) Wait() ExecResult {
 	} else if exitErr != nil {
 		// If we get a non exec.ExitError and no launch error, preserve the
 		// error from Wait as it may indicate some other genuine error.
-		var execExitErr *exec.ExitError
-		if !errors.As(exitErr, &execExitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](exitErr); !ok {
 			result.Error = exitErr
 		}
 	}
@@ -486,8 +485,7 @@ func (e *remoteExec) Wait() ExecResult {
 		Command: e.command,
 	}
 
-	var sshExitErr *ssh.ExitError
-	if errors.As(err, &sshExitErr) {
+	if sshExitErr, ok := errors.AsType[*ssh.ExitError](err); ok {
 		result.Code = sshExitErr.ExitStatus()
 		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
 	} else if err != nil {

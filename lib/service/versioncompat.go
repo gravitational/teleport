@@ -95,8 +95,7 @@ func (process *TeleportProcess) enforceVersionPolicy(ctx context.Context, info j
 // empty or unparseable version). A parse error is treated as nil so uncertainty
 // never drives behavior.
 func clientTooOld(minClientVersion string) error {
-	var tooOld *clientTooOldError
-	if errors.As(checkClientMeetsMinVersion(teleport.Version, minClientVersion), &tooOld) {
+	if tooOld, ok := errors.AsType[*clientTooOldError](checkClientMeetsMinVersion(teleport.Version, minClientVersion)); ok {
 		return tooOld
 	}
 	return nil

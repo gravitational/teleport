@@ -83,8 +83,7 @@ func CreateDocument(
 		RunnerFn: func(ctx context.Context) error {
 			_, err = clt.CreateDocument(ctx, input)
 			if err != nil {
-				var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists
-				if errors.As(err, &docAlreadyExistsError) {
+				if _, ok := errors.AsType[*ssmtypes.DocumentAlreadyExists](err); ok {
 					slog.InfoContext(ctx, "SSM document already exists", "name", name)
 					return nil
 				}

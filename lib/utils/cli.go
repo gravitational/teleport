@@ -240,8 +240,7 @@ func formatCertError(err error) string {
 		return unknownAuthority
 	}
 
-	var hostnameErr x509.HostnameError
-	if errors.As(err, &hostnameErr) {
+	if hostnameErr, ok := errors.AsType[x509.HostnameError](err); ok {
 		// Special case for connecting to Auth via Proxy using internal cluster domain.
 		if strings.HasSuffix(hostnameErr.Host, ".teleport.cluster.local") {
 			var proxyEnvBuilder strings.Builder
@@ -293,8 +292,7 @@ DEBUG INFO:
 			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
 	}
 
-	var certInvalidErr x509.CertificateInvalidError
-	if errors.As(err, &certInvalidErr) {
+	if certInvalidErr, ok := errors.AsType[x509.CertificateInvalidError](err); ok {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.

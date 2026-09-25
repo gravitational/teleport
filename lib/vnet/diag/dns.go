@@ -363,8 +363,7 @@ func (d *DNSDiag) queryZoneRecordOnce(ctx context.Context, zone, network string,
 // [diagv1.RecordResult].
 func classifyRecordResult(addrs []netip.Addr, err error, expected netip.Addr) *diagv1.RecordResult {
 	if err != nil {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) {
+		if dnsErr, ok := errors.AsType[*net.DNSError](err); ok {
 			switch {
 			case dnsErr.IsNotFound:
 				return diagv1.RecordResult_builder{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}.Build()

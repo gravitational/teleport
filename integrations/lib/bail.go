@@ -30,8 +30,7 @@ import (
 // Bail exits with nonzero exit code and prints an error to a log.
 func Bail(err error) {
 	ctx := context.Background()
-	var agg trace.Aggregate
-	if errors.As(trace.Unwrap(err), &agg) {
+	if agg, ok := errors.AsType[trace.Aggregate](trace.Unwrap(err)); ok {
 		for i, err := range agg.Errors() {
 			slog.ErrorContext(ctx, "Terminating with fatal error", "error_number", i+1, "error", err)
 		}

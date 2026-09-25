@@ -75,8 +75,7 @@ func EC2IAMPermissionErrors(err error) []*EC2IAMPermissionError {
 		return nil
 	}
 
-	var aggregate trace.Aggregate
-	if errors.As(err, &aggregate) {
+	if aggregate, ok := errors.AsType[trace.Aggregate](err); ok {
 		var permissionErrors []*EC2IAMPermissionError
 		for _, err := range aggregate.Errors() {
 			permissionErrors = append(permissionErrors, EC2IAMPermissionErrors(err)...)
@@ -84,8 +83,7 @@ func EC2IAMPermissionErrors(err error) []*EC2IAMPermissionError {
 		return permissionErrors
 	}
 
-	var permissionError *EC2IAMPermissionError
-	if errors.As(err, &permissionError) {
+	if permissionError, ok := errors.AsType[*EC2IAMPermissionError](err); ok {
 		return []*EC2IAMPermissionError{permissionError}
 	}
 

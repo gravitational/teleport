@@ -268,8 +268,7 @@ func (s *mcpOAuthHeaderSource) loadCredentials(ctx context.Context) (*mcpOAuthCr
 
 func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error) {
 	creds, err := s.loadCredentials(ctx)
-	var loginRequired *mcpOAuthLoginRequiredError
-	if errors.As(err, &loginRequired) {
+	if _, ok := errors.AsType[*mcpOAuthLoginRequiredError](err); ok {
 		// Nothing usable is stored: send the request without a token and let
 		// the server's 401 come back through RefreshAuthHeader.
 		return "", nil
@@ -435,8 +434,7 @@ func (t *mcpOAuthProxyRetryRoundTripper) RoundTrip(req *http.Request) (*http.Res
 		return t.base.RoundTrip(req)
 	}
 	resp, err := t.retry.RoundTrip(req)
-	var loginRequired *mcpOAuthLoginRequiredError
-	if errors.As(err, &loginRequired) {
+	if _, ok := errors.AsType[*mcpOAuthLoginRequiredError](err); ok {
 		return mcpOAuthProxyRefreshErrorResponse(req, err), nil
 	}
 	if err == nil && resp.StatusCode == http.StatusUnauthorized {

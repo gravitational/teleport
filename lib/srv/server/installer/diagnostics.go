@@ -101,8 +101,7 @@ func (a *AutoDiscoverNodeInstaller) runSystemctlCommand(ctx context.Context, arg
 		stdout := strings.TrimSpace(stdoutBuf.String())
 		stderr := strings.TrimSpace(stderrBuf.String())
 
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			// systemctl uses non-zero exits for command failures after launch, so include
 			// the exit code and captured streams to preserve the observed service state.
 			return trace.Wrap(err,

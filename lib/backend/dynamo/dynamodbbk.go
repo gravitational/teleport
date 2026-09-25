@@ -1234,47 +1234,38 @@ func convertError(err error) error {
 		return nil
 	}
 
-	var conditionalCheckFailedError *types.ConditionalCheckFailedException
-	if errors.As(err, &conditionalCheckFailedError) {
+	if conditionalCheckFailedError, ok := errors.AsType[*types.ConditionalCheckFailedException](err); ok {
 		return trace.CompareFailed("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
-	var throughputExceededError *types.ProvisionedThroughputExceededException
-	if errors.As(err, &throughputExceededError) {
+	if throughputExceededError, ok := errors.AsType[*types.ProvisionedThroughputExceededException](err); ok {
 		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
-	var notFoundError *types.ResourceNotFoundException
-	if errors.As(err, &notFoundError) {
+	if notFoundError, ok := errors.AsType[*types.ResourceNotFoundException](err); ok {
 		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
-	var collectionLimitExceededError *types.ItemCollectionSizeLimitExceededException
-	if errors.As(err, &collectionLimitExceededError) {
+	if collectionLimitExceededError, ok := errors.AsType[*types.ItemCollectionSizeLimitExceededException](err); ok {
 		return trace.LimitExceeded("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
-	var internalError *types.InternalServerError
-	if errors.As(err, &internalError) {
+	if internalError, ok := errors.AsType[*types.InternalServerError](err); ok {
 		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
-	var expiredIteratorError *streamtypes.ExpiredIteratorException
-	if errors.As(err, &expiredIteratorError) {
+	if expiredIteratorError, ok := errors.AsType[*streamtypes.ExpiredIteratorException](err); ok {
 		return trace.ConnectionProblem(expiredIteratorError, "%s", expiredIteratorError.ErrorMessage())
 	}
 
-	var limitExceededError *streamtypes.LimitExceededException
-	if errors.As(err, &limitExceededError) {
+	if limitExceededError, ok := errors.AsType[*streamtypes.LimitExceededException](err); ok {
 		return trace.ConnectionProblem(limitExceededError, "%s", limitExceededError.ErrorMessage())
 	}
-	var trimmedAccessError *streamtypes.TrimmedDataAccessException
-	if errors.As(err, &trimmedAccessError) {
+	if trimmedAccessError, ok := errors.AsType[*streamtypes.TrimmedDataAccessException](err); ok {
 		return trace.ConnectionProblem(trimmedAccessError, "%s", trimmedAccessError.ErrorMessage())
 	}
 
-	var scalingObjectNotFoundError *autoscalingtypes.ObjectNotFoundException
-	if errors.As(err, &scalingObjectNotFoundError) {
+	if scalingObjectNotFoundError, ok := errors.AsType[*autoscalingtypes.ObjectNotFoundException](err); ok {
 		return trace.NotFound("%s", scalingObjectNotFoundError.ErrorMessage())
 	}
 

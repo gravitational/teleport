@@ -271,8 +271,7 @@ func (c *Client) CaptureJournal(ctx context.Context, unit string, opts JournalOp
 			return "", trace.Wrap(ctx.Err())
 		}
 
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			c.log.DebugContext(ctx, "journalctl exited non-zero",
 				"service", unit,
 				"exit_code", exitErr.ExitCode(),

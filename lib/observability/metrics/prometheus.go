@@ -43,8 +43,7 @@ func RegisterCollectors(registry prometheus.Registerer, collectors ...prometheus
 	var errs []error
 	for _, c := range collectors {
 		if err := registry.Register(c); err != nil {
-			var alreadyRegisteredError prometheus.AlreadyRegisteredError
-			if errors.As(err, &alreadyRegisteredError) {
+			if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 				continue
 			}
 			errs = append(errs, err)

@@ -175,8 +175,7 @@ func convertLDAPError(err error) error {
 		return nil
 	}
 
-	var ldapErr *ldap.Error
-	if errors.As(err, &ldapErr) {
+	if ldapErr, ok := errors.AsType[*ldap.Error](err); ok {
 		switch ldapErr.ResultCode {
 		case ldap.ErrorNetwork:
 			return trace.ConnectionProblem(err, "network error")

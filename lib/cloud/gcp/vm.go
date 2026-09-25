@@ -59,12 +59,10 @@ const sshDefaultTimeout = 10 * time.Second
 
 // convertAPIError converts an error from the GCP API into a trace error.
 func convertAPIError(err error) error {
-	var googleError *googleapi.Error
-	if errors.As(err, &googleError) {
+	if googleError, ok := errors.AsType[*googleapi.Error](err); ok {
 		return trace.ReadError(googleError.Code, []byte(googleError.Message))
 	}
-	var apiError *apierror.APIError
-	if errors.As(err, &apiError) {
+	if apiError, ok := errors.AsType[*apierror.APIError](err); ok {
 		if code := apiError.HTTPCode(); code != -1 {
 			return trace.ReadError(code, []byte(apiError.Reason()))
 		} else if apiError.GRPCStatus() != nil {

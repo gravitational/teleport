@@ -310,8 +310,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 }
 
 func redactAWSSigninTokenRequestError(err error) error {
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
+	if urlErr, ok := errors.AsType[*url.Error](err); ok {
 		return trace.ConnectionProblem(urlErr.Err, "failed to request AWS federation sign-in token")
 	}
 	return trace.ConnectionProblem(nil, "failed to request AWS federation sign-in token")

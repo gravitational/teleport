@@ -777,8 +777,7 @@ func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version,
 	if err == nil {
 		return v, nil
 	}
-	var noNewVersionErr *autoupdateversion.NoNewVersionError
-	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+	if _, ok := errors.AsType[*autoupdateversion.NoNewVersionError](trace.Unwrap(err)); !ok {
 		return nil, trace.Wrap(err)
 	}
 	return autoupdateversion.EnsureSemver(teleport.Version)

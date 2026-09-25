@@ -528,10 +528,8 @@ func (x *Backend) Close() error {
 
 	os.Remove(x.AuthorityFile)
 
-	var e *exec.ExitError
-
 	err := x.cmd.Wait()
-	if errors.As(err, &e) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return nil
 	}
 	return trace.Wrap(err)

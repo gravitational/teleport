@@ -362,8 +362,7 @@ func (i *eicedConn) Write(b []byte) (int, error) {
 }
 
 func (i *eicedConn) handleIOError(err error) error {
-	var closeErr *websocket.CloseError
-	if errors.As(err, &closeErr) {
+	if _, ok := errors.AsType[*websocket.CloseError](err); ok {
 		return trace.ConnectionProblem(err,
 			"Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
 				"Please ensure the instance's SecurityGroups allow inbound TCP traffic on port 22 from %s",

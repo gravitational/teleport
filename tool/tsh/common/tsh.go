@@ -821,8 +821,7 @@ func Main() {
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
-		var exitError *common.ExitCodeError
-		if errors.As(err, &exitError) {
+		if exitError, ok := errors.AsType[*common.ExitCodeError](err); ok {
 			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
@@ -1672,8 +1671,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				Stderr: cf.Stderr(),
 			}
 			if err := reexec.RunForkAuthenticate(cf.Context, forkParams); err != nil {
-				var execErr *exec.ExitError
-				if errors.As(trace.Unwrap(err), &execErr) {
+				if execErr, ok := errors.AsType[*exec.ExitError](trace.Unwrap(err)); ok {
 					err = &common.ExitCodeError{Code: execErr.ExitCode()}
 				}
 				return trace.Wrap(err)
@@ -4705,8 +4703,7 @@ func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 			return trace.Wrap(&common.ExitCodeError{Code: status})
 		}
 
-		var exitErr *common.ExitCodeError
-		if errors.As(err, &exitErr) {
+		if _, ok := errors.AsType[*common.ExitCodeError](err); ok {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}

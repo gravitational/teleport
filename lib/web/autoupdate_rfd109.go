@@ -81,8 +81,7 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		// If the error is that the upstream channel has no version
 		// We gracefully handle by serving "none"
-		var NoNewVersionErr *version.NoNewVersionError
-		if errors.As(trace.Unwrap(err), &NoNewVersionErr) {
+		if _, ok := errors.AsType[*version.NoNewVersionError](trace.Unwrap(err)); ok {
 			_, err = w.Write([]byte(constants.NoVersion))
 			return nil, trace.Wrap(err)
 		}

@@ -1412,8 +1412,7 @@ func isFailedToSendCloseNotifyError(err error) bool {
 func isOKNetworkError(err error) bool {
 	// trace.Aggregate contains at least one error and all the errors are
 	// non-nil
-	var a trace.Aggregate
-	if errors.As(trace.Unwrap(err), &a) {
+	if a, ok := errors.AsType[trace.Aggregate](trace.Unwrap(err)); ok {
 		for _, err := range a.Errors() {
 			if !isOKNetworkError(err) {
 				return false

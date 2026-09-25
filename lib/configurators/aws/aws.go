@@ -706,8 +706,7 @@ func buildActions(ctx context.Context, config ConfiguratorConfig) ([]configurato
 	for _, assumeRole := range config.getDistinctAssumedRoles() {
 		target, err := policiesTarget(ctx, config, assumeRole)
 		if err != nil {
-			var unreachableErr unreachablePolicyTargetError
-			if errors.As(err, &unreachableErr) {
+			if unreachableErr, ok := errors.AsType[unreachablePolicyTargetError](err); ok {
 				fmt.Printf("⚠️ Skipping matchers with identity %q: %s\n", unreachableErr.from.GetName(), unreachableErr.Error())
 				continue
 			}
@@ -853,9 +852,8 @@ func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (aw
 		RoleName: aws.String(identity.GetName()),
 	})
 	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
-		var apiErr smithy.APIError
 		var missingPermissions bool
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 			missingPermissions = apiErr.ErrorCode() == "AccessDenied"
 		}
 		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN(identity.GetName(), missingPermissions))
@@ -1325,8 +1323,7 @@ func (a *awsSSMDocumentCreator) Execute(ctx context.Context, actionCtx *configur
 	})
 
 	if err != nil {
-		var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists
-		if errors.As(err, &docAlreadyExistsError) {
+		if _, ok := errors.AsType[*ssmtypes.DocumentAlreadyExists](err); ok {
 			fmt.Printf("⚠️ Warning: SSM document %s already exists. Not overwriting.\n", a.Name)
 			return nil
 		}

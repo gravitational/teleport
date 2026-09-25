@@ -478,8 +478,7 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 			var member models.GroupMember
 			member, err = models.DecodeGroupMember(entry)
 			if err != nil {
-				var gmErr *models.UnsupportedGroupMember
-				if errors.As(err, &gmErr) {
+				if gmErr, ok := errors.AsType[*models.UnsupportedGroupMember](err); ok {
 					slog.DebugContext(ctx, "unsupported group member", "type", gmErr.Type)
 					err = nil // Reset so that we do not return the error up if this is the last entry
 					continue

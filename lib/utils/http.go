@@ -216,8 +216,7 @@ func (m *maxBytesReader) Read(p []byte) (int, error) {
 	n, err := m.ReadCloser.Read(p)
 
 	// convert [http.MaxBytesError] to our limit error.
-	var mbErr *http.MaxBytesError
-	if errors.As(err, &mbErr) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return n, ErrLimitReached
 	}
 	return n, err

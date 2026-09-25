@@ -34,8 +34,7 @@ import (
 // If the provided error is not a [awshttp.ResponseError] it returns the error
 // without modifying it.
 func ConvertRequestFailureError(err error) error {
-	var re *awshttp.ResponseError
-	if errors.As(err, &re) {
+	if re, ok := errors.AsType[*awshttp.ResponseError](err); ok {
 		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re)
 	}
 	return err
@@ -83,28 +82,23 @@ func ConvertIAMError(err error) error {
 		return nil
 	}
 
-	var unmodifiableEntityErr *iamtypes.UnmodifiableEntityException
-	if errors.As(err, &unmodifiableEntityErr) {
+	if unmodifiableEntityErr, ok := errors.AsType[*iamtypes.UnmodifiableEntityException](err); ok {
 		return trace.AccessDenied("%s", *unmodifiableEntityErr.Message)
 	}
 
-	var entityExistsError *iamtypes.EntityAlreadyExistsException
-	if errors.As(err, &entityExistsError) {
+	if entityExistsError, ok := errors.AsType[*iamtypes.EntityAlreadyExistsException](err); ok {
 		return trace.AlreadyExists("%s", *entityExistsError.Message)
 	}
 
-	var entityNotFound *iamtypes.NoSuchEntityException
-	if errors.As(err, &entityNotFound) {
+	if entityNotFound, ok := errors.AsType[*iamtypes.NoSuchEntityException](err); ok {
 		return trace.NotFound("%s", *entityNotFound.Message)
 	}
 
-	var malformedPolicyDocument *iamtypes.MalformedPolicyDocumentException
-	if errors.As(err, &malformedPolicyDocument) {
+	if malformedPolicyDocument, ok := errors.AsType[*iamtypes.MalformedPolicyDocumentException](err); ok {
 		return trace.BadParameter("%s", *malformedPolicyDocument.Message)
 	}
 
-	var limitExceededErr *iamtypes.LimitExceededException
-	if errors.As(err, &limitExceededErr) {
+	if limitExceededErr, ok := errors.AsType[*iamtypes.LimitExceededException](err); ok {
 		return trace.LimitExceeded("%s", *limitExceededErr.Message)
 	}
 

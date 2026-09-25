@@ -23,8 +23,7 @@ import (
 )
 
 func ServeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
-	var le *limitExceededError
-	if errors.As(err, &le) {
+	if le, ok := errors.AsType[*limitExceededError](err); ok {
 		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After#delay-seconds
 		w.Header().Set("Retry-After", strconv.Itoa(int(le.delay.Seconds())+1))
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -33,11 +32,10 @@ func ServeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 
 	status := http.StatusInternalServerError
-	var netError net.Error
 
 	if errors.Is(err, io.EOF) {
 		status = http.StatusBadGateway
-	} else if errors.As(err, &netError) {
+	} else if netError, ok := errors.AsType[net.Error](err); ok {
 		if netError.Timeout() {
 			status = http.StatusGatewayTimeout
 		} else {

@@ -1627,8 +1627,7 @@ func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, w
 			msgType, msg, err := src.ReadMessage()
 			if err != nil {
 				m := gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, err.Error())
-				var e *gwebsocket.CloseError
-				if errors.As(err, &e) {
+				if e, ok := errors.AsType[*gwebsocket.CloseError](err); ok {
 					if e.Code != gwebsocket.CloseNoStatusReceived {
 						m = gwebsocket.FormatCloseMessage(e.Code, e.Text)
 					}

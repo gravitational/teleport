@@ -630,8 +630,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	for i, step := range invocationSteps {
 		outcome, err := si.getCommandStepOutcome(ctx, step, req, commandID, instanceMetadata)
 		if err != nil {
-			var invalidPluginNameErr *ssmtypes.InvalidPluginName
-			if errors.As(err, &invalidPluginNameErr) {
+			if _, ok := errors.AsType[*ssmtypes.InvalidPluginName](err); ok {
 				// If using a custom SSM Document and the client does not have access to ssm:ListCommandInvocations
 				// the list of invocationSteps (ie plugin name) might be wrong.
 				// If that's the case, emit an event with the overall invocation result (ignoring specific steps' stdout and stderr).
