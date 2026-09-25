@@ -153,6 +153,27 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 	return &resp, nil
 }
 
+// RangeUsers returns users within the range [start, end) in backend key
+// order, without secrets.
+func (s *IdentityService) RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error] {
+	params := backend.ItemsParams{
+		StartKey: backend.ExactKey(webPrefix, usersPrefix),
+		EndKey:   backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix)),
+	}
+	if start != "" {
+		params.StartKey = backend.ExactKey(webPrefix, usersPrefix, start)
+	}
+	if end != "" {
+		// Items is inclusive of EndKey, but every key of a user sorts after
+		// the user's exact key, so this stops short of the end user.
+		params.EndKey = backend.ExactKey(webPrefix, usersPrefix, end)
+	}
+
+	return stream.FilterMap(s.streamUsersWithoutSecrets(s.Backend.Items(ctx, params)), func(u *types.UserV2) (types.User, bool) {
+		return u, true
+	})
+}
+
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
 // of users along with their associated secrets.
 func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {

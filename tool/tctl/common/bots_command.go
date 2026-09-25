@@ -261,19 +261,16 @@ type botsCommandClient interface {
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
 func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) error {
-	var bots []*machineidv1pb.Bot
-	req := &machineidv1pb.ListBotsRequest{}
-	for {
-		resp, err := client.BotServiceClient().ListBots(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	bots, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*machineidv1pb.Bot, string, error) {
+		resp, err := client.BotServiceClient().ListBots(ctx, machineidv1pb.ListBotsRequest_builder{
+			PageSize:  int32(limit),
+			PageToken: token,
+		}.Build())
 
-		bots = append(bots, resp.GetBots()...)
-		if resp.GetNextPageToken() == "" {
-			break
-		}
-		req.SetPageToken(resp.GetNextPageToken())
+		return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
+	}))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	switch c.format {
