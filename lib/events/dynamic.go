@@ -77,6 +77,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserLogin{}
 	case UserDeleteEvent:
 		e = &events.UserDelete{}
+	case UserResetEvent:
+		e = &events.UserReset{}
 	case UserCreateEvent:
 		e = &events.UserCreate{}
 	case UserUpdatedEvent:

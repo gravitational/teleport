@@ -184,6 +184,9 @@ const (
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
 
+	// UserResetEvent is emitted when a user's authentication is reset.
+	UserResetEvent = "user.reset"
+
 	// UserCreateEvent is emitted when the user is created.
 	UserCreateEvent = "user.create"
 

@@ -431,6 +431,10 @@ func (m *UserDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *UserReset) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *UserCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

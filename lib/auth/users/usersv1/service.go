@@ -629,21 +629,38 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		s.emitUserResetEvent(ctx, req.GetName(), err)
 		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbUpdate); err != nil {
+		s.emitUserResetEvent(ctx, req.GetName(), err)
 		return nil, trace.Wrap(err)
 	}
 
 	if authz.IsLocalOrRemoteService(*authCtx) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-		return nil, trace.AccessDenied("access denied")
+		err := trace.AccessDenied("access denied")
+		s.emitUserResetEvent(ctx, req.GetName(), err)
+		return nil, err
 	}
 
+	// Don't emit a failure event here since a reused MFA challenge is a normal part of the
+	// admin action flow
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	resp, err := s.resetUser(ctx, req)
+	s.emitUserResetEvent(ctx, req.GetName(), err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// resetUser performs the reset once the caller has been authorized, resolving whether the
+// user is local, SSO, or already deleted and returning the response for the client.
+func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	var tokenType string
 	switch req.GetType() {
 	case userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_UNSPECIFIED, userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD:
@@ -700,6 +717,33 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		UserKind:           userspb.ResetUserKind_RESET_USER_KIND_LOCAL,
 		PasswordResetToken: tokenV3,
 	}.Build(), nil
+}
+
+// emitUserResetEvent emits an audit event that the named user's authentication was reset.
+func (s *Service) emitUserResetEvent(ctx context.Context, name string, resetErr error) {
+	code := events.UserResetCode
+	var errorMessage string
+	if resetErr != nil {
+		code = events.UserResetFailureCode
+		errorMessage = resetErr.Error()
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserReset{
+		Metadata: apievents.Metadata{
+			Type: events.UserResetEvent,
+			Code: code,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: resetErr == nil,
+			Error:   errorMessage,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit user reset event", "error", err)
+	}
 }
 
 // resetDeletedUser removes MFA devices for a user that no longer exists (aka an expired SSO user)

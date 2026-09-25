@@ -56,6 +56,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UserDelete{
 			UserDelete: e,
 		}
+	case *UserReset:
+		out.Event = &OneOf_UserReset{
+			UserReset: e,
+		}
 	case *UserPasswordChange:
 		out.Event = &OneOf_UserPasswordChange{
 			UserPasswordChange: e,

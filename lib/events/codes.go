@@ -56,6 +56,10 @@ const (
 	UserUpdateCode = "T1003I"
 	// UserDeleteCode is the user delete event code.
 	UserDeleteCode = "T1004I"
+	// UserResetCode is the successful user authentication reset event code.
+	UserResetCode = "T1017I"
+	// UserResetFailureCode is the unsuccessful user authentication reset event code.
+	UserResetFailureCode = "T1017W"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
 	// MFADeviceAddEventCode is an event code for users adding MFA devices.
