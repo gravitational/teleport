@@ -1970,7 +1970,7 @@ deb: oss-deb
 # check binary compatibility with different OSes
 .PHONY: test-compat
 test-compat:
-	./build.assets/build-test-compat.sh
+	./build.assets/test-compat-binaries.sh
 
 .PHONY: ensure-webassets
 ensure-webassets:

@@ -281,15 +281,34 @@ const config = {
     artifactName: '${name}-${version}.${arch}.${ext}',
     afterInstall: 'build_resources/linux/after-install.sh.tmpl',
     afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
-    // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
-    // Connect's rpm next to other Electron apps.
-    // https://github.com/gravitational/teleport/issues/18859
-    fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+    fpm: [
+      // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
+      // Connect's rpm next to other Electron apps.
+      // https://github.com/gravitational/teleport/issues/18859
+      '--rpm-rpmbuild-define',
+      '_build_id_links none',
+      // Electron links against libgbm.so.1 and libasound.so.2 as hard dependencies,
+      // but electron-builder does not include either in its default fpm dependency list.
+      // Minimal images, such as those used by test-compat-connect.sh, may not have them installed.
+      '--depends',
+      'mesa-libgbm',
+      '--depends',
+      'alsa-lib',
+    ],
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
     afterInstall: 'build_resources/linux/after-install.sh.tmpl',
     afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
+    fpm: [
+      // Electron links against libgbm.so.1 and libasound.so.2 as hard dependencies,
+      // but electron-builder does not include either in its default fpm dependency list.
+      // Minimal images, such as those used by test-compat-connect.sh, may not have them installed.
+      '--depends',
+      'libgbm1',
+      '--depends',
+      'libasound2',
+    ],
   },
   linux: {
     files: [...appFiles, '!node_modules/node-pty/prebuilds/!(linux-${arch})'],

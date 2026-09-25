@@ -87,6 +87,19 @@ build-binaries: buildbox-centos7 webassets
 		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 	$(call LOG_GROUP_END)
 
+# Build binaries (teleport, tsh, tctl, tbot) in the published CentOS 7 buildbox
+# for compatibility testing. The caller's UID/GID may differ from the published
+# image's ci user, so point HOME and the Rust homes at writable paths;
+# rustup writes to RUSTUP_HOME to install the targets from rust-toolchain.toml.
+.PHONY: build-compat-binaries
+build-compat-binaries:
+	$(REQUIRE_HOST_ARCH)
+	docker run $(DOCKERFLAGS) $(NOROOT) \
+		--env HOME=/tmp \
+		--env RUSTUP_HOME=/tmp/rustup \
+		$(BUILDBOX_CENTOS7) \
+		/usr/bin/scl enable $(DEVTOOLSET) 'make -j"$$(nproc)" build/teleport build/tsh build/tctl build/tbot WEBASSETS_SKIP_BUILD=1 FIDO2=static'
+
 #
 # Build 'teleport' Enterprise binaries inside a docker container
 #
