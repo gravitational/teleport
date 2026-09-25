@@ -63,7 +63,7 @@ make docs
     cp example/main.tf.example example/main.tf
     ```
 
-    Please note that target identity file was exported to `/tmp/terraform-identity` on previous step. If you used another location, please change in in `main.tf`.
+    Please note that target identity file was exported to `/tmp/terraform-identity` on previous step. If you used another location, please change it in `main.tf`.
 
 1. Create sample resources:
 

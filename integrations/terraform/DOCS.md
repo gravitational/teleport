@@ -14,7 +14,7 @@ We maintain:
 
 The full build process involves:
 - a Makefile target `docs` that re-builds and installs the provider locally
-- a bash script cretaing a temporary directory, exporting the schema from the built provider, invoking `tfplugindocs`
+- a bash script creating a temporary directory, exporting the schema from the built provider, invoking `tfplugindocs`
   and copying the reference into the mains docs directory.
 - [a custom version of `tfplugindocs`](https://github.com/gravitational/terraform-plugin-docs) which renders markdown
   compatible with our documentation engine.

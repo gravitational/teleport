@@ -112,7 +112,7 @@ An identifier represents a unique resource in Teleport. This is how Terraform ma
 - `ScopeQualifiedNameIdentifier`: Typical for scoped Teleport resources that are uniquely identified by `(name, scope)`.
 - `CompositeIdentifier`: An identifier distinguished by two parts, i.e. an Access List Member  is identified by the
                          name of the Access List _and_ the name of the member.
-- `SingletonIdentifier`: Teleport singletons are identfied by a fixed identifier.
+- `SingletonIdentifier`: Teleport singletons are identified by a fixed identifier.
 
 ## Normalization and defaults
 

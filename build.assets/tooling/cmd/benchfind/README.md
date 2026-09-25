@@ -2,7 +2,7 @@
 
 A CLI utility to discover modules with Benchmarks without compilation/linking. 
 
-Example useage:
+Example usage:
 
 ```sh
 # Find all Benchmark packages in the current dir:

@@ -1,6 +1,6 @@
 # resources 
 
-This Helm chart can be used to programmatically spawn an arbitary number of resources in a Teleport cluster given a resource manifest.
+This Helm chart can be used to programmatically spawn an arbitrary number of resources in a Teleport cluster given a resource manifest.
 
 It assumes a pre-existing k8s Teleport cluster and correctly authenticated kubectl client.
 

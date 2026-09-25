@@ -25,7 +25,7 @@ other .proto files used to generate the CRDs have changed).
 
    Inspect the output to make sure it's only generating CRDs for the new
    resource(s) you added. If other CRDs are generated or changed, figure out why
-   and plan to test any other resources modified. Alternativly, revert the
+   and plan to test any other resources modified. Alternatively, revert the
    changes you didn't make causing the CRDs to be modified.
 
 4. Run `make crd` to generate the CRD and its documentation.
@@ -171,7 +171,7 @@ you'll need:
 
 To set up the operator:
 
-- Make sure CRDs are deployed in the Kuberntes cluster. If they're not, you can deploy them with:
+- Make sure CRDs are deployed in the Kubernetes cluster. If they're not, you can deploy them with:
   ```shell
   helm install crds ../../examples/chart/teleport-cluster/charts/teleport-operator/ --set enabled=false --set installCRDs=always
   ```
