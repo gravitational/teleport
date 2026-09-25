@@ -76,7 +76,12 @@ func (d *KubernetesDataSource) Schema(
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "The Kubernetes data source provides credentials to allow other providers to access Kubernetes cluster through Teleport Machine & Workload Identity.",
+		DeprecationMessage: "This data source is deprecated and will be removed in v20. Use ephemeral resource teleportmwi_kubernetes instead.",
+
+		MarkdownDescription: "The Kubernetes data source provides credentials to allow other providers to access Kubernetes cluster through Teleport Machine & Workload Identity.\n\n" +
+			"**Deprecated:** Use the `teleportmwi_kubernetes` ephemeral resource instead. This data source will be removed in v20. Ephemeral resources require at least Terraform 1.10 or OpenTofu 1.11.0.\n\n" +
+			"To migrate, replace `data \"teleportmwi_kubernetes\" \"my_cluster\"` with `ephemeral \"teleportmwi_kubernetes\" \"my_cluster\"`, keeping the same arguments. " +
+			"Update references from `data.teleportmwi_kubernetes.my_cluster.output.*` to `ephemeral.teleportmwi_kubernetes.my_cluster.output.*`.",
 
 		Attributes: map[string]schema.Attribute{
 			// Arguments

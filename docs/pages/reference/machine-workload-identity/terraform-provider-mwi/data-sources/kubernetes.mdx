@@ -13,6 +13,10 @@ tags:
 
 The Kubernetes data source provides credentials to allow other providers to access Kubernetes cluster through Teleport Machine & Workload Identity.
 
+**Deprecated:** Use the `teleportmwi_kubernetes` ephemeral resource instead. This data source will be removed in v20. Ephemeral resources require at least Terraform 1.10 or OpenTofu 1.11.0.
+
+To migrate, replace `data "teleportmwi_kubernetes" "my_cluster"` with `ephemeral "teleportmwi_kubernetes" "my_cluster"`, keeping the same arguments. Update references from `data.teleportmwi_kubernetes.my_cluster.output.*` to `ephemeral.teleportmwi_kubernetes.my_cluster.output.*`.
+
 ## Example Usage
 
 ```hcl
@@ -68,4 +72,3 @@ Read-Only:
 - `cluster_ca_certificate` (String) Compatible with the `cluster_ca_certificate` argument of the `kubernetes` provider.
 - `host` (String) Compatible with the `host` argument of the `kubernetes` provider.
 - `tls_server_name` (String) Compatible with the `tls_server_name` argument of the `kubernetes` provider.
-
