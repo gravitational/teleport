@@ -153,6 +153,18 @@ func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicK
 	return keys.ParsePrivateKey(rawKey)
 }
 
+func (s *softwareKeyStore) getEncryptionPublicKey(_ context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	privateKey, err := x509.ParsePKCS8PrivateKey(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing encryption private key")
+	}
+	signer, ok := privateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("private key does not implement crypto.Signer")
+	}
+	return signer.Public(), nil
+}
+
 // getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
 func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	privateKey, err := x509.ParsePKCS8PrivateKey(rawKey)

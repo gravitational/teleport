@@ -286,6 +286,22 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	return a.newKMSKeyWithPublicKey(ctx, key, publicKey)
 }
 
+func (a *awsKMSKeystore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+	key, err := parseAWSKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.newKMSKey(ctx, key)
+}
+
+func (a *awsKMSKeystore) getEncryptionPublicKey(ctx context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	signer, err := a.getSignerWithoutPublicKey(ctx, rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signer.Public(), nil
+}
+
 // getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
 func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	key, err := parseAWSKMSKeyID(rawKey)

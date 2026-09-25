@@ -219,6 +219,22 @@ func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	return signer, trace.Wrap(err)
 }
 
+func (g *gcpKMSKeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+	keyID, err := parseGCPKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return g.newKmsKey(ctx, keyID)
+}
+
+func (g *gcpKMSKeyStore) getEncryptionPublicKey(ctx context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	signer, err := g.getSignerWithoutPublicKey(ctx, rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signer.Public(), nil
+}
+
 // getDecrypter returns a crypto.Decrypter for the given raw private key.
 func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
