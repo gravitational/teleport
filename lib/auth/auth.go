@@ -805,7 +805,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
-		inventory.WithClock(cfg.Clock),
 		inventory.WithOnConnect(func(s string) {
 			if g, ok := connectedResourceGauges[s]; ok {
 				g.Inc()

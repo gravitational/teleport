@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -175,7 +174,6 @@ type controllerOptions struct {
 	onDisconnectFunc   func(string, int)
 	cleanupLimiter     *rate.Limiter
 	cleanupTimeout     time.Duration
-	clock              clockwork.Clock
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -212,10 +210,6 @@ func (options *controllerOptions) SetDefaults() {
 
 	if options.cleanupTimeout == 0 {
 		options.cleanupTimeout = time.Second * 30
-	}
-
-	if options.clock == nil {
-		options.clock = clockwork.NewRealClock()
 	}
 }
 
@@ -267,13 +261,6 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 	}
 }
 
-// WithClock sets the clock for the controller to have a general clock configuration.
-func WithClock(clock clockwork.Clock) ControllerOption {
-	return func(opts *controllerOptions) {
-		opts.clock = clock
-	}
-}
-
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
@@ -299,7 +286,6 @@ type Controller struct {
 	onDisconnectFunc             func(string, int)
 	cleanupLimiter               *rate.Limiter
 	cleanupTimeout               time.Duration
-	clock                        clockwork.Clock
 	closeContext                 context.Context
 	cancel                       context.CancelFunc
 }
@@ -388,7 +374,6 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		onDisconnectFunc:             options.onDisconnectFunc,
 		cleanupLimiter:               options.cleanupLimiter,
 		cleanupTimeout:               options.cleanupTimeout,
-		clock:                        options.clock,
 		closeContext:                 ctx,
 		cancel:                       cancel,
 	}
@@ -396,7 +381,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) {
-	handle := newUpstreamHandle(stream, hello, c.clock.Now())
+	handle := newUpstreamHandle(stream, hello, time.Now())
 	c.store.Insert(handle)
 
 	// Increment the concurrent connection counter that we use to calculate the
@@ -993,7 +978,7 @@ func (c *Controller) handlePong(handle *upstreamHandle, msg *proto.UpstreamInven
 			"pong_id", msg.GetID())
 		return
 	}
-	now := c.clock.Now()
+	now := time.Now()
 	var systemClock time.Time
 	if c := msg.GetSystemClock(); c != nil {
 		systemClock = c.AsTime()
@@ -1017,7 +1002,7 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 	ping := proto.DownstreamInventoryPing_builder{
 		ID: req.id,
 	}.Build()
-	start := c.clock.Now()
+	start := time.Now()
 	if err := handle.Send(c.closeContext, ping); err != nil {
 		req.rspC <- pingResponse{
 			controllerClock: start,
@@ -1237,7 +1222,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		srv.resource = appServer
 	}
 
-	srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
+	srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
 
 	if _, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource); err == nil {
 		c.testEvent(appUpsertOk)
@@ -1483,7 +1468,7 @@ func (c *Controller) handleWindowsDesktopServiceHB(handle *upstreamHandle, windo
 	}
 
 	handle.windowsDesktopService.resource = windowsDesktopService
-	handle.windowsDesktopService.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
+	handle.windowsDesktopService.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
 
 	if _, err := c.auth.UpsertWindowsDesktopService(c.closeContext, handle.windowsDesktopService.resource); err == nil {
 		c.testEvent(winServiceUpsertOk)
