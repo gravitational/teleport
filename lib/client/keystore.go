@@ -201,6 +201,14 @@ func (fs *FSKeyStore) appKeyPath(idx KeyRingIndex, appname string) string {
 	return keypaths.AppKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
 
+func (fs *FSKeyStore) gitCertPath(idx KeyRingIndex, gitServer string) string {
+	return keypaths.GitCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, gitServer)
+}
+
+func (fs *FSKeyStore) gitKeyPath(idx KeyRingIndex, gitServer string) string {
+	return keypaths.GitKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, gitServer)
+}
+
 // databaseCertPath returns the TLS certificate path for the given KeyRingIndex and database name.
 func (fs *FSKeyStore) databaseCertPath(idx KeyRingIndex, dbname string) string {
 	return keypaths.DatabaseCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
@@ -295,6 +303,14 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		app = filepath.Clean(app)
 		keyPath := fs.appKeyPath(keyRing.KeyRingIndex, app)
 		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for gitServer, cred := range keyRing.GitTLSCredentials {
+		gitServer = filepath.Clean(gitServer)
+		keyPath := fs.gitKeyPath(keyRing.KeyRingIndex, gitServer)
+		certPath := fs.gitCertPath(keyRing.KeyRingIndex, gitServer)
 		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
@@ -801,7 +817,7 @@ type CertOption interface {
 }
 
 // WithAllCerts lists all known CertOptions.
-var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}, WithDesktopCerts{}}
+var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}, WithDesktopCerts{}, WithGitCerts{}}
 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
@@ -947,6 +963,38 @@ func (o WithDesktopCerts) deleteFromKeyRing(keyRing *KeyRing) {
 	keyRing.WindowsDesktopTLSCredentials = make(map[string]TLSCredential)
 }
 
+// WithGitCerts is a CertOption for handling git server access certificates.
+type WithGitCerts struct {
+	gitServerName string
+}
+
+func (o WithGitCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+	credentialDir := keypaths.GitCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir, opts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keyRing.GitTLSCredentials = credsByName
+	return nil
+}
+
+func (o WithGitCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.GitDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	if o.gitServerName == "" {
+		return []string{keypaths.GitCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	}
+	return []string{
+		keypaths.GitCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.gitServerName),
+		keypaths.GitKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.gitServerName),
+	}
+}
+
+func (o WithGitCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.GitTLSCredentials = make(map[string]TLSCredential)
+}
+
 type MemKeyStore struct {
 	// keyRings is a three-dimensional map indexed by [proxyHost][username][clusterName]
 	keyRings keyRingMap
@@ -1028,6 +1076,8 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 			retKeyRing.AppTLSCredentials = maps.Clone(keyRing.AppTLSCredentials)
 		case WithDesktopCerts:
 			retKeyRing.WindowsDesktopTLSCredentials = maps.Clone(keyRing.WindowsDesktopTLSCredentials)
+		case WithGitCerts:
+			retKeyRing.GitTLSCredentials = maps.Clone(keyRing.GitTLSCredentials)
 		}
 	}
 

@@ -65,6 +65,8 @@ const (
 	kubeDirSuffix = "-kube"
 	// windowsDesktopDirSuffix is the suffix of a subdirectory where Windows desktop TLS certs are stored.
 	windowsDesktopDirSuffix = "-windowsdesktop"
+	// gitDirSuffix is the suffix of a sub-directory where git TLS certs are stored.
+	gitDirSuffix = "-git"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
 	// accessGraphSuffix is the suffix of a user's Access Graph TLS certificate
@@ -169,6 +171,10 @@ const (
 //    │   │    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   │        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
 //    │   │        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
+//    │   ├── foo-git                   --> Git server certs for user "foo"
+//    │   │    └── root                 --> Git server certs for cluster "root"
+//    │   │        ├── github-org.crt   --> TLS cert for git server "github-org"
+//    │   │        └── github-org.key   --> private key for git server "github-org"
 //    │   └── cas                       --> Trusted clusters certificates
 //    │        ├── root.pem             --> TLS CA for teleport cluster "root"
 //    │        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -376,6 +382,37 @@ func MCPOAuthCredentialsLockPath(baseDir string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
 func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
+}
+
+// GitDir returns the path to the user's git directory for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-git
+func GitDir(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+gitDirSuffix)
+}
+
+// GitCredentialDir returns the path to the user's git credential directory for
+// the given proxy and cluster.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>
+func GitCredentialDir(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(GitDir(baseDir, proxy, username), cluster)
+}
+
+// GitCertPath returns the path to the user's TLS certificate for the given
+// proxy, cluster, and git server.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>/<gitserver>.crt
+func GitCertPath(baseDir, proxy, username, cluster, gitServer string) string {
+	return filepath.Join(GitCredentialDir(baseDir, proxy, username, cluster), gitServer+FileExtTLSCert)
+}
+
+// GitKeyPath returns the path to the user's private key for the given proxy,
+// cluster, and git server.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>/<gitserver>.key
+func GitKeyPath(baseDir, proxy, username, cluster, gitServer string) string {
+	return filepath.Join(GitCredentialDir(baseDir, proxy, username, cluster), gitServer+fileExtTLSKey)
 }
 
 // WindowsDesktopDir returns the path to the user's Windows desktop directory

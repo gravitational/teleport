@@ -291,6 +291,11 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: newUserKeys.linuxDesktop,
 			Cert:       certs.TLS,
 		}
+	case proto.UserCertsRequest_Git:
+		keyRing.GitTLSCredentials[params.RouteToGit.Name] = TLSCredential{
+			PrivateKey: newUserKeys.git,
+			Cert:       certs.TLS,
+		}
 	}
 
 	return keyRing, nil
@@ -474,6 +479,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 		newUserKeys.linuxDesktop = tlsSubjectKey
+	case proto.UserCertsRequest_Git:
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		newUserKeys.git = tlsSubjectKey
 	default:
 		// Assume we're reissuing the base SSH and TLS certs, reuse the existing
 		// private keys.
@@ -522,6 +533,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		RouteToApp:                       params.RouteToApp,
 		RouteToWindowsDesktop:            params.RouteToWindowsDesktop,
 		RouteToLinuxDesktop:              params.RouteToLinuxDesktop,
+		RouteToGit:                       params.RouteToGit,
 		NodeName:                         params.NodeName,
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
@@ -764,7 +776,7 @@ type PerformSessionMFACeremonyParams struct {
 }
 
 type newUserKeys struct {
-	ssh, tls, app, db, kube, windowsDesktop, linuxDesktop *keys.PrivateKey
+	ssh, tls, app, db, kube, windowsDesktop, linuxDesktop, git *keys.PrivateKey
 }
 
 // PerformSessionMFACeremonyResult contains the result of a successful
