@@ -181,6 +181,7 @@ import (
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/git/githttp"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -5839,7 +5840,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		authorizerOpts := authz.AuthorizerOpts{
 			ClusterName:      cn.GetClusterName(),
 			AccessPoint:      accessPoint,
 			ScopedRoleReader: accessPoint.ScopedRoleReader(),
@@ -5847,7 +5848,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Logger:           process.logger,
 			PermitCaching:    process.Config.CachePolicy.Enabled,
 			ScopesFeatures:   process.scopesFeatures,
-		})
+		}
+		authorizer, err := authz.NewAuthorizer(authorizerOpts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5900,6 +5906,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// TODO(okraport): determine if we should shuffle app servers here.
 				return allAppServers[0].GetApp(), nil
 			})
+
+		gitHTTPHandler, err := githttp.NewHandler(process.GracefulExitContext(), githttp.HandlerConfig{
+			Clock:             process.Clock,
+			Emitter:           asyncEmitter,
+			Authorizer:        authorizer,
+			AccessPoint:       accessPoint,
+			ConnectionMonitor: connMonitor,
+			GitServerGetter:   accessPoint.GitServerReadOnlyClient(),
+			ClusterName:       cn.GetClusterName(),
+			HostID:            conn.HostUUID(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
@@ -5964,6 +5984,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
+			GitHTTPHandler:            gitHTTPHandler,
 		}
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {

@@ -368,6 +368,10 @@ type Config struct {
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
 
+	// GitHTTPHandler handles Git HTTP proxy requests authenticated via
+	// client TLS certificates with RouteToGit.
+	GitHTTPHandler http.Handler
+
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
@@ -483,17 +487,32 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// If the request is for the Access Graph API, forward to the access graph handler.
-	// This handler is only setup for enterprise but for OSS and non licensed clusters,
-	// it will return an error indicating that the feature is not enabled.
-	if isAccessGraphAPIRequest(r) {
-		if h.handler.accessGraphHandler == nil {
-			trace.WriteError(w, trace.NotImplemented("access graph is not enabled"))
+	identity, hasIdentityFromTLSCert := identityFromRequest(r)
+	if hasIdentityFromTLSCert {
+		// If the request is for the Access Graph API, forward to the access graph handler.
+		// This handler is only setup for enterprise but for OSS and non licensed clusters,
+		// it will return an error indicating that the feature is not enabled.
+		if isAccessGraphAPIRequest(identity) {
+			if h.handler.accessGraphHandler == nil {
+				trace.WriteError(w, trace.NotImplemented("access graph is not enabled"))
+				return
+			}
+			h.handler.accessGraphHandler.ServeHTTP(w, r)
 			return
 		}
-		h.handler.accessGraphHandler.ServeHTTP(w, r)
-		return
+
+		// If the request has a client certificate with RouteToGit, forward to the
+		// git HTTP handler.
+		if isGitAccessRequest(identity) {
+			if h.handler.cfg.GitHTTPHandler == nil {
+				trace.WriteError(w, trace.NotImplemented("git http is not enabled"))
+				return
+			}
+			h.handler.cfg.GitHTTPHandler.ServeHTTP(w, r)
+			return
+		}
 	}
+
 	// If the request is either to the fragment authentication endpoint, a DBSC
 	// endpoint, or if the request has a session cookie or a client cert, forward
 	// to application handlers. If the request is requesting a FQDN that is not of
@@ -553,17 +572,29 @@ func (h *Handler) SetAccessGraphHandler(handler http.Handler) {
 // isAccessGraphAPIRequest returns true if the request is authenticated with a client TLS certificate
 // with UsageAccessGraphAPIOnly set in the certificate's usage, indicating that the request is
 // intended for the Access Graph API.
-func isAccessGraphAPIRequest(r *http.Request) bool {
-	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
-		return false
-	}
-
-	cert := r.TLS.PeerCertificates[0]
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
+func isAccessGraphAPIRequest(identity *tlsca.Identity) bool {
+	if identity == nil {
 		return false
 	}
 	return slices.Contains(identity.Usage, teleport.UsageAccessGraphAPIOnly)
+}
+
+func identityFromRequest(r *http.Request) (*tlsca.Identity, bool) {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return nil, false
+	}
+	cert := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, false
+	}
+	return identity, true
+}
+
+func isGitAccessRequest(identity *tlsca.Identity) bool {
+	return identity != nil &&
+		slices.Contains(identity.Usage, teleport.UsageGitOnly) &&
+		identity.RouteToGit.Name != ""
 }
 
 // HandleConnection handles connections from plain TCP applications.
