@@ -37,6 +37,7 @@ import (
 const (
 	ServiceType                      = "workload-identity-aws-roles-anywhere"
 	DefaultAWSSessionDuration        = 6 * time.Hour
+	MinAWSSessionDuration            = 15 * time.Minute
 	MaxAWSSessionDuration            = 12 * time.Hour
 	DefaultAWSSessionRenewalInterval = 1 * time.Hour
 )

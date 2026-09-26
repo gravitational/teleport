@@ -23,4 +23,4 @@ test-terraform-provider:  | $(TEST_LOG_DIR)
 
 .PHONY: test-terraform-provider-mwi
 test-terraform-provider-mwi:  | $(TEST_LOG_DIR)
-	make -C terraform-mwi test TEST_LOG_DIR=$(TEST_LOG_DIR)
+	make -C terraform-mwi testacc TEST_LOG_DIR=$(TEST_LOG_DIR)
