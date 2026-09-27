@@ -26,36 +26,12 @@ import (
 	"github.com/mattn/go-shellwords"
 
 	"github.com/gravitational/teleport/api/types"
+	gitcommon "github.com/gravitational/teleport/lib/srv/git/common"
 )
-
-// Repository is the repository path in the SSH command.
-type Repository string
-
-// Owner returns the first part of the repository path. If repository does not
-// have multiple parts, empty string will be returned.
-//
-// For GitHub, owner is either the user or the organization that owns the repo.
-func (r Repository) Owner() string {
-	if owner, _, ok := strings.Cut(string(r), "/"); ok {
-		return owner
-	}
-	return ""
-}
-
-// Command is the Git command to be executed.
-type Command struct {
-	// SSHCommand is the original SSH command.
-	SSHCommand string
-	// Service is the git service of the command (either git-upload-pack or
-	// git-receive-pack).
-	Service string
-	// Repository returns the repository path of the command.
-	Repository Repository
-}
 
 // ParseSSHCommand parses the provided SSH command and returns the plumbing
 // command details.
-func ParseSSHCommand(sshCommand string) (*Command, error) {
+func ParseSSHCommand(sshCommand string) (*gitcommon.Command, error) {
 	args, err := shellwords.Parse(sshCommand)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -75,10 +51,10 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 		if len(args) != 2 {
 			return nil, trace.CompareFailed("invalid SSH command %s: expecting 2 arguments for %q but got %d", sshCommand, args[0], len(args))
 		}
-		return &Command{
-			SSHCommand: sshCommand,
-			Service:    args[0],
-			Repository: Repository(args[1]),
+		return &gitcommon.Command{
+			RequestLine: sshCommand,
+			Service:     args[0],
+			Repository:  gitcommon.Repository(args[1]),
 		}, nil
 
 	// git-upload-pack - Send objects packed back to git-fetch-pack
@@ -90,10 +66,10 @@ func ParseSSHCommand(sshCommand string) (*Command, error) {
 			return nil, trace.CompareFailed("invalid SSH command %s: expecting 2 non-flag arguments for %q but got %d", sshCommand, args[0], len(args))
 		}
 
-		return &Command{
-			SSHCommand: sshCommand,
-			Service:    args[0],
-			Repository: Repository(args[1]),
+		return &gitcommon.Command{
+			RequestLine: sshCommand,
+			Service:     args[0],
+			Repository:  gitcommon.Repository(args[1]),
 		}, nil
 	default:
 		return nil, trace.BadParameter("unsupported SSH command %q", sshCommand)
@@ -115,7 +91,7 @@ func skipSSHCommandFlags(args []string) (ret []string) {
 }
 
 // checkSSHCommand performs basic checks against the SSH command.
-func checkSSHCommand(server types.Server, command *Command) error {
+func checkSSHCommand(server types.Server, command *gitcommon.Command) error {
 	// Only supporting GitHub for now.
 	if server.GetGitHub() == nil {
 		return trace.BadParameter("the git_server is misconfigured due to missing GitHub spec, contact your Teleport administrator")

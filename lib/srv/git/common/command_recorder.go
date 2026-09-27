@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package git
+package common
 
 import (
 	"bytes"
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
@@ -34,6 +35,34 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
+
+// Repository is the repository path in the git command (e.g.
+// "gravitational/teleport.git").
+type Repository string
+
+// Owner returns the first part of the repository path. If repository does not
+// have multiple parts, empty string will be returned.
+//
+// For GitHub, owner is either the user or the organization that owns the repo.
+func (r Repository) Owner() string {
+	if owner, _, ok := strings.Cut(string(r), "/"); ok {
+		return owner
+	}
+	return ""
+}
+
+// Command is the Git command to be executed.
+type Command struct {
+	// RequestLine is the client request string. For SSH, this is the exec
+	// request (e.g. "git-upload-pack 'repo'"). For HTTP, this is the method
+	// and path (e.g. "POST /org/repo.git/git-receive-pack").
+	RequestLine string
+	// Service is the git service of the command (either git-upload-pack or
+	// git-receive-pack).
+	Service string
+	// Repository returns the repository path of the command.
+	Repository Repository
+}
 
 // CommandRecorder records Git commands by implementing io.Writer to receive a
 // copy of stdin from the git client.
@@ -101,8 +130,9 @@ type pushCommandRecorder struct {
 
 func newPushCommandRecorder(parentCtx context.Context, command Command) *pushCommandRecorder {
 	return &pushCommandRecorder{
-		Command: command,
-		logger:  slog.With(teleport.ComponentKey, "git:packp"),
+		Command:   command,
+		parentCtx: parentCtx,
+		logger:    slog.With(teleport.ComponentKey, "git:packp"),
 	}
 }
 

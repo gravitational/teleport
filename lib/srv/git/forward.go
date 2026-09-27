@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	gitcommon "github.com/gravitational/teleport/lib/srv/git/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -527,7 +528,7 @@ func (s *ForwardServer) handleExec(ctx context.Context, sctx *sessionContext, re
 	if err := checkSSHCommand(s.cfg.TargetServer, command); err != nil {
 		return trace.Wrap(err)
 	}
-	recorder := NewCommandRecorder(ctx, *command)
+	recorder := gitcommon.NewCommandRecorder(ctx, *command)
 
 	sctx.remoteSession.Stdout = sctx.channel
 	sctx.remoteSession.Stderr = sctx.channel.Stderr()
@@ -602,8 +603,8 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 	return event
 }
 
-func (s *ForwardServer) makeGitCommandEventWithExecResult(sctx *sessionContext, recorder CommandRecorder, execErr error) *apievents.GitCommand {
-	event := s.makeGitCommandEvent(sctx, recorder.GetCommand().SSHCommand, execErr)
+func (s *ForwardServer) makeGitCommandEventWithExecResult(sctx *sessionContext, recorder gitcommon.CommandRecorder, execErr error) *apievents.GitCommand {
+	event := s.makeGitCommandEvent(sctx, recorder.GetCommand().RequestLine, execErr)
 
 	event.ExitCode = strconv.Itoa(sshutils.ExitCodeFromExecError(execErr))
 	event.Path = string(recorder.GetCommand().Repository)
