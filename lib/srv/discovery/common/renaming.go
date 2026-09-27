@@ -155,7 +155,7 @@ func ApplyAKSNameSuffix(cluster types.KubeCluster) {
 // kube cluster.
 // Format: <name>-gke-<location>-<project ID>.
 func ApplyGKENameSuffix(cluster types.KubeCluster) {
-	if hasOverrideLabel(cluster, types.GCPKubeClusterNameOverrideLabel) {
+	if hasOverrideLabel(cluster, types.GCPKubeClusterNameOverrideLabels...) {
 		// don't rewrite manual name override.
 		return
 	}

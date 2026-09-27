@@ -177,10 +177,10 @@ func NewKubeClusterFromGCPGKE(cluster gcp.GKECluster) (types.KubeCluster, error)
 }
 
 // setGCPKubeName modifies the types.Metadata in place, overriding the first
-// part if the GKE kube cluster override label is present, and setting the kube
+// part if a GKE kube cluster override label is present, and setting the kube
 // cluster name.
 func setGCPKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName([]string{types.GCPKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
+	return setResourceName(types.GCPKubeClusterNameOverrideLabels, meta, firstNamePart, extraNameParts...)
 }
 
 // getOrSetDefaultGCPDescription gets the default GKE cluster description if available,

@@ -57,6 +57,15 @@ with the same name to prevent them from colliding in Teleport.
 
 </Admonition>
 
+<Admonition type="note">
+GCP rejects resource label keys that contain uppercase letters, so the
+`TeleportKubernetesName` tag cannot be attached to a GKE cluster. For GKE,
+attach the following tag instead:
+ - ***key***: `teleport-kubernetes-name`
+ - ***value***: desired name
+
+</Admonition>
+
 In addition to detecting new Kubernetes clusters, the Discovery Service also removes
 — from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags
 no longer meet the filtering labels.

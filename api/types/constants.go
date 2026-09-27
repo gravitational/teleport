@@ -1027,6 +1027,12 @@ const (
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
+	// GCPLegalKubeClusterNameOverrideLabel is a GCP-legal alternative to
+	// GCPKubeClusterNameOverrideLabel. GCP rejects resource label keys that
+	// contain uppercase letters, so the generic key can never be set on a
+	// GKE cluster.
+	GCPLegalKubeClusterNameOverrideLabel = "teleport-kubernetes-name"
+
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
@@ -1147,6 +1153,16 @@ var (
 		// don't reference it in documentation or error messages anymore.
 		// The generic label takes precedence.
 		TeleportNamespace + "/kubernetes-name",
+	}
+	// GCPKubeClusterNameOverrideLabels are the label keys that Teleport
+	// supports to override the kubernetes cluster name of discovered GCP kube
+	// clusters. The generic key is listed first for cross-cloud consistency
+	// with the other clouds; the GCP-legal key is the only one of the two that
+	// can actually be set on a GKE cluster, because GCP rejects resource label
+	// keys that contain uppercase letters.
+	GCPKubeClusterNameOverrideLabels = []string{
+		GCPKubeClusterNameOverrideLabel,
+		GCPLegalKubeClusterNameOverrideLabel,
 	}
 	// AWSDatabaseNameOverrideLabels are the label keys that Teleport
 	// supports to override the database name of discovered AWS databases.

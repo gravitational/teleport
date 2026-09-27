@@ -333,6 +333,36 @@ func TestApplyGKENameSuffix(t *testing.T) {
 	runRenameTest(t, test)
 }
 
+// TestApplyGKENameSuffixGCPLegalOverrideLabel covers the GCP-legal override
+// label: GCP rejects the generic TeleportKubernetesName key because resource
+// label keys must be lowercase, so the override is unreachable on GKE without
+// the legal alternative.
+func TestApplyGKENameSuffixGCPLegalOverrideLabel(t *testing.T) {
+	gkeCluster := gcp.GKECluster{
+		Name:   "some-cluster",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			types.GCPLegalKubeClusterNameOverrideLabel: "my-custom-name",
+		},
+		ProjectID:   "dev-123456",
+		Location:    "central-1",
+		Description: "desc1",
+	}
+	cluster, err := NewKubeClusterFromGCPGKE(gkeCluster)
+	require.NoError(t, err)
+	test := renameTest{
+		resource: cluster,
+		renameFn: func(r types.ResourceWithLabels) {
+			c := r.(types.KubeCluster)
+			ApplyGKENameSuffix(c)
+		},
+		originalName:      "my-custom-name",
+		nameOverrideLabel: types.GCPLegalKubeClusterNameOverrideLabel,
+		wantNewName:       "my-custom-name-gke-central-1-dev-123456",
+	}
+	runRenameTest(t, test)
+}
+
 func TestApplyGCPDatabaseNameSuffix(t *testing.T) {
 	dbName := "some-db"
 	location := "us-central1"
