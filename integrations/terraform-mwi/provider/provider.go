@@ -179,6 +179,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 func (p *Provider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
 	return []func() ephemeral.EphemeralResource{
 		NewKubernetesEphemeralResource,
+		NewAWSRolesAnywhereEphemeralResource,
 	}
 }
 

@@ -60,13 +60,12 @@ endif
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
 
-PHONY: test | $(TEST_LOG_DIR)
-test:
+.PHONY: test testacc
+test: | $(TEST_LOG_DIR)
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform-mwi.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-terraform-mwi.json
 
-PHONY: testacc
-testacc:
-	TF_ACC=1 go test -v -cover -timeout 120m ./...
+testacc: export TF_ACC := 1
+testacc: test
 
 .PHONY: lint
 lint:
