@@ -1686,6 +1686,7 @@ var (
 		types.KindDatabase:               {},
 		types.KindGitServer:              {},
 		types.KindKubernetesCluster:      {},
+		types.KindKubeServer:             {},
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
@@ -1930,8 +1931,20 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 		return nil, trace.AccessDenied("pinned_only is not supported for scoped identities")
 	}
 
-	if len(req.Kinds) != 1 || req.Kinds[0] != types.KindNode {
-		return nil, trace.AccessDenied("only node kind is supported for scoped identities")
+	supportedKinds := map[string]struct{}{
+		types.KindApp:               {},
+		types.KindAppServer:         {},
+		types.KindNode:              {},
+		types.KindKubernetesCluster: {},
+		types.KindKubeServer:        {},
+	}
+
+	kindSet := make(map[string]struct{})
+	for _, kind := range req.Kinds {
+		if _, ok := supportedKinds[kind]; !ok {
+			return nil, trace.AccessDenied("scoped identities do not support kind %q", kind)
+		}
+		kindSet[kind] = struct{}{}
 	}
 
 	userFilter := services.MatchResourceFilter{
@@ -1950,8 +1963,18 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 
 	ruleCtx := a.scopedContext.RuleContext()
 
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, scopedaccess.List); err != nil {
-		return nil, trace.Wrap(err)
+	for k := range kindSet {
+		var verbs []scopedaccess.Verb
+		if k == types.KindNode {
+			// Nodes only require VerbList.
+			verbs = []scopedaccess.Verb{scopedaccess.List}
+		} else {
+			// Other kinds require both list and read permissions.
+			verbs = []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read}
+		}
+		if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, k, verbs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	resourceLister := &unifiedResourceLister{
@@ -1962,8 +1985,7 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 	}
 
 	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-		// currently only nodes are supported
-		if resource.GetKind() != types.KindNode {
+		if _, ok := supportedKinds[resource.GetKind()]; !ok {
 			return false, nil
 		}
 
@@ -2658,22 +2680,38 @@ type scopedResourceChecker struct {
 }
 
 func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) error {
-	server, ok := resource.(*types.ServerV2)
-	if !ok {
-		logger.WarnContext(c.ctx, "Unable to cast unified resource to server",
-			"resource_name", resource.GetName(),
-			"resource_kind", resource.GetKind(),
-		)
-		return trace.AccessDenied("scoped resource checker only supports servers")
+	switch res := resource.(type) {
+	case types.AppServer:
+		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+			func(checker *services.ScopedAccessChecker) error {
+				if res.GetSubKind() == types.KindIdentityCenterAccount {
+					return trace.AccessDenied("identity center account apps are not supported for scoped identities")
+				}
+
+				// MFA is not required for operations on app resources but
+				// will be enforced at the connection time.
+				state := services.AccessState{MFAVerified: true}
+				return checker.App().CheckAccessToApp(res.GetApp(), state)
+			})
+		return trace.Wrap(err)
+
+	case types.KubeServer:
+		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+			func(checker *services.ScopedAccessChecker) error {
+				return checker.Kube().CanAccessCluster(res.GetCluster())
+			})
+		return trace.Wrap(err)
+
+	case *types.ServerV2:
+		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+			func(checker *services.ScopedAccessChecker) error {
+				return checker.SSH().CanAccessSSHServer(res)
+			})
+		return trace.Wrap(err)
+
+	default:
+		return trace.BadParameter("could not check access to resource type %T", resource)
 	}
-
-	serverScope := cmp.Or(server.Scope, apiscopes.Root)
-
-	err := c.scopedContext.CheckerContext.Decision(c.ctx, serverScope,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.SSH().CanAccessSSHServer(server)
-		})
-	return trace.Wrap(err)
 }
 
 func (c *scopedResourceChecker) GetAllowedLoginsForResource(
@@ -6946,6 +6984,31 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 	}
 
 	session, err := a.authServer.CreateAppSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session.WithoutSecrets(), nil
+}
+
+// CreateAppSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (a *ScopedServerWithRoles) CreateAppSession(
+	ctx context.Context, req *proto.CreateAppSessionRequest,
+) (types.WebSession, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		s, err := unscoped.CreateAppSession(ctx, req)
+		return s, trace.Wrap(err)
+	}
+
+	if err := a.scopedCurrentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	id := a.scopedContext.Identity.GetIdentity()
+	session, err := a.authServer.CreateAppSession(
+		ctx, req, id, a.scopedContext.CheckerContext.CertParams(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -352,6 +352,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   const username = ctx.storeUser.state.username;
   const authType = ctx.storeUser.state.authType;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
+  const scope = ctx.storeUser.getScope();
   return (
     <>
       <ButtonBorder
@@ -370,6 +371,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
           kubeConnectName={kube.name}
           clusterId={clusterId}
           accessRequestId={accessRequestId}
+          scope={scope}
         />
       )}
     </>

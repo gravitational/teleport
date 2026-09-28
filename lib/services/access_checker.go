@@ -102,7 +102,8 @@ type AccessChecker interface {
 	CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
-	// for this role set, otherwise it returns ttl unchanged
+	// for this role set. TTL is left unchanged if already smaller than the
+	// allowed one.
 	AdjustSessionTTL(ttl time.Duration) time.Duration
 
 	// AdjustClientIdleTimeout adjusts requested idle timeout

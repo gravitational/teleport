@@ -107,7 +107,10 @@ function expandDesktopKinds(kinds?: string[]): string[] | undefined {
   return Array.from(new Set([...kinds, 'windows_desktop', 'linux_desktop']));
 }
 
-const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
+const getAvailableKindsWithAccess = (
+  flags: FeatureFlags,
+  scoped: boolean
+): FilterKind[] => {
   const kinds: FilterKind[] = [
     {
       kind: 'node',
@@ -119,7 +122,7 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
     },
     {
       kind: 'db',
-      disabled: !flags.databases,
+      disabled: !flags.databases || scoped,
     },
     {
       kind: 'kube_cluster',
@@ -127,15 +130,15 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
     },
     {
       kind: 'windows_desktop',
-      disabled: !flags.desktops,
+      disabled: !flags.desktops || scoped,
     },
     {
       kind: 'git_server',
-      disabled: !flags.gitServers,
+      disabled: !flags.gitServers || scoped,
     },
     {
       kind: 'mcp',
-      disabled: !flags.applications,
+      disabled: !flags.applications || scoped,
     },
   ];
 
@@ -317,7 +320,10 @@ export function ClusterResources({
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}
-        availableKinds={getAvailableKindsWithAccess(flags)}
+        availableKinds={getAvailableKindsWithAccess(
+          flags,
+          !!storeUser.getScope()
+        )}
         pinning={pinning}
         ClusterDropdown={
           // TODO(bl-nero): Enable cluster dropdown for scoped sessions once

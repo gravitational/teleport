@@ -1875,7 +1875,7 @@ func (g *GRPCServer) DeleteAllSnowflakeSessions(ctx context.Context, _ *emptypb.
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (g *GRPCServer) CreateAppSession(ctx context.Context, req *authpb.CreateAppSessionRequest) (*authpb.CreateAppSessionResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4931,7 +4931,9 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 		if errors.Is(err, services.ErrScopedIdentity) && isScopePinnedLocalUserCredential(ctx) && req.MFARequiredCheck != nil {
 			switch req.MFARequiredCheck.Target.(type) {
 			case *authpb.IsMFARequiredRequest_AdminAction:
+			case *authpb.IsMFARequiredRequest_App:
 			case *authpb.IsMFARequiredRequest_Node:
+			case *authpb.IsMFARequiredRequest_KubernetesCluster:
 			default:
 				// we are only suppressing the subset of MFA required checks that need to be suppressed for currently
 				// supported scoped workflows.

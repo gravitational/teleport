@@ -30,6 +30,7 @@ export const Local = () => {
       authType={'local'}
       kubeConnectName={'tele.logicoma.dev-prod'}
       clusterId={'some-cluster-name'}
+      scope=""
     />
   );
 };
@@ -43,6 +44,7 @@ export const LocalWithRequestId = () => {
       kubeConnectName={'tele.logicoma.dev-prod'}
       clusterId={'some-cluster-name'}
       accessRequestId={'8289cdb1-385c-5b02-85f1-fa2a934b749f'}
+      scope=""
     />
   );
 };
@@ -55,6 +57,20 @@ export const Sso = () => {
       authType={'sso'}
       kubeConnectName={'tele.logicoma.dev-prod'}
       clusterId={'some-cluster-name'}
+      scope=""
+    />
+  );
+};
+
+export const Scoped = () => {
+  return (
+    <Component
+      onClose={() => null}
+      username={'sam'}
+      authType={'local'}
+      kubeConnectName={'tele.logicoma.dev-prod'}
+      clusterId={'some-cluster-name'}
+      scope="/foo/bar"
     />
   );
 };

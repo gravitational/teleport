@@ -390,11 +390,24 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 
 type NewAppSessionRequest = sessionreq.NewAppSessionRequest
 
+// SessionTTLAdjuster is used to adjust the requested TTL to lowest max allowed
+// TTL based on the user's roles and configuration policies.
+type SessionTTLAdjuster interface {
+	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
+	// based on the user's roles and configuration policies. TTL is left
+	// unchanged if already smaller than the allowed one.
+	AdjustSessionTTL(ttl time.Duration) time.Duration
+}
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (a *Server) CreateAppSession(
+	ctx context.Context,
+	req *proto.CreateAppSessionRequest, identity tlsca.Identity,
+	ttlAdjuster SessionTTLAdjuster,
+) (types.WebSession, error) {
 	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -407,7 +420,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	// sessionID which will be used to fetch services.WebSession which
 	// contains a certificate whose life matches the life of the session
 	// that will be used to establish the connection.
-	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(a.clock.Now()))
+	ttl := ttlAdjuster.AdjustSessionTTL(identity.Expires.Sub(a.clock.Now()))
 
 	// Encode user traits in the app access certificate. This will allow to
 	// pass user traits when talking to app servers in leaf clusters.
