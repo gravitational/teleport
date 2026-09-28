@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ResolutionTag represents enum type of access request resolution constant
@@ -41,6 +43,7 @@ const (
 // AccessRequestData represents generic plugin data required for access request processing
 type AccessRequestData struct {
 	User               string
+	UserDisplay        types.UserDisplay
 	Roles              []string
 	RequestKind        string
 	RequestReason      string
@@ -57,6 +60,8 @@ type AccessRequestData struct {
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
 func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData, err error) {
 	data.User = dataMap["user"]
+	data.UserDisplay.Primary = dataMap["user_display_primary"]
+	data.UserDisplay.Secondary = dataMap["user_display_secondary"]
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
 	}
@@ -125,6 +130,8 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 	result := make(map[string]string)
 
 	result["user"] = data.User
+	result["user_display_primary"] = data.UserDisplay.Primary
+	result["user_display_secondary"] = data.UserDisplay.Secondary
 	result["roles"] = strings.Join(data.Roles, ",")
 	result["resources"] = strings.Join(data.Resources, ",")
 	result["request_kind"] = data.RequestKind

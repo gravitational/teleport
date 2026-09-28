@@ -98,7 +98,7 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	sortedRoles := sortList(reqData.Roles)
 
 	if len(reqData.User) > 0 {
-		msgFieldToBuilder(&builder, "User", reqData.User)
+		msgFieldToBuilder(&builder, "User", formatUserDisplay(reqData.User, reqData.UserDisplay))
 	}
 	if len(reqData.LoginsByRole) > 0 {
 		for _, role := range sortedRoles {
@@ -134,10 +134,25 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	return builder.String()
 }
 
+func formatUserDisplay(username string, display types.UserDisplay) string {
+	if display.Primary == "" {
+		return username
+	}
+
+	primary := lib.MarkdownEscapeInLine(display.Primary, requestInlineLimit)
+	if display.Secondary == "" {
+		return fmt.Sprintf("%s (%s)", primary, username)
+	}
+
+	secondary := lib.MarkdownEscapeInLine(display.Secondary, requestInlineLimit)
+	return fmt.Sprintf("%s · %s (%s)", primary, secondary, username)
+}
+
 func MsgReview(review types.AccessReview) (string, error) {
 	if review.Reason != "" {
 		review.Reason = lib.MarkdownEscape(review.Reason, ReviewReasonLimit)
 	}
+	author := formatUserDisplay(review.Author, types.UserDisplay{Primary: review.AuthorInfo.UserDisplay().Primary})
 
 	var proposedStateEmoji string
 	switch review.ProposedState {
@@ -150,11 +165,13 @@ func MsgReview(review types.AccessReview) (string, error) {
 	var builder strings.Builder
 	err := reviewReplyTemplate.Execute(&builder, struct {
 		types.AccessReview
+		Author             string
 		ProposedState      string
 		ProposedStateEmoji string
 		CreatedTime        string
 	}{
 		review,
+		author,
 		review.ProposedState.String(),
 		proposedStateEmoji,
 		review.Created.Format(time.RFC822),
