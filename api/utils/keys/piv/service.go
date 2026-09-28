@@ -211,15 +211,11 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	// Check that the public key in the slot matches our record.
-	publicKey, err := y.getPublicKey(pivSlot)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !publicKey.Equal(ref.PublicKey) {
-		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
-	}
+	// Previous versions used to check that the public key in the slot matches the expected record and failed fast.
+	// The check itself was more expensive than the signature, so it was removed.
+	// This doesn't have security implications because the server will reject signature with a public key mismatch.
+	// If public keys mismatching proves to be a common issue causing user confusion, we can implement a signature
+	// check after [y.sign]. Signature check should take less than a millisecond on modern hardware.
 
 	// If the sign request is for an unknown agent key, ensure that the requested PIV slot was
 	// configured with a self-signed Teleport metadata certificate.
