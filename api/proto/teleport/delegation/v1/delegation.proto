@@ -1,0 +1,73 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.delegation.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
+
+// Delegation contains information about the identity (the "delegator") on whose
+// behalf the current identity (the "delegate") is acting. This information will
+// be included in audit logs, and used to route an AI agent's access requests to
+// their creating user.
+//
+// NOTE: Remember to keep this in-sync with api/proto/teleport/legacy/types/delegation.proto.
+message Delegation {
+  // Chain of delegation. The first element contains the original delegator,
+  // with each successive element containing the identity to which the previous
+  // one sub-delegated. The last element is the current identity.
+  repeated DelegationChainLink chain = 1;
+}
+
+// DelegationChainLink is a link in the chain of delegation. It contains information
+// about the identity who delegated their access.
+message DelegationChainLink {
+  oneof identity {
+    // Details of the human user who delegated their access.
+    UserDelegator user = 1;
+
+    // Details of the bot that delegated its access.
+    BotDelegator bot = 2;
+  }
+}
+
+// UserDelegator contains details of the human user who delegated their access.
+message UserDelegator {
+  // Teleport username of the user.
+  string name = 1;
+}
+
+// BotDelegator contains details of the machine user that delegated its access.
+message BotDelegator {
+  // Name of the bot.
+  string name = 1;
+
+  // Scope of the bot, if it is a scoped bot.
+  optional string scope = 2;
+
+  // Beam details associated to this bot.
+  BeamInfo beam = 3;
+}
+
+// BeamInfo contains details about the beam in which the bot/machine delegator
+// is running.
+message BeamInfo {
+  // ID is the globally unique UUID of the Beam.
+  string id = 1;
+
+  // Alias is the human-friendly name given to the Beam. Over time, it will be
+  // recycled and used by different beams.
+  string alias = 2;
+}
