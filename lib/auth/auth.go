@@ -5242,6 +5242,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	allowedResourceAccessIDs := accessInfo.AllowedResourceAccessIDs
 	accessRequests := identity.ActiveRequests
 
+	opts := &newWebSessionOpts{}
+
 	if req.ReloadUser {
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
@@ -5263,6 +5265,13 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		roles = userState.GetRoles()
 
 	} else if req.AccessRequestID != "" {
+		if identity.ScopePin.GetScope() != "" {
+			return nil, trace.Wrap(
+				services.ErrScopedIdentity,
+				"request contains an access request ID, but access requests are not supported by scoped sessions",
+			)
+		}
+
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -5289,6 +5298,13 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 			expiresAt = webSessionTTL
 		}
 	} else if req.Switchback {
+		if identity.ScopePin.GetScope() != "" {
+			return nil, trace.Wrap(
+				services.ErrScopedIdentity,
+				"unable to switch back to the previous role, since access requests are not supported for scoped sessions",
+			)
+		}
+
 		if prevSession.GetLoginTime().IsZero() {
 			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
 		}
@@ -5314,6 +5330,9 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = userState.GetRoles()
 		accessRequests = nil
+	} else {
+		// Keep existing scope pin, if any, in the new session.
+		opts.scopePin = identity.ScopePin
 	}
 
 	// Create a new web session with the same private key. This way, if the
@@ -5329,7 +5348,6 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 
 	// Keep existing device extensions in the new session.
-	opts := &newWebSessionOpts{}
 	if prevSession.GetHasDeviceExtensions() {
 		var err error
 		opts.deviceExtensions, err = decodeDeviceExtensionsFromSession(prevSession)
@@ -5349,6 +5367,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		RequestedResourceAccessIDs: allowedResourceAccessIDs,
 		SSHPrivateKey:              prevSSHKey,
 		TLSPrivateKey:              prevTLSKey,
+		Scope:                      identity.ScopePin.GetScope(),
 	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

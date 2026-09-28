@@ -2133,7 +2133,7 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSession
 // ExtendWebSession creates a new web session for a user based on a valid
 // existing web session.
 func (g *GRPCServer) ExtendWebSession(ctx context.Context, req *authpb.ExtendWebSessionRequest) (*authpb.ExtendWebSessionResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
