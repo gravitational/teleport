@@ -135,7 +135,18 @@ func dialProxyWithHTTPDialer(
 		Header: header,
 	}
 
+	// HTTP proxy CONNECT is part of the connection establishment
+	// so it is canceled by the dial context.
+	stopClose := context.AfterFunc(ctx, func() {
+		conn.Close()
+	})
+	defer stopClose()
+
 	if err := connectReq.Write(conn); err != nil {
+		if !stopClose() {
+			// The context has already been canceled.
+			return nil, trace.Wrap(ctx.Err())
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -149,6 +160,12 @@ func dialProxyWithHTTPDialer(
 	// here. Disabling bodyclose linter for this edge case.
 	//nolint:bodyclose // avoid draining the connection
 	resp, err := http.ReadResponse(br, connectReq)
+	// The CONNECT request has finished so do not close the connection
+	// as a result of dial timeout.
+	if !stopClose() {
+		// The context has already been canceled.
+		return nil, trace.Wrap(ctx.Err())
+	}
 	if err != nil {
 		conn.Close()
 		return nil, trace.Wrap(err)
