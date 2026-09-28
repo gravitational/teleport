@@ -229,7 +229,14 @@ impl ScardBackend {
                 _ => return Err(Self::unsupported_combo_error(req.io_control_code, call)),
             },
             ScardIoCtlCode::ListReadersW | ScardIoCtlCode::ListReadersA => match call {
-                ScardCall::ListReadersCall(_) => self.handle_list_readers(),
+                ScardCall::ListReadersCall(_) => {
+                    let encoding = if req.io_control_code == ScardIoCtlCode::ListReadersA {
+                        CharacterSet::Ansi
+                    } else {
+                        CharacterSet::Unicode
+                    };
+                    self.handle_list_readers(encoding)
+                }
                 _ => return Err(Self::unsupported_combo_error(req.io_control_code, call)),
             },
             ScardIoCtlCode::GetStatusChangeW | ScardIoCtlCode::GetStatusChangeA => match call {
@@ -312,10 +319,14 @@ impl ScardBackend {
         ))
     }
 
-    fn handle_list_readers(&mut self) -> ScardHandleResponse {
+    fn handle_list_readers(&mut self, encoding: CharacterSet) -> ScardHandleResponse {
         ScardHandleResponse::Common(ScardResponsePayload::ListReaders(
-            ListReadersReturn::new(ReturnCode::Success, vec![TELEPORT_READER_NAME.to_string()])
-                .into_inner(),
+            ListReadersReturn::new(
+                ReturnCode::Success,
+                vec![TELEPORT_READER_NAME.to_string()],
+                encoding,
+            )
+            .into_inner(),
         ))
     }
 
@@ -325,7 +336,7 @@ impl ScardBackend {
         call: GetStatusChangeCall,
     ) -> PduResult<ScardHandleResponse> {
         let timeout = call.timeout;
-        let context_id = call.context.value;
+        let context_id = call.context.value();
 
         if timeout != TIMEOUT_INFINITE && timeout != TIMEOUT_IMMEDIATE {
             // We've never seen one of these, but we log a warning here in case we ever come
@@ -518,7 +529,7 @@ impl ScardBackend {
     fn handle_connect(&mut self, call: ConnectCall) -> PduResult<ScardHandleResponse> {
         let handle = self.contexts.connect(
             call.common.context,
-            call.common.context.value,
+            call.common.context.value(),
             self.uuid,
             &self.cert_der,
             &self.key_der,
@@ -594,7 +605,7 @@ impl ScardBackend {
     }
 
     fn handle_release_context(&mut self, call: ContextCall) -> ScardHandleResponse {
-        self.contexts.release(call.context.value);
+        self.contexts.release(call.context.value());
         ScardHandleResponse::success_long_return()
     }
 
@@ -613,13 +624,13 @@ impl ScardBackend {
     fn handle_cancel(&mut self, call: ContextCall) -> PduResult<ScardHandleResponse> {
         debug!(
             "received SCARD_IOCTL_CANCEL for context [{}]",
-            call.context.value
+            call.context.value()
         );
 
         // Take the pending SCARD_IOCTL_GETSTATUSCHANGE response.
         let get_status_change_response = self
             .contexts
-            .take_scard_cancel_response(call.context.value)?;
+            .take_scard_cancel_response(call.context.value())?;
         if get_status_change_response.is_none() {
             warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGE");
         }
@@ -644,7 +655,7 @@ impl ScardBackend {
         &mut self,
         call: GetDeviceTypeIdCall,
     ) -> PduResult<ScardHandleResponse> {
-        if self.contexts.exists(call.context.value) {
+        if self.contexts.exists(call.context.value()) {
             // Reader type describes the type of the physical connection to the smartcard reader (e.g.
             // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
             //
@@ -662,7 +673,7 @@ impl ScardBackend {
                 "",
                 source:SmartcardBackendError(format!(
                     "got GetDeviceTypeIdCall for unknown context [{}]",
-                    call.context.value
+                    call.context.value()
                 ))
             ))
         }
@@ -750,8 +761,8 @@ impl Contexts {
     }
 
     fn disconnect(&mut self, handle: ScardHandle) -> PduResult<()> {
-        self.get_internal_mut(handle.context.value)?
-            .disconnect(handle.value);
+        self.get_internal_mut(handle.context().value())?
+            .disconnect(handle.value());
         Ok(())
     }
 
@@ -769,8 +780,8 @@ impl Contexts {
     }
 
     fn get_card(&mut self, handle: &ScardHandle) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
-        self.get_internal_mut(handle.context.value)?
-            .get(handle.value)
+        self.get_internal_mut(handle.context().value())?
+            .get(handle.value())
             .ok_or_else(|| pdu_other_err!("unknown ScardHandle"))
     }
 
@@ -780,12 +791,12 @@ impl Contexts {
 
     fn read_cache(&mut self, call: ReadCacheCall) -> PduResult<Option<Vec<u8>>> {
         Ok(self
-            .get_internal_mut(call.common.context.value)?
+            .get_internal_mut(call.common.context.value())?
             .cache_read(&call.lookup_name))
     }
 
     fn write_cache(&mut self, call: WriteCacheCall) -> PduResult<()> {
-        self.get_internal_mut(call.common.context.value)?
+        self.get_internal_mut(call.common.context.value())?
             .cache_write(call.lookup_name, call.common.data);
         Ok(())
     }

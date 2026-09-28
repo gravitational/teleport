@@ -53,8 +53,9 @@ type WindowsDesktopConfig struct {
 	// KDCAddr optionally configure the address of the Kerberos Key Distribution Center,
 	// which is used to support RDP Network Level Authentication (NLA).
 	// If empty, the LDAP address will be used instead.
-	// Note: NLA is only supported in Active Directory environments - this field has
-	// no effect when connecting to desktops as local Windows users.
+	// This field has no effect when connecting to desktops as local Windows users,
+	// since NLA for local Windows users uses the target desktop's LocalKDC
+	// rather than the domain's KDC.
 	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
@@ -85,6 +86,9 @@ type WindowsHost struct {
 	Address utils.NetAddr
 	// AD is true if the host is part of the Active Directory domain
 	AD bool
+	// SID is the SID for the Windows desktop login selected by the user.
+	// This is only meaningful if the AD is false.
+	SID string
 	// Labels to be applied to the host
 	Labels map[string]string
 }

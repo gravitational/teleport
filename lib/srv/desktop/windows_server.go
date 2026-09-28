@@ -161,6 +161,8 @@ type WindowsService struct {
 	ldapTLSConfigExpiresAt time.Time
 	ldapTLSConfigMu        sync.Mutex
 
+	nonADSIDs map[string]string
+
 	closeCtx context.Context
 	close    func()
 }
@@ -414,6 +416,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}
 
+	nonADSIDs := make(map[string]string)
+	// If NLA is enabled, we need to build a map of non-AD hosts to their SIDs so that we can use it when generating user certs.
+	if cfg.NLA {
+		for _, host := range cfg.Heartbeat.StaticHosts {
+			if !host.AD && host.SID != "" {
+				nonADSIDs[host.Address.String()] = host.SID
+			}
+		}
+	}
+
+
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &authz.Middleware{
@@ -427,6 +440,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		auditCache:  newSharedDirectoryAuditCache(),
 		enableNLA:   cfg.NLA,
 		sidCache:    sidCache,
+		nonADSIDs:   nonADSIDs,
 	}
 
 	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
@@ -504,7 +518,7 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 		username:           user,
 		domain:             s.cfg.Domain,
 		ttl:                windowsDesktopServiceCertTTL,
-		activeDirectorySID: s.cfg.SID,
+		sid:                s.cfg.SID,
 		omitCDP:            true,
 	})
 	if err != nil {
@@ -867,10 +881,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	log = log.With("computer_name", computerName)
 
-	nla := s.enableNLA && !desktop.NonAD()
+	nla := s.enableNLA
+
+	iakerb := nla && desktop.NonAD()
 
 	var kdcAddr string
-	if nla {
+	if nla && !iakerb {
 		var err error
 		kdcAddr, err = s.getKDCAddress(ctx)
 		if err != nil {
@@ -878,7 +894,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		}
 	}
 
-	log = log.With("kdc_addr", kdcAddr, "nla", nla)
+	log = log.With("kdc_addr", kdcAddr, "nla", nla, "iakerb", iakerb)
 	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
 	// read the client hello and wrap the connection with a translation layer (if needed)
@@ -955,7 +971,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
-	if nla {
+	if nla && !desktop.NonAD() {
 		// Note: SplitN with a non-empty separator always returns a slice with length >= 1
 		// 'userParts' is guaranteed to have length of either 1 or 2.
 		userParts := strings.SplitN(windowsUser, "@", 2)
@@ -1214,7 +1230,7 @@ func (s *WindowsService) generateUserCert(
 	createUsers bool,
 	groups []string,
 ) (*winpki.GenerateCredentialsResponse, error) {
-	var activeDirectorySID string
+	var sid string
 	var distinguishedName string
 
 	if !desktop.NonAD() {
@@ -1249,18 +1265,28 @@ func (s *WindowsService) generateUserCert(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		activeDirectorySID = entry.sid
+		sid = entry.sid
 		distinguishedName = entry.distinguishedName
+	} else {
+		// We don't need to add SID to the certificate if the NLA is disabled.
+		if s.enableNLA {
+			var ok bool
+			sid, ok = s.nonADSIDs[desktop.GetAddr()]
+			if !ok {
+				return nil, trace.BadParameter("SID is not configured for non-AD desktop %q", desktop.GetAddr())
+			}
+		}
 	}
+
 	genResp, err := s.generateCredentials(ctx, generateCredentialsRequest{
-		username:           username,
-		domain:             desktop.GetDomain(),
-		distinguishedName:  distinguishedName,
-		ad:                 !desktop.NonAD(),
-		ttl:                ttl,
-		activeDirectorySID: activeDirectorySID,
-		createUser:         createUsers,
-		groups:             groups,
+		username:          username,
+		domain:            desktop.GetDomain(),
+		distinguishedName: distinguishedName,
+		ad:                !desktop.NonAD(),
+		ttl:               ttl,
+		sid:               sid,
+		createUser:        createUsers,
+		groups:            groups,
 	})
 	return genResp, trace.Wrap(err)
 }
@@ -1280,7 +1306,7 @@ type generateCredentialsRequest struct {
 	// activeDirectorySID is the SID of the Windows user
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
-	activeDirectorySID string
+	sid string
 	// createUser specifies if Windows user should be created if missing
 	createUser bool
 	// groups are groups that user should be member of
@@ -1298,17 +1324,17 @@ func (s *WindowsService) generateCredentials(
 	request generateCredentialsRequest,
 ) (*winpki.GenerateCredentialsResponse, error) {
 	resp, err := winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		Username:           request.username,
-		DistinguishedName:  request.distinguishedName,
-		Domain:             request.domain,
-		PKIDomain:          s.cfg.PKIDomain,
-		AD:                 request.ad,
-		TTL:                request.ttl,
-		ClusterName:        s.clusterName,
-		ActiveDirectorySID: request.activeDirectorySID,
-		CreateUser:         request.createUser,
-		Groups:             request.groups,
-		OmitCDP:            request.omitCDP,
+		Username:          request.username,
+		DistinguishedName: request.distinguishedName,
+		Domain:            request.domain,
+		PKIDomain:         s.cfg.PKIDomain,
+		AD:                request.ad,
+		TTL:               request.ttl,
+		ClusterName:       s.clusterName,
+		SID:               request.sid,
+		CreateUser:        request.createUser,
+		Groups:            request.groups,
+		OmitCDP:           request.omitCDP,
 	})
 	return resp, trace.Wrap(err)
 }

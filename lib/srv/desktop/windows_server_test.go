@@ -216,7 +216,7 @@ func TestGenerateCredentials(t *testing.T) {
 				Domain:                            domain,
 				TTL:                               5 * time.Minute,
 				ClusterName:                       clusterName,
-				ActiveDirectorySID:                test.activeDirectorySID,
+				SID:                               test.activeDirectorySID,
 				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
 			})
 			certb := genResp.CertDER

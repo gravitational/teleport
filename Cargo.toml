@@ -34,3 +34,26 @@ ironrdp-session = "0.11"
 ironrdp-svc = "0.8"
 ironrdp-tls = { version = "0.2", features = ["rustls"] }
 ironrdp-tokio = "0.10"
+
+[patch.crates-io]
+ironrdp-cliprdr = { path = "../IronRDP/crates/ironrdp-cliprdr" }
+ironrdp-connector = { path = "../IronRDP/crates/ironrdp-connector" }
+ironrdp-core = { path = "../IronRDP/crates/ironrdp-core" }
+ironrdp-displaycontrol = { path = "../IronRDP/crates/ironrdp-displaycontrol" }
+ironrdp-dvc = { path = "../IronRDP/crates/ironrdp-dvc" }
+ironrdp-graphics = { path = "../IronRDP/crates/ironrdp-graphics" }
+ironrdp-rdpdr = { path = "../IronRDP/crates/ironrdp-rdpdr" }
+ironrdp-rdpsnd = { path = "../IronRDP/crates/ironrdp-rdpsnd" }
+ironrdp-session = { path = "../IronRDP/crates/ironrdp-session" }
+ironrdp-async = { path = "../IronRDP/crates/ironrdp-async" }
+ironrdp-pdu = { path = "../IronRDP/crates/ironrdp-pdu" }
+ironrdp-svc = { path = "../IronRDP/crates/ironrdp-svc" }
+ironrdp-tls = { path = "../IronRDP/crates/ironrdp-tls" }
+ironrdp-tokio = { path = "../IronRDP/crates/ironrdp-tokio" }
+
+sspi = { path = "../sspi-rs" }
+picky = { path = "../picky-rs/picky" }
+picky-krb = { path = "../picky-rs/picky-krb" }
+picky-asn1 = { path = "../picky-rs/picky-asn1" }
+picky-asn1-der = { path = "../picky-rs/picky-asn1-der" }
+picky-asn1-x509 = { path = "../picky-rs/picky-asn1-x509" }

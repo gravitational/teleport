@@ -178,7 +178,7 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 		Domain:             d.domain,
 		ClusterName:        clusterName.GetClusterName(),
 		Username:           username,
-		ActiveDirectorySID: sid,
+		SID:                sid,
 	}
 
 	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, d.auth, req)

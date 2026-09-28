@@ -3100,6 +3100,9 @@ type WindowsHost struct {
 	Labels map[string]string `yaml:"labels"`
 	// AD tells if host is part of Active Directory domain
 	AD bool `yaml:"ad"`
+	// SID for the Windows desktop login selected by the user.
+	// This is only meaningful if the AD is false.
+	SID string `yaml:"sid,omitempty"`
 }
 
 // LocateServer contains parameters for locating LDAP servers

@@ -29,7 +29,7 @@ use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::{
     ConnectionActivationFactory, ConnectionActivationState,
 };
-use ironrdp_connector::credssp::KerberosConfig;
+use ironrdp_connector::credssp::{KdcResolution, KerberosConfig};
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
 };
@@ -39,8 +39,7 @@ use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
 };
-use ironrdp_dvc::{DrdynvcClient, DvcMessage};
-use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
+use ironrdp_dvc::{DrdynvcClient, DvcClientProcessor, DvcMessage, DynamicChannelRef};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -233,19 +232,40 @@ impl Client {
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
         let mut network_client = crate::network_client::NetworkClient::new();
-        let kerberos_config = params
-            .kdc_addr
-            .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
-            .transpose()
-            .map_err(ClientError::UrlError)?
-            .map(|kdc_url| KerberosConfig {
-                kdc_proxy_url: Some(kdc_url),
-                hostname: params
-                    .computer_name
-                    .as_deref()
-                    .unwrap_or("missing.computer.name")
-                    .to_string(),
-            });
+
+        // IAKerb is enabled when NLA is enabled and the target machine is not domain-joined.
+        let iakerb_enabled = params.nla && !params.ad;
+
+        let hostname = if iakerb_enabled {
+            params.computer_name.as_deref().ok_or_else(|| {
+                ClientError::InternalError(
+                    "Hostname is required for NLA on non-domain-joined machines".to_string(),
+                )
+            })?
+        } else {
+            params
+                .computer_name
+                .as_deref()
+                .unwrap_or("missing.computer.name")
+        }
+        .to_owned();
+
+        let kdc_resolution = if iakerb_enabled {
+            KdcResolution::IAKerb
+        } else {
+            KdcResolution::KdcUrl(
+                params
+                    .kdc_addr
+                    .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
+                    .transpose()
+                    .map_err(ClientError::UrlError)?,
+            )
+        };
+        let kerberos_config = KerberosConfig {
+            kdc_resolution,
+            hostname,
+        };
+
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             connector,
@@ -253,7 +273,7 @@ impl Client {
             &mut network_client,
             params.computer_name.unwrap_or(server_addr).into(),
             server_public_key,
-            kerberos_config,
+            Some(kerberos_config),
         )
         .await?;
 
@@ -442,6 +462,18 @@ impl Client {
                             }
                             ProcessorOutput::GraphicsUpdate(_) => {
                                 error!("Received unsupported slow-path graphics update")
+                            }
+                            ProcessorOutput::SaveSessionInfo { .. } => {
+                                error!("Received unsupported save session info request")
+                            }
+                            ProcessorOutput::AutoReconnectCookie(_) => {
+                                error!("Received unsupported auto-reconnect cookie")
+                            }
+                            ProcessorOutput::AutoReconnectFailed => {
+                                error!("Received unsupported auto-reconnect failed notification")
+                            }
+                            ProcessorOutput::MonitorLayout(_) => {
+                                error!("Received unsupported monitor layout update")
                             }
                         }
                     }
@@ -786,11 +818,11 @@ impl Client {
         // Our DisplayControlClient is lazily initialized and added as a svc_processor
         // once the dynamic channel for display control is opened and server capabilities are
         // received. Failure to acquire the DVC is normal until this point in the connection setup.
-        // Ensure that the DVC is both accessible and open.
+        // Ensure that the DVC is both accessible and ready.
         let dvc_is_ready = {
             Self::x224_lock(&x224_processor)?
                 .get_dvc::<DisplayControlClient>()
-                .is_some_and(|dvc| dvc.is_open())
+                .is_some_and(|dvc| dvc.processor().ready())
         };
 
         if dvc_is_ready {
@@ -821,14 +853,8 @@ impl Client {
         let messages = task::spawn_blocking(move || {
             let x224_processor = Self::x224_lock(&cloned)?;
             let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
-            let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
-                "DisplayControlClient channel_id not found".to_string(),
-            ))?;
-            let disp_ctl_cli = dvc
-                .channel_processor_downcast_ref::<DisplayControlClient>()
-                .ok_or(ClientError::InternalError(
-                    "DisplayControlClient not found".to_string(),
-                ))?;
+            let channel_id = dvc.channel_id();
+            let disp_ctl_cli = dvc.processor();
 
             Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
                 channel_id,
@@ -1055,7 +1081,7 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         frame: BytesMut,
     ) -> SessionResult<Vec<ProcessorOutput>> {
-        task::spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
+        task::spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame, &mut None))
             .await
             .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
@@ -1118,9 +1144,9 @@ impl Client {
 
     fn get_dvc<'a, S>(
         x224_processor: &'a MutexGuard<'_, x224::Processor>,
-    ) -> Result<&'a DynamicVirtualChannel, ClientError>
+    ) -> Result<DynamicChannelRef<'a, S>, ClientError>
     where
-        S: DvcProcessor + 'static,
+        S: DvcClientProcessor + 'static,
     {
         x224_processor
             .get_dvc::<S>()
@@ -1500,12 +1526,15 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             width: params.screen_width,
             height: params.screen_height,
         },
+        monitor_layout: None,
         enable_tls: true,
-        enable_credssp: params.ad && params.nla,
+        enable_credssp: params.nla,
+        enable_standard_rdp_security: false,
         enable_audio_playback: false,
+        enable_audio_capture: false,
         timezone_info: TimezoneInfo::default(),
         credentials: Credentials::SmartCard {
-            config: params.ad.then(|| SmartCardIdentity {
+            config: Some(SmartCardIdentity {
                 csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
                 reader_name: "Teleport".to_string(),
                 container_name: "".to_string(),
@@ -1520,10 +1549,11 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
         client_build: 18363,
         client_name: "Teleport".to_string(),
-        keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
+        keyboard_type: ironrdp_pdu::gcc::KeyboardType::IBM_ENHANCED,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         keyboard_layout: params.keyboard_layout,
+        connection_type: ironrdp_pdu::gcc::ConnectionType::Lan,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
@@ -1566,6 +1596,9 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         work_dir: "".to_string(),
         compression_type: None,
         multitransport_flags: None,
+        remote_application_mode: false,
+        rail_support_level: ironrdp_pdu::rdp::capability_sets::RailSupportLevel::empty(),
+        support_dyn_vc_gfx_protocol: false,
     }
 }
 
