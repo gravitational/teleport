@@ -192,9 +192,12 @@ type ListBotsRequest struct {
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
-	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// A search term used to filter the results. If non-empty, it's matched
+	// case-insensitively against the bot's name and roles.
+	FilterSearchTerm string `protobuf:"bytes,3,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ListBotsRequest) Reset() {
@@ -236,12 +239,23 @@ func (x *ListBotsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListBotsRequest) GetFilterSearchTerm() string {
+	if x != nil {
+		return x.FilterSearchTerm
+	}
+	return ""
+}
+
 func (x *ListBotsRequest) SetPageSize(v int32) {
 	x.PageSize = v
 }
 
 func (x *ListBotsRequest) SetPageToken(v string) {
 	x.PageToken = v
+}
+
+func (x *ListBotsRequest) SetFilterSearchTerm(v string) {
+	x.FilterSearchTerm = v
 }
 
 type ListBotsRequest_builder struct {
@@ -252,6 +266,9 @@ type ListBotsRequest_builder struct {
 	PageSize int32
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string
+	// A search term used to filter the results. If non-empty, it's matched
+	// case-insensitively against the bot's name and roles.
+	FilterSearchTerm string
 }
 
 func (b0 ListBotsRequest_builder) Build() *ListBotsRequest {
@@ -260,6 +277,7 @@ func (b0 ListBotsRequest_builder) Build() *ListBotsRequest {
 	_, _ = b, x
 	x.PageSize = b.PageSize
 	x.PageToken = b.PageToken
+	x.FilterSearchTerm = b.FilterSearchTerm
 	return m0
 }
 
@@ -597,11 +615,12 @@ const file_teleport_machineid_v1_bot_service_proto_rawDesc = "" +
 	"\x03bot\x18\x01 \x01(\v2\x1a.teleport.machineid.v1.BotR\x03bot\"@\n" +
 	"\rGetBotRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x14\n" +
-	"\x05scope\x18\x02 \x01(\tR\x05scope\"M\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"{\n" +
 	"\x0fListBotsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"j\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12,\n" +
+	"\x12filter_search_term\x18\x03 \x01(\tR\x10filterSearchTerm\"j\n" +
 	"\x10ListBotsResponse\x12.\n" +
 	"\x04bots\x18\x01 \x03(\v2\x1a.teleport.machineid.v1.BotR\x04bots\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"}\n" +
