@@ -24,8 +24,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -107,6 +109,67 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 
 func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfschema.GenSchemaLabels(ctx, attr)
+}
+
+// GenSchemaStringValues exposes a `repeated google.protobuf.StringValue`
+// field as a plain list of strings rather than a list of single-field objects.
+func GenSchemaStringValues(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfsdk.Attribute{
+		Optional:    true,
+		Type:        types.ListType{ElemType: types.StringType},
+		Description: attr.Description,
+	}
+}
+
+// CopyFromStringValues converts a Terraform list of strings into a slice of
+// [wrapperspb.StringValue]. The received value must be of List type.
+func CopyFromStringValues(diags diag.Diagnostics, v attr.Value, o *[]*wrapperspb.StringValue) {
+	value, ok := v.(types.List)
+	if !ok {
+		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.List", v))
+		return
+	}
+
+	*o = make([]*wrapperspb.StringValue, len(value.Elems))
+	for i, tfValue := range value.Elems {
+		tfString, ok := tfValue.(types.String)
+		if !ok {
+			diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.String", tfValue))
+			return
+		}
+
+		if tfString.Null || tfString.Unknown {
+			continue
+		}
+
+		(*o)[i] = wrapperspb.String(tfString.Value)
+	}
+}
+
+// CopyToStringValues converts a slice of [wrapperspb.StringValue] into a
+// Terraform List with an ElemType of String.
+func CopyToStringValues(diags diag.Diagnostics, o []*wrapperspb.StringValue, t attr.Type, v attr.Value) attr.Value {
+	typ := t.(types.ListType) // By the convention, t comes type-asserted so there would be no failure
+
+	value, ok := v.(types.List)
+	if !ok {
+		value = types.List{ElemType: typ.ElemType}
+	}
+
+	if value.Elems == nil {
+		value.Elems = make([]attr.Value, len(o))
+	}
+
+	for i, stringValue := range o {
+		if stringValue == nil {
+			value.Elems[i] = types.String{Null: true}
+			continue
+		}
+
+		value.Elems[i] = types.String{Value: stringValue.GetValue()}
+	}
+
+	return value
 }
 
 func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
