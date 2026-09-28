@@ -18,6 +18,8 @@ package cache
 
 import (
 	"context"
+	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -57,21 +59,7 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
 			fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
-				rsp, err := upstream.ListUsers(ctx, &userspb.ListUsersRequest{
-					WithSecrets: loadSecrets,
-					PageSize:    int32(pageSize),
-					PageToken:   token,
-				})
-				if err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-
-				out := make([]types.User, 0, len(rsp.Users))
-				for _, user := range rsp.Users {
-					out = append(out, user)
-				}
-
-				return out, rsp.NextPageToken, nil
+				return listUsersPage(ctx, upstream, loadSecrets, pageSize, token)
 			}
 
 			// Use clientutils for auto pagesize backoff.
@@ -89,6 +77,25 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 		},
 		watch: w,
 	}, nil
+}
+
+func listUsersPage(
+	ctx context.Context, upstream services.UsersService, withSecrets bool, pageSize int, token string,
+) ([]types.User, string, error) {
+	rsp, err := upstream.ListUsers(ctx, &userspb.ListUsersRequest{
+		WithSecrets: withSecrets,
+		PageSize:    int32(pageSize),
+		PageToken:   token,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(rsp.GetUsers()))
+	for _, u := range rsp.GetUsers() {
+		out = append(out, u)
+	}
+	return out, rsp.GetNextPageToken(), nil
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -219,4 +226,51 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		}
 	}
 	return &resp, nil
+}
+
+// RangeUsers returns users within the range [start, end), without secrets.
+func (c *Cache) RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error] {
+	lister := genericLister[types.User, userIndex]{
+		cache:      c,
+		collection: c.collections.users,
+		index:      userNameIndex,
+		// Tokens move through the lister as index keys, while the upstream
+		// takes and returns bare user names.
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
+			users, next, err := listUsersPage(ctx, c.Config.Users, false, pageSize, strings.TrimSuffix(pageToken, "/params"))
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			if next != "" {
+				next = userNameIndexKeyForName(next)
+			}
+			return users, next, nil
+		},
+		nextToken: func(u types.User) string {
+			return userNameIndexKeyForName(u.GetName())
+		},
+	}
+	if start != "" {
+		start = userNameIndexKeyForName(start)
+	}
+	if end != "" {
+		end = userNameIndexKeyForName(end)
+	}
+
+	return func(yield func(types.User, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeUsers")
+		defer span.End()
+
+		for u, err := range lister.Range(ctx, start, end) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			// The auth cache stores users with secrets.
+			if !yield(u.WithoutSecrets().(types.User), nil) {
+				return
+			}
+		}
+	}
 }

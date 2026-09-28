@@ -21,6 +21,7 @@ package machineidv1
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"maps"
 	"slices"
@@ -32,9 +33,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -74,8 +75,8 @@ var SupportedJoinMethods = []types.JoinMethod{
 type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-	// ListUsers lists users
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	// RangeUsers returns users within the range [start, end), without secrets.
+	RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error]
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -262,18 +263,20 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
 	// TODO(noah): We should add pre-hydrated Bot support to the cache to avoid
 	// needing to iterate over all users here. This is currently a fairly
 	// expensive implementation.
 	bots := []*pb.Bot{}
-	rsp, err := bs.cache.ListUsers(ctx, &userspb.ListUsersRequest{
-		PageSize:  req.PageSize,
-		PageToken: req.PageToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "listing users")
-	}
-	for _, u := range rsp.Users {
+	var nextPageToken string
+	for u, err := range bs.cache.RangeUsers(ctx, req.GetPageToken(), "") {
+		if err != nil {
+			return nil, trace.Wrap(err, "listing users")
+		}
 		botName, isBot := u.GetLabel(types.BotLabel)
 		if !isBot {
 			continue
@@ -328,12 +331,16 @@ func (bs *BotService) ListBots(
 			continue
 		}
 
+		if len(bots) == pageSize {
+			nextPageToken = u.GetName()
+			break
+		}
 		bots = append(bots, bot)
 	}
 
 	return &pb.ListBotsResponse{
 		Bots:          bots,
-		NextPageToken: rsp.NextPageToken,
+		NextPageToken: nextPageToken,
 	}, nil
 }
 

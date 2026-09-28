@@ -1201,6 +1201,9 @@ type Cache interface {
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
+	// RangeUsers returns users within the range [start, end), without secrets.
+	RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error]
+
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 

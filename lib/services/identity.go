@@ -73,6 +73,9 @@ type UsersService interface {
 type IdentityInternal interface {
 	Identity
 
+	// RangeUsers returns users within the range [start, end), without secrets.
+	RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error]
+
 	// AppendPutUserParamsActions adds conditional actions to an atomic write to
 	// create or update the user params resource (without secrets, mfa devices).
 	AppendPutUserParamsActions(
