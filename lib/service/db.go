@@ -166,6 +166,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
 		InventoryHandle:      process.inventoryHandle,
+		// Only set in tests, to avoid downloading cloud database CA
+		// certificates. Nil in production, which selects the real downloader.
+		CADownloader: process.Config.Testing.DatabaseCADownloader,
 	})
 	if err != nil {
 		return trace.Wrap(err)
