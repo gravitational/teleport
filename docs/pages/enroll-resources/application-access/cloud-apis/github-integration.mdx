@@ -56,18 +56,21 @@ continue to access GitHub through their browsers.
 ## Step 1/4. Configure a GitHub OAuth application
 
 The GitHub integration requires a GitHub OAuth application to obtain users'
-GitHub identities. You can skip this step if the Teleport users use GitHub SSO
-to sign in Teleport.
+GitHub identities. If your Teleport cluster uses GitHub SSO for login, the
+GitHub identities are already available from the SSO flow and you can skip this
+step. For clusters that use local users and other SSO providers in addition to
+the GitHub SSO connector, a dedicated OAuth application for GitHub integration
+is recommended.
 
 Go to "OAuth Apps" under "Developer Settings" of your organization's settings.
 Click on "New OAuth App".
 
-Fill in the details. Use the following for "Authentication callback URL".
+Fill in the details. Use the following for "Redirect URIs".
 Replace <Var name="teleport-proxy-address"/> with the host and HTTPS port of
 your Teleport Proxy Service:
 
 ```code
-https://<Var name="teleport-proxy-address"/>/v1/webapi/github/
+https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
 ```
 
 Once the OAuth application is created, create a client secret and remember the
@@ -78,8 +81,9 @@ client ID and the secret for the next step:
 ## Step 2/4. Create a GitHub integration and export the CAs
 
 Now create a yaml file that represents the Github integration.  Replace
-<Var name="my-github-org" /> with the organization name, and replace 
-<Var name="oauth-app-client-id" />
+<Var name="my-github-org" /> with the organization name,
+<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
+Teleport Proxy Service, and replace <Var name="oauth-app-client-id" />
 and <Var name="oauth-app-client-secret" /> with values from the previous step.
 
 ```yaml
@@ -92,6 +96,7 @@ metadata:
 spec:
   github:
     organization: <Var name="my-github-org"/>
+    oauth_callback_url: https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
   credentials:
     id_secret:
       id: <Var name="oauth-app-client-id"/>
@@ -154,6 +159,65 @@ version: v7
 ## Step 4/4. Connect
 
 (!docs/pages/connect-your-client/includes/tsh-git.mdx!)
+
+## Migrate to the authenticated callback URL
+
+Existing integrations may use the old unauthenticated callback URL
+(`/v1/webapi/github/callback`). To improve security, migrate to the new
+authenticated callback URL.
+
+First, go to the settings page for your GitHub OAuth application. Add the
+following to "Redirect URIs". Replace
+<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
+Teleport Proxy Service:
+
+```code
+https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+```
+
+If the same OAuth application is also used for GitHub SSO login, keep the
+existing callback URL used for GitHub SSO (for example,
+`https://<Var name="teleport-proxy-address"/>/v1/webapi/github/callback`)
+and add the new URL as an additional redirect URI. GitHub OAuth applications
+support multiple redirect URIs.
+
+Then update the Teleport integration resource:
+
+```code
+$ tctl edit integration/github-<Var name="my-github-org"/>
+```
+
+Set `oauth_callback_url` under the `github` spec:
+
+```yaml
+spec:
+  github:
+    organization: <Var name="my-github-org"/>
+    oauth_callback_url: https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+```
+
+## Troubleshooting
+
+### `redirect_uri` is not associated with this application
+
+![GitHub redirect URI error](../../../../img/management/github-redirect-uri-error.png)
+
+This error from GitHub means the callback URL configured on the Teleport
+integration does not match the callback URL registered on the GitHub OAuth
+application. Verify both values match:
+
+1. Check the callback URL on GitHub in your OAuth application settings.
+2. Check the callback URL on the Teleport integration:
+
+```code
+$ tctl get integration/github-<Var name="my-github-org"/>
+```
+
+Verify that `oauth_callback_url` in the integration resource matches the
+callback URL registered on your GitHub OAuth application.
+
+If you have not migrated to the authenticated callback URL, see
+[Migrate to the authenticated callback URL](#migrate-to-the-authenticated-callback-url).
 
 ## Further reading
 - [Creating a GitHub OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)
