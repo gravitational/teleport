@@ -1,10 +1,8 @@
-.version: &version "18.11.2"
-
 apiVersion: v2
 name: teleport-plugin-pagerduty
 description: A Helm chart for the Teleport Pagerduty Plugin
 type: application
-version: *version
+version: &version "18.11.2"
 appVersion: *version
 
 dependencies:

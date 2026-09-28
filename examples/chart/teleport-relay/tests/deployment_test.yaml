@@ -3,6 +3,10 @@ templates:
   - configmap.yaml
   - deployment.yaml
 
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates a deployment
     template: deployment.yaml
@@ -12,6 +16,7 @@ tests:
       - hasDocuments:
           count: 1
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: RELEASE-NAME-teleport-relay

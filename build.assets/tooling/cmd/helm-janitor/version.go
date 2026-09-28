@@ -40,7 +40,7 @@ func updateVersion(ctx context.Context, version string, charts []Chart) error {
 	return nil
 }
 
-var versionRegex = regexp.MustCompile(`\.version: .*`)
+var versionRegex = regexp.MustCompile(`(?m)^version:\s+&version\s+.*`)
 
 func updateChartVersion(ctx context.Context, chart Chart, version string) error {
 	version = strings.TrimPrefix(version, "v")
@@ -48,7 +48,7 @@ func updateChartVersion(ctx context.Context, chart Chart, version string) error 
 	if err != nil {
 		return trace.Wrap(trace.ConvertSystemError(err), "reading Chart.yaml")
 	}
-	newChartYaml := versionRegex.ReplaceAll(chartYaml, []byte(fmt.Sprintf(`.version: &version %q`, version)))
+	newChartYaml := versionRegex.ReplaceAll(chartYaml, []byte(fmt.Sprintf(`version: &version %q`, version)))
 	if bytes.Equal(chartYaml, newChartYaml) {
 		fmt.Printf(" ⚠️ Warning: Chart.yaml unchanged: %q\n", chart.Path)
 	}

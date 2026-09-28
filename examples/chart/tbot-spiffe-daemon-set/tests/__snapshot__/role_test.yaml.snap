@@ -6,12 +6,12 @@ should match the snapshot (full):
       name: RELEASE-NAME-tbot-spiffe-daemon-set
       namespace: NAMESPACE
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - secrets
-      verbs:
-      - '*'
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - '*'
 should match the snapshot (simple):
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -20,9 +20,9 @@ should match the snapshot (simple):
       name: RELEASE-NAME-tbot-spiffe-daemon-set
       namespace: NAMESPACE
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - secrets
-      verbs:
-      - '*'
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - '*'

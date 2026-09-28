@@ -1,6 +1,10 @@
 suite: Operator Role
 templates:
   - role.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates no role when operator is not enabled
     values:
@@ -20,6 +24,7 @@ tests:
   - it: creates a role by default
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-teleport-operator
@@ -29,6 +34,7 @@ tests:
       name: teleport-operator
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: teleport-operator
@@ -38,6 +44,7 @@ tests:
       nameOverride: operator
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-operator

@@ -6,6 +6,10 @@ templates:
   - proxy/predeploy_job.yaml
   - proxy/predeploy_config.yaml
   - proxy/predeploy_serviceaccount.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: Deploys the auth-test config
     template: auth/predeploy_config.yaml
@@ -45,7 +49,7 @@ tests:
       clusterName: helm-lint
     asserts:
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
 
   - it: Does not render hooks when config validation is disabled
@@ -61,7 +65,7 @@ tests:
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should not set resources on proxy predeploy job when resources set in values
@@ -69,7 +73,7 @@ tests:
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should set resources on auth predeploy job when jobResources set in values
