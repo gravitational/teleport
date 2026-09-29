@@ -70,7 +70,7 @@ export default function useUsers({
   }
 
   function onReset(name: string) {
-    return ctx.userService.createResetPasswordToken(name, 'password');
+    return ctx.userService.resetUser(name);
   }
 
   function onInviteCollaboratorsClose() {
