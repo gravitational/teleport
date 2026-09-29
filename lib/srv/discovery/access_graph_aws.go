@@ -100,10 +100,9 @@ func (s *Server) reconcileAccessGraph(
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
-	for _, fetcher := range allFetchers {
-		s.tagSyncStatus.syncStarted(fetcher, s.clock.Now())
-	}
-	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+	fetcherStatuses := asFetcherStatusSlice(allFetchers)
+	s.tagAWSSyncStatus.iterationStarted(fetcherStatuses, s.clock.Now())
+	for _, discoveryConfigName := range s.tagAWSSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
@@ -171,10 +170,8 @@ func (s *Server) reconcileAccessGraph(
 	// The fetcher reconciles this list against the last set sent.
 	eksAuditLogWatcher.Reconcile(ctx, auditLogClusters)
 
-	for _, fetcher := range allFetchers {
-		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
-	}
-	for _, discoveryConfigName := range s.tagSyncStatus.discoveryConfigs() {
+	s.tagAWSSyncStatus.iterationFinished(fetcherStatuses, pushErr, s.clock.Now())
+	for _, discoveryConfigName := range s.tagAWSSyncStatus.discoveryConfigs() {
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
