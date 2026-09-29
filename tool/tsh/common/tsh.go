@@ -1655,30 +1655,32 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Handle fork after authentication.
-	if cf.ForkAfterAuthentication && !cf.isForkAuthChild() {
+	if cf.ForkAfterAuthentication {
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
-		forkParams := reexec.ForkAuthenticateParams{
-			GetArgs: func(signalFd, killFd uint64) []string {
-				return append([]string{
-					// fd flags go immediately after `tsh`.
-					"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
-					"--fork-kill-fd", strconv.FormatUint(killFd, 10),
-				}, args...)
-			},
-			Stdin:  cf.Stdin(),
-			Stdout: cf.Stdout(),
-			Stderr: cf.Stderr(),
-		}
-		if err := reexec.RunForkAuthenticate(cf.Context, forkParams); err != nil {
-			var execErr *exec.ExitError
-			if errors.As(trace.Unwrap(err), &execErr) {
-				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+		if !cf.isForkAuthChild() {
+			forkParams := reexec.ForkAuthenticateParams{
+				GetArgs: func(signalFd, killFd uint64) []string {
+					return append([]string{
+						// fd flags go immediately after `tsh`.
+						"--fork-signal-fd", strconv.FormatUint(signalFd, 10),
+						"--fork-kill-fd", strconv.FormatUint(killFd, 10),
+					}, args...)
+				},
+				Stdin:  cf.Stdin(),
+				Stdout: cf.Stdout(),
+				Stderr: cf.Stderr(),
 			}
-			return trace.Wrap(err)
+			if err := reexec.RunForkAuthenticate(cf.Context, forkParams); err != nil {
+				var execErr *exec.ExitError
+				if errors.As(trace.Unwrap(err), &execErr) {
+					err = &common.ExitCodeError{Code: execErr.ExitCode()}
+				}
+				return trace.Wrap(err)
+			}
+			return nil
 		}
-		return nil
 	}
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
