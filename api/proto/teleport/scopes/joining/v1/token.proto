@@ -123,6 +123,15 @@ message ScopedTokenSpec {
 
   // Configuration specific to the "bitbucket" join method.
   Bitbucket bitbucket = 21;
+
+  // Configuration specific to the "terraform_cloud" join method.
+  TerraformCloud terraform_cloud = 22;
+
+  // Configuration specific to the "spacelift" join method.
+  Spacelift spacelift = 23;
+
+  // Configuration specific to the "env0" join method.
+  Env0 env0 = 24;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -949,4 +958,148 @@ message Bitbucket {
   // to each Bitbucket repository, and must be set to the value as written in
   // the "Pipelines -> OpenID Connect" section of the repository settings.
   string identity_provider_url = 3;
+}
+
+// Configuration specific to Terraform Cloud tokens.
+message TerraformCloud {
+  // A Terraform Cloud joining rule.
+  message Rule {
+    // The ID of the HCP Terraform organization. At least one of
+    // `organization_id` or `organization_name` must be provided.
+    string organization_id = 1;
+
+    // The human-readable name of the HCP Terraform organization. At least one
+    // of `organization_id` or `organization_name` must be provided.
+    string organization_name = 2;
+
+    // The ID of the HCP Terraform project. At least one of `project_id`,
+    // `project_name`, `workspace_id`, or `workspace_name` is required.
+    string project_id = 3;
+
+    // The human-readable name of the HCP Terraform project. At least one of
+    // `project_id`, `project_name`, `workspace_id`, or `workspace_name` is
+    // required.
+    string project_name = 4;
+
+    // The ID of the HCP Terraform workspace. At least one of `project_id`,
+    // `project_name`, `workspace_id`, or `workspace_name` is required.
+    string workspace_id = 5;
+
+    // The human-readable name of the HCP Terraform workspace. At least one of
+    // `project_id`, `project_name`, `workspace_id`, or `workspace_name` is
+    // required.
+    string workspace_name = 6;
+
+    // The phase of the run the token was issued for, e.g. `plan` or `apply`
+    string run_phase = 7;
+  }
+
+  // A list of rules allowed by this token. Clients attempting to join must
+  // present a JWT matching at least one of these rules.
+  repeated Rule allow = 1;
+
+  // The JWT audience (`aud`) to expect as configured in the
+  // `TFC_WORKLOAD_IDENTITY_AUDIENCE_($TAG)` variable set in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
+  // For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+  // Terraform Cloud, this value should be `foo`. If the value is your Teleport
+  // cluster name, it does not need to be configured here.
+  string audience = 2;
+
+  // The hostname of the Terraform Enterprise instance expected to issue JWTs
+  // accepted by this token. If unset, it defaults to the default Terraform
+  // Cloud issuer, `app.terraform.io`; otherwise, it must match the `iss` field
+  // in JWTs issued by the Terraform Enterprise provider.
+  string hostname = 3;
+}
+
+// Configuration specific to Spacelift tokens.
+message Spacelift {
+  // A Spacelift joining rule.
+  message Rule {
+    // The ID of the space in which the run that owns the token was executed.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string space_id = 1;
+    // The ID of the caller, ie. the stack or module that generated the run.
+    //
+    // This field supports "glob-style" matching when enable_glob_matching is true:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string caller_id = 2;
+    // The type of the caller, ie. the entity that owns the run, either `stack`
+    // or `module`.
+    string caller_type = 3;
+    // The scope of the token - either `read` or `write`.
+    // See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+    string scope = 4;
+  }
+
+  // A list of rules allowed by this token. Clients attempting to join must
+  // present a JWT matching at least one of these rules.
+  repeated Rule allow = 1;
+
+  // The hostname of the Spacelift tenant that tokens will originate from, e.g.
+  // `example.app.spacelift.io`
+  string hostname = 2;
+
+  // Enables glob-style matching for the space_id and caller_id fields in the
+  // rules.
+  bool enable_glob_matching = 3;
+}
+
+// Configuration specific to env0 tokens.
+message Env0 {
+  // An env zero joining rule.
+  message Rule {
+    // A unique organization identifier, corresponding to `organizationId` in an
+    // Env0 OIDC token.
+    string organization_id = 1;
+
+    // A unique project identifier, corresponding to `projectId` in an Env0 OIDC
+    // token.
+    string project_id = 2;
+
+    // The name of the project under which the job was run corresponding to
+    // `projectName` in an Env0 OIDC token.
+    string project_name = 3;
+
+    // The unique identifier of the Env0 template, corresponding to `templateId`
+    // in an Env0 OIDC token.
+    string template_id = 4;
+
+    // The name of the Env0 template, corresponding to `templateName` in an Env0
+    // OIDC token.
+    string template_name = 5;
+
+    // The unique identifier of the Env0 environment, corresponding to
+    // `environmentId` in an Env0 OIDC token.
+    string environment_id = 6;
+
+    // The name of the Env0 environment, corresponding to `environmentName` in
+    // an Env0 OIDC token.
+    string environment_name = 7;
+
+    // The name of the Env0 workspace, corresponding to `workspaceName` in an
+    // Env0 OIDC token.
+    string workspace_name = 8;
+
+    // The env0 deployment type, such as "deploy", "destroy", etc. Corresponds
+    // to `deploymentType` in an Env0 OIDC token.
+    string deployment_type = 9;
+
+    // The email of the person that triggered the deployment, corresponding to
+    // `deployerEmail` in an Env0 OIDC token.
+    string deployer_email = 10;
+
+    // A custom tag value corresponding to the JWT's `env0Tag` when
+    // `ENV0_OIDC_TAG` is set.
+    string env0_tag = 11;
+  }
+
+  // A list of rules allowed by this token. Clients attempting to join must
+  // present a JWT matching at least one of these rules.
+  repeated Rule allow = 1;
 }

@@ -407,6 +407,84 @@ func GenSchemaScopedTokenResource(ctx context.Context) (github_com_hashicorp_ter
 					Description: "Configuration specific to the \"circleci\" join method",
 					Optional:    true,
 				},
+				"env0": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"allow": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+						Computed:    true,
+						Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+						NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+							"deployer_email": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"deployment_type": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The env0 deployment type, such as \"deploy\", \"destroy\", etc. Corresponds to `deploymentType` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"env0_tag": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "A custom tag value corresponding to the JWT's `env0Tag` when `ENV0_OIDC_TAG` is set.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"environment_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"environment_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"organization_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "A unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"project_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "A unique project identifier, corresponding to `projectId` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"project_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"template_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"template_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+							"workspace_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+								Computed:      true,
+								Description:   "The name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+							},
+						}},
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+					}},
+					Description: "Configuration specific to the \"env0\" join method.",
+					Optional:    true,
+				},
 				"gcp": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"allow": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
 						Computed:    true,
@@ -881,6 +959,124 @@ func GenSchemaScopedTokenResource(ctx context.Context) (github_com_hashicorp_ter
 					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
 				},
+				"spacelift": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"allow": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"caller_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"caller_type": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The type of the caller, ie. the entity that owns the run, either `stack` or `module`.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"scope": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"space_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+							}},
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
+						"enable_glob_matching": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+							Computed:      true,
+							Description:   "Enables glob-style matching for the space_id and caller_id fields in the rules.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
+						},
+						"hostname": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+							Computed:      true,
+							Description:   "The hostname of the Spacelift tenant that tokens will originate from, e.g. `example.app.spacelift.io`",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+						},
+					},
+					Description: "Configuration specific to the \"spacelift\" join method.",
+					Optional:    true,
+				},
+				"terraform_cloud": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+						"allow": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"organization_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The ID of the HCP Terraform organization. At least one of `organization_id` or `organization_name` must be provided.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"organization_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The human-readable name of the HCP Terraform organization. At least one of `organization_id` or `organization_name` must be provided.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"project_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The ID of the HCP Terraform project. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"project_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The human-readable name of the HCP Terraform project. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"run_phase": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The phase of the run the token was issued for, e.g. `plan` or `apply`",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"workspace_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The ID of the HCP Terraform workspace. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"workspace_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The human-readable name of the HCP Terraform workspace. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+							}},
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
+						"audience": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+							Computed:      true,
+							Description:   "The JWT audience (`aud`) to expect as configured in the `TFC_WORKLOAD_IDENTITY_AUDIENCE_($TAG)` variable set in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the value is your Teleport cluster name, it does not need to be configured here.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+						},
+						"hostname": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+							Computed:      true,
+							Description:   "The hostname of the Terraform Enterprise instance expected to issue JWTs accepted by this token. If unset, it defaults to the default Terraform Cloud issuer, `app.terraform.io`; otherwise, it must match the `iss` field in JWTs issued by the Terraform Enterprise provider.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+						},
+					},
+					Description: "Configuration specific to the \"terraform_cloud\" join method.",
+					Optional:    true,
+				},
 				"tpm": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 						"allow": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
@@ -1251,6 +1447,72 @@ func GenSchemaScopedTokenDataSource(ctx context.Context) (github_com_hashicorp_t
 						},
 					},
 					Description: "Configuration specific to the \"circleci\" join method",
+					Optional:    true,
+				},
+				"env0": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"allow": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+						Computed:    true,
+						Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+						NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+							"deployer_email": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"deployment_type": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The env0 deployment type, such as \"deploy\", \"destroy\", etc. Corresponds to `deploymentType` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"env0_tag": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "A custom tag value corresponding to the JWT's `env0Tag` when `ENV0_OIDC_TAG` is set.",
+								Optional:    true,
+							},
+							"environment_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"environment_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"organization_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "A unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"project_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "A unique project identifier, corresponding to `projectId` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"project_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"template_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"template_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+							"workspace_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+								Computed:    true,
+								Description: "The name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.",
+								Optional:    true,
+							},
+						}},
+						Optional: true,
+					}},
+					Description: "Configuration specific to the \"env0\" join method.",
 					Optional:    true,
 				},
 				"gcp": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
@@ -1664,6 +1926,107 @@ func GenSchemaScopedTokenDataSource(ctx context.Context) (github_com_hashicorp_t
 					Description: "The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.",
 					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
+				},
+				"spacelift": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"allow": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"caller_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The ID of the caller, ie. the stack or module that generated the run.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+								},
+								"caller_type": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The type of the caller, ie. the entity that owns the run, either `stack` or `module`.",
+									Optional:    true,
+								},
+								"scope": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes",
+									Optional:    true,
+								},
+								"space_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The ID of the space in which the run that owns the token was executed.  This field supports \"glob-style\" matching when enable_glob_matching is true: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+								},
+							}},
+							Optional: true,
+						},
+						"enable_glob_matching": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+							Computed:    true,
+							Description: "Enables glob-style matching for the space_id and caller_id fields in the rules.",
+							Optional:    true,
+						},
+						"hostname": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+							Computed:    true,
+							Description: "The hostname of the Spacelift tenant that tokens will originate from, e.g. `example.app.spacelift.io`",
+							Optional:    true,
+						},
+					},
+					Description: "Configuration specific to the \"spacelift\" join method.",
+					Optional:    true,
+				},
+				"terraform_cloud": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+						"allow": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"organization_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The ID of the HCP Terraform organization. At least one of `organization_id` or `organization_name` must be provided.",
+									Optional:    true,
+								},
+								"organization_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The human-readable name of the HCP Terraform organization. At least one of `organization_id` or `organization_name` must be provided.",
+									Optional:    true,
+								},
+								"project_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The ID of the HCP Terraform project. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:    true,
+								},
+								"project_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The human-readable name of the HCP Terraform project. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:    true,
+								},
+								"run_phase": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The phase of the run the token was issued for, e.g. `plan` or `apply`",
+									Optional:    true,
+								},
+								"workspace_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The ID of the HCP Terraform workspace. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:    true,
+								},
+								"workspace_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The human-readable name of the HCP Terraform workspace. At least one of `project_id`, `project_name`, `workspace_id`, or `workspace_name` is required.",
+									Optional:    true,
+								},
+							}},
+							Optional: true,
+						},
+						"audience": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+							Computed:    true,
+							Description: "The JWT audience (`aud`) to expect as configured in the `TFC_WORKLOAD_IDENTITY_AUDIENCE_($TAG)` variable set in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the value is your Teleport cluster name, it does not need to be configured here.",
+							Optional:    true,
+						},
+						"hostname": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+							Computed:    true,
+							Description: "The hostname of the Terraform Enterprise instance expected to issue JWTs accepted by this token. If unset, it defaults to the default Terraform Cloud issuer, `app.terraform.io`; otherwise, it must match the `iss` field in JWTs issued by the Terraform Enterprise provider.",
+							Optional:    true,
+						},
+					},
+					Description: "Configuration specific to the \"terraform_cloud\" join method.",
+					Optional:    true,
 				},
 				"tpm": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
@@ -4485,6 +4848,589 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 													t = (v.ValueString())
 												}
 												obj.IdentityProviderUrl = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attributes()["terraform_cloud"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.TerraformCloud = nil
+								if !v.IsNull() && !v.IsUnknown() {
+									tf := v
+									obj.TerraformCloud = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TerraformCloud{}
+									obj := obj.TerraformCloud
+									{
+										a, ok := tf.Attributes()["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TerraformCloud_Rule, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TerraformCloud_Rule
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.TerraformCloud_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["organization_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.organization_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.OrganizationId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["organization_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.organization_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.organization_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.OrganizationName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["project_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.project_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.project_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.ProjectId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["project_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.project_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.project_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.ProjectName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["workspace_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.workspace_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.workspace_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WorkspaceId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["workspace_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.workspace_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.workspace_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WorkspaceName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["run_phase"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.allow.run_phase"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow.run_phase", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.RunPhase = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["audience"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.audience"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
+												}
+												obj.Audience = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["hostname"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.terraform_cloud.hostname"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.terraform_cloud.hostname", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
+												}
+												obj.Hostname = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attributes()["spacelift"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Spacelift = nil
+								if !v.IsNull() && !v.IsUnknown() {
+									tf := v
+									obj.Spacelift = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Spacelift{}
+									obj := obj.Spacelift
+									{
+										a, ok := tf.Attributes()["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Spacelift_Rule, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Spacelift_Rule
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Spacelift_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["space_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.allow.space_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow.space_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.SpaceId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["caller_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.allow.caller_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow.caller_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.CallerId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["caller_type"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.allow.caller_type"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow.caller_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.CallerType = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["scope"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.allow.scope"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.allow.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Scope = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["hostname"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.hostname"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.hostname", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
+												}
+												obj.Hostname = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["enable_glob_matching"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.spacelift.enable_glob_matching"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.spacelift.enable_glob_matching", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueBool())
+												}
+												obj.EnableGlobMatching = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attributes()["env0"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Env0 = nil
+								if !v.IsNull() && !v.IsUnknown() {
+									tf := v
+									obj.Env0 = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Env0{}
+									obj := obj.Env0
+									{
+										a, ok := tf.Attributes()["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Env0_Rule, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Env0_Rule
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Env0_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["organization_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.organization_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.organization_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.OrganizationId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["project_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.project_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.project_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.ProjectId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["project_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.project_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.project_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.ProjectName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["template_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.template_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.template_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.TemplateId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["template_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.template_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.template_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.TemplateName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["environment_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.environment_id"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.environment_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.EnvironmentId = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["environment_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.environment_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.environment_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.EnvironmentName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["workspace_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.workspace_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.workspace_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WorkspaceName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["deployment_type"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.deployment_type"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.deployment_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.DeploymentType = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["deployer_email"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.deployer_email"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.deployer_email", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.DeployerEmail = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["env0_tag"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.env0.allow.env0_tag"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.env0.allow.env0_tag", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Env0Tag = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
 											}
 										}
 									}
@@ -7485,6 +8431,524 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 											}
 										}()
 										attrs["bitbucket"] = v
+									}
+								}
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["terraform_cloud"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"ScopedToken.spec.terraform_cloud"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.terraform_cloud", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["terraform_cloud"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.TerraformCloud == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.TerraformCloud
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["allow"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.terraform_cloud.allow"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.terraform_cloud.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["allow"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	copy(elems, oldElems)
+																	for k, a := range obj.Allow {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["organization_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.OrganizationId))
+																						}
+																						attrs["organization_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["organization_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.OrganizationName))
+																						}
+																						attrs["organization_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["project_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.ProjectId))
+																						}
+																						attrs["project_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["project_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.ProjectName))
+																						}
+																						attrs["project_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["workspace_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WorkspaceId))
+																						}
+																						attrs["workspace_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["workspace_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WorkspaceName))
+																						}
+																						attrs["workspace_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["run_phase"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.RunPhase))
+																						}
+																						attrs["run_phase"] = v
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["allow"] = v
+															}
+														}
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["audience"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Audience))
+														}
+														attrs["audience"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["hostname"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Hostname))
+														}
+														attrs["hostname"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["terraform_cloud"] = v
+									}
+								}
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["spacelift"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"ScopedToken.spec.spacelift"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.spacelift", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["spacelift"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Spacelift == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Spacelift
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["allow"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.spacelift.allow"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.spacelift.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["allow"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	copy(elems, oldElems)
+																	for k, a := range obj.Allow {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["space_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.SpaceId))
+																						}
+																						attrs["space_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["caller_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.CallerId))
+																						}
+																						attrs["caller_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["caller_type"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.CallerType))
+																						}
+																						attrs["caller_type"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["scope"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Scope))
+																						}
+																						attrs["scope"] = v
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["allow"] = v
+															}
+														}
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["hostname"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Hostname))
+														}
+														attrs["hostname"] = v
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["enable_glob_matching"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.EnableGlobMatching))
+														}
+														attrs["enable_glob_matching"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["spacelift"] = v
+									}
+								}
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["env0"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"ScopedToken.spec.env0"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.env0", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["env0"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Env0 == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Env0
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["allow"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.env0.allow"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.env0.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["allow"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+																	copy(elems, oldElems)
+																	for k, a := range obj.Allow {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["organization_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.OrganizationId))
+																						}
+																						attrs["organization_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["project_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.ProjectId))
+																						}
+																						attrs["project_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["project_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.ProjectName))
+																						}
+																						attrs["project_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["template_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.TemplateId))
+																						}
+																						attrs["template_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["template_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.TemplateName))
+																						}
+																						attrs["template_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["environment_id"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.EnvironmentId))
+																						}
+																						attrs["environment_id"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["environment_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.EnvironmentName))
+																						}
+																						attrs["environment_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["workspace_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WorkspaceName))
+																						}
+																						attrs["workspace_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["deployment_type"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DeploymentType))
+																						}
+																						attrs["deployment_type"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["deployer_email"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DeployerEmail))
+																						}
+																						attrs["deployer_email"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["env0_tag"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Env0Tag))
+																						}
+																						attrs["env0_tag"] = v
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["allow"] = v
+															}
+														}
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["env0"] = v
 									}
 								}
 							}

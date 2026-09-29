@@ -188,6 +188,13 @@ type ProvisionToken interface {
 	GetCircleCI() *ProvisionTokenSpecV2CircleCI
 	// GetBitbucket returns the bitbucket-specific configuration for this token.
 	GetBitbucket() *ProvisionTokenSpecV2Bitbucket
+	// GetTerraformCloud returns the Terraform Cloud-specific configuration for
+	// this token.
+	GetTerraformCloud() *ProvisionTokenSpecV2TerraformCloud
+	// GetSpacelift returns the Spacelift-specific configuration for this token.
+	GetSpacelift() *ProvisionTokenSpecV2Spacelift
+	// GetEnv0 returns the env0-specific configuration for this token.
+	GetEnv0() *ProvisionTokenSpecV2Env0
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -654,6 +661,22 @@ func (p *ProvisionTokenV2) GetCircleCI() *ProvisionTokenSpecV2CircleCI {
 // GetBitbucket returns the Bitbucket-specific configuration for this token.
 func (p *ProvisionTokenV2) GetBitbucket() *ProvisionTokenSpecV2Bitbucket {
 	return p.Spec.Bitbucket
+}
+
+// GetTerraformCloud returns the Terraform Cloud-specific configuration for this
+// token.
+func (p *ProvisionTokenV2) GetTerraformCloud() *ProvisionTokenSpecV2TerraformCloud {
+	return p.Spec.TerraformCloud
+}
+
+// GetSpacelift returns the Spacelift-specific configuration for this token.
+func (p *ProvisionTokenV2) GetSpacelift() *ProvisionTokenSpecV2Spacelift {
+	return p.Spec.Spacelift
+}
+
+// GetEnv0 returns the env0-specific configuration for this token.
+func (p *ProvisionTokenV2) GetEnv0() *ProvisionTokenSpecV2Env0 {
+	return p.Spec.Env0
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

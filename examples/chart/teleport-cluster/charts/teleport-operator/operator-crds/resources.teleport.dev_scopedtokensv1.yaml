@@ -253,6 +253,41 @@ spec:
                     description: The unique identifier of the organization. Required.
                     type: string
                 type: object
+              env0:
+                description: Configuration specific to the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of rules allowed by this token. Clients attempting
+                      to join must present a JWT matching at least one of these rules.
+                    items:
+                      properties:
+                        deployer_email:
+                          type: string
+                        deployment_type:
+                          type: string
+                        env0_tag:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        organization_id:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        template_id:
+                          type: string
+                        template_name:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               gcp:
                 description: The GCP-specific configuration used with the "gcp" join
                   method.
@@ -621,6 +656,79 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              spacelift:
+                description: Configuration specific to the "spacelift" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of rules allowed by this token. Clients attempting
+                      to join must present a JWT matching at least one of these rules.
+                    items:
+                      properties:
+                        caller_id:
+                          type: string
+                        caller_type:
+                          type: string
+                        scope:
+                          type: string
+                        space_id:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  enable_glob_matching:
+                    description: Enables glob-style matching for the space_id and
+                      caller_id fields in the rules.
+                    type: boolean
+                  hostname:
+                    description: The hostname of the Spacelift tenant that tokens
+                      will originate from, e.g. `example.app.spacelift.io`
+                    type: string
+                type: object
+              terraform_cloud:
+                description: Configuration specific to the "terraform_cloud" join
+                  method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of rules allowed by this token. Clients attempting
+                      to join must present a JWT matching at least one of these rules.
+                    items:
+                      properties:
+                        organization_id:
+                          type: string
+                        organization_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        run_phase:
+                          type: string
+                        workspace_id:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: The JWT audience (`aud`) to expect as configured
+                      in the `TFC_WORKLOAD_IDENTITY_AUDIENCE_($TAG)` variable set
+                      in Terraform Cloud. If unset, defaults to the Teleport cluster
+                      name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo`
+                      is set in Terraform Cloud, this value should be `foo`. If the
+                      value is your Teleport cluster name, it does not need to be
+                      configured here.
+                    type: string
+                  hostname:
+                    description: The hostname of the Terraform Enterprise instance
+                      expected to issue JWTs accepted by this token. If unset, it
+                      defaults to the default Terraform Cloud issuer, `app.terraform.io`;
+                      otherwise, it must match the `iss` field in JWTs issued by the
+                      Terraform Enterprise provider.
+                    type: string
+                type: object
               tpm:
                 description: Configuration specific to the "tpm" join method.
                 nullable: true
