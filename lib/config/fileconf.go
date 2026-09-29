@@ -2511,6 +2511,10 @@ type Apps struct {
 	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
 	// application targets are not allowed to resolve to.
 	DeniedHosts []string `yaml:"denied_hosts,omitempty"`
+
+	// ResponseHeaderTimeout caps how long to wait for an HTTP application
+	// target to start sending response headers. Defaults to one hour when unset.
+	ResponseHeaderTimeout types.Duration `yaml:"response_header_timeout,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
