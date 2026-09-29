@@ -25,3 +25,8 @@ For the purpose of this guide, assign two separate role mappings:
 
 - A more permissive role mapping: <Var name="mapping_1" initial="groups,admins,auditor,editor" />
 - A more restrictive role mapping: <Var name="mapping_2" initial="groups,devs,access" />
+
+Edit <Var name="mapping_1" /> and <Var name="mapping_2" /> to match the
+{{fieldType}} values from your identity provider and the Teleport roles you
+want to assign. You will use these role mappings when you configure the
+authentication connector.

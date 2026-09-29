@@ -1,5 +1,5 @@
 ---
-title: Analyze and Correlate GitHub Audit Logs and Access Paths
+title: Correlate GitHub Audit Logs and Access Paths
 sidebar_label: GitHub
 description: Describes how to import and correlate GitHub Audit Logs and Access Paths using Identity Security.
 tags:
@@ -10,8 +10,8 @@ enterprise: Identity Security
 page_type: how-to
 ---
 
-This guide shows you how to configure Teleport Identity Security to import
-GitHub Audit Logs, providing enhanced visibility and alerts for suspicious
+This guide shows you how to configure **Teleport Identity Security** to import
+**GitHub Audit Logs**, providing enhanced visibility and alerts for suspicious
 activities.
 
 (!docs/pages/includes/policy/identity-activity-center.mdx!)
@@ -49,7 +49,6 @@ expand **Developer settings** and select **GitHub Apps**. In the top-right corne
 
 Fill in the application name, deactivate **Webhook**, and select the requested permissions:
 
-
 * Repository permissions
   - Metadata: Read-only
 * Organization permissions
@@ -60,18 +59,22 @@ Fill in the application name, deactivate **Webhook**, and select the requested p
   - Personal access token requests: Read-only
   - Personal access tokens: Read-only
 
+GitHub gates the **Custom organization roles** and **Custom repository roles**
+permissions behind GitHub Enterprise Cloud. You can still select both on any
+organization, but they have no effect unless your GitHub organization is on
+Enterprise Cloud, so don't worry if you don't see them do anything.
+
 Once selected, click the **Create GitHub App** button. Navigate to the newly created App settings
 and click the **Generate Private Key** button. Clicking this button will trigger a private key
 file download. Save the file for later. Also copy the **Client ID** displayed in
 the App's **About** section.
 
 To restrict access to specific IPs, you can configure the **IP allow list** section
-to allow access only from the Teleport Auth Service’s IP addresses.
+to allow access only from the Teleport Auth Service's IP addresses.
 
 Finally, select **Install App** and install the application into the desired organization.
 
-
-## Step 2/2. Set up Audit Log and Access Path Sync
+## Step 2/2. Set up audit log and access path sync
 
 To initiate the setup wizard for configuring GitHub sync, access the Teleport UI,
 click the Identity Security sidebar button, and then click **Integrations**.
