@@ -60,6 +60,7 @@ func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
 			}
 			return cluster, nil
 		},
+		ValidateFunc: validateKubeCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,19 +156,12 @@ func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := validateKubeCluster(cluster); err != nil {
-		return trace.Wrap(err)
-	}
-
 	_, err := s.svc.CreateResource(ctx, cluster)
 	return trace.Wrap(err)
 }
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := validateKubeCluster(cluster); err != nil {
-		return trace.Wrap(err)
-	}
 	_, err := s.svc.UpdateResource(ctx, cluster)
 	return trace.Wrap(err)
 }

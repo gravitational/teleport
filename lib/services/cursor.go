@@ -27,6 +27,8 @@ func GetCursorForResource(r types.ResourceWithLabels) string {
 	switch res := r.(type) {
 	case types.AppServer:
 		return GetCursorForAppServer(res)
+	case types.Application:
+		return GetCursorForApp(res)
 	case types.KubeServer:
 		return GetCursorForKubeServer(res)
 	case types.Server:

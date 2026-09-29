@@ -261,6 +261,15 @@ type ReadProxyAccessPoint interface {
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
+
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
+
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
+
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 
@@ -649,6 +658,15 @@ type ReadAppsAccessPoint interface {
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
+
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
+
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
+
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 }
 
 // AppsAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -902,6 +920,15 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
+
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
+
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
+
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 
 	// DiscoveryConfigsGetter lists and reads discovery config resources.
 	services.DiscoveryConfigsGetter

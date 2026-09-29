@@ -42,6 +42,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -64,6 +65,12 @@ type AppGetter interface {
 	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 }
 
 // Applications defines an interface for managing application resources.
@@ -76,6 +83,8 @@ type Applications interface {
 	UpdateApp(context.Context, types.Application) error
 	// DeleteApp removes the specified application resource.
 	DeleteApp(ctx context.Context, name string) error
+	// DeleteApplication removes a scoped or unscoped application.
+	DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error
 	// DeleteAllApps removes all database resources.
 	DeleteAllApps(context.Context) error
 }
@@ -363,6 +372,13 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 // and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
 func GetCursorForAppServer(server types.AppServer) string {
 	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
+
+// GetCursorForApp returns the resource cursor identifying an app in the logical
+// resource stream: "<name>" for unscoped apps and "~scoped/<encoded-scope>/<name>"
+// for scoped apps.
+func GetCursorForApp(app types.Application) string {
+	return scopes.MakeResourceCursor(app.GetScope(), app.GetName())
 }
 
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An

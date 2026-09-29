@@ -337,7 +337,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
 	if cfg.Apps == nil {
-		cfg.Apps = local.NewAppService(cfg.Backend)
+		cfg.Apps, err = local.NewAppService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
