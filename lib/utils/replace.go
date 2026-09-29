@@ -321,12 +321,16 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			} else if !ok {
 				continue
 			}
-			// if the resource is cluster-wide, the command is deny and it's a wildcard resource
-			// match all resources.
-			if isClusterWideResource && isDeny && resource.Name == types.Wildcard {
-				return true, nil
-			} else if isClusterWideResource {
-				return !isDeny, nil
+			if isClusterWideResource {
+				if !isDeny {
+					return true, nil
+				}
+				// A deny with a wildcard name matches all cluster-wide resources, unless
+				// it's scoped to a specific namespace, which can't cover them.
+				if resource.Name == types.Wildcard && (resource.Namespace == "" || resource.Namespace == types.Wildcard) {
+					return true, nil
+				}
+				continue
 			}
 
 			// If we are listing a namespaced resource, we can't match against a cluster-wide entry.
