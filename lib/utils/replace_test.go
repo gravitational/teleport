@@ -1284,6 +1284,53 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			matches: false,
 		},
 		{
+			name: "list clusterrole with wildcard deny scoped to a namespace",
+			input: types.KubernetesResource{
+				Kind:  "clusterroles",
+				Verbs: []string{types.KubeVerbList},
+			},
+			isClusterWide: true,
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: "default",
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "list clusterrole with non-matching deny followed by wildcard deny",
+			input: types.KubernetesResource{
+				Kind:  "clusterroles",
+				Verbs: []string{types.KubeVerbList},
+			},
+			isClusterWide: true,
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "s*",
+					Namespace: types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					APIGroup:  types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
 			name: "list namespace with resource giving read access to namespace",
 			input: types.KubernetesResource{
 				Kind:  "namespaces",
