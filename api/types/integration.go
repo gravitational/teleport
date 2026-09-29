@@ -74,6 +74,12 @@ const (
 	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
 )
 
+const (
+	// IntegrationGitHubOAuthCallbackPath is the path for the authenticated
+	// callback URL used by GitHub integration OAuth flows.
+	IntegrationGitHubOAuthCallbackPath = "/web/github/integration/callback"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels

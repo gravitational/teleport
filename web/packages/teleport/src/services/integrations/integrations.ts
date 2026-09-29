@@ -714,6 +714,7 @@ function makeIntegration(json: any): Integration {
       details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
+        oauthCallbackUrl: github.oauthCallbackUrl,
       },
     };
   }

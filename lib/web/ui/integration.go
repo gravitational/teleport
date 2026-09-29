@@ -128,7 +128,8 @@ func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
 
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
-	Organization string `json:"organization"`
+	Organization     string `json:"organization"`
+	OAuthCallbackURL string `json:"oauthCallbackUrl"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -377,6 +378,8 @@ type UpdateIntegrationRequest struct {
 	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// OAuth contains OAuth settings.
 	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
+	// GitHub contains the GitHub-specific fields.
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
@@ -499,7 +502,8 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			return nil, trace.BadParameter("missing spec for GitHub integrations")
 		}
 		ret.GitHub = &IntegrationGitHub{
-			Organization: spec.Organization,
+			Organization:     spec.Organization,
+			OAuthCallbackURL: spec.OAuthCallbackURL,
 		}
 
 	case types.IntegrationSubKindAWSRolesAnywhere:

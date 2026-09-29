@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -109,6 +110,11 @@ type ServiceConfig struct {
 	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
+	// NotifyGitHubCallbackMigration is called after integration changes to
+	// update the GitHub OAuth callback migration notification.
+	NotifyGitHubCallbackMigration func()
+	// ProxyPublicAddrGetter gets the public proxy address for validation.
+	ProxyPublicAddrGetter func(context.Context) string
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -148,6 +154,13 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 
+	if s.NotifyGitHubCallbackMigration == nil {
+		return trace.BadParameter("NotifyGitHubCallbackMigration is required")
+	}
+	if s.ProxyPublicAddrGetter == nil {
+		return trace.BadParameter("ProxyPublicAddrGetter is required")
+	}
+
 	return nil
 }
 
@@ -163,6 +176,8 @@ type Service struct {
 	emitter         apievents.Emitter
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
+	notifyGitHubCallbackMigration   func()
+	proxyPublicAddrGetter           func(context.Context) string
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -172,15 +187,16 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:          cfg.Logger,
-		authorizer:      cfg.Authorizer,
-		cache:           cfg.Cache,
-		keyStoreManager: cfg.KeyStoreManager,
-		backend:         cfg.Backend,
-		clock:           cfg.Clock,
-		emitter:         cfg.Emitter,
-
+		logger:                          cfg.Logger,
+		authorizer:                      cfg.Authorizer,
+		cache:                           cfg.Cache,
+		keyStoreManager:                 cfg.KeyStoreManager,
+		backend:                         cfg.Backend,
+		clock:                           cfg.Clock,
+		emitter:                         cfg.Emitter,
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
+		notifyGitHubCallbackMigration:   cfg.NotifyGitHubCallbackMigration,
+		proxyPublicAddrGetter:           cfg.ProxyPublicAddrGetter,
 	}, nil
 }
 
@@ -262,7 +278,14 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
-		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
+		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
@@ -307,6 +330,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
 	}
 
+	s.postWriteOp(ig)
 	return igV1, nil
 }
 
@@ -322,6 +346,20 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.GetIntegration().GetSubKind() == types.IntegrationSubKindGitHub {
+		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		// Allow empty oauth_callback_url for backwards compatibility or
+		// temporary rollback.
+		if spec.OAuthCallbackURL != "" {
+			if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
 	if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
@@ -364,7 +402,26 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
 	}
 
+	s.postWriteOp(ig)
 	return igV1, nil
+}
+
+func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackURL string) error {
+	proxyAddr, err := utils.ParseAddr(s.proxyPublicAddrGetter(ctx))
+	if err != nil {
+		return trace.Wrap(err, "parsing proxy addr")
+	}
+
+	// Accept with or without the default HTTPS port.
+	allowed := []string{fmt.Sprintf("https://%s%s", proxyAddr.String(), types.IntegrationGitHubOAuthCallbackPath)}
+	if proxyAddr.Port(0) == 443 {
+		allowed = append(allowed, fmt.Sprintf("https://%s%s", proxyAddr.Host(), types.IntegrationGitHubOAuthCallbackPath))
+	}
+
+	if !slices.Contains(allowed, callbackURL) {
+		return trace.BadParameter("oauth_callback_url %q does not match expected %q", callbackURL, allowed[len(allowed)-1])
+	}
+	return nil
 }
 
 func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {
@@ -453,6 +510,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		s.logger.WarnContext(ctx, "Failed to emit integration delete event.", "error", err)
 	}
 
+	s.postWriteOp(ig)
 	return &emptypb.Empty{}, nil
 }
 
@@ -550,4 +608,10 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 	}
 
 	return nil
+}
+
+func (s *Service) postWriteOp(ig types.Integration) {
+	if ig.GetSubKind() == types.IntegrationSubKindGitHub {
+		go s.notifyGitHubCallbackMigration()
+	}
 }
